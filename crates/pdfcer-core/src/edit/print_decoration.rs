@@ -107,6 +107,7 @@ impl EditSession {
             quad_point_order: self.quad_point_order,
             redact_options: self.redact_options,
             widget_tab_tail: self.widget_tab_tail,
+            rich_style_precedence: self.rich_style_precedence,
             tab_row_tolerance: self.tab_row_tolerance,
             xmp_sync: self.xmp_sync,
             page_objects_cache: None,

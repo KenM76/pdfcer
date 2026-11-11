@@ -421,11 +421,17 @@ pub(crate) fn cmd_promote_dr_fonts(
 
 /// `regenerate-appearances`: rebuild widget appearances and clear
 /// /NeedAppearances (Pass 7.1, R51).
-pub(crate) fn cmd_regenerate_appearances(input: &Path, output: &Path, mode: SaveMode) -> u8 {
+pub(crate) fn cmd_regenerate_appearances(
+    input: &Path,
+    output: &Path,
+    mode: SaveMode,
+    rich_style_precedence: Option<RichStylePrecedenceArg>,
+) -> u8 {
     let (source, mut session) = match open_for_edit(input) {
         Ok(pair) => pair,
         Err(code) => return code,
     };
+    apply_rich_style_precedence(&mut session, rich_style_precedence);
     let outcome = match session.regenerate_appearances() {
         Ok(o) => o,
         Err(err) => return report_edit_error(input, &err),

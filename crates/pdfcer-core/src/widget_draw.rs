@@ -67,6 +67,8 @@ pub struct WidgetAppearances {
     /// Widget id -> (field index, widget index).
     index: HashMap<ObjId, (usize, usize)>,
     fonts: Vec<FontResource>,
+    faces: Vec<crate::richtext::draw::DrFace>,
+    precedence: crate::richtext::RichStylePrecedence,
     default_da: Vec<u8>,
 }
 
@@ -81,8 +83,11 @@ impl WidgetAppearances {
                 index.insert(widget.id, (fi, wi));
             }
         }
+        let fonts = EditSession::dr_fonts_of(view, view);
         Some(Self {
-            fonts: EditSession::dr_fonts_of(view, view),
+            faces: crate::richtext::draw::dr_faces(view, &fonts),
+            fonts,
+            precedence: crate::richtext::RichStylePrecedence::default(),
             default_da: form
                 .default_appearance
                 .clone()
@@ -90,6 +95,18 @@ impl WidgetAppearances {
             fields: form.fields,
             index,
         })
+    }
+
+    /// Draw rich-text fields with `precedence` between `/DS` and `/DA`
+    /// (RT-A6) instead of the default, as an editing session set the same
+    /// way would.
+    #[must_use]
+    pub const fn with_rich_style_precedence(
+        mut self,
+        precedence: crate::richtext::RichStylePrecedence,
+    ) -> Self {
+        self.precedence = precedence;
+        self
     }
 
     /// The appearance pdfcer would draw for widget `widget_id`, with the
@@ -188,7 +205,7 @@ impl WidgetAppearances {
             FieldType::Signature => return None,
         };
         let rich = (kind == SynthesizedKind::Text)
-            .then(|| crate::richtext::draw::plan(field, None, da, &self.fonts, &mut notes))
+            .then(|| self.rich_plan(field, da, &mut notes))
             .flatten();
         if let Some(plan) = rich {
             let ap =
@@ -213,6 +230,21 @@ impl WidgetAppearances {
             kind,
             notes,
         })
+    }
+
+    /// The rich-text plan for a text field's stored `/RV`, if it has one.
+    fn rich_plan(
+        &self,
+        field: &Field,
+        da: &[u8],
+        notes: &mut DisplayNotes,
+    ) -> Option<crate::richtext::draw::RichPlan> {
+        let env = crate::richtext::draw::RichEnv {
+            fonts: &self.fonts,
+            faces: &self.faces,
+            precedence: self.precedence,
+        };
+        crate::richtext::draw::plan(field, None, da, &env, notes)
     }
 
     #[allow(clippy::too_many_arguments)] // the layout inputs, one each.

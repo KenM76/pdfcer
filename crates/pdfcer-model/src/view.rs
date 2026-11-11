@@ -392,6 +392,10 @@ impl ObjectGraph for DocumentView<'_> {
     fn trailer_entry(&self, key: &[u8]) -> Option<&Object> {
         self.graph.trailer_entry(key)
     }
+
+    fn stream_raw(&self, stream: &crate::object::Stream) -> Option<&[u8]> {
+        self.slice(stream.data_span)
+    }
 }
 
 impl std::fmt::Debug for DocumentView<'_> {

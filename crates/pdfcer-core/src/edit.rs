@@ -270,7 +270,8 @@ use crate::pageops::references::{DanglingReport, census_dangling};
 use crate::pageops::separation::{SeparationImpact, SeparationPolicy, SeparationSplitRefused};
 use crate::pageops::{self, DeletedPageLabels, ReorderedPageLabels};
 use crate::settings::{
-    MAX_TAB_ROW_TOLERANCE, MIN_TAB_ROW_TOLERANCE, QuadPointOrder, WidgetTabTail,
+    MAX_TAB_ROW_TOLERANCE, MIN_TAB_ROW_TOLERANCE, QuadPointOrder, RichStylePrecedence,
+    WidgetTabTail,
 };
 #[cfg(feature = "signing")]
 use crate::sign::ltv::{DssReport, MaterialKind, ValidationMaterial};
@@ -10463,6 +10464,9 @@ pub struct EditSession {
     /// [`Self::set_quad_point_order`] for why). Defaults to
     /// [`WidgetTabTail::ArrayOrder`], Table 31's reading.
     widget_tab_tail: WidgetTabTail,
+    /// Whether `/DS` or `/DA` supplies a rich-text run's unset font, size
+    /// and colour — spec ambiguity RT-A6. Set by the shell.
+    rich_style_precedence: RichStylePrecedence,
     /// How far apart two annotations' leading edges may be and still be one
     /// row (or column) under `/Tabs /R` or `/C`, in points.
     ///
@@ -10642,6 +10646,7 @@ impl EditSession {
             quad_point_order: QuadPointOrder::default(),
             redact_options: crate::redact::RedactOptions::default(),
             widget_tab_tail: WidgetTabTail::default(),
+            rich_style_precedence: RichStylePrecedence::default(),
             tab_row_tolerance: crate::settings::DEFAULT_TAB_ROW_TOLERANCE,
             xmp_sync: XmpSyncOptions::default(),
             page_objects_cache: None,
@@ -10717,6 +10722,22 @@ impl EditSession {
     #[must_use]
     pub const fn widget_tab_tail(&self) -> WidgetTabTail {
         self.widget_tab_tail
+    }
+
+    /// Choose whether `/DS` or `/DA` supplies the font, size and colour of
+    /// a rich-text run that sets none itself, when drawing a rich-text
+    /// field's appearance — spec ambiguity RT-A6, which ISO 32000-1 leaves
+    /// open. A run's own style wins under either. See
+    /// [`RichStylePrecedence`].
+    pub const fn set_rich_style_precedence(&mut self, precedence: RichStylePrecedence) {
+        self.rich_style_precedence = precedence;
+    }
+
+    /// Which of `/DS` and `/DA` this session's rich-text appearances put
+    /// first.
+    #[must_use]
+    pub const fn rich_style_precedence(&self) -> RichStylePrecedence {
+        self.rich_style_precedence
     }
 
     /// Set how far apart two annotations' leading edges may be and still
@@ -20939,6 +20960,14 @@ impl ObjectGraph for EditSession {
         // created `/Info` this session must see it here (Pass 3.1).
         self.trailer.get(key)
     }
+
+    fn stream_raw(&self, stream: &Stream) -> Option<&[u8]> {
+        StreamSource::Split {
+            base: self.base.bytes(),
+            staged: &self.staging,
+        }
+        .slice(stream.data_span)
+    }
 }
 
 impl ObjectGraph for SessionGraph<'_> {
@@ -20950,6 +20979,10 @@ impl ObjectGraph for SessionGraph<'_> {
         // Delegates to `<EditSession as ObjectGraph>` so there is exactly
         // one definition of "the session's trailer" (see that impl).
         ObjectGraph::trailer_entry(self.session, key)
+    }
+
+    fn stream_raw(&self, stream: &Stream) -> Option<&[u8]> {
+        ObjectGraph::stream_raw(self.session, stream)
     }
 }
 
@@ -20978,6 +21011,10 @@ impl ObjectGraph for PendingGraph<'_> {
 
     fn trailer_entry(&self, key: &[u8]) -> Option<&Object> {
         self.session.trailer.get(key)
+    }
+
+    fn stream_raw(&self, stream: &Stream) -> Option<&[u8]> {
+        ObjectGraph::stream_raw(self.session, stream)
     }
 }
 
@@ -42444,7 +42481,13 @@ impl EditSession {
             .or(form.default_appearance.as_deref())
             .unwrap_or(b"/Helv 0 Tf 0 g");
         let fonts = self.resolve_dr_fonts();
-        let _ = crate::richtext::draw::plan(field, None, da, &fonts, &mut notes);
+        let faces = crate::richtext::draw::dr_faces(&self.graph(), &fonts);
+        let env = crate::richtext::draw::RichEnv {
+            fonts: &fonts,
+            faces: &faces,
+            precedence: self.rich_style_precedence,
+        };
+        let _ = crate::richtext::draw::plan(field, None, da, &env, &mut notes);
         notes
     }
 
@@ -45351,9 +45394,19 @@ impl EditSession {
             .clone()
             .unwrap_or_else(|| default_da.to_vec());
         let rich_rv = pending.rich_value.as_ref().map(Option::as_deref);
+        let faces = if field.is_rich_text() {
+            crate::richtext::draw::dr_faces(&self.graph(), fonts)
+        } else {
+            Vec::new()
+        };
+        let env = crate::richtext::draw::RichEnv {
+            fonts,
+            faces: &faces,
+            precedence: self.rich_style_precedence,
+        };
         let rich = list_rows
             .is_none()
-            .then(|| crate::richtext::draw::plan(field, rich_rv, &da, fonts, &mut notes))
+            .then(|| crate::richtext::draw::plan(field, rich_rv, &da, &env, &mut notes))
             .flatten();
         let (shown, red) = match (&list_rows, &rich) {
             (Some(_), _) | (_, Some(_)) => (String::new(), false),
@@ -46635,15 +46688,7 @@ impl EditSession {
             codes: None,
             cid: None,
         }];
-        let dr_font = graph
-            .catalog_dict()
-            .and_then(|c| c.get(b"AcroForm").map(|o| graph.resolve(o)))
-            .and_then(Object::as_dict)
-            .and_then(|af| af.get(b"DR").map(|o| graph.resolve(o)))
-            .and_then(Object::as_dict)
-            .and_then(|dr| dr.get(b"Font").map(|o| graph.resolve(o)))
-            .and_then(Object::as_dict)
-            .cloned();
+        let dr_font = Self::dr_font_dict(graph);
         if let Some(fonts) = dr_font {
             for (name, val) in fonts.iter() {
                 let fd = graph.resolve(val).as_dict();
@@ -46702,13 +46747,9 @@ impl EditSession {
         Self::bind_dr_fonts_of(&self.graph(), &self.view(), ap_dict);
     }
 
-    /// [`Self::bind_dr_fonts`] over any read view.
-    pub(crate) fn bind_dr_fonts_of(
-        graph: &impl ObjectGraph,
-        view: &DocumentView<'_>,
-        ap_dict: &mut Dict,
-    ) {
-        let Some(dr_fonts) = graph
+    /// The AcroForm `/DR /Font` dictionary (§12.7.2 Table 224), if any.
+    pub(crate) fn dr_font_dict(graph: &impl ObjectGraph) -> Option<Dict> {
+        graph
             .catalog_dict()
             .and_then(|c| c.get(b"AcroForm").map(|o| graph.resolve(o)))
             .and_then(Object::as_dict)
@@ -46717,7 +46758,15 @@ impl EditSession {
             .and_then(|dr| dr.get(b"Font").map(|o| graph.resolve(o)))
             .and_then(Object::as_dict)
             .cloned()
-        else {
+    }
+
+    /// [`Self::bind_dr_fonts`] over any read view.
+    pub(crate) fn bind_dr_fonts_of(
+        graph: &impl ObjectGraph,
+        view: &DocumentView<'_>,
+        ap_dict: &mut Dict,
+    ) {
+        let Some(dr_fonts) = Self::dr_font_dict(graph) else {
             return;
         };
         let Some(Object::Dict(mut res)) = ap_dict.get(b"Resources").cloned() else {
@@ -46746,7 +46795,7 @@ impl EditSession {
     /// encoded `/WinAnsiEncoding` with no `/Differences` (the generator's own
     /// bytes), or carrying a code table [`Self::simple_font_codes`] can read
     /// and its own `/Widths` to measure those codes with.
-    fn dr_font_is_bindable(graph: &impl ObjectGraph, fd: &Dict) -> bool {
+    pub(crate) fn dr_font_is_bindable(graph: &impl ObjectGraph, fd: &Dict) -> bool {
         let simple = fd
             .get(b"Subtype")
             .and_then(Object::as_name)

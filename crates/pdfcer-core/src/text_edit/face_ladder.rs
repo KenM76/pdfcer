@@ -415,7 +415,7 @@ pub fn postscript_name_matches(postscript_name: &str, base_font: &str) -> bool {
 /// A family name reduced for comparison: ASCII alphanumerics, lowercased,
 /// a trailing `PSMT`/`MT`/`PS` dropped (`TimesNewRomanPSMT` and
 /// `Times New Roman` compare equal).
-fn family_key(name: &str) -> String {
+pub(crate) fn family_key(name: &str) -> String {
     let key: String = name
         .chars()
         .filter(char::is_ascii_alphanumeric)

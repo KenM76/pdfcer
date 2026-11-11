@@ -737,6 +737,7 @@ pub trait ObjectGraph: Send + Sync {
     fn resolved(&self, id: ObjId) -> &Object;                   //  provided
     fn catalog_dict(&self) -> Option<&Dict>;                    //  provided
     fn catalog_id(&self) -> Option<ObjId>;                      //  provided
+    fn stream_raw(&self, stream: &Stream) -> Option<&[u8]>;     //  provided, None
 }
 ```
 
@@ -747,6 +748,11 @@ correct for both the file-as-loaded and the file-as-edited
 (`graph.rs`). The §7.3.10 resolution rules (dangling → null, cycle
 depth-guarded) live in the provided methods so no view can get them subtly
 different (`graph.rs`).
+
+`stream_raw` returns a stream's undecoded data bytes (feed them to
+`filters::decode_stream`). The default is `None`; `Document`,
+`DocumentView` and the `EditSession` graphs override it, so a custom
+implementor that does not reads every stream as absent.
 
 **Which do you pass?** If a function takes `&G: ObjectGraph`, pass
 `&doc` for the base file or `&session` for edited state. If it takes

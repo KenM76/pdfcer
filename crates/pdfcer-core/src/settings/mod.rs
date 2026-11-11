@@ -1316,6 +1316,8 @@ pub use crate::writer::{EditedStreamCompression, TrailingEol, XrefEntryEol};
 
 pub use crate::annot_author::FreeTextC;
 
+pub use crate::richtext::RichStylePrecedence;
+
 /// The operator's persisted choices.
 ///
 /// Deliberately a flat struct of plain values. Grouping into
@@ -1542,6 +1544,10 @@ pub struct Settings {
     /// and by `EditSession::bake_missing_appearances`, so both agree. Key
     /// `free_text_c`.
     pub free_text_c: FreeTextC,
+    /// Whether a rich-text field's `/DS` or `/DA` supplies the font, size
+    /// and colour a run does not set — ambiguity RT-A6 (§12.7.3.4). Key
+    /// `rich_style_precedence`.
+    pub rich_style_precedence: RichStylePrecedence,
 }
 
 impl Default for Settings {
@@ -1615,6 +1621,7 @@ impl Default for Settings {
             edited_stream_compression: crate::writer::SaveOptions::default()
                 .edited_stream_compression,
             free_text_c: FreeTextC::default(),
+            rich_style_precedence: RichStylePrecedence::default(),
         }
     }
 }
@@ -1940,6 +1947,14 @@ const fn free_text_c_token(c: FreeTextC) -> &'static str {
     match c {
         FreeTextC::Fill => "fill",
         FreeTextC::Border => "border",
+    }
+}
+
+/// The settings-file token for a [`RichStylePrecedence`].
+const fn rich_style_precedence_token(p: RichStylePrecedence) -> &'static str {
+    match p {
+        RichStylePrecedence::DefaultAppearanceFirst => "default_appearance_first",
+        RichStylePrecedence::RichStyleFirst => "rich_style_first",
     }
 }
 
@@ -2336,6 +2351,21 @@ impl Settings {
                     value: value.to_owned(),
                     line,
                     using: free_text_c_token(Self::default().free_text_c).to_owned(),
+                }),
+            },
+            "rich_style_precedence" => match value {
+                "rich_style_first" => {
+                    self.rich_style_precedence = RichStylePrecedence::RichStyleFirst;
+                }
+                "default_appearance_first" => {
+                    self.rich_style_precedence = RichStylePrecedence::DefaultAppearanceFirst;
+                }
+                _ => notes.push(SettingNote::BadValue {
+                    key: key.to_owned(),
+                    value: value.to_owned(),
+                    line,
+                    using: rich_style_precedence_token(Self::default().rich_style_precedence)
+                        .to_owned(),
                 }),
             },
             "missing_as" => match value {
@@ -2875,6 +2905,19 @@ impl Settings {
             out,
             "free_text_c = {}\n",
             free_text_c_token(self.free_text_c)
+        );
+
+        out.push_str(
+            "# A rich-text form field's style string and its default appearance can\n\
+             # both set the font, size and colour of text that sets none itself;\n\
+             # the standard does not say which wins.\n\
+             #   rich_style_first         = the style string wins (default)\n\
+             #   default_appearance_first = the default appearance wins\n",
+        );
+        let _ = writeln!(
+            out,
+            "rich_style_precedence = {}\n",
+            rich_style_precedence_token(self.rich_style_precedence)
         );
 
         out.push_str(
@@ -3519,6 +3562,8 @@ mod tests {
             edited_stream_compression: EditedStreamCompression::AsAuthored,
             // NOT the default (`Fill`), same reason.
             free_text_c: FreeTextC::Border,
+            // NOT the default (`RichStyleFirst`), same reason.
+            rich_style_precedence: RichStylePrecedence::DefaultAppearanceFirst,
             // NOT the default (`None`), and deliberately a value that is a
             // whole number of GiB so the friendly writer's suffix branch is
             // the one exercised — a round trip that only ever went through

@@ -181,6 +181,10 @@ impl<G: ObjectGraph + ?Sized> ObjectGraph for Overlay<'_, G> {
     fn trailer_entry(&self, key: &[u8]) -> Option<&Object> {
         self.base.trailer_entry(key)
     }
+
+    fn stream_raw(&self, stream: &crate::object::Stream) -> Option<&[u8]> {
+        self.base.stream_raw(stream)
+    }
 }
 
 /// The ops and resources for [`FormatRequest::set_fill_alpha`]: `/k1 gs`

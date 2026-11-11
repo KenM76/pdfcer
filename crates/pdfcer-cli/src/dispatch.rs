@@ -2804,6 +2804,7 @@ pub(crate) fn run() -> ExitCode {
             downgrade_rich_text,
             rich_text,
             rich_plain_concatenated,
+            rich_style_precedence,
             store_password_values,
         } => cmd_fill_field(
             &input,
@@ -2818,6 +2819,7 @@ pub(crate) fn run() -> ExitCode {
                 } else {
                     pdfcer_core::richtext::FlatText::ParagraphLines
                 }),
+                rich_style_precedence,
                 store_password_values,
             },
         ),
@@ -2825,7 +2827,8 @@ pub(crate) fn run() -> ExitCode {
             input,
             output,
             mode,
-        } => cmd_regenerate_appearances(&input, &output, mode),
+            rich_style_precedence,
+        } => cmd_regenerate_appearances(&input, &output, mode, rich_style_precedence),
         Command::PrintReady {
             input,
             output,

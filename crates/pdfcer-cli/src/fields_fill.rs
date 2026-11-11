@@ -54,6 +54,7 @@ pub(crate) fn cmd_fill_field(
         Ok(pair) => pair,
         Err(code) => return code,
     };
+    apply_rich_style_precedence(&mut session, policy.rich_style_precedence);
 
     // Model the form once up front to know each field's type. The session is
     // still at the base revision here, so the model is the file as loaded;
@@ -104,7 +105,50 @@ pub(crate) struct TextFillPolicy {
     /// `--rich-text`: a rich-text field's VALUE is `/RV`, and `/V` is its
     /// plain text joined this way.
     pub(crate) rich_text: Option<pdfcer_core::richtext::FlatText>,
+    /// `--rich-style-precedence`; `None` = the stored setting.
+    pub(crate) rich_style_precedence: Option<RichStylePrecedenceArg>,
     pub(crate) store_password_values: bool,
+}
+
+/// `--rich-style-precedence`: which of a rich-text field's `/DS` and `/DA`
+/// supplies an unset font, size or colour (RT-A6). Absent means the stored
+/// `rich_style_precedence` setting.
+#[derive(Copy, Clone, Debug, PartialEq, Eq, clap::ValueEnum)]
+pub(crate) enum RichStylePrecedenceArg {
+    /// The style string (/DS) wins.
+    RichStyleFirst,
+    /// The default appearance (/DA) wins.
+    DefaultAppearanceFirst,
+}
+
+impl RichStylePrecedenceArg {
+    /// The core setting this word names.
+    pub(crate) const fn to_core(self) -> pdfcer_core::richtext::RichStylePrecedence {
+        match self {
+            Self::RichStyleFirst => pdfcer_core::richtext::RichStylePrecedence::RichStyleFirst,
+            Self::DefaultAppearanceFirst => {
+                pdfcer_core::richtext::RichStylePrecedence::DefaultAppearanceFirst
+            }
+        }
+    }
+}
+
+/// Hand `session` the RT-A6 precedence: `arg` when given, else the stored
+/// setting (read here, in the shell; core never opens a settings file).
+pub(crate) fn apply_rich_style_precedence(
+    session: &mut pdfcer_core::edit::EditSession,
+    arg: Option<RichStylePrecedenceArg>,
+) {
+    let precedence = arg.map_or_else(
+        || {
+            let (settings, report) =
+                pdfcer_core::settings::Settings::load(pdfcer_core::settings::resolve_store());
+            report_settings(&report);
+            settings.rich_style_precedence
+        },
+        RichStylePrecedenceArg::to_core,
+    );
+    session.set_rich_style_precedence(precedence);
 }
 
 /// Applies one `NAME=VALUE`, choosing the fill path from the field's type.

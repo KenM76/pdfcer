@@ -94,8 +94,9 @@
 //! set the same attribute on a rich-text field. ISO 32000-1 states no
 //! rule; no Acrobat tiebreak has been found either. Under the operator's
 //! standing instruction — never hard-code a choice the standard leaves
-//! open — that resolution is a **setting**, and it does not live here:
-//! this module never reads `/DA`. [`parse`] takes `/RV` and `/DS` only,
+//! open — that resolution is a **setting** ([`RichStylePrecedence`]),
+//! applied where a field's appearance is drawn: this module never reads
+//! `/DA`. [`parse`] takes `/RV` and `/DS` only,
 //! so the precedence question is forced to be answered explicitly by
 //! whoever combines them, rather than silently settled by the order two
 //! branches happen to be written in.
@@ -110,6 +111,8 @@
 use crate::fdf::{XmlElement, XmlNode};
 
 pub(crate) mod draw;
+
+pub use draw::RichStylePrecedence;
 
 /// The deepest element nesting under `<body>` a rich text value may have
 /// (ARCHITECTURE §10). Table 223's grammar needs four (`body > p > b > i`

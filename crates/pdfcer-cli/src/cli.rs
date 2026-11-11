@@ -10078,6 +10078,14 @@ pub(crate) enum Command {
         /// them, as XFA forms derive it, instead of a line break.
         #[arg(long, requires = "rich_text")]
         rich_plain_concatenated: bool,
+        /// When a rich-text field's style string (/DS) and its default
+        /// appearance (/DA) both set the font, size or colour of text that
+        /// sets none itself, which one wins. The standard does not say.
+        /// `rich-style-first`: the style string (the default).
+        /// `default-appearance-first`: the default appearance. Omit to use
+        /// the stored `rich_style_precedence` setting.
+        #[arg(long, value_enum)]
+        rich_style_precedence: Option<RichStylePrecedenceArg>,
         /// Store a PASSWORD field's value in the saved file, in plain text.
         ///
         /// By default a password field is drawn as asterisks and its value
@@ -10105,6 +10113,14 @@ pub(crate) enum Command {
         /// Which save path to use.
         #[arg(long, value_enum, default_value_t = SaveMode::Incremental)]
         mode: SaveMode,
+        /// When a rich-text field's style string (/DS) and its default
+        /// appearance (/DA) both set the font, size or colour of text that
+        /// sets none itself, which one wins. The standard does not say.
+        /// `rich-style-first`: the style string (the default).
+        /// `default-appearance-first`: the default appearance. Omit to use
+        /// the stored `rich_style_precedence` setting.
+        #[arg(long, value_enum)]
+        rich_style_precedence: Option<RichStylePrecedenceArg>,
     },
 
     /// Write the drawn look into markup annotations that have none.

@@ -743,7 +743,9 @@ pub struct Field {
     /// `/TM` — the export mapping name (raw bytes), distinct from `/T`.
     pub mapping_name: Option<Vec<u8>>,
     /// `/RV` — the **rich text value** (§12.7.3.4, PDF 1.5): an XHTML/CSS2
-    /// subset document carrying the field's formatting, raw bytes.
+    /// subset document carrying the field's formatting, raw bytes. Table 228
+    /// allows a text string or a text stream; a stream is held decoded, and
+    /// one that will not decode reads as `None`.
     ///
     /// # Why this is modelled even though pdfcer cannot yet author it
     ///
@@ -786,9 +788,10 @@ pub struct Field {
     /// `/DA` remains Required (Table 222) on a variable-text field, and
     /// **its precedence against `/DS` is undefined** when both could set
     /// the same attribute (RT-A6) — ISO 32000-1 states no rule and no
-    /// Acrobat tiebreak has been found. That resolution is a setting, not a
-    /// default to be picked here; this field's presence deliberately does
-    /// not imply it wins.
+    /// Acrobat tiebreak has been found. That resolution is the
+    /// [`crate::richtext::RichStylePrecedence`] setting, applied when an
+    /// appearance is drawn; this field's presence deliberately does not
+    /// imply it wins.
     pub default_style: Option<Vec<u8>>,
     /// The resolved field type, or `None` for a terminal field with no
     /// resolvable `/FT` (a malformed field — surfaced, not repaired).
@@ -1604,8 +1607,7 @@ fn walk_field<G: ObjectGraph + ?Sized>(
         // destroy the only copy of the formatting.
         rich_value: dict
             .get(b"RV")
-            .map(|o| graph.resolve(o))
-            .and_then(string_bytes),
+            .and_then(|o| rich_text_bytes(graph, graph.resolve(o))),
         // Read on the same terms and for the same reason: `/DS` is not
         // decoration beside `/RV`, it is a REQUIRED input to the same
         // appearance generation (RT-M6 — "This string, in addition to the
@@ -2065,6 +2067,20 @@ fn read_indices<G: ObjectGraph + ?Sized>(graph: &G, dict: &Dict) -> Vec<i64> {
         .and_then(Object::as_array)
         .map(|a| a.iter().filter_map(|o| graph.resolve(o).as_int()).collect())
         .unwrap_or_default()
+}
+
+/// A rich-text value's bytes: a text string as-is, or a text stream
+/// (§12.7.3.4, Table 228 `/RV`) decoded through its filters, bounded by
+/// [`crate::filters::decode_stream`]'s output ceiling. `None` for any other
+/// type, a stream the graph cannot serve, or one that fails to decode.
+fn rich_text_bytes<G: ObjectGraph + ?Sized>(graph: &G, obj: &Object) -> Option<Vec<u8>> {
+    match obj {
+        Object::Stream(stream) => {
+            let raw = graph.stream_raw(stream)?;
+            crate::filters::decode_stream(&stream.dict, raw).ok()
+        }
+        other => string_bytes(other),
+    }
 }
 
 /// The raw bytes of a string object, or `None`.

@@ -9,15 +9,17 @@ use pdfcer_core::edit::{EditError, EditSession};
 use pdfcer_core::forms;
 use pdfcer_core::graph::ObjectGraph as _;
 use pdfcer_core::object::Object;
-use pdfcer_core::richtext::{FlatText, RichTextError};
+use pdfcer_core::richtext::{FlatText, MAX_RICH_BYTES, RichStylePrecedence, RichTextError};
 use pdfcer_core::widget_draw::WidgetAppearances;
 
-fn assemble(bodies: &[String]) -> Vec<u8> {
+fn assemble<B: AsRef<[u8]>>(bodies: &[B]) -> Vec<u8> {
     let mut buf = b"%PDF-1.7\n%\xE2\xE3\xCF\xD3\n".to_vec();
     let mut offsets = Vec::new();
     for (i, body) in bodies.iter().enumerate() {
         offsets.push(buf.len());
-        buf.extend_from_slice(format!("{} 0 obj\n{body}\nendobj\n", i + 1).as_bytes());
+        buf.extend_from_slice(format!("{} 0 obj\n", i + 1).as_bytes());
+        buf.extend_from_slice(body.as_ref());
+        buf.extend_from_slice(b"\nendobj\n");
     }
     let xref_at = buf.len();
     let size = bodies.len() + 1;
@@ -38,21 +40,47 @@ const RICH: i64 = 1 << 25;
 /// A 300x40 text field "t" with `/Ff ff` and `extra` entries, under a form
 /// whose `/DR` holds only Helvetica as `/Helv`.
 fn doc(ff: i64, extra: &str) -> Document {
-    let bodies = [
-        "<< /Type /Catalog /Pages 2 0 R /AcroForm << /Fields [4 0 R] \
-         /DA (/Helv 10 Tf 0 g) /DR << /Font << /Helv 5 0 R >> >> >> >>"
-            .to_owned(),
-        "<< /Type /Pages /Kids [3 0 R] /Count 1 >>".to_owned(),
-        "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 400 200] /Annots [4 0 R] >>".to_owned(),
+    doc_with(ff, extra, &[], &[])
+}
+
+/// As [`doc`], with `/DR` fonts `(name, font dictionary)` as objects 6..,
+/// then `more` objects after them.
+fn doc_with(ff: i64, extra: &str, dr: &[(&str, &str)], more: &[Vec<u8>]) -> Document {
+    let names: String = dr
+        .iter()
+        .enumerate()
+        .map(|(i, (name, _))| format!(" /{name} {} 0 R", i + 6))
+        .collect();
+    let mut bodies = vec![
+        format!(
+            "<< /Type /Catalog /Pages 2 0 R /AcroForm << /Fields [4 0 R] \
+             /DA (/Helv 10 Tf 0 g) /DR << /Font << /Helv 5 0 R{names} >> >> >> >>"
+        )
+        .into_bytes(),
+        b"<< /Type /Pages /Kids [3 0 R] /Count 1 >>".to_vec(),
+        b"<< /Type /Page /Parent 2 0 R /MediaBox [0 0 400 200] /Annots [4 0 R] >>".to_vec(),
         format!(
             "<< /FT /Tx /T (t) /Ff {ff} /Type /Annot /Subtype /Widget /P 3 0 R \
              /Rect [20 50 320 90] {extra} >>"
-        ),
-        "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica \
+        )
+        .into_bytes(),
+        b"<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica \
          /Encoding /WinAnsiEncoding >>"
-            .to_owned(),
+            .to_vec(),
     ];
+    bodies.extend(dr.iter().map(|(_, font)| font.as_bytes().to_vec()));
+    bodies.extend(more.iter().cloned());
     Document::from_bytes(assemble(&bodies)).expect("fixture parses")
+}
+
+/// The font resource name in force at `needle`'s `Tj`.
+fn font_at(content: &str, needle: &str) -> String {
+    let at = content
+        .find(needle)
+        .unwrap_or_else(|| panic!("{needle:?} missing from:\n{content}"));
+    let tf = content[..at].rfind(" Tf").unwrap();
+    let slash = content[..tf].rfind('/').unwrap();
+    content[slash + 1..tf].split(' ').next().unwrap().to_owned()
 }
 
 fn field(s: &EditSession) -> forms::Field {
@@ -284,4 +312,144 @@ fn the_downgrade_draws_the_plain_text_not_the_old_rich_value() {
     let (content, _) = normal_ap(&s);
     assert!(content.contains("(new) Tj"), "{content}");
     assert!(!content.contains("OLD"), "{content}");
+}
+
+/// A simple non-standard TrueType face, WinAnsi-encoded, so `/DR` binds it.
+fn truetype(base: &str) -> String {
+    format!(
+        "<< /Type /Font /Subtype /TrueType /BaseFont /{base} /FirstChar 32 \
+         /LastChar 126 /Widths [{}] /Encoding /WinAnsiEncoding >>",
+        vec!["500"; 95].join(" ")
+    )
+}
+
+#[test]
+fn a_family_resolves_to_its_dr_font_by_base_font() {
+    let courier = "<< /Type /Font /Subtype /Type1 /BaseFont /ABCDEF+Courier-Bold \
+                   /Encoding /WinAnsiEncoding >>";
+    let mut s = EditSession::new(doc_with(RICH, "", &[("CoBo", courier)], &[]));
+    let rv = "<body><p><span style=\"font-family:Courier; font-weight:bold\">x</span>\
+              </p></body>";
+    s.fill_rich_text_field("t", rv, FlatText::default())
+        .unwrap();
+    assert_eq!(font_at(&normal_ap(&s).0, "(x) Tj"), "CoBo");
+}
+
+#[test]
+fn a_run_takes_the_dr_face_of_its_family_in_its_own_weight() {
+    let regular = truetype("ABCDEF+Gadget-Regular");
+    let bold = truetype("GHIJKL+Gadget-Bold");
+    let dr = [("GaR", regular.as_str()), ("GaB", bold.as_str())];
+    let mut s = EditSession::new(doc_with(RICH, "", &dr, &[]));
+    let rv = "<body><p style=\"font-family:'Gadget'\">plain <b>heavy</b></p></body>";
+    let out = s
+        .fill_rich_text_field("t", rv, FlatText::default())
+        .unwrap();
+    let (content, _) = normal_ap(&s);
+    assert_eq!(font_at(&content, "(plain) Tj"), "GaR");
+    assert_eq!(font_at(&content, "(heavy) Tj"), "GaB");
+    assert!(
+        out.notes.rich_fonts.is_empty(),
+        "{:?}",
+        out.notes.rich_fonts
+    );
+}
+
+#[test]
+fn a_stream_rv_is_decoded_and_drawn() {
+    use std::io::Write as _;
+    let rv = b"<body><p><b>S</b></p></body>";
+    let mut z = flate2::write::ZlibEncoder::new(Vec::new(), flate2::Compression::default());
+    z.write_all(rv).unwrap();
+    let packed = z.finish().unwrap();
+    let mut stream = format!(
+        "<< /Length {} /Filter /FlateDecode >>\nstream\n",
+        packed.len()
+    )
+    .into_bytes();
+    stream.extend_from_slice(&packed);
+    stream.extend_from_slice(b"\nendstream");
+    let fixture = || doc_with(RICH, "/V (S) /RV 6 0 R", &[], std::slice::from_ref(&stream));
+    let mut s = EditSession::new(fixture());
+    assert_eq!(field(&s).rich_value.as_deref(), Some(&rv[..]));
+    let out = s.regenerate_appearances().unwrap();
+    assert_eq!(out.display.rich_text, 1);
+    let (content, _) = normal_ap(&s);
+    assert_eq!(font_at(&content, "(S) Tj"), "RtHelveticaBold");
+
+    let d = fixture();
+    let view = d.view();
+    let form = forms::parse_acroform(&view).unwrap();
+    assert_eq!(form.fields[0].rich_value.as_deref(), Some(&rv[..]));
+}
+
+/// A field whose `/DS` and `/DA` disagree on family, size and colour.
+fn disagreeing() -> Document {
+    doc(
+        RICH,
+        "/V (x) /RV (<body><p>x <span style=\"font-size:8pt\">own</span></p></body>) \
+         /DS (font-family:Courier; font-size:14pt; color:#0000ff)",
+    )
+}
+
+#[test]
+fn the_style_string_wins_over_the_default_appearance_by_default() {
+    let mut s = EditSession::new(disagreeing());
+    assert_eq!(
+        s.rich_style_precedence(),
+        RichStylePrecedence::RichStyleFirst
+    );
+    s.regenerate_appearances().unwrap();
+    let (content, _) = normal_ap(&s);
+    let x = content.find("(x) Tj").expect(&content);
+    assert!(content[..x].contains("/RtCourier 14 Tf"), "{content}");
+    assert!(content[..x].contains("0 0 1 rg"), "{content}");
+    assert!(
+        content.contains("/RtCourier 8 Tf"),
+        "own size wins: {content}"
+    );
+}
+
+#[test]
+fn the_default_appearance_can_be_put_first() {
+    let mut s = EditSession::new(disagreeing());
+    s.set_rich_style_precedence(RichStylePrecedence::DefaultAppearanceFirst);
+    s.regenerate_appearances().unwrap();
+    let (content, _) = normal_ap(&s);
+    let x = content.find("(x) Tj").expect(&content);
+    assert!(content[..x].contains("/Helv 10 Tf"), "{content}");
+    assert!(!content[..x].contains("0 0 1 rg"), "{content}");
+    assert!(content.contains("/Helv 8 Tf"), "own size wins: {content}");
+
+    let d = disagreeing();
+    let view = d.view();
+    let id = field(&s).widgets[0].id;
+    let form = WidgetAppearances::read(&view)
+        .unwrap()
+        .with_rich_style_precedence(RichStylePrecedence::DefaultAppearanceFirst);
+    let drawn = String::from_utf8_lossy(&form.appearance(&view, id).unwrap().content).into_owned();
+    assert_eq!(content, drawn, "regeneration and view time disagree");
+}
+
+#[test]
+fn a_rich_value_past_the_size_bound_is_refused() {
+    let rv = format!("<body><p>{}</p></body>", "a".repeat(MAX_RICH_BYTES));
+    let mut s = EditSession::new(doc(RICH, ""));
+    let err = s
+        .fill_rich_text_field("t", &rv, FlatText::default())
+        .unwrap_err();
+    assert!(
+        matches!(
+            err,
+            EditError::InvalidRichText {
+                source: RichTextError::TooLarge {
+                    limit: MAX_RICH_BYTES,
+                    ..
+                },
+                ..
+            }
+        ),
+        "{err:?}"
+    );
+    assert!(!s.is_modified());
 }

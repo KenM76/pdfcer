@@ -51,7 +51,7 @@
 //!   trailer's `/Root`
 
 use crate::document::MAX_RESOLVE_DEPTH;
-use crate::object::{Dict, ObjId, Object};
+use crate::object::{Dict, ObjId, Object, Stream};
 
 /// A read-only view of one PDF document's object graph.
 ///
@@ -130,6 +130,19 @@ pub trait ObjectGraph: Send + Sync {
     /// answer for a trailer the operator has patched (creating `/Info`
     /// is already such a patch, from Pass 3.1).
     fn trailer_entry(&self, key: &[u8]) -> Option<&Object>;
+
+    /// The raw (still-encoded) data of `stream`, an object of this graph,
+    /// or `None` when this graph cannot serve stream bytes.
+    ///
+    /// The default is `None`: a graph of values alone has no byte source.
+    /// [`crate::document::Document`], [`crate::view::DocumentView`] and an
+    /// editing session override it, so a walk generic over the graph can
+    /// read a value the format allows as either a string or a stream
+    /// (a §12.7.3.4 `/RV` text stream).
+    fn stream_raw(&self, stream: &Stream) -> Option<&[u8]> {
+        let _ = stream;
+        None
+    }
 
     /// Follow a reference chain to a non-reference value, applying
     /// §7.3.10's rules: an unresolvable reference yields `null` rather
@@ -214,6 +227,10 @@ impl ObjectGraph for crate::document::Document {
 
     fn trailer_entry(&self, key: &[u8]) -> Option<&Object> {
         self.trailer().get(key)
+    }
+
+    fn stream_raw(&self, stream: &Stream) -> Option<&[u8]> {
+        stream.data_span.slice(self.bytes())
     }
 }
 
