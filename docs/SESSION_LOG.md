@@ -4,6 +4,21 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-11-11 (1529th filing) — `1978c956` `Pass 700.17` SHIPPED: the EMF writer becomes the crate `pdfcer-emf`
+
+**Shipped (engineer-reported; no shell here, git/CI/crates.io state not checked from here; docs only):**
+- `1978c956` on `main` (cherry-pick of worker `5e9b13f6b22349ab23923767243498f7dafb27cc`), not in a release. EMF writer moved from `pdfcer-render` to `pdfcer-emf`; render gains a `#[doc(hidden)] writer_seam` (29 re-exports, outside semver, one consumer). Consumer path `pdfcer_render::emf::X` is now `pdfcer_emf::X`. Detail in the ROADMAP *Shipped* entry.
+- Tests: about 2,713 across render/emf/cli/print, 0 failed; clippy, lite CLI, wasm32 and `cargo tree` clean (engineer-reported).
+- FEATURES: *Planned* row removed, *Implemented* row added: core `[x]`, cli `[x]`, gui `[ ]`; two older EMF rows' paths updated.
+
+**Decisions made this session:** seam module over a public display-list API (a second contract the size of the interpreter). Publish order: `pdfcer-emf` is 15th, after `pdfcer-render`.
+
+**Findings:** `check-fmt-excluded` fails in a git worktree (`vendor/ocrcer-core`), passes on the main checkout; pre-existing.
+
+**Still in flight:** post-merge verification was running. Channel notes owed to `pdfcraft` and `pdfcer-gui`.
+
+**For next session:** `700.13` / `700.14` / `700.15` (flattener), `700.18` (parity report), then the release (watch for a crates.io 429 on the new name).
+
 ## 2026-11-11 (1528th filing) — `f512b50a` `Pass 700.11` SHIPPED: separation plates as vector EMF metafiles (`X072`); `996d5658` CI follow-up to `700.20`
 
 **Shipped (engineer-reported; no shell here, git/CI state not checked from here; docs only):**
