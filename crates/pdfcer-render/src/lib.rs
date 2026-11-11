@@ -254,6 +254,7 @@ pub mod plates;
 pub mod profile;
 mod separation_preview;
 pub mod shading;
+mod supersample;
 pub mod svg;
 mod svg_text;
 pub mod text;
@@ -299,7 +300,7 @@ pub use display_list::{
 };
 pub use font::{
     EdgeAntialiasing, FallbackKey, FontData, FontEnvironment, GlyphSource, InkProbe,
-    InkProbeSource, PageBackdrop, RenderOptions, RenderPolicy, StrokeDisplay,
+    InkProbeSource, PageBackdrop, RenderOptions, RenderPolicy, SUPERSAMPLE_FACTOR, StrokeDisplay,
 };
 pub use interpret::{BlendSpaceFrom, Diagnostics};
 pub use invisible_text::InvisibleTextPaint;
@@ -954,6 +955,16 @@ fn render_impl(
             .map_or((0.0, 0.0), |g| {
                 region_lattice_anchor(page.crop_box, page.rotate, effective_scale(page, scale), &g)
             });
+        let k = options.edge_antialiasing.pixel_factor();
+        if k > 1 {
+            let mut fine = options.clone();
+            fine.ink_probe = options.ink_probe.map(|p| supersample::fine_probe(k, p));
+            let f = f64::from(k);
+            let rendered = device_clip::with_lattice_anchor((anchor.0 * f, anchor.1 * f), || {
+                render_impl_rasterize(doc, page, scale, region, None, &fine)
+            })?;
+            return supersample::finish(rendered, k, options.ink_probe);
+        }
         device_clip::with_lattice_anchor(anchor, || {
             render_impl_rasterize(doc, page, scale, region, None, options)
         })
@@ -1021,6 +1032,18 @@ fn render_impl_rasterize(
             };
             (g.width, g.height, g.ctm, g.ctm64)
         }
+    };
+    // Supersampled: the whole fine raster, scaled before any band is cut
+    // from it, so band rows are fine rows (`supersample`).
+    let (width, height, base_ctm, base_ctm64) = if options.edge_antialiasing.pixel_factor() > 1 {
+        supersample::fine_geometry(
+            options.edge_antialiasing.pixel_factor(),
+            width,
+            height,
+            base_ctm64,
+        )?
+    } else {
+        (width, height, base_ctm, base_ctm64)
     };
     let (height, base_ctm, base_ctm64) = match band {
         None => (height, base_ctm, base_ctm64),

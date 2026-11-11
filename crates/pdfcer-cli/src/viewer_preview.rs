@@ -1,10 +1,11 @@
 //! The viewer-preview flags `render-page` and `export-image` share:
 //! `--no-overprint-preview`, `--separation-preview`, `--hide-ink`,
-//! `--markup-without-ap`, `--free-text-c` and `--widgets-without-ap`.
+//! `--markup-without-ap`, `--free-text-c`, `--widgets-without-ap` and
+//! `--edge-antialiasing`.
 
 use pdfcer_render::{
-    Diagnostics, FreeTextC, MarkupWithoutAp, OverprintPreview, RenderOptions, SeparationPreview,
-    WidgetsWithoutAp,
+    Diagnostics, EdgeAntialiasing, FreeTextC, MarkupWithoutAp, OverprintPreview, RenderOptions,
+    SeparationPreview, WidgetsWithoutAp,
 };
 
 /// `--markup-without-ap`: what to show for a markup annotation (Ink,
@@ -60,6 +61,7 @@ pub(crate) struct ViewerPreview {
     /// `None`: the settings file's `free_text_c`, already on the options.
     free_text_c: Option<FreeTextC>,
     widgets: WidgetsWithoutAp,
+    edges: EdgeAntialiasing,
 }
 
 impl ViewerPreview {
@@ -114,13 +116,23 @@ impl ViewerPreview {
         self
     }
 
+    /// This preview with `--edge-antialiasing` resolved at `dpi`.
+    pub(crate) fn with_edges(mut self, arg: crate::print_output::EdgeAaArg, dpi: f32) -> Self {
+        // A DPI past u32 is far beyond the auto threshold either way.
+        #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+        let dpi = dpi.max(0.0).round() as u32;
+        self.edges = arg.at_dpi(dpi);
+        self
+    }
+
     /// `options` with this preview applied.
     pub(crate) fn apply(self, options: RenderOptions) -> RenderOptions {
         let options = options
             .with_overprint_preview(self.overprint)
             .with_separation_preview(self.separation)
             .with_markup_without_ap(self.markup)
-            .with_widgets_without_ap(self.widgets);
+            .with_widgets_without_ap(self.widgets)
+            .with_edge_antialiasing(self.edges);
         match self.free_text_c {
             Some(c) => options.with_free_text_c(c),
             None => options,

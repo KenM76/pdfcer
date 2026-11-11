@@ -26,25 +26,27 @@ pub(crate) enum ColorArg {
     BlackOnly,
 }
 
-/// `--edge-antialiasing` on `print`.
+/// `--edge-antialiasing` on `print`, `render-page` and `export-image`.
 #[derive(Copy, Clone, Debug, Default, PartialEq, Eq, clap::ValueEnum)]
 pub(crate) enum EdgeAaArg {
-    /// Off at 300 DPI and above, on below. The default.
+    /// Off at 300 DPI and above, on below. The default for print.
     #[default]
     Auto,
-    /// Smooth every edge, as on screen.
+    /// Smooth every edge, as on screen. The default for render-page
+    /// and export-image.
     On,
     /// Hard edges at every resolution.
     Off,
+    /// Smooth edges with no seam where shapes touch: drawn hard-edged at
+    /// four times the resolution and averaged down. About 16x the work.
+    Seamless,
 }
 
 /// The resolution from which `--edge-antialiasing auto` prints hard edges:
 /// at 300 DPI a stair-step is under a tenth of a millimetre, while the
 /// seam antialiasing leaves between abutting shapes stays visible.
-#[cfg_attr(not(windows), allow(dead_code))]
 pub(crate) const EDGE_AA_AUTO_OFF_DPI: u32 = 300;
 
-#[cfg_attr(not(windows), allow(dead_code))]
 impl EdgeAaArg {
     /// The render setting this choice means at `dpi`.
     pub(crate) fn at_dpi(self, dpi: u32) -> pdfcer_render::EdgeAntialiasing {
@@ -52,6 +54,7 @@ impl EdgeAaArg {
             Self::Auto => dpi < EDGE_AA_AUTO_OFF_DPI,
             Self::On => true,
             Self::Off => false,
+            Self::Seamless => return pdfcer_render::EdgeAntialiasing::Supersampled,
         };
         if on {
             pdfcer_render::EdgeAntialiasing::On

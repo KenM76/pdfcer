@@ -4354,7 +4354,12 @@ and `Fixed` into `strokes_width_fixed`. The enum is `#[non_exhaustive]`.
 shapes that touch leave no seam: smoothed edges give each half of a shared
 pixel half coverage, and `½ over ½` lets 25 % of the backdrop show. Use
 `Off` for print rasters (`pdfcer print` turns it off at 300 DPI and above)
-and keep `On` for a screen. It is a raster setting only; no export writes it.
+and keep `On` for a screen. `Supersampled` is smooth AND seam-free: hard
+edges at `SUPERSAMPLE_FACTOR` (4)× the resolution, box-filtered down, at 16×
+the cost. The thinnest-stroke floor, sub-pixel culling and the ink probe
+stay in output pixels; a 4× raster past `MAX_PIXMAP_EDGE` is refused with
+`BadRasterSize`. `pixel_factor()` returns 1 or 4. It is a raster setting
+only; no export writes it. Detail: `docs/edge-antialiasing.md`.
 
 `AnnotationScope` (`annot.rs`) is the comments-and-forms filter:
 

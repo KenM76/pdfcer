@@ -8061,8 +8061,8 @@ impl<'a> Interpreter<'a> {
                 // much of it survives the clip: a large form mostly
                 // clipped away is not a small form.
                 if self.subpixel_culling
-                    && dev.width() < SUBPIXEL_CULL_PX
-                    && dev.height() < SUBPIXEL_CULL_PX
+                    && dev.width() < self.subpixel_cull_px()
+                    && dev.height() < self.subpixel_cull_px()
                 {
                     self.diag.subpixel_culled += 1;
                     return;
@@ -9502,6 +9502,13 @@ impl<'a> Interpreter<'a> {
         sx.is_finite() && sy.is_finite() && (sx > w as f32 || sy > h as f32)
     }
 
+    /// [`SUBPIXEL_CULL_PX`] in this raster's device pixels.
+    fn subpixel_cull_px(&self) -> f32 {
+        #[allow(clippy::cast_precision_loss)] // the factor is single-digit
+        let k = self.policy.edge_antialiasing.pixel_factor() as f32;
+        SUBPIXEL_CULL_PX * k
+    }
+
     /// The graphics state's stroke geometry (§8.4.3), shared by path
     /// painting and by stroked text — which is exactly the sharing
     /// §9.3.6 mandates: "the graphics state parameters affecting those
@@ -9546,7 +9553,10 @@ impl<'a> Interpreter<'a> {
                 1.0
             }
         };
-        let min_user_width = if scale > 0.0 { 1.0 / scale } else { 0.0 };
+        // One OUTPUT pixel, which a supersampled raster spans `k` of.
+        #[allow(clippy::cast_precision_loss)] // the factor is single-digit
+        let k = self.policy.edge_antialiasing.pixel_factor() as f32;
+        let min_user_width = if scale > 0.0 { k / scale } else { 0.0 };
         // §8.4.3.2: width 0 means "thinnest line the device can render", which
         // is exactly the floor; a non-zero width takes the floor only when it
         // would otherwise land under a pixel.

@@ -1066,13 +1066,35 @@ pub enum EdgeAntialiasing {
     On,
     /// Hard edges, so abutting shapes leave no seam. For print resolutions.
     Off,
+    /// Smooth AND seam-free: the page is drawn with hard edges at
+    /// [`SUPERSAMPLE_FACTOR`]× the requested resolution and box-filtered
+    /// down. Abutting shapes tile exactly at the fine resolution, so no
+    /// backdrop leaks between them, while every edge still gets
+    /// `factor²` coverage levels. Costs `factor²` the pixels and time.
+    Supersampled,
 }
 
+/// The per-axis oversampling of [`EdgeAntialiasing::Supersampled`].
+pub const SUPERSAMPLE_FACTOR: u32 = 4;
+
 impl EdgeAntialiasing {
-    /// Whether edges are antialiased.
+    /// Whether the rasterizer antialiases each edge itself. `false` for
+    /// [`Self::Supersampled`], whose smoothing comes from the downsample.
     #[must_use]
     pub const fn is_on(self) -> bool {
         matches!(self, Self::On)
+    }
+
+    /// Fine raster pixels per output pixel along each axis: 1, or
+    /// [`SUPERSAMPLE_FACTOR`] for [`Self::Supersampled`]. Device-pixel
+    /// thresholds (the thinnest stroke, sub-pixel culling) scale by it so
+    /// they keep meaning one OUTPUT pixel.
+    #[must_use]
+    pub const fn pixel_factor(self) -> u32 {
+        match self {
+            Self::Supersampled => SUPERSAMPLE_FACTOR,
+            Self::On | Self::Off => 1,
+        }
     }
 }
 

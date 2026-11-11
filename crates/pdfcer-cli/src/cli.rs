@@ -4373,6 +4373,7 @@ pub(crate) enum Command {
         /// Smooth the edges of shapes and images. auto turns it off at 300
         /// DPI and above, where smoothing leaves faint seams between shapes
         /// that touch and the steps it hides are too small to see.
+        /// seamless keeps edges smooth with no seam (about 16x the work).
         #[arg(long, value_enum, value_name = "WHEN", default_value_t = crate::print_output::EdgeAaArg::Auto)]
         edge_antialiasing: crate::print_output::EdgeAaArg,
         /// Which sheet to print on: a form ID or a form NAME, as
@@ -5829,6 +5830,13 @@ pub(crate) enum Command {
         /// out. The file is not changed.
         #[arg(long, value_enum, default_value_t)]
         widgets_without_ap: crate::viewer_preview::WidgetsWithoutApArg,
+        /// Smooth the edges of shapes, clips and images. off draws hard
+        /// edges, so shapes that touch leave no faint seam where they meet;
+        /// seamless keeps edges smooth with no seam (about 16x the work);
+        /// auto turns smoothing off at 300 DPI and above. The file is not
+        /// changed.
+        #[arg(long, value_enum, value_name = "WHEN", default_value_t = crate::print_output::EdgeAaArg::On)]
+        edge_antialiasing: crate::print_output::EdgeAaArg,
         /// What to draw for a dynamic XFA form, whose stored pages are a
         /// placeholder: layout draws the page pdfcer computes from the form's
         /// template and data, as XFA viewers do, and --page counts computed
@@ -6026,6 +6034,13 @@ pub(crate) enum Command {
         /// out. The file is not changed.
         #[arg(long, value_enum, default_value_t)]
         widgets_without_ap: crate::viewer_preview::WidgetsWithoutApArg,
+        /// Smooth the edges of shapes, clips and images. off draws hard
+        /// edges, so shapes that touch leave no faint seam where they meet;
+        /// seamless keeps edges smooth with no seam (about 16x the work);
+        /// auto turns smoothing off at 300 DPI and above. The file is not
+        /// changed.
+        #[arg(long, value_enum, value_name = "WHEN", default_value_t = crate::print_output::EdgeAaArg::On)]
+        edge_antialiasing: crate::print_output::EdgeAaArg,
     },
 
     /// Copy pages' text to the OS clipboard as FORMATTED paragraphs, so a
