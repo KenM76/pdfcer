@@ -4,6 +4,18 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-11-10 (1495th filing) — `dcadef2d` `Pass 703.1` first cut (mesh charging, opaque gradient fast path); `5dec71ea` CI test-race fix; `Pass 704.0` filed
+
+**Filed (engineer-reported; no shell here, git/push/CI state not checked from here; docs only, engineer commits; both commits unpushed at filing):**
+- **`5dec71eabd56d0f8d2ad09ea3745a37e203265ed`** `test(cli): give each compare --output test its own source files`. Fixes a CI failure on `51b303f2`: a temp-file race between parallel tests in `crates/pdfcer-cli/tests/compare_result.rs` (windows-latest). `pair(test)` names `{test}-old.pdf` / `{test}-new.pdf`. Test-only; no FEATURES row.
+- **`dcadef2d7ad5ca361e3110cae09678d124ee898e`** `fix(render): charge mesh shadings to the coverage ceiling, and paint opaque gradient pixels without library maths (Pass 703.1, X067 F079 F080 F078)`. Mesh types 4-7 charged against `PageBudget::cover` (`MESH_PIXEL_WEIGHT` 48, `MESH_TRIANGLE_COST` 16, `MeshMeter`, `mesh_cuts()`); opaque axial/radial from a premultiplied table (byte-identical at a = 1). F079 `overlap10k` scale 10 23.5 s to 2.5 s; F080 `mesh1000x1` 3.68 s to 2.06 s; F078 `perf40sh` 4.54 s to 2.27 s, `perf40` 6.24 s to 4.32 s. Pixel A/B 120/120 identical (60-drawing sweep), 57/57 mesh and 68/68 gradient fixtures. 2 new tests, sabotage-proven; render lib 563, integration 639 (2 ignored), doc 33; gates clean; no `cargo tree` change.
+- **`703.1` stays PARTIAL:** F078 masks (about 4.3 s for 40, `mul_add` in `axial_param`, about 28 ns per pixel) and acceptance on the `703.1` repros (incl. `F080/mesh1000x500`, the 1494th baseline timeout, not reported against) owed.
+- **Operator ruling, Ken, 2026-11-10:** asked whether PDF screenshots render on the GPU (no, `pdfcer-render` is CPU only) and for per-part GPU switches under the screenshot settings like the 3D navigation ones; ruled "Yes they should match the CPU picture pixel for pixel if possible." Filed as Backlog **`Pass 704.0`** (grep of `docs/`: no prior `Pass 704`; highest used `703.14`), pending an autonomous-builder design decision in flight. Bar: byte-identical to `pdfcer-render` per part, else a disclosed measured tolerance.
+- **Dispatch discrepancy:** the dispatch said the hostile-input FEATURES row is core `[x]` / cli `[x]`; the live row is deliberately `[ ] [ ] [ ]` ("boxes stay until the whole row lands", 703.2/703.3 untouched). Left unticked; text only updated.
+- ROADMAP: new Shipped entry, 1495th banner, `703.1` table row, Backlog `Pass 704.0`. FEATURES: hostile-input row text, new Planned row. `docs/NEXT_SESSION.md` untouched (engineer-owned).
+
+**For next session:** finish `703.1` (F078 masks, acceptance on its repros); `Pass 704.0` waits on the design decision. Release when ready (unreleased work since `v0.143.0`).
+
 ## 2026-11-10 (1494th filing) — `f9dd61e9` blended-paint weight; `Pass 703.0` SHIPPED COMPLETE
 
 **Filed (engineer-reported; no shell here, git/push/CI state not checked from here; docs only, engineer commits):**
