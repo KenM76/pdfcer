@@ -608,7 +608,7 @@ Nothing is re-exported at the crate root (`lib.rs` are plain
 
 | capability | core | cli | gui | note |
 |---|:--:|:--:|:--:|---|
-| Fill text / check box / radio / choice | x | x | x | rich text `/RV` is read + exported, replaceable only by a **disclosed downgrade** |
+| Fill text / check box / radio / choice | x | x | x | rich text `/RV` is read + exported, drawn from `/RV` + `/DS` (`Pass 700.9`), fillable as rich text (`fill_rich_text_field`), or replaced by a **disclosed downgrade** to plain text |
 | **Flatten to static page content** | x | x | **[ ]** | **opportunity** — `FEATURES.md` |
 | Import/export FDF, XFDF, two-column CSV | x | x | x | |
 | Create a field | x | x | ◐ | **the GUI cannot create a push button** — `FEATURES.md` |

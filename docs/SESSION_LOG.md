@@ -4,6 +4,17 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-11-11 (1517th filing) — `abf5be35` `Pass 700.9` SHIPPED: rich-text field appearances from `/RV` + `/DS` (`X071` part 2)
+
+**Shipped (engineer-reported; no shell here, git/CI state not checked from here; docs only):**
+- `Pass 700.9`, `abf5be35` on `main` (cherry-pick of worker `12cbdcb141cf5e922040bf6c4de1bdfadb321ae5`), not in a release. `fill_rich_text_field`, `RichFillOutcome`, `richtext::parse_noting`, `vartext::build_rich_text`, new `DisplayNotes`/`DisplayCounts` fields, CLI `fill-field --rich-text`. Detail, test totals, gates and the full API list in the ROADMAP *Shipped* entry and the commit message.
+- **Honest coverage:** `TooLarge` has no test; the 100,000-span test is stopped by the XML parser's depth cap, only the 40-span test proves `TooDeep`; regenerate-equals-view not sabotaged in isolation.
+- **Owed, in flight:** a follow-up worker closes (1) `/DR` family match beyond the standard 14, (2) `/RV` as a text stream, (3) `/DA`-vs-`/DS` as a setting, (4) the `TooLarge` test. File when it lands.
+- **Recorded divergences, not opened:** unknown elements keep text (XFA drops it); whitespace collapsed; single-line uses auto-size; runs are separate `Tj`; rich fill on a non-rich field refused; `/RV` not re-validated against `/DS` at fill.
+- FEATURES: Planned row moved to *Implemented* (core `[x]`, cli `[x]`, gui `[ ]`); `Fill fields` row clause updated. `docs/core-api/03-capabilities.md` fill-table survivor fixed (hard rule 11).
+
+**For next session:** `700.10` (signature appearances; spec-RAG check §12.7.4.5 and §12.8), then `700.11`, `700.12`; file the `700.9` follow-up. `X071` stays open.
+
 ## 2026-11-11 (1514th filing) — `d3db449a` `Pass 700.8` SHIPPED: widget `/D` and `/R` appearance states (`X071` part 1)
 
 **Shipped (engineer-reported; no shell here, git/CI state not checked from here; docs only):**
