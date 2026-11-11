@@ -5089,6 +5089,7 @@ line numbers re-measured 2026-08-25:
 | `XrefEntryEol` | the two-byte end-of-line a classic xref entry uses |
 | `TrailingEol` | whether a saved file ends with a newline |
 | `FreeTextC` | §12.5.6.6 — whether a FreeText's `/C` is the box fill or the border when there is no `/IC`. Key `free_text_c` (`fill` default, `border`); pass it to `RenderOptions::with_free_text_c` and `EditSession::bake_missing_appearances` so render and bake agree |
+| `RichStylePrecedence` | `RT-A6` — whether `/DS` or `/DA` fills a rich-text run's unset font, size or colour. Key `rich_style_precedence` (`rich_style_first` default, `default_appearance_first`); pass it to `EditSession::set_rich_style_precedence` and `WidgetAppearances::with_rich_style_precedence`. `RenderOptions` does not take it yet |
 
 ★ **Two of these were missing from this list before 2026-08-25**, and the
 shape of the omission is worth more than the correction: the list was written

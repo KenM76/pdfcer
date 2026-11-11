@@ -4,6 +4,17 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-11-11 (1519th filing) — `dff079c5` `Pass 700.9` follow-up SHIPPED: `/DR` family fonts, stream `/RV`, `/DS`-vs-`/DA` setting (`X071` part 2)
+
+**Shipped (engineer-reported; no shell here, git/CI state not checked from here; docs only):**
+- `dff079c5` on `main` (cherry-pick of worker `defe9d8470dfff1b258c874422b1d207d2d0d77c`), not in a release. Closes the four gaps of the 1517th filing: run fonts matched against `/DR` BaseFont by family and face; `/RV` read as a text stream (new `ObjectGraph::stream_raw`); `RichStylePrecedence` setting `rich_style_precedence` + CLI `--rich-style-precedence`; `TooLarge` test. Detail, tests and sweep in the ROADMAP *Shipped* entry.
+- **Decision:** `RT-A6` (`/DS` vs `/DA`) made a setting, default `/DS` first, per "make spec ambiguity a setting". No new decision number filed (engineer supplied none).
+- **Honest coverage:** one new test passes on old code too; the regular/bold test is the real proof of the lookup.
+- **Open residue:** undecodable stream `/RV` drawn plain with no note (owed to `700.10`); field-own `/DR` unread; `pdfcer-render` view-time uses default precedence.
+- **Sweep:** `03-capabilities.md` ~1899 stale "undefined ... run and `/DS` win" fixed; settings table in `01-reading-and-model.md` gained the `RichStylePrecedence` row; FEATURES row rewritten.
+
+**For next session:** `700.10` (signature appearances) should also take the undecodable-`/RV` note; its ROADMAP text now says so. `X071` stays open.
+
 ## 2026-11-11 (1518th filing) — `Pass 700.13`-`700.18` filed: vector print parity with professional RIPs (operator request in chat)
 
 **Filed (docs only; no shell here, git/CI state not checked from here; nothing built):**

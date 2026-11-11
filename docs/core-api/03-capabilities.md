@@ -1897,9 +1897,14 @@ count by exactly that many.
   its text: *"a missed style is a cosmetic difference the operator can see; a
   dropped run is text that vanishes"* (`richtext.rs`). CSS `justify` is
   **not** an accepted `Align` (`richtext.rs`). `/DA` vs `/DS`
-  precedence is **undefined by the standard**; the appearance builder
-  (`richtext/draw.rs`) lets the run and `/DS` win and takes from `/DA` only
-  what they leave unset. Parsing never reads `/DA` (`richtext.rs`).
+  precedence is **undefined by the standard** (RT-A6), so it is a setting:
+  `richtext::RichStylePrecedence` (`RichStyleFirst`, the default, or
+  `DefaultAppearanceFirst`; settings key `rich_style_precedence`; CLI
+  `--rich-style-precedence`). A run's own style always wins and a `/DA` size
+  of 0 counts as unset. Parsing never reads `/DA` (`richtext.rs`). Run fonts
+  are matched by family against the AcroForm `/DR` fonts, then the standard
+  14, `/DS`, `/DA`; each substitution is reported. `/RV` may be a text stream
+  (read via `ObjectGraph::stream_raw`).
   `richtext::{parse_noting, RichText, flat_text, FlatText, MAX_RICH_DEPTH,
   MAX_RICH_BYTES}` and `vartext::{RichSpan, build_rich_text}` are the
   building blocks; `parse_noting` returns the ignored markup with the runs.
