@@ -5188,7 +5188,14 @@ operator has to get the order of right.
 > widget whose appearance is a thin frame plus composed text — signer CN,
 > date, reason/location when given — in Helvetica, shrink-to-fit
 > (`Pass 10.14`; `SignReport::appearance_lines`, `AppearanceOverflow` when
-> the rectangle cannot hold the lines). CLI: `pdfcer sign`.
+> the rectangle cannot hold the lines). The layout is
+> `widget_draw::SignatureAppearanceBuilder` with `SignatureLabels::Described`;
+> `SignRequest::appearance_image: Option<image_import::ImportedImage>`
+> (`Pass 700.10`) adds an image XObject beside the text (left of a wide
+> rect, top of a tall one, at most half) and `SignReport::appearance_image_drawn`
+> says whether it was drawn. A reason or location that would not fit is an
+> `AppearanceOverflow`, not a silent drop. CLI: `pdfcer sign`
+> (`--appearance-image FILE`).
 
 ### 1.32 Layers (3) — `Pass 358.1`, `Pass 358.2`
 

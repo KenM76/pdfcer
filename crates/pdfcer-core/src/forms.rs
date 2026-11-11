@@ -2083,6 +2083,26 @@ fn rich_text_bytes<G: ObjectGraph + ?Sized>(graph: &G, obj: &Object) -> Option<V
     }
 }
 
+/// Why field `id`'s own `/RV` is unreadable when it is a stream that will
+/// not decode, which [`Field::rich_value`] reads as absent. `None` for a
+/// stream that decodes and for any other shape (a string that will not
+/// parse is reported by the rich-text parser).
+pub(crate) fn rich_value_stream_error<G: ObjectGraph + ?Sized>(
+    graph: &G,
+    id: ObjId,
+) -> Option<String> {
+    let dict = graph.resolve(graph.value(id)?).as_dict()?;
+    let Object::Stream(stream) = graph.resolve(dict.get(b"RV")?) else {
+        return None;
+    };
+    let Some(raw) = graph.stream_raw(stream) else {
+        return Some("its /RV stream's bytes cannot be read".to_owned());
+    };
+    crate::filters::decode_stream(&stream.dict, raw)
+        .err()
+        .map(|e| format!("its /RV stream will not decode: {e}"))
+}
+
 /// The raw bytes of a string object, or `None`.
 fn string_bytes(obj: &Object) -> Option<Vec<u8>> {
     match obj {

@@ -53,6 +53,10 @@ pub(crate) struct RichEnv<'a> {
     /// The drawable `/DR` faces, from [`dr_faces`].
     pub faces: &'a [DrFace],
     pub precedence: RichStylePrecedence,
+    /// Why the field's stored `/RV` stream would not decode, from
+    /// [`crate::forms::rich_value_stream_error`]; noted when drawing from
+    /// the stored value finds none.
+    pub stored_rv_error: Option<&'a str>,
 }
 
 /// One drawable `/DR /Font` entry, keyed for family matching.
@@ -120,7 +124,7 @@ fn split_style(base: &str) -> (&str, &str) {
 
 /// The styled spans for `field`, or `None` to draw it as plain text: not a
 /// rich-text field, a password or comb field, no `/RV`, or an `/RV` that
-/// will not parse (recorded in `notes.rich_unreadable`).
+/// will not parse or decode (recorded in `notes.rich_unreadable`).
 pub(crate) fn plan(
     field: &Field,
     rv: RichOverride<'_>,
@@ -135,7 +139,13 @@ pub(crate) fn plan(
     {
         return None;
     }
-    let rv = decode_text_string(rv.unwrap_or(field.rich_value.as_deref())?).text;
+    let Some(rv) = rv.unwrap_or(field.rich_value.as_deref()) else {
+        if rv.is_none() {
+            notes.rich_unreadable = env.stored_rv_error.map(str::to_owned);
+        }
+        return None;
+    };
+    let rv = decode_text_string(rv).text;
     let ds = field
         .default_style
         .as_deref()

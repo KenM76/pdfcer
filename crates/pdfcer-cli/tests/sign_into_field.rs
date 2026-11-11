@@ -77,6 +77,41 @@ fn signing_into_the_placeholder_says_existing_and_verifies() {
     let _ = std::fs::remove_file(out_path);
 }
 
+/// `--appearance-image` reaches the visible appearance (`Pass 700.10`): the
+/// report says it was drawn, the saved `/AP /N` draws `/Im0`, and the
+/// signature still verifies.
+#[test]
+fn an_appearance_image_is_drawn_and_the_signature_verifies() {
+    let out_path = temp_path("image");
+    let png =
+        Path::new(env!("CARGO_MANIFEST_DIR")).join("../../fixtures/synthetic/images/icon32.png");
+    let out = sign(
+        &fixtures().join("sig-field-empty.pdf"),
+        &out_path,
+        &[
+            "--field-name",
+            "SignHere",
+            "--appearance-image",
+            png.to_str().unwrap(),
+        ],
+    );
+    let (stdout, stderr) = text(&out);
+    assert!(out.status.success(), "{stderr}");
+    assert!(stdout.contains("appearance_image: drawn"), "{stdout}");
+    let saved = std::fs::read(&out_path).unwrap();
+    assert!(
+        saved.windows(7).any(|w| w == b"/Im0 Do"),
+        "the appearance does not draw the image"
+    );
+    let v = Command::new(BIN)
+        .arg("verify-signatures")
+        .arg(&out_path)
+        .output()
+        .unwrap();
+    assert!(text(&v).0.contains("1 verified, 0 failed"));
+    let _ = std::fs::remove_file(out_path);
+}
+
 #[test]
 fn a_lock_is_reported_and_a_created_field_says_created() {
     let out_path = temp_path("lock");

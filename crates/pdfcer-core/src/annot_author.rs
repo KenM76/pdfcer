@@ -5258,7 +5258,7 @@ pub(crate) fn build_field_rich_appearance(
 
 /// A text or choice widget's `/MK /BG` fill and `/BC` frame (plus a comb's
 /// dividers), drawn before its text; empty when it states neither.
-fn field_box_art(chrome: &WidgetChrome, w: f64, h: f64, comb: Option<usize>) -> Vec<u8> {
+pub(crate) fn field_box_art(chrome: &WidgetChrome, w: f64, h: f64, comb: Option<usize>) -> Vec<u8> {
     let bg = chrome.fill(None);
     let has_border = field_has_border(chrome);
     if bg.is_none() && !has_border {

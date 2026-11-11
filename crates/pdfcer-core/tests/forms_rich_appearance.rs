@@ -259,6 +259,25 @@ fn an_unreadable_stored_rv_is_drawn_plain_and_counted() {
     assert!(normal_ap(&s).0.contains("(plain) Tj"));
 }
 
+/// A stream `/RV` whose filter fails is reported unreadable, like one that
+/// will not parse, and `/V` is drawn plain.
+#[test]
+fn an_undecodable_rv_stream_is_drawn_plain_and_counted() {
+    let garbage = b"not deflate data at all";
+    let mut rv = format!(
+        "<< /Length {} /Filter /FlateDecode >>\nstream\n",
+        garbage.len()
+    )
+    .into_bytes();
+    rv.extend_from_slice(garbage);
+    rv.extend_from_slice(b"\nendstream");
+    let mut s = EditSession::new(doc_with(RICH, "/V (plain) /RV 6 0 R", &[], &[rv]));
+    let out = s.regenerate_appearances().unwrap();
+    assert_eq!(out.display.rich_unreadable, 1);
+    assert_eq!(out.display.rich_text, 0);
+    assert!(normal_ap(&s).0.contains("(plain) Tj"));
+}
+
 #[test]
 fn filling_rich_text_keeps_v_as_its_plain_text() {
     let mut s = EditSession::new(doc(RICH, ""));

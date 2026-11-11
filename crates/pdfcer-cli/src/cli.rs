@@ -2268,6 +2268,13 @@ pub(crate) enum Command {
         /// 1-based page for `--visible`.
         #[arg(long, default_value_t = 1)]
         page: usize,
+        /// An image (PNG, JPEG, GIF, BMP, TIFF) drawn in a visible
+        /// signature's box beside the text: at the left of a wide box, at the
+        /// top of a tall one, aspect ratio kept and taking at most half. The
+        /// text still has to fit the rest at 4 pt or the signature is
+        /// refused. Ignored, with a warning, for an invisible signature.
+        #[arg(long, value_name = "FILE")]
+        appearance_image: Option<PathBuf>,
         /// Bytes reserved for the signature blob.
         #[arg(long, default_value_t = 12 * 1024)]
         reserve: usize,

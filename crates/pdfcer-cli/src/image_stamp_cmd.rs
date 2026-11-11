@@ -61,7 +61,10 @@ impl CaptionPositionArg {
 }
 
 /// Read and import an image file, or the exit code after the reason.
-fn read_image(flag: &str, path: &Path) -> Result<pdfcer_core::image_import::ImportedImage, u8> {
+pub(crate) fn read_image(
+    flag: &str,
+    path: &Path,
+) -> Result<pdfcer_core::image_import::ImportedImage, u8> {
     let bytes = std::fs::read(path).map_err(|err| {
         eprintln!("pdfcer: {}: {err}", path.display());
         exit::IO_ERROR

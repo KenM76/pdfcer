@@ -37,8 +37,18 @@ pub struct DisplayNotes {
     pub rich_ignored: Vec<String>,
     /// Rich-text fonts drawn with another font, as `requested -> used`.
     pub rich_fonts: Vec<String>,
-    /// The `/RV` would not parse, so `/V` was drawn as plain text; why.
+    /// The `/RV` would not parse or its stream would not decode, so `/V` was
+    /// drawn as plain text; why.
     pub rich_unreadable: Option<String>,
+    /// A signed signature field drawn with no `/AP`: the lines taken from
+    /// its signature dictionary's `/Name` and `/M` (§12.8.1 Table 252), in
+    /// drawing order. pdfcer composed them; they claim nothing about
+    /// validity.
+    pub signature_text: Vec<String>,
+    /// What a signed signature field's drawing left out, and why: a missing
+    /// `/Name` or `/M`, a document timestamp's ignored properties, text that
+    /// did not fit.
+    pub signature_omitted: Vec<String>,
 }
 
 impl DisplayNotes {

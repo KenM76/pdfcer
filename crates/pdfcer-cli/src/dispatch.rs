@@ -275,6 +275,7 @@ pub(crate) fn run() -> ExitCode {
             field_name,
             visible,
             page,
+            appearance_image,
             reserve,
         } => cmd_sign(&SignArgs {
             input: &input,
@@ -294,6 +295,7 @@ pub(crate) fn run() -> ExitCode {
             field_name: field_name.as_deref(),
             visible: visible.as_deref(),
             page,
+            appearance_image: appearance_image.as_deref(),
             reserve,
         }),
         Command::ListOutline { input, flat, json } => cmd_list_outline(&input, flat, json),

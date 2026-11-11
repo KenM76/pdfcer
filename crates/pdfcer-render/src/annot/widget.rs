@@ -132,7 +132,10 @@ impl FormCache {
 
 /// Draw widget `annot` from its field data, in appearance `state` (only a
 /// push button differs by state). `None` when there is nothing to draw (not
-/// a widget, no field, no `/Rect`, a signature field); else what was drawn.
+/// a widget, no field, no `/Rect`); else what was drawn. A signature field
+/// is drawn as its `/MK` placeholder when unsigned and from its signature
+/// dictionary's `/Name` and `/M` when signed (§12.7.4.5); neither claims
+/// validity.
 #[allow(clippy::too_many_arguments)] // every argument is placement input.
 pub(super) fn paint_synthesized_widget(
     doc: &DocumentView<'_>,
@@ -154,16 +157,42 @@ pub(super) fn paint_synthesized_widget(
         .get(doc)
         .and_then(|f| f.appearance_in(doc, id, state))?;
     let kind = drawn.kind;
+    let note = synthesized_note(id, &drawn);
     if !paint_built(
         doc, base_ctm, fonts, annot, drawn, diag, canvas, cancel, policy,
     ) {
         return None;
     }
-    diag.note_annotation(&format!(
-        "widget {id} has no /AP - drawn as a {kind:?} field from its own value, /DA and /MK \
-         (12.7.3.3 puts that on the reader); nothing was written to the file",
-    ));
+    diag.note_annotation(&note);
     Some(kind)
+}
+
+/// The diagnostic for a widget drawn without an `/AP`.
+fn synthesized_note(id: pdfcer_core::object::ObjId, drawn: &SynthesizedAppearance) -> String {
+    let tail = "nothing was written to the file";
+    match drawn.kind {
+        SynthesizedKind::SignaturePlaceholder => format!(
+            "widget {id} has no /AP - drawn as an unsigned signature field's placeholder from its \
+             /MK (12.7.4.5); {tail}"
+        ),
+        SynthesizedKind::Signature => {
+            let n = &drawn.notes;
+            let mut s = format!(
+                "widget {id} has no /AP - drawn from its signature dictionary's /Name and /M only \
+                 ({}); no validity is claimed or checked; {tail}",
+                n.signature_text.join(" | ")
+            );
+            for omitted in &n.signature_omitted {
+                s.push_str("; not drawn: ");
+                s.push_str(omitted);
+            }
+            s
+        }
+        kind => format!(
+            "widget {id} has no /AP - drawn as a {kind:?} field from its own value, /DA and /MK \
+             (12.7.3.3 puts that on the reader); {tail}"
+        ),
+    }
 }
 
 /// Draw a text or choice widget that has an `/AP` from its value instead,

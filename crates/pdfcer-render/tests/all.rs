@@ -88,6 +88,7 @@ mod separation_preview;
 mod shading_ink;
 mod shading_pattern_anchoring;
 mod sibling_font;
+mod signature_widget;
 mod smask_replaces_not_intersects;
 mod stray_q_and_text_pen;
 mod stroke_display_hairline;

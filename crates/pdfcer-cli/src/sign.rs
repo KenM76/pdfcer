@@ -84,6 +84,8 @@ pub(crate) struct SignArgs<'a> {
     pub(crate) field_name: Option<&'a str>,
     pub(crate) visible: Option<&'a str>,
     pub(crate) page: usize,
+    /// `--appearance-image` (`Pass 700.10`).
+    pub(crate) appearance_image: Option<&'a Path>,
     pub(crate) reserve: usize,
 }
 
@@ -285,6 +287,12 @@ pub(crate) fn cmd_sign(args: &SignArgs<'_>) -> u8 {
     request.field_name = args.field_name.map(str::to_owned);
     request.visible = visible;
     request.reserve = args.reserve;
+    if let Some(path) = args.appearance_image {
+        match crate::image_stamp_cmd::read_image("--appearance-image", path) {
+            Ok(image) => request.appearance_image = Some(image),
+            Err(code) => return code,
+        }
+    }
 
     // --- sign ----------------------------------------------------------------
     let (_source, mut session) = match open_for_edit(args.input) {
@@ -398,6 +406,14 @@ pub(crate) fn cmd_sign(args: &SignArgs<'_>) -> u8 {
                 .map(|l| quoted_token(l))
                 .collect::<Vec<_>>()
                 .join(" | ")
+        );
+    }
+    if report.appearance_image_drawn {
+        println!("  appearance_image: drawn");
+    } else if args.appearance_image.is_some() {
+        eprintln!(
+            "pdfcer: {}: --appearance-image ignored: the signature is invisible",
+            args.input.display()
         );
     }
     exit::SUCCESS

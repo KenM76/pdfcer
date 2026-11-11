@@ -168,6 +168,8 @@ mod redact_outside;
 pub use page_boxes::{PageBox, PageBoxChange, PageBoxEdit};
 mod restack;
 mod running_text;
+#[cfg(feature = "signing")]
+mod sign_appearance;
 mod stroke_style;
 mod widget_angle;
 pub use annot_restyle::{
@@ -42482,10 +42484,12 @@ impl EditSession {
             .unwrap_or(b"/Helv 0 Tf 0 g");
         let fonts = self.resolve_dr_fonts();
         let faces = crate::richtext::draw::dr_faces(&self.graph(), &fonts);
+        let rv_error = forms::rich_value_stream_error(&self.graph(), field.id);
         let env = crate::richtext::draw::RichEnv {
             fonts: &fonts,
             faces: &faces,
             precedence: self.rich_style_precedence,
+            stored_rv_error: rv_error.as_deref(),
         };
         let _ = crate::richtext::draw::plan(field, None, da, &env, &mut notes);
         notes
@@ -45399,10 +45403,15 @@ impl EditSession {
         } else {
             Vec::new()
         };
+        let rv_error = field
+            .is_rich_text()
+            .then(|| forms::rich_value_stream_error(&self.graph(), field.id))
+            .flatten();
         let env = crate::richtext::draw::RichEnv {
             fonts,
             faces: &faces,
             precedence: self.rich_style_precedence,
+            stored_rv_error: rv_error.as_deref(),
         };
         let rich = list_rows
             .is_none()
@@ -62435,14 +62444,12 @@ impl EditSession {
             before: None,
             after: Some(Object::Dict(sig)),
         }];
-        // A visible signature's appearance (`Pass 10.14`): the thin frame of
-        // the first cut, plus the composed text — signer CN, date, and the
-        // reason/location when given — set in Helvetica (standard 14, no
-        // embedding) and shrunk to fit the rectangle; a rectangle too small
-        // for the text at the legible floor is REFUSED by name before any
-        // object is staged, never clipped. The lines are also disclosed on
-        // the report (rule 4).
+        // A visible signature's appearance (`Pass 10.14`, `Pass 700.10`):
+        // the thin frame, the composed lines in standard-14 Helvetica shrunk
+        // to fit, and the request's image; refused by name when it does not
+        // fit, never clipped. The lines are disclosed on the report (rule 4).
         let mut appearance_lines = Vec::new();
+        let mut appearance_image_drawn = false;
         if let Some((_, r)) = visible {
             let leaf_subject = signer
                 .certificate_chain()
@@ -62450,61 +62457,14 @@ impl EditSession {
                 .and_then(|der| crate::cms::parse_certificate(der))
                 .map(|c| c.subject)
                 .unwrap_or_default();
-            appearance_lines = apply::appearance_lines(
-                &leaf_subject,
-                &request.signing_time,
-                request.reason.as_deref(),
-                request.location.as_deref(),
-            );
             let w = (r.urx - r.llx).max(0.0);
             let h = (r.ury - r.lly).max(0.0);
-            let size = apply::layout_appearance(&appearance_lines, w, h)?;
-            let content = apply::appearance_content(&appearance_lines, size, w, h);
-            let ap_id = ObjId::new(self.alloc_number()?, 0);
-            let mut ap_dict = Dict::new();
-            ap_dict.insert(Name::from(b"Type"), Object::Name(Name::from(b"XObject")));
-            ap_dict.insert(Name::from(b"Subtype"), Object::Name(Name::from(b"Form")));
-            // /Helv as an INLINE Type1 dict: no new object, nothing embedded.
-            let mut helv = Dict::new();
-            helv.insert(Name::from(b"Type"), Object::Name(Name::from(b"Font")));
-            helv.insert(Name::from(b"Subtype"), Object::Name(Name::from(b"Type1")));
-            helv.insert(
-                Name::from(b"BaseFont"),
-                Object::Name(Name::from(b"Helvetica")),
-            );
-            helv.insert(
-                Name::from(b"Encoding"),
-                Object::Name(Name::from(b"WinAnsiEncoding")),
-            );
-            let mut fonts = Dict::new();
-            fonts.insert(Name::from(b"Helv"), Object::Dict(helv));
-            let mut resources = Dict::new();
-            resources.insert(Name::from(b"Font"), Object::Dict(fonts));
-            ap_dict.insert(Name::from(b"Resources"), Object::Dict(resources));
-            ap_dict.insert(
-                Name::from(b"BBox"),
-                Object::Array(vec![
-                    Object::Real(0.0),
-                    Object::Real(0.0),
-                    Object::Real(w),
-                    Object::Real(h),
-                ]),
-            );
-            ap_dict.insert(
-                Name::from(b"Length"),
-                Object::Integer(i64::try_from(content.len()).unwrap_or(0)),
-            );
-            let span = self.stage_bytes(content.as_bytes());
-            objects.push(ObjectWrite {
-                id: ap_id,
-                before: None,
-                after: Some(Object::Stream(Stream {
-                    dict: ap_dict,
-                    data_span: span,
-                })),
-            });
+            let staged =
+                self.stage_signature_appearance(&leaf_subject, request, (w, h), &mut objects)?;
+            appearance_lines = staged.lines;
+            appearance_image_drawn = staged.image_drawn;
             let mut ap = Dict::new();
-            ap.insert(Name::from(b"N"), Object::Reference(ap_id));
+            ap.insert(Name::from(b"N"), Object::Reference(staged.ap_id));
             field.insert(Name::from(b"AP"), Object::Dict(ap));
         }
         objects.push(ObjectWrite {
@@ -62661,6 +62621,7 @@ impl EditSession {
                 self_verified: true,
                 prior_signatures,
                 appearance_lines,
+                appearance_image_drawn,
                 certification: request.certify,
                 field_reused: reuse.is_some(),
                 field_lock: reuse

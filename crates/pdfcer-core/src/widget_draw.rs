@@ -22,7 +22,12 @@ use crate::vartext::FontResource;
 use crate::view::DocumentView;
 
 mod geometry;
+pub(crate) mod signature;
 pub use geometry::{FieldCaret, FieldTextChar, FieldTextGeometry, FieldTextLine, PagePoint};
+pub use signature::{
+    APPEARANCE_MAX_SIZE, APPEARANCE_MIN_SIZE, SignatureAppearance, SignatureAppearanceBuilder,
+    SignatureAppearanceError, SignatureImage, SignatureLabels,
+};
 
 /// The `/DA` used when neither the field nor the form states one.
 const FALLBACK_DA: &[u8] = b"/Helv 0 Tf 0 g";
@@ -41,6 +46,13 @@ pub enum SynthesizedKind {
     RadioButton,
     /// A push button (its `/MK /CA` caption).
     PushButton,
+    /// An unsigned signature field (§12.7.4.5): its `/MK` background and
+    /// border and a neutral vector "sign here" mark, no text.
+    SignaturePlaceholder,
+    /// A signed signature field: its `/MK` chrome and its signature
+    /// dictionary's `/Name` and `/M` (§12.8.1 Table 252), nothing else. No
+    /// validity is claimed or checked.
+    Signature,
 }
 
 /// A view-time appearance for one widget: a form XObject's dict and its
@@ -110,8 +122,9 @@ impl WidgetAppearances {
     }
 
     /// The appearance pdfcer would draw for widget `widget_id`, with the
-    /// form's `/DR` fonts bound into its resources. `None` for an unknown
-    /// widget, a signature field, or a widget with no `/Rect`.
+    /// form's `/DR` fonts bound into its resources (a signature field keeps
+    /// its own standard-14 `/Helv`). `None` for an unknown widget or one with
+    /// no `/Rect`.
     #[must_use]
     pub fn appearance(
         &self,
@@ -144,7 +157,9 @@ impl WidgetAppearances {
             (rect.width(), rect.height())
         };
         let mut out = self.draw(view, field, widget, (w, h), kind)?;
-        EditSession::bind_dr_fonts_of(view, view, &mut out.ap_dict);
+        if field.field_type != Some(FieldType::Signature) {
+            EditSession::bind_dr_fonts_of(view, view, &mut out.ap_dict);
+        }
         if let Some(m) = EditSession::quarter_turn_matrix(quarter) {
             out.ap_dict.insert(
                 Name::from(b"Matrix"),
@@ -202,10 +217,12 @@ impl WidgetAppearances {
                 (SynthesizedKind::Choice, value, false)
             }
             FieldType::Button => return self.button(field, widget, da, (w, h), chrome, state),
-            FieldType::Signature => return None,
+            FieldType::Signature => {
+                return Some(signature::synthesized(view, field, &chrome, (w, h)));
+            }
         };
         let rich = (kind == SynthesizedKind::Text)
-            .then(|| self.rich_plan(field, da, &mut notes))
+            .then(|| self.rich_plan(view, field, da, &mut notes))
             .flatten();
         if let Some(plan) = rich {
             let ap =
@@ -235,14 +252,17 @@ impl WidgetAppearances {
     /// The rich-text plan for a text field's stored `/RV`, if it has one.
     fn rich_plan(
         &self,
+        view: &DocumentView<'_>,
         field: &Field,
         da: &[u8],
         notes: &mut DisplayNotes,
     ) -> Option<crate::richtext::draw::RichPlan> {
+        let rv_error = forms::rich_value_stream_error(view, field.id);
         let env = crate::richtext::draw::RichEnv {
             fonts: &self.fonts,
             faces: &self.faces,
             precedence: self.precedence,
+            stored_rv_error: rv_error.as_deref(),
         };
         crate::richtext::draw::plan(field, None, da, &env, notes)
     }
