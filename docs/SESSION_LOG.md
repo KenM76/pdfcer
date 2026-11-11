@@ -8,6 +8,7 @@ the affected entry. Maintained by `pdfce-librarian`.
 
 **Shipped (engineer-reported; no shell here, git/push/CI state not checked from here; docs only, engineer commits):**
 - **`Pass 704.0`**, `0281cfdd91077fda5fe200a9e60d4977032198ca`: `DisplayList::replay_rows(key, r0..r1)`; bands stitch byte-identical to the whole page when edges are multiples of 64 rows (`BAND_ROW_LATTICE`) or the page height and `band_exact()` is Ok. Fix in `device_clip.rs` `in_range` (edges cut at absolute lattice rows). New: `RenderError::BandNotAligned`, `BandBlocker::{Image, Gradient, LayerMask}`.
+- Follow-up `696220d1dc16aa21287d417fb36fad83527a1418` (`fix(tools)`, Pass 704.0): `string-gap-exempt:` comment on `tools/render-profile/src/bands.rs`'s column-aligned table header so `check-string-gaps.sh` passes; no behaviour change.
 - **Measured:** 8 bands 2.61x at scale 1 (769 to 294 ms), 2.96x at 4.17 (2091 to 706 ms); single-thread +4 to +7 %. pdfium parity A/B, 600 files: bucket counts identical.
 
 **Decisions / findings:**
