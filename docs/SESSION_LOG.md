@@ -4,6 +4,15 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-11-11 (1513th filing) — `v0.145.0` PUBLISHED (`9077e43a`)
+
+**Filed (engineer-reported; no shell here, nothing checked from here; docs only):**
+- **`v0.145.0` PUBLISHED.** Tag on `9077e43aafd40cd07effef67dd0031f9bd36ab52`, CI green. Carries `Pass 700.4`-`700.7` and the doc-link fix `e6d4b3e1` (CI was red on `ad46aa18`, fixed forward). GitHub release 8 assets (portable zip + 3 OCR add-on zips, each with `.sha256`); OneDrive slot `pdfcer2`; fresh-folder smoke OK (`--version` 0.145.0, revision `v0.144.0-11-g9077e43a`, icccer 0.4.2); `verify-release.py` all pass except the expected untracked operator-owned files; crates.io all 14 crates at 0.145.0 from a detached worktree at the tag, `CARGO_BUILD_JOBS=1`. Channel notice `notice_2026-11-11_release_v0.145.0.md` already posted, its crates.io claim now verified.
+- **Gotcha:** `gh-release.py` must run from the repo directory (fails "not a git repository" from `D:\builds`); use absolute asset paths.
+- ROADMAP: new Shipped entry. FEATURES: no change.
+
+**For next session:** start `700.8` (`X071`); gui engine pin bump; engineer's stale-wording sweeps from the 1509th/1510th.
+
 ## 2026-11-11 (1512th filing) — `X071` filed as `Pass 700.8`, `700.9`, `700.10` (pressed/rollover states, rich-text field appearances, signature field appearances)
 
 **Filed (nothing shipped; no shell here, git/CI state not checked from here):**
