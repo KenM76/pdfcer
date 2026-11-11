@@ -112,6 +112,20 @@ wherever it appears.*
 
 ## Shipped
 
+### `0281cfdd` `Pass 704.0`: banded replay that stitches byte-identical to the whole page (decision 223), 2026-11-10 (1498th filing)
+
+Engineer-reported; no shell here, git, push and CI state not checked from here. `0281cfdd91077fda5fe200a9e60d4977032198ca`, `feat(render): banded replay that stitches byte-identical to the whole page (Pass 704.0, decision 223)`. In `main`, NOT in a release (current `v0.143.0`). `pdfcer-render` only; no manifest change (`cargo tree` for `pdfcer-core`/`pdfcer-render` unchanged). Reasoning is in the commit message.
+- **Delivers:** `DisplayList::replay_rows(key, r0..r1)` replays device rows of the whole-page raster, so a host can render one page on several threads (the engine starts none; `DisplayList` is `Send + Sync`, test-enforced).
+- **Root cause of the seams:** tiny-skia 0.11.4 derives a line's FDot16 slope from the endpoints it is handed and chops a line where it leaves the pixmap, so a line crossing a band edge rasterised differently inside the band. Before the fix, on the operator's CAD benchmark: 713 B differing, max 29, at scale 1 with 2 bands; 9448 B, max 215, at scale 4.17 with 8 bands (aliased lines shifted a pixel).
+- **Fix** (`crates/pdfcer-render/src/device_clip.rs`, `in_range`): every in-range edge is cut at absolute unbanded device rows k x 64 (`ROW_LATTICE`); points are rounded to f32 in unbanded space and the integer band origin subtracted after (exact); curves are flattened under the transform's linear part only. `Fit::AsIs` removed.
+- **New public items:** `BAND_ROW_LATTICE` (64); `RenderError::BandNotAligned { start, end, lattice }` (band edges must be multiples of 64 or the page height); `DisplayList::band_exact() -> Result<(), BandBlocker>` with `BandBlocker::{Image, Gradient, LayerMask}` (`#[non_exhaustive]`). Shader-sampled paints and group soft masks are NOT band-invariant, so a host replays such a page whole.
+- **Measured (`tools/render-profile --bands`, new `src/bands.rs`):** every banded picture byte-identical to the whole replay. 8 bands: 2.61x at scale 1 (769 ms to 294 ms), 2.91x at scale 2, 2.96x at scale 4.17 (17.4 MP, 2091 ms to 706 ms). Single-thread replay costs +4 to +7 % (720 ms to 769 ms at scale 1, = +6.8 %).
+- **pdfium render-parity A/B** (600 files, 125 dpi, 1 page per file): bucket counts identical (500 below-band / 2 disclosed gap / 1 unexplained / 1 reference-divergence); 36 pages moved frac32 by <= 6e-5, 19 better, 17 worse.
+- **Tests:** `pdfcer-render` 564 lib + 641 integration + 33 doc pass. New: `in_range_edges_are_cut_at_the_row_lattice`, `a_band_gets_the_whole_pages_edges_shifted_by_its_origin`, `row_bands_stitch_byte_identical_to_the_whole_replay`, `a_display_list_can_be_shared_across_threads`. fmt and clippy `-D warnings` clean; code-structure gate clean (553 baseline, none new); `check-core-api-verbs` PASS.
+- **Docs:** `docs/core-api/03-capabilities.md` section 7.3c + a trap entry; `docs/render-region-measurements.md` banding section.
+- **Decision 223 amended** (ARCHITECTURE section 12): byte-identity holds only for lattice-aligned bands AND `band_exact()` Ok. Follow-ups filed in Backlog as `704.6`-`704.8`. The `704.0` numbers still go to Ken before `704.1`+.
+- **FEATURES:** new Implemented row "Banded page replay": core `[x]`, cli `—` (no CLI caller; `render-profile` is a dev tool), gui `[ ]`. The GPU Planned row stays `[ ]`.
+
 ### `dcadef2d` `Pass 703.1` first cut: mesh shadings charged to the coverage ceiling, opaque gradient pixels painted without library maths (`X067` F079 F080 F078), 2026-11-10; `703.1` stays PARTIAL (1495th filing)
 
 Engineer-reported; no shell here, git, push and CI state not checked from here; both commits unpushed at filing. `dcadef2d7ad5ca361e3110cae09678d124ee898e`, `fix(render): charge mesh shadings to the coverage ceiling, and paint opaque gradient pixels without library maths (Pass 703.1, X067 F079 F080 F078)`. In `main`, NOT in a release (current `v0.143.0`). `pdfcer-render` only; no manifest change (`cargo tree` unchanged), no CLI change.
@@ -37855,14 +37869,12 @@ Request `D:\Dev\FeatureRequests\pdfce_FeatureRequests\open\request_X067_renderer
 - *Interaction with `702.x`:* `702.0` makes `RenderOptions` render-owned; any budget added by `703.0`/`703.1` lands in whichever struct holds the render limits at that time.
 - *FEATURES:* six Planned rows added at the head of *Planned* (robustness bounds; repair; encryption; annotation draw order; non-embedded font rendering; text-extraction Unicode fallbacks), all `[ ]`. Passes `703.7`, `703.8`, `703.9`, `703.14` have no capability row yet (image decode, compositing, geometry, colour fallbacks are fidelity fixes inside existing rows).
 
-### `Pass 704.0` — snapshot cost measurement and engine seam (BACKLOG, NOT STARTED; filed 1495th, rewritten 1496th filing to match decision 223; operator ask 2026-11-10)
-
-**Operator ask (Ken, 2026-11-10):** "Do screenshots from PDFs get rendered on the GPU? ..." Answer: no, `pdfcer-render` is CPU only (`tiny_skia`). **Ruling:** "Yes they should match the CPU picture pixel for pixel if possible." Decision: `docs/decisions/223-gpu-snapshot-rasterising.md`, ARCHITECTURE §12.
-- **Delivers (engine only):** (1) `tools/render-profile` splits cost per document and scale: load, record, replay (clip/fill/blend ablations), encode, 1 vs N row bands on host threads (threads in the tool only; the engine stays thread-free). (2) `DisplayList: Sync`, enforced by a static-assert test. (3) A test that row bands cut at integer device rows stitch byte-identically to the whole replay.
-- **Results** go to `docs/render-region-measurements.md` and are reported to Ken; they do not cancel the `704.1`+ arc silently.
-- **Baseline (decision 223, release CLI, dense A3 CAD sheet):** floor 1.33 s; 1.0 MP 1.39 s; 300 DPI (17.4 MP) 2.2 s; 49 MP cap 3.43 s. A GPU can remove only the resolution-dependent share, about 0.85 s at 300 DPI.
-- **GUI side (not this Pass):** notice `open/notice_2026-11-10_snapshot_gpu_decision.md` asks pdfceGUI to move Snapshot Copy off the UI thread and replay bands on its own workers.
-- **Invariants:** no GUI/windowing dependency in `pdfcer-core`/`pdfcer-render` (rule 2, `cargo tree`); CPU stays reference and default.
+### `Pass 704.6`-`704.8` — follow-ups of `704.0` banded replay (BACKLOG, NOT STARTED; filed 1498th filing; decision 223 amended)
+- **`704.6`:** own the image and pattern sampler so `BandBlocker::{Image, Gradient, LayerMask}` become band-exact (tiny-skia inverts the shader transform including the band offset in f32; today such a page is replayed whole).
+- **`704.7`:** an integer-coverage rasterizer as the foundation for GPU Fills & strokes (`704.4`) matching the CPU pixel for pixel (Ken's ruling 2026-11-10: "if possible"). Also settles whether tiny-skia's supersampled coverage can be matched at all (the `704.4` risk).
+- **`704.8`:** x-lattice (column) tiling, ONLY if a measured need appears; not started speculatively.
+- Suspicion that tiny-skia drops anti-aliasing at row/column >= 8192: tested 2026-11-10, not reproduced (position >= 8192 and path height > 8192 both stay anti-aliased); not a follow-up.
+- *FEATURES:* no new row; these refine the GPU Planned row and the banded-replay row.
 
 ### `Pass 704.1`+ — GPU snapshot rasterising arc (BACKLOG, NOT STARTED; filed 1496th filing; decision 223; follows `704.0`'s numbers going to Ken)
 - **`704.1`:** `gpu` module in `pdfcer-render` behind a NON-default `gpu` feature. Reads the `DisplayList`, emits GLSL ES 3.00 shader text plus plain buffers; no GL, windowing or thread dependency, no new crate dependency, builds for wasm32. The GUI hosts it on its glow context, as model3d does. CI: feature-on steps added; lean-graph and `--no-default-features` steps stay green.

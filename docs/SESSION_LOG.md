@@ -4,6 +4,20 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-11-10 (1498th filing) — `0281cfdd` `Pass 704.0` banded replay SHIPPED; decision 223 amended
+
+**Shipped (engineer-reported; no shell here, git/push/CI state not checked from here; docs only, engineer commits):**
+- **`Pass 704.0`**, `0281cfdd91077fda5fe200a9e60d4977032198ca`: `DisplayList::replay_rows(key, r0..r1)`; bands stitch byte-identical to the whole page when edges are multiples of 64 rows (`BAND_ROW_LATTICE`) or the page height and `band_exact()` is Ok. Fix in `device_clip.rs` `in_range` (edges cut at absolute lattice rows). New: `RenderError::BandNotAligned`, `BandBlocker::{Image, Gradient, LayerMask}`.
+- **Measured:** 8 bands 2.61x at scale 1 (769 to 294 ms), 2.96x at 4.17 (2091 to 706 ms); single-thread +4 to +7 %. pdfium parity A/B, 600 files: bucket counts identical.
+
+**Decisions / findings:**
+- **Decision 223 amended** (ARCHITECTURE section 12): "a band is trivially byte-identical" was wrong; root cause is tiny-skia 0.11.4's per-line FDot16 slope and chopping at the pixmap edge. Shader-sampled images/gradients and soft-masked groups are not band-invariant; a host replays those pages whole.
+- **Backlog:** `704.6` (own the sampler), `704.7` (integer-coverage rasterizer, for GPU Fills), `704.8` (x-lattice, only on measured need). Free by grep of `docs/` (zero hits for `704.6`-`704.9`).
+- Suspicion that tiny-skia drops anti-aliasing at row/column >= 8192: tested 2026-11-10, not reproduced (position >= 8192 and path height > 8192 both stay anti-aliased); not a follow-up.
+- **FEATURES:** new Implemented row "Banded page replay" core `[x]`, cli `—`, gui `[ ]`; GPU Planned row text updated, boxes `[ ]`. The benchmark file is the operator's own and is not named there.
+
+**For next session:** `704.0` numbers to Ken, then `704.1`+ GPU arc decision; `703.1` F078 masks still owed.
+
 ## 2026-11-10 (1497th filing) — decision 224 (indirect light and reflections in 3D); `Pass 705.0`-`705.9` filed
 
 **Filed (engineer-reported; no shell here, git/push/CI state not checked from here; docs only, engineer commits; HEAD at dispatch stated as `ae5b07b2`, pushed):**
