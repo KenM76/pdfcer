@@ -37,7 +37,7 @@ pub(crate) const UNDERLAY_TOLERANCE: u8 = 2;
 
 /// How the blended ops were baked.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
-pub(crate) struct Flattened {
+pub struct Flattened {
     /// Moved beneath the page as source-over vectors.
     pub underlaid: usize,
     /// Replaced by a pixel patch (or by nothing, for an op that painted
@@ -47,7 +47,7 @@ pub(crate) struct Flattened {
 
 impl Flattened {
     /// Every blended op baked, by either route.
-    pub(crate) fn total(self) -> usize {
+    pub fn total(self) -> usize {
         self.underlaid + self.rasterised
     }
 }
@@ -55,7 +55,7 @@ impl Flattened {
 /// Replace every top-level blended op in `ops` with a source-over
 /// equivalent: an underlay where `underlay` is set and it looks the same,
 /// a pixel patch otherwise.
-pub(crate) fn flatten_blends(
+pub fn flatten_blends(
     ops: &mut Vec<Op>,
     clips: &[ClipDef],
     width: u32,

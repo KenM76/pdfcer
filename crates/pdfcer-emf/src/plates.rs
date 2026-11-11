@@ -1,5 +1,5 @@
 //! A page's separation plates as vector metafiles: one EMF per ink, in the
-//! ink order of [`crate::plates::render_plates`].
+//! ink order of [`pdfcer_render::plates::render_plates`].
 //!
 //! The page is recorded once, composited in ink as a separation preview
 //! renders it (ISO 32000-2 §10.8.3). Each plate replays that recording with
@@ -12,7 +12,7 @@
 //!
 //! Images, shadings, soft masks and transparency cannot be expressed as one
 //! grey: they become `EMR_ALPHABLEND` patches cut from the plate's own
-//! raster (the same render [`crate::plates::render_plates`] makes), counted
+//! raster (the same render [`pdfcer_render::plates::render_plates`] makes), counted
 //! per plate. A patch whose pixels are bare paper is written as a clip
 //! exclusion only and not counted.
 
@@ -23,11 +23,11 @@ use tiny_skia::{BlendMode, Pixmap};
 
 use super::patch::{Plan, PxRect, contains, merge, px_rect};
 use super::{EmfExport, EmfOptions, EmfOutcome, Writer, export_emf_view, metafile_units};
-use crate::RenderError;
-use crate::canvas::{Brush, BrushSpec};
-use crate::display_list::{DeviceBounds, ExportRecording, Op, record_page_for_plates};
-use crate::export_sites::op_box;
-use crate::font::RenderOptions;
+use pdfcer_render::RenderError;
+use pdfcer_render::font::RenderOptions;
+use pdfcer_render::writer_seam::op_box;
+use pdfcer_render::writer_seam::{Brush, BrushSpec};
+use pdfcer_render::writer_seam::{DeviceBounds, ExportRecording, Op, record_page_for_plates};
 
 /// Why part of a plate is pixels rather than vector paths.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -121,7 +121,7 @@ pub struct EmfPlateOutcome {
 /// One ink's plate as an EMF.
 #[derive(Debug, Clone)]
 pub struct EmfPlate {
-    /// The ink, as [`crate::plates::Plate::ink`] spells it.
+    /// The ink, as [`pdfcer_render::plates::Plate::ink`] spells it.
     pub ink: String,
     /// The metafile: grey on transparent paper, full tint black. Unlabelled.
     pub emf: Vec<u8>,
@@ -138,7 +138,7 @@ pub enum EmfPlates {
     Separated(Vec<EmfPlate>),
     /// The page could not be composited in ink, so this is its ordinary
     /// [`super::export_emf_view`] metafile, as
-    /// [`crate::plates::Plates::Composite`].
+    /// [`pdfcer_render::plates::Plates::Composite`].
     Composite(Box<EmfExport>),
 }
 
@@ -173,7 +173,7 @@ pub enum PlateMetafileError {
 /// # fn f(doc: &pdfcer_core::document::Document, page: &pdfcer_core::page_tree::Page)
 /// # -> Result<(), pdfcer_render::RenderError> {
 /// use pdfcer_render::RenderOptions;
-/// use pdfcer_render::emf::{EmfOptions, EmfPlates, export_emf_plates};
+/// use pdfcer_emf::{EmfOptions, EmfPlates, export_emf_plates};
 ///
 /// let plates = export_emf_plates(doc, page, &RenderOptions::default(), &EmfOptions::default())?;
 /// if let EmfPlates::Separated(plates) = plates {
@@ -249,7 +249,7 @@ fn plates_impl(
 ) -> Result<EmfPlates, RenderError> {
     let dpi = emf.dpi();
     let scale = dpi / 72.0;
-    let (inks, _) = crate::plates::probe_inks(view, page, scale, render)?;
+    let (inks, _) = pdfcer_render::writer_seam::probe_inks(view, page, scale, render)?;
     if inks.is_empty() {
         return Ok(EmfPlates::Composite(Box::new(export_emf_view(
             view, page, render, emf,
@@ -291,7 +291,10 @@ fn plate(
     let mut outcome = build.outcome;
     let plan = patch_plan(shared, ink, &build.sites, &mut ops, &mut outcome.patches)?;
     let refusal = plan.as_ref().and_then(|p| p.refusal);
-    let empty = EmfOutcome::empty(shared.rec.tally, crate::interpret::Diagnostics::default());
+    let empty = EmfOutcome::empty(
+        shared.rec.tally,
+        pdfcer_render::interpret::Diagnostics::default(),
+    );
     let mut w = Writer::new(&shared.rec.clips, unit, (w_px, h_px), empty);
     w.write_metafile(&ops, plan.as_ref().map(|p| &p.plan), None, size_u);
     outcome.ops = w.outcome.ops;
@@ -330,7 +333,7 @@ fn patch_plan(
     if rects.is_empty() {
         return Ok(None);
     }
-    let truth = crate::plates::plate_pixmap(
+    let truth = pdfcer_render::writer_seam::plate_pixmap(
         shared.view,
         shared.page,
         shared.scale,
@@ -386,7 +389,7 @@ fn bare_paper(plate: &Pixmap, (x0, y0, x1, y1): PxRect) -> bool {
 /// The ink a plate is for.
 #[derive(Debug, Clone, Copy)]
 enum PlateInk<'a> {
-    /// An index into [`crate::PROCESS_INKS`].
+    /// An index into [`pdfcer_render::PROCESS_INKS`].
     Process(usize),
     /// A spot colorant, as `CmykBuffer::ink_names` spells it.
     Spot(&'a str),
@@ -394,7 +397,7 @@ enum PlateInk<'a> {
 
 impl<'a> PlateInk<'a> {
     fn of(ink: &'a str) -> Self {
-        crate::PROCESS_INKS
+        pdfcer_render::PROCESS_INKS
             .iter()
             .position(|p| *p == ink)
             .map_or(Self::Spot(ink), Self::Process)
@@ -448,7 +451,7 @@ fn process_tints(brush: &BrushSpec, inks: &[String]) -> [f32; 4] {
         return [0.0; 4];
     };
     let f = |v: u8| f32::from(v) / 255.0;
-    crate::overprint::rgb_to_cmyk(f(rgba[0]), f(rgba[1]), f(rgba[2]))
+    pdfcer_render::overprint::rgb_to_cmyk(f(rgba[0]), f(rgba[1]), f(rgba[2]))
 }
 
 /// Why `brush` cannot be one grey, if it cannot.
@@ -524,7 +527,11 @@ impl<'a> Build<'a> {
         for op in ops {
             match op {
                 Op::Fill { brush, bounds, .. } | Op::Stroke { brush, bounds, .. } => {
-                    self.paint(op, brush, bounds.unwrap_or(crate::export_sites::UNKNOWN));
+                    self.paint(
+                        op,
+                        brush,
+                        bounds.unwrap_or(pdfcer_render::writer_seam::UNKNOWN),
+                    );
                 }
                 Op::Layer { paint, ops, mask } => {
                     let plain = mask.is_none()

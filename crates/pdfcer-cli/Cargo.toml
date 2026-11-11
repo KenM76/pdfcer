@@ -122,6 +122,10 @@ pdfcer-print.workspace = true
 # docs/LEGAL.md §6.1, already covered by the generated
 # THIRD_PARTY_LICENSES.md. No new package enters the graph for this Pass.
 pdfcer-render.workspace = true
+# pdfcer-emf: the Enhanced Metafile writer (`export-image --format emf`,
+# `export-emf-plates`, the clipboard's `CF_ENHMETAFILE`, vector printing).
+# Its own crate so a print-capable consumer can take it alone; adds no package.
+pdfcer-emf.workspace = true
 
 # pdfcer-fetch: pinned, hash-verified, operator-initiated downloads.
 # OPTIONAL and gated by the `download` feature above - see its header for

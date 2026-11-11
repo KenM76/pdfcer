@@ -10,7 +10,7 @@
 
 use pdfcer_core::document::Document;
 use pdfcer_core::page_tree;
-use pdfcer_render::emf::{EmfExport, EmfOptions, export_emf, walk_records};
+use pdfcer_emf::{EmfExport, EmfOptions, export_emf, walk_records};
 use pdfcer_render::{PageBackdrop, RenderOptions, render_page_with};
 use tiny_skia::Pixmap;
 

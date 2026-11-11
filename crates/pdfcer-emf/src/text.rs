@@ -21,12 +21,12 @@
 //!   Webdings).
 //!
 //! Any other run is written as its outlines and counted by reason in
-//! [`crate::emf::EmfTextOutcome`].
+//! [`crate::EmfTextOutcome`].
 
 use tiny_skia::{BlendMode, Transform};
 
-use crate::display_list::{ClipId, Op, TextRunInfo};
-use crate::svg_text::{family_of, is_sfnt, single_char, uniform_paint};
+use pdfcer_render::writer_seam::{ClipId, Op, TextRunInfo};
+use pdfcer_render::writer_seam::{family_of, is_sfnt, single_char, uniform_paint};
 
 /// Relative tolerance on the matrix being a similarity, and on each glyph
 /// sharing the first glyph's matrix.
@@ -133,7 +133,7 @@ pub(crate) fn plan_run(run: &TextRunInfo, ops: &[Op]) -> Result<EmfTextRun, EmfF
 /// `/BaseFont`. Standard-14 names map to the Windows faces with the same
 /// metrics, so no consumer picks the bitmap `Courier`.
 fn face_name(run: &TextRunInfo) -> String {
-    if run.font.source == crate::font::GlyphSource::Embedded
+    if run.font.source == pdfcer_render::font::GlyphSource::Embedded
         && is_sfnt(run.font.data.bytes())
         && let Ok(font) = skrifa::FontRef::new(run.font.data.bytes())
     {
@@ -231,7 +231,7 @@ fn is_symbol_face(face: &str) -> bool {
 /// words in `/BaseFont`.
 fn style(run: &TextRunInfo) -> (i32, bool) {
     let data = run.font.data.bytes();
-    if run.font.source == crate::font::GlyphSource::Embedded
+    if run.font.source == pdfcer_render::font::GlyphSource::Embedded
         && is_sfnt(data)
         && let Ok(font) = skrifa::FontRef::new(data)
     {

@@ -862,6 +862,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "pdfcer-emf"
+version = "0.145.0"
+dependencies = [
+ "pdfcer-core",
+ "pdfcer-render",
+ "skrifa",
+ "thiserror",
+ "tiny-skia",
+]
+
+[[package]]
 name = "pdfcer-fonts"
 version = "0.145.0"
 dependencies = [
@@ -884,6 +895,7 @@ dependencies = [
  "libfuzzer-sys",
  "pdfcer-3d",
  "pdfcer-core",
+ "pdfcer-emf",
  "pdfcer-jpeg-remux",
  "pdfcer-pkix",
  "pdfcer-print",

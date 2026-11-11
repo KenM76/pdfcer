@@ -37,11 +37,11 @@
 use std::fmt::Write as _;
 
 use super::export_emf::{record_offsets, u32_at};
-use super::rgb_into_a_cmyk_group::build;
+use super::minimal_pdf::build;
 use pdfcer_core::document::Document;
 use pdfcer_core::page_tree;
 use pdfcer_core::settings::PageBlendSpaceSource;
-use pdfcer_render::emf::{EmfOptions, export_emf, print_export_with, walk_records};
+use pdfcer_emf::{EmfOptions, export_emf, print_export_with, walk_records};
 use pdfcer_render::plates::{Plates, render_plates};
 use pdfcer_render::{RenderOptions, render_page_with};
 
@@ -514,7 +514,7 @@ fn bitmap_centres(emf: &[u8]) -> Vec<[f64; 3]> {
         .collect()
 }
 
-fn emf_of(src: &[u8], content: &str, preserve: bool) -> pdfcer_render::emf::EmfExport {
+fn emf_of(src: &[u8], content: &str, preserve: bool) -> pdfcer_emf::EmfExport {
     let (doc, p) = load(page_bytes(src, content));
     export_emf(
         &doc,
@@ -603,7 +603,7 @@ fn plates_preserved_keep_the_authored_cyan_plate() {
 // Print (the metafile a printer is sent)
 // ---------------------------------------------------------------------------
 
-fn print_of(src: &[u8], content: &str) -> pdfcer_render::emf::EmfExport {
+fn print_of(src: &[u8], content: &str) -> pdfcer_emf::EmfExport {
     // Additive: a subtractive blending space is a reason to print as an
     // image.
     let (doc, p) = load(additive_page_bytes(src, content));

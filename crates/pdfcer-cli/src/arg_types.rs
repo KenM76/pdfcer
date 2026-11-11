@@ -711,7 +711,7 @@ pub(crate) enum SvgTextArg {
     Keep,
 }
 
-impl From<SvgTextArg> for pdfcer_render::emf::EmfText {
+impl From<SvgTextArg> for pdfcer_emf::EmfText {
     fn from(arg: SvgTextArg) -> Self {
         match arg {
             SvgTextArg::Outlines => Self::Outlines,

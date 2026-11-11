@@ -1,15 +1,15 @@
 //! `export-image --format emf --emf-plates`: one vector metafile per
-//! separation plate (`pdfcer_render::emf::export_emf_plates`).
+//! separation plate (`pdfcer_emf::export_emf_plates`).
 
 use std::path::{Path, PathBuf};
 
 use pdfcer_core::document::Document;
 use pdfcer_core::page_tree::Page;
-use pdfcer_render::RenderOptions;
-use pdfcer_render::emf::{
+use pdfcer_emf::{
     EmfOptions, EmfPlate, EmfPlates, PlateMetafileError, export_emf_plates,
     export_emf_plates_strict,
 };
+use pdfcer_render::RenderOptions;
 
 use crate::edit_common::write_output;
 use crate::exit;

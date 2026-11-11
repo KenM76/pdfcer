@@ -11,7 +11,7 @@ use pdfcer_core::edit::EditSession;
 use pdfcer_core::emf_import;
 use pdfcer_core::page_tree::{self, Rect};
 use pdfcer_core::writer::SaveOptions;
-use pdfcer_render::emf::{EmfOptions, export_emf};
+use pdfcer_emf::{EmfOptions, export_emf};
 use pdfcer_render::{PageBackdrop, RenderOptions, render_page_with};
 use tiny_skia::Pixmap;
 

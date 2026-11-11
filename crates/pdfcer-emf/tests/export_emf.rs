@@ -23,7 +23,7 @@
 
 use pdfcer_core::document::Document;
 use pdfcer_core::page_tree;
-use pdfcer_render::emf::{EmfOptions, export_emf, walk_records};
+use pdfcer_emf::{EmfOptions, export_emf, walk_records};
 use pdfcer_render::{PageBackdrop, RenderOptions, render_page_with};
 use tiny_skia::Pixmap;
 
@@ -75,7 +75,7 @@ pub(crate) fn page(resources: &str, content: &str) -> Vec<u8> {
 
 pub(crate) const DPI: f32 = 144.0;
 
-fn export(bytes: Vec<u8>) -> (Pixmap, pdfcer_render::emf::EmfExport) {
+fn export(bytes: Vec<u8>) -> (Pixmap, pdfcer_emf::EmfExport) {
     let doc = Document::from_bytes(bytes).expect("fixture parses");
     let p = page_tree::pages(&doc).expect("page tree").remove(0);
     let reference = render_page_with(
@@ -327,13 +327,10 @@ fn a_gradient_becomes_a_bitmap_here_and_says_so() {
 }
 
 /// What `print_metafile` decides for a one-page document.
-fn print_route(
-    resources: &str,
-    content: &str,
-) -> Result<Vec<u8>, pdfcer_render::emf::PrintMetafileError> {
+fn print_route(resources: &str, content: &str) -> Result<Vec<u8>, pdfcer_emf::PrintMetafileError> {
     let doc = Document::from_bytes(page(resources, content)).expect("fixture parses");
     let p = page_tree::pages(&doc).expect("page tree").remove(0);
-    pdfcer_render::emf::print_metafile(&doc.view(), &p, &RenderOptions::default(), DPI)
+    pdfcer_emf::print_metafile(&doc.view(), &p, &RenderOptions::default(), DPI)
 }
 
 #[test]
@@ -344,7 +341,7 @@ fn an_opaque_page_prints_as_its_metafile() {
 
 #[test]
 fn a_page_the_metafile_cannot_carry_names_why_it_prints_as_an_image() {
-    use pdfcer_render::emf::{PrintMetafileError as E, RasterReason as R};
+    use pdfcer_emf::{PrintMetafileError as E, RasterReason as R};
     let gradient = "/Shading << /Sh0 << /ShadingType 2 /ColorSpace /DeviceRGB /Coords [10 0 90 0] \
          /Function << /FunctionType 2 /Domain [0 1] /C0 [1 0 0] /C1 [0 0 1] /N 1 >> >> >>";
     let cases = [

@@ -62,7 +62,7 @@ alongside the other licenses harvested from `Cargo.lock`.
 ## License overview
 
 - **Apache License 2.0** — used by 160 crate(s)
-- **MIT License** — used by 29 crate(s)
+- **MIT License** — used by 30 crate(s)
 - **BSD 3-Clause &quot;New&quot; or &quot;Revised&quot; License** — used by 7 crate(s)
 - **ISC License** — used by 3 crate(s)
 - **Boost Software License 1.0** — used by 2 crate(s)
@@ -4870,20 +4870,21 @@ SOFTWARE.
 ### MIT License
 
 Used by:
-- [pdfcer-3d 0.138.0](https://github.com/KenM76/pdfcer)
-- [pdfcer-3d-nav 0.138.0](https://github.com/KenM76/pdfcer)
-- [pdfcer-color 0.138.0](https://github.com/KenM76/pdfcer)
-- [pdfcer-core 0.138.0](https://github.com/KenM76/pdfcer)
-- [pdfcer-fonts 0.138.0](https://github.com/KenM76/pdfcer)
-- [pdfcer-function 0.138.0](https://github.com/KenM76/pdfcer)
-- [pdfcer-image-codec 0.138.0](https://github.com/KenM76/pdfcer)
-- [pdfcer-jpeg-remux 0.138.0](https://github.com/KenM76/pdfcer)
-- [pdfcer-json 0.138.0](https://github.com/KenM76/pdfcer)
-- [pdfcer-model 0.138.0](https://github.com/KenM76/pdfcer)
-- [pdfcer-pkix 0.138.0](https://github.com/KenM76/pdfcer)
-- [pdfcer-render 0.138.0](https://github.com/KenM76/pdfcer)
-- [pdfcer-text 0.138.0](https://github.com/KenM76/pdfcer)
-- [pdfcer-vec3 0.138.0](https://github.com/KenM76/pdfcer)
+- [pdfcer-3d 0.145.0](https://github.com/KenM76/pdfcer)
+- [pdfcer-3d-nav 0.145.0](https://github.com/KenM76/pdfcer)
+- [pdfcer-color 0.145.0](https://github.com/KenM76/pdfcer)
+- [pdfcer-core 0.145.0](https://github.com/KenM76/pdfcer)
+- [pdfcer-emf 0.145.0](https://github.com/KenM76/pdfcer)
+- [pdfcer-fonts 0.145.0](https://github.com/KenM76/pdfcer)
+- [pdfcer-function 0.145.0](https://github.com/KenM76/pdfcer)
+- [pdfcer-image-codec 0.145.0](https://github.com/KenM76/pdfcer)
+- [pdfcer-jpeg-remux 0.145.0](https://github.com/KenM76/pdfcer)
+- [pdfcer-json 0.145.0](https://github.com/KenM76/pdfcer)
+- [pdfcer-model 0.145.0](https://github.com/KenM76/pdfcer)
+- [pdfcer-pkix 0.145.0](https://github.com/KenM76/pdfcer)
+- [pdfcer-render 0.145.0](https://github.com/KenM76/pdfcer)
+- [pdfcer-text 0.145.0](https://github.com/KenM76/pdfcer)
+- [pdfcer-vec3 0.145.0](https://github.com/KenM76/pdfcer)
 
 ```
 MIT License

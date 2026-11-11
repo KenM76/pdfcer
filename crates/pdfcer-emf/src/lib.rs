@@ -1,9 +1,9 @@
-//! # EMF export — a page written as a Windows Enhanced Metafile (`Pass 248.4`)
+//! # pdfcer-emf — a PDF page written as a Windows Enhanced Metafile
 //!
 //! Turns one page into an [MS-EMF] metafile — the vector format LibreOffice
 //! 24.x, Office's *Paste Special → Picture (Enhanced Metafile)* and every
 //! legacy Win32 consumer (Visio, CorelDRAW, CAD packages) read — from the
-//! same export recording the SVG writer consumes ([`crate::svg`]), so the
+//! same export recording the SVG writer consumes ([`pdfcer_render::svg`]), so the
 //! two agree with each other and with the raster.
 //!
 //! ## 1. Why EMF at all, given SVG
@@ -33,7 +33,7 @@
 //! | `Op::Layer` (group opacity, blend, soft mask) | the whole layer replayed, its mask and opacity applied, one `EMR_ALPHABLEND`; the layer's blend mode against the page is dropped to `Normal` | `layers_rasterised`, `blend_modes_dropped` |
 //! | a clip | `SAVEDC`, one path bracket + `SELECTCLIPPATH RGN_AND` per ancestor, `RESTOREDC` when the clip changes | — |
 //! | text, [`EmfText::Outlines`] (default) | glyph outlines, like every other fill | — |
-//! | text, [`EmfText::KeepText`] | `EXTCREATEFONTINDIRECTW` + `EXTTEXTOUTW` with a `Dx` array per run that fits (see `emf_text`); other runs as outlines | [`EmfTextOutcome`] |
+//! | text, [`EmfText::KeepText`] | `EXTCREATEFONTINDIRECTW` + `EXTTEXTOUTW` with a `Dx` array per run that fits (see `text`); other runs as outlines | [`EmfTextOutcome`] |
 //!
 //! Every row of that table is a disclosure (rule 4); the CLI prints them.
 //!
@@ -68,9 +68,31 @@
 //!
 //! ## Failure modes
 //!
-//! [`crate::RenderError`], as for a render; plus `BadRasterSize` when the
+//! [`pdfcer_render::RenderError`], as for a render; plus `BadRasterSize` when the
 //! page in 0.01 mm units would not fit `i32` (it cannot — a page is at most
 //! 14 400 pt — but the guard is cheaper than the assumption).
+//!
+//! ## Crate boundary
+//!
+//! The writer consumes `pdfcer-render`'s export recording through
+//! `pdfcer_render::writer_seam`, which carries no semver promise; this crate
+//! is released at the same version as `pdfcer-render` and must be taken at
+//! that version (`docs/core-api/03-capabilities.md`).
+
+#![forbid(unsafe_code)]
+// Panic-free, as in pdfcer-render: the writer consumes recordings of
+// untrusted pages. Tests opt out per module. A per-pixel loop whose bound
+// holds by construction may allow `indexing_slicing` on its smallest item,
+// with the bound stated beside it.
+#![deny(
+    clippy::unwrap_used,
+    clippy::expect_used,
+    clippy::panic,
+    clippy::indexing_slicing,
+    clippy::unreachable,
+    clippy::todo,
+    clippy::unimplemented
+)]
 
 use std::sync::Arc;
 
@@ -81,20 +103,21 @@ use tiny_skia::{
     BlendMode, FillRule, LineCap, LineJoin, Mask, Path, PathSegment, Pixmap, Transform,
 };
 
-use crate::RenderError;
-use crate::canvas::{Brush, BrushSpec, LayerPaint};
-use crate::display_list::{
+use pdfcer_render::RenderError;
+use pdfcer_render::export::Rgb;
+use pdfcer_render::font::RenderOptions;
+use pdfcer_render::interpret::Diagnostics;
+use pdfcer_render::writer_seam::{Brush, BrushSpec, LayerPaint};
+use pdfcer_render::writer_seam::{
     ClipDef, ClipId, DeviceBounds, ExportRecording, ExportTally, MaskBuilder, Op,
     record_page_for_export, replay_ops,
 };
-use crate::export::Rgb;
-use crate::font::RenderOptions;
-use crate::interpret::Diagnostics;
 
 mod bitmap;
 mod patch;
 mod plates;
 mod print;
+mod text;
 pub use patch::EmfPatches;
 pub use plates::{
     EmfPlate, EmfPlateOutcome, EmfPlates, PlateMetafileError, PlatePatches, PlateRaster,
@@ -236,7 +259,7 @@ impl EmfOptions {
     /// [`Self::patch_approximations`].
     ///
     /// ```
-    /// use pdfcer_render::emf::EmfOptions;
+    /// use pdfcer_emf::EmfOptions;
     /// let options = EmfOptions::default().with_patch_approximations(true);
     /// assert!(options.patch_approximations);
     /// ```
@@ -387,7 +410,7 @@ fn flatten_and_plan(
     render: &RenderOptions,
     emf: &EmfOptions,
     scale: f32,
-) -> (crate::blend_flatten::Flattened, Option<patch::Plan>) {
+) -> (pdfcer_render::writer_seam::Flattened, Option<patch::Plan>) {
     let before = emf.patch_approximations && rec.subtractive_page;
     let mut plan = if before {
         patch::plan(rec, view, page, render, scale)
@@ -395,8 +418,13 @@ fn flatten_and_plan(
         None
     };
     let (w, h) = rec.page_size;
-    let flattened =
-        crate::blend_flatten::flatten_blends(&mut rec.ops, &rec.clips, w, h, emf.underlay_blends);
+    let flattened = pdfcer_render::writer_seam::flatten_blends(
+        &mut rec.ops,
+        &rec.clips,
+        w,
+        h,
+        emf.underlay_blends,
+    );
     if emf.patch_approximations && !before {
         plan = patch::plan(rec, view, page, render, scale);
     }
@@ -833,14 +861,14 @@ impl Writer<'_> {
                     self.stroke_solid(path, *rgba, stroke, *ctm);
                 }
                 // Only an export keeping text records `Op::Text`.
-                Op::Text { run, ops } => match crate::emf_text::plan_run(run, ops) {
+                Op::Text { run, ops } => match crate::text::plan_run(run, ops) {
                     Ok(text) => {
                         self.outcome.text.runs_as_text += 1;
                         self.ensure_clip(text.clip);
                         self.text_run(&text);
                     }
                     Err(reason) => {
-                        use crate::emf_text::EmfFallback as F;
+                        use crate::text::EmfFallback as F;
                         let t = &mut self.outcome.text;
                         match reason {
                             F::Paint => t.fallback_paint += 1,
@@ -865,7 +893,7 @@ impl Writer<'_> {
     /// One kept run: font, alignment, colour, `EMR_EXTTEXTOUTW`, and the
     /// font deleted. Field values: `D:\dev\rag\emf\text_records.md`,
     /// "Writer recipe".
-    fn text_run(&mut self, run: &crate::emf_text::EmfTextRun) {
+    fn text_run(&mut self, run: &crate::text::EmfTextRun) {
         self.record(0x52, &logfont_record_body(run, self.unit));
         self.max_handle = self.max_handle.max(IH_FONT);
         self.record(0x25, &u32le(IH_FONT)); // SELECTOBJECT
@@ -887,7 +915,7 @@ impl Writer<'_> {
 
     /// `Dx` in logical units from absolute positions, so rounding never
     /// accumulates: `dx[i] = round(x[i+1]) − round(x[i])`.
-    fn dx(&self, run: &crate::emf_text::EmfTextRun) -> Vec<i32> {
+    fn dx(&self, run: &crate::text::EmfTextRun) -> Vec<i32> {
         let at: Vec<i32> = run.along.iter().map(|&a| self.lu(a)).collect();
         at.iter()
             .zip(at.iter().skip(1))
@@ -1037,7 +1065,7 @@ impl Writer<'_> {
         let mut masks = MaskBuilder::new(self.clips, self.page_w, self.page_h, 0.0, 0.0);
         replay_ops(ops, &mut buf, &mut masks, region);
         if let Some(m) = mask {
-            crate::canvas::apply_mask(&mut buf, m);
+            pdfcer_render::writer_seam::apply_mask(&mut buf, m);
         }
         let opacity = paint.opacity.clamp(0.0, 1.0);
         if opacity < 1.0 {
@@ -1063,7 +1091,7 @@ impl Writer<'_> {
 /// `EMR_EXTCREATEFONTINDIRECTW` after the 8-byte head: `ihFonts`, then a
 /// `LogFontExDv` with no design axes (356 bytes; record Size 368, as in
 /// [MS-EMF] §3.2.8).
-fn logfont_record_body(run: &crate::emf_text::EmfTextRun, unit: f32) -> Vec<u8> {
+fn logfont_record_body(run: &crate::text::EmfTextRun, unit: f32) -> Vec<u8> {
     let mut b = Vec::with_capacity(360);
     b.extend_from_slice(&u32le(IH_FONT));
     #[allow(clippy::cast_possible_truncation)]
@@ -1175,8 +1203,8 @@ fn rectl(l: i32, t: i32, r: i32, b: i32) -> [u8; 16] {
 ///
 /// ```
 /// let eof = [0x0Eu8, 0, 0, 0, 20, 0, 0, 0, 0, 0, 0, 0, 16, 0, 0, 0, 20, 0, 0, 0];
-/// assert_eq!(pdfcer_render::emf::walk_records(&eof), Some(vec![(0x0E, 20)]));
-/// assert_eq!(pdfcer_render::emf::walk_records(&eof[..7]), None);
+/// assert_eq!(pdfcer_emf::walk_records(&eof), Some(vec![(0x0E, 20)]));
+/// assert_eq!(pdfcer_emf::walk_records(&eof[..7]), None);
 /// ```
 #[must_use]
 pub fn walk_records(emf: &[u8]) -> Option<Vec<(u32, u32)>> {
@@ -1237,7 +1265,7 @@ mod tests {
 
     #[test]
     fn a_font_record_is_368_bytes_with_the_design_vector_signature() {
-        let run = crate::emf_text::EmfTextRun {
+        let run = crate::text::EmfTextRun {
             chars: vec![65],
             origin: (0.0, 0.0),
             along: vec![0.0, 10.0],

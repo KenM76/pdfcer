@@ -7,11 +7,11 @@
 use crate::export_emf::{DPI, assert_well_formed, count, page, record_offsets};
 use pdfcer_core::document::Document;
 use pdfcer_core::page_tree;
-use pdfcer_render::RenderOptions;
-use pdfcer_render::emf::{
+use pdfcer_emf::{
     EmfOptions, EmfPlate, EmfPlates, PlateMetafileError, PlateRaster, export_emf_plates,
     export_emf_plates_strict, walk_records,
 };
+use pdfcer_render::RenderOptions;
 
 /// Separation SpotA: alternate M = 1.
 const SPOT_A: &str = "[/Separation /SpotA /DeviceCMYK << /FunctionType 2 /Domain [0 1] /C0 [0 0 0 0] /C1 [0 1 0 0] /N 1 >>]";

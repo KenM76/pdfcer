@@ -1278,11 +1278,11 @@ pub(crate) fn cmd_copy_page(args: CopyPageArgs<'_>) -> u8 {
     }
     let mut emf_outcome = None;
     if want_emf {
-        let emf_options = pdfcer_render::emf::EmfOptions::default()
+        let emf_options = pdfcer_emf::EmfOptions::default()
             .with_raster_dpi(dpi)
             .with_background(background)
             .with_underlay_blends(!raster_blends);
-        match pdfcer_render::emf::export_emf(&doc, page, &render_options, &emf_options) {
+        match pdfcer_emf::export_emf(&doc, page, &render_options, &emf_options) {
             Ok(export) => {
                 payload.emf = Some(export.emf);
                 emf_outcome = Some(export.outcome);
@@ -1421,7 +1421,7 @@ shadings_as_gradients={} blends_flattened={} blends_underlaid={}",
 }
 
 /// `--patch-approximations`' stable `emf-patches:` line and its note.
-fn print_emf_patches(o: &pdfcer_render::emf::EmfOutcome, page_number: usize) {
+fn print_emf_patches(o: &pdfcer_emf::EmfOutcome, page_number: usize) {
     let p = &o.patches;
     println!(
         "emf-patches: rasters={} overprint={} non_isolated_groups={} blends={} blending_space={}",
@@ -1440,7 +1440,7 @@ fn print_emf_patches(o: &pdfcer_render::emf::EmfOutcome, page_number: usize) {
 /// copy (`Pass 248.4`) — one function, so `export-image` and `copy-page`
 /// disclose the same facts in the same words.
 pub(crate) fn print_emf_disclosure(
-    o: &pdfcer_render::emf::EmfOutcome,
+    o: &pdfcer_emf::EmfOutcome,
     page_number: impl std::fmt::Display,
     keep_text: bool,
 ) {
@@ -1801,7 +1801,7 @@ pub(crate) fn cmd_export_image(args: ExportImageArgs<'_>) -> u8 {
             // recording scale and the resolution of every bitmap inside it;
             // `--transparent` is EMF's natural state (nothing is drawn where
             // nothing was painted) and `--background` an opaque first fill.
-            let emf_options = pdfcer_render::emf::EmfOptions::default()
+            let emf_options = pdfcer_emf::EmfOptions::default()
                 .with_raster_dpi(dpi)
                 .with_background(if transparent { None } else { background })
                 .with_text(emf_text.into())
@@ -1826,14 +1826,13 @@ pub(crate) fn cmd_export_image(args: ExportImageArgs<'_>) -> u8 {
                     Err(code) => return code,
                 }
             }
-            let export =
-                match pdfcer_render::emf::export_emf(&doc, page, &render_options, &emf_options) {
-                    Ok(e) => e,
-                    Err(err) => {
-                        eprintln!("pdfcer: {}: page {page_number}: {err}", input.display());
-                        return exit::RUNTIME_ERROR;
-                    }
-                };
+            let export = match pdfcer_emf::export_emf(&doc, page, &render_options, &emf_options) {
+                Ok(e) => e,
+                Err(err) => {
+                    eprintln!("pdfcer: {}: page {page_number}: {err}", input.display());
+                    return exit::RUNTIME_ERROR;
+                }
+            };
             if let Err(err) = write_output(&path, &export.emf) {
                 eprintln!("pdfcer: {}: {err}", path.display());
                 return exit::IO_ERROR;

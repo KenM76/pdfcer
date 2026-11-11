@@ -87,10 +87,10 @@ pub(crate) use group_space::InkSetup;
 /// tried to keep a `Paint` around would be keeping a borrow of a buffer
 /// the interpreter is about to drop. So a paint is decomposed into owned
 /// parts on the way in and rebuilt on the way out — which is also why
-/// [`BrushSpec::to_paint`] is the single place the rebuild happens, and
+/// `BrushSpec::to_paint` is the single place the rebuild happens, and
 /// why it must reproduce the old inline construction exactly.
 #[derive(Debug, Clone)]
-pub(crate) enum Brush {
+pub enum Brush {
     /// A solid colour, stored as the **8-bit RGBA quadruple** rather than
     /// a `tiny_skia::Color`.
     ///
@@ -106,7 +106,7 @@ pub(crate) enum Brush {
     /// An image, sampled through [`Pattern`] over §8.9.4's unit square.
     ///
     /// Constructed **only** by the recording branch of
-    /// [`Canvas::fill_image`]: paint mode builds its shader straight off
+    /// `Canvas::fill_image`: paint mode builds its shader straight off
     /// the interpreter's borrow, so the texel copy this variant implies is
     /// paid exactly where something will read it back.
     /// A native gradient (`Pass 248.3`) — recorded by the EXPORT recorder
@@ -136,7 +136,7 @@ pub(crate) enum Brush {
 /// anti-alias flag, in particular, is a function of the CTM
 /// (`image_edge_needs_antialiasing`), not of the image.
 #[derive(Debug, Clone)]
-pub(crate) struct BrushSpec {
+pub struct BrushSpec {
     /// What to paint with.
     pub brush: Brush,
     /// §11.3.5 `/BM`, carried on the paint so path fill, path stroke,
@@ -202,7 +202,7 @@ pub(crate) struct BrushSpec {
     /// Set only on an export recording, on a paint the interpreter routed
     /// to overprint (§11.7.4.3) and recorded as a knockout: per process
     /// plate, the tint Table 149 deposits, `None` where the backdrop
-    /// survives. The plate metafiles (`crate::emf::export_emf_plates`) read
+    /// survives. The plate metafiles (`pdfcer_emf::export_emf_plates`) read
     /// it; every other writer ignores it.
     pub overprint_process: Option<[Option<f32>; 4]>,
     /// The paint's colour as **authored subtractive tints**, when the
@@ -243,7 +243,7 @@ pub(crate) struct BrushSpec {
 /// a lossy decode here would let two different inks share one plane and
 /// composite as one colour.
 #[derive(Debug, Clone)]
-pub(crate) struct SpotInk {
+pub struct SpotInk {
     /// The colorant name, `#xx`-decoded — the comparison form §7.3.5
     /// specifies.
     pub colorant: std::sync::Arc<[u8]>,
@@ -254,7 +254,7 @@ pub(crate) struct SpotInk {
     /// Shared rather than owned — see [`BrushSpec::spots`]. Built by the
     /// interpreter, which is the only place the tint transform is
     /// reachable.
-    pub lut: std::sync::Arc<crate::cmyk_buffer::SpotLut>,
+    pub(crate) lut: std::sync::Arc<crate::cmyk_buffer::SpotLut>,
     /// `lut` came from the space's `/Colorants` entry for this colorant
     /// rather than its tint transform, so the paint's flattened sRGB colour
     /// (the transform's) is not what the colorant buffer composites.
@@ -492,7 +492,7 @@ impl BrushSpec {
 /// How a sub-drawing is composited back into its parent — the
 /// `draw_pixmap` half of a transparency group or a `/CA` annotation.
 #[derive(Debug, Clone, Copy)]
-pub(crate) struct LayerPaint {
+pub struct LayerPaint {
     /// Constant alpha applied to the layer **as a whole**, which is the
     /// entire reason a layer exists: applying it per-operator instead
     /// darkens every place the drawing overlaps itself.
@@ -2447,7 +2447,7 @@ impl KnockoutTarget {
 /// the same factor and the un-premultiplied colour is unchanged — which is
 /// what "the mask changes how much of the group you see, not what colour
 /// it is" means arithmetically.
-pub(crate) fn apply_mask(buf: &mut Pixmap, mask: &Mask) {
+pub fn apply_mask(buf: &mut Pixmap, mask: &Mask) {
     let data = mask.data();
     for (px, &m8) in buf.pixels_mut().iter_mut().zip(data.iter()) {
         // A fully open mask and an untouched pixel are both no-ops, and

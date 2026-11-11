@@ -11,7 +11,7 @@ use crate::display_list::{DeviceBounds, Op, PoisonReason};
 
 /// What a site approximated.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum SiteCause {
+pub enum SiteCause {
     /// A paint under overprint drawn as a knockout.
     Overprint,
     /// A non-isolated group recorded as isolated (§11.4.4).
@@ -25,7 +25,7 @@ pub(crate) enum SiteCause {
 
 /// One approximated region, in device pixels at the recording scale.
 #[derive(Debug, Clone, Copy, PartialEq)]
-pub(crate) struct Site {
+pub struct Site {
     pub cause: SiteCause,
     pub bounds: DeviceBounds,
 }
@@ -162,7 +162,7 @@ impl SiteLog {
 }
 
 /// An op of unknown extent: the whole page, once clamped.
-pub(crate) const UNKNOWN: DeviceBounds = DeviceBounds {
+pub const UNKNOWN: DeviceBounds = DeviceBounds {
     left: f32::NEG_INFINITY,
     top: f32::NEG_INFINITY,
     right: f32::INFINITY,
@@ -192,7 +192,7 @@ pub(crate) fn union(a: DeviceBounds, b: DeviceBounds) -> DeviceBounds {
 
 /// The device box `op` can paint into: its own bounds, or the union of
 /// its children's. `None` when unknown or when it holds nothing.
-pub(crate) fn op_box(op: &Op) -> Option<DeviceBounds> {
+pub fn op_box(op: &Op) -> Option<DeviceBounds> {
     match op {
         Op::Fill { bounds, .. } | Op::Stroke { bounds, .. } => Some(bounds.unwrap_or(UNKNOWN)),
         Op::Layer { ops, .. } | Op::Text { ops, .. } => ops.iter().filter_map(op_box).reduce(union),

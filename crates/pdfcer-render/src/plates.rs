@@ -64,7 +64,8 @@ pub fn render_plates(
 
 /// The page's inks in plate order, from a render under the separation
 /// preview, and that render. No inks: the colorant buffer was refused.
-pub(crate) fn probe_inks(
+#[doc(hidden)]
+pub fn probe_inks(
     view: &DocumentView<'_>,
     page: &Page,
     scale: f32,
@@ -79,7 +80,8 @@ pub(crate) fn probe_inks(
 
 /// `ink`'s plate as opaque grey, unlabelled: the page with every other of
 /// `inks` hidden, through [`to_plate_grey`].
-pub(crate) fn plate_pixmap(
+#[doc(hidden)]
+pub fn plate_pixmap(
     view: &DocumentView<'_>,
     page: &Page,
     scale: f32,

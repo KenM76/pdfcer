@@ -11,8 +11,8 @@
 
 use libfuzzer_sys::fuzz_target;
 use pdfcer_core::document::Document;
+use pdfcer_emf::{EmfOptions, export_emf, walk_records};
 use pdfcer_render::RenderOptions;
-use pdfcer_render::emf::{EmfOptions, export_emf, walk_records};
 
 fuzz_target!(|data: &[u8]| {
     let Ok(doc) = Document::from_bytes(data.to_vec()) else {

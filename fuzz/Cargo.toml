@@ -121,6 +121,11 @@ features = ["jpx"]
 [dependencies.pdfcer-pkix]
 path = "../crates/pdfcer-pkix"
 
+# The EMF writer (`export_emf`). No features of its own; render's are set
+# above.
+[dependencies.pdfcer-emf]
+path = "../crates/pdfcer-emf"
+
 # The JPEG scan rewrite (`jpeg_remux`). No features.
 [dependencies.pdfcer-jpeg-remux]
 path = "../crates/pdfcer-jpeg-remux"

@@ -234,7 +234,7 @@ pub struct ClipId(u32);
 
 impl ClipId {
     /// This id as a table index.
-    pub(crate) fn index(self) -> usize {
+    pub fn index(self) -> usize {
         self.0 as usize
     }
 }
@@ -242,7 +242,8 @@ impl ClipId {
 /// One clipping path, as the definition that *produces* a mask rather than
 /// as the mask itself (module docs §2.2).
 #[derive(Debug, Clone)]
-pub(crate) struct ClipDef {
+#[doc(hidden)]
+pub struct ClipDef {
     /// The clipping path, in the space `ctm` maps to page-device space.
     ///
     /// **`None` is §8.5.4's degenerate case** — a pending clip over an
@@ -269,7 +270,8 @@ pub(crate) struct ClipDef {
 /// the state machine at replay — a second interpreter, which is exactly
 /// what this design refuses (module docs §3).
 #[derive(Debug, Clone)]
-pub(crate) enum Op {
+#[doc(hidden)]
+pub enum Op {
     /// Fill a finished path.
     Fill {
         /// The path, in the space `ctm` maps to page-device space.
@@ -345,7 +347,8 @@ pub(crate) enum Op {
 
 /// What one shown string drew, for an export that keeps text (G033).
 #[derive(Debug)]
-pub(crate) struct TextRunInfo {
+#[doc(hidden)]
+pub struct TextRunInfo {
     /// The font the glyphs came from; its program is what gets embedded.
     pub font: Arc<crate::text::LoadedFont>,
     /// The program's units per em, which [`TextGlyph::to_device`] expects
@@ -360,7 +363,8 @@ pub(crate) struct TextRunInfo {
 
 /// One character code of a [`TextRunInfo`].
 #[derive(Debug, Clone)]
-pub(crate) struct TextGlyph {
+#[doc(hidden)]
+pub struct TextGlyph {
     /// Glyph id in the font program.
     pub gid: u32,
     /// What the code means, per the §9.10.2 ladder; `None` when unknown.
@@ -375,7 +379,8 @@ pub(crate) struct TextGlyph {
 /// non-finite rectangle, and the cull wants to *store* whatever bounds it
 /// got and decide later. A plain quadruple has no opinions.
 #[derive(Debug, Clone, Copy, PartialEq)]
-pub(crate) struct DeviceBounds {
+#[doc(hidden)]
+pub struct DeviceBounds {
     /// Left edge, device pixels.
     pub left: f32,
     /// Top edge, device pixels.
@@ -930,7 +935,8 @@ pub fn record_page(
 /// The op stream, the clip table, the page geometry at `scale`, the
 /// render diagnostics, and the [`ExportTally`] of what had to be
 /// rasterised or approximated. Consumed by `crate::svg`.
-pub(crate) struct ExportRecording {
+#[doc(hidden)]
+pub struct ExportRecording {
     pub ops: Vec<Op>,
     pub clips: Vec<ClipDef>,
     pub page_size: (u32, u32),
@@ -951,7 +957,8 @@ pub(crate) struct ExportRecording {
 /// `ScaleBeyondF32` remains a `BadRasterSize`-class refusal of the
 /// requested resolution, since an export scale past `f32` precision
 /// would misplace geometry by whole pixels.
-pub(crate) fn record_page_for_export(
+#[doc(hidden)]
+pub fn record_page_for_export(
     doc: &DocumentView<'_>,
     page: &Page,
     scale: f32,
@@ -964,8 +971,9 @@ pub(crate) fn record_page_for_export(
 
 /// [`record_page_for_export`] with the page composited in ink whatever its
 /// group says, as a separation preview renders it, so overprint is decided
-/// per colorant as the plates it feeds are (`crate::emf::export_emf_plates`).
-pub(crate) fn record_page_for_plates(
+/// per colorant as the plates it feeds are (`pdfcer_emf::export_emf_plates`).
+#[doc(hidden)]
+pub fn record_page_for_plates(
     doc: &DocumentView<'_>,
     page: &Page,
     scale: f32,
@@ -1230,7 +1238,8 @@ fn band_blocker(ops: &[Op]) -> Option<BandBlocker> {
 }
 
 /// Draw `ops` into `pixmap`, culling anything that cannot mark `region`.
-pub(crate) fn replay_ops(
+#[doc(hidden)]
+pub fn replay_ops(
     ops: &[Op],
     pixmap: &mut Pixmap,
     masks: &mut MaskBuilder<'_>,
@@ -1324,7 +1333,8 @@ pub(crate) fn replay_ops(
 /// The memo is keyed by [`ClipId`], and because a definition's parent always
 /// has a smaller index (see [`ClipId`]), recursion terminates without a
 /// cycle check.
-pub(crate) struct MaskBuilder<'a> {
+#[doc(hidden)]
+pub struct MaskBuilder<'a> {
     defs: &'a [ClipDef],
     built: Vec<Option<Option<Arc<Mask>>>>,
     width: u32,
@@ -1334,7 +1344,9 @@ pub(crate) struct MaskBuilder<'a> {
 }
 
 impl<'a> MaskBuilder<'a> {
-    pub(crate) fn new(defs: &'a [ClipDef], width: u32, height: u32, x0: f32, y0: f32) -> Self {
+    /// A builder for masks over `defs`, at `width` x `height` device pixels
+    /// whose top-left is (`x0`, `y0`).
+    pub fn new(defs: &'a [ClipDef], width: u32, height: u32, x0: f32, y0: f32) -> Self {
         Self {
             defs,
             built: vec![None; defs.len()],

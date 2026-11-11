@@ -1042,6 +1042,7 @@ dependencies = [
  "clipboard-win",
  "pdfcer-3d",
  "pdfcer-core",
+ "pdfcer-emf",
  "pdfcer-fetch",
  "pdfcer-ocr-host",
  "pdfcer-print",
@@ -1093,6 +1094,17 @@ dependencies = [
  "thiserror",
  "usvg",
  "weezl",
+]
+
+[[package]]
+name = "pdfcer-emf"
+version = "0.145.0"
+dependencies = [
+ "pdfcer-core",
+ "pdfcer-render",
+ "skrifa",
+ "thiserror",
+ "tiny-skia",
 ]
 
 [[package]]
@@ -1188,6 +1200,7 @@ dependencies = [
  "icccer-color",
  "icccer-profile",
  "pdfcer-core",
+ "pdfcer-emf",
  "pdfcer-render",
  "roxmltree",
  "thiserror",

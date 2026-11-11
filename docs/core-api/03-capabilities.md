@@ -5136,19 +5136,26 @@ from the Windows clipboard (it cannot read a foreign `image/svg+xml` until
 legacy Win32 consumer. Same export recording as the SVG, same options
 shape.
 
+The writer is its own crate, **`pdfcer-emf`** (`pdfcer_emf::…`), so a
+print-capable consumer takes it without the SVG writer or the rest of the
+export surface. It reads pages through `pdfcer-render` and is released at
+the same version: depend on both at one version. It reaches the renderer's
+display list through `pdfcer_render::writer_seam`, a `#[doc(hidden)]`
+module outside the semver surface; nothing else should use it.
+
 | I want to… | call |
 |---|---|
-| a page as EMF bytes | `pdfcer_render::emf::export_emf(&doc, &page, &RenderOptions, &EmfOptions) -> Result<EmfExport, RenderError>`; `export_emf_view` for a live `DocumentView` |
+| a page as EMF bytes | `pdfcer_emf::export_emf(&doc, &page, &RenderOptions, &EmfOptions) -> Result<EmfExport, RenderError>`; `export_emf_view` for a live `DocumentView` |
 | the raster resolution of anything EMF cannot hold as vectors | `EmfOptions::default().with_raster_dpi(300.0)` (also the grid coordinates are converted from) |
-| validate a metafile before handing it to GDI | `emf::walk_records(&bytes)` — `None` on the three things LibreOffice's reader aborts on |
+| validate a metafile before handing it to GDI | `pdfcer_emf::walk_records(&bytes)` — `None` on the three things LibreOffice's reader aborts on |
 | keep text as text | `EmfOptions::default().with_text(EmfText::KeepText)` — each run that fits becomes one `EMR_EXTTEXTOUTW` in the **installed** face of the recorded name, `Dx` pinning every character to its PDF position; `EmfText::Outlines` is the default |
 | know what text stayed outlines | `EmfOutcome::text: EmfTextOutcome` — `runs_as_text`, `fallback_paint`, `fallback_unmapped`, `fallback_geometry` (skew, mirror, `Tz` ≠ 100, off-baseline), `fallback_symbol_face`, and `runs_as_outlines()` |
 | know what became a bitmap | `EmfExport::outcome: EmfOutcome` — `ops`, `rasters_embedded`, `ops_rasterised_for_alpha`, `blend_modes_dropped`, `blends_flattened` (top-level blended ops — a highlight — taken out of the blend; always on, since EMF has no blend modes), `blends_underlaid` (of those, how many moved beneath the page as a source-over vector because that looks the same; the rest are written as pixels; `EmfOptions::with_underlay_blends(false)` forces pixels), `gradients_rasterised`, `images_embedded`, `layers_rasterised`, `dashed_strokes_pre_applied`, `nonzero_fills_multi_subpath`, plus the recording's `tally` and `diagnostics` |
-| decide vector-or-raster for printing | `emf::print_metafile(&view, &page, &RenderOptions, raster_dpi) -> Result<Vec<u8>, PrintMetafileError>` — the EMF when it is the whole page; `PrintMetafileError::Raster(RasterReason)` when the page must print as an image, `::Export(RenderError)` when export failed. The same rule `pdfcer print` applies |
+| decide vector-or-raster for printing | `pdfcer_emf::print_metafile(&view, &page, &RenderOptions, raster_dpi) -> Result<Vec<u8>, PrintMetafileError>` — the EMF when it is the whole page; `PrintMetafileError::Raster(RasterReason)` when the page must print as an image, `::Export(RenderError)` when export failed. The same rule `pdfcer print` applies |
 | write approximated regions as true pixels | `EmfOptions::default().with_patch_approximations(true)` (field `patch_approximations`, default `false`; off is byte-identical). Each region the recording can only approximate — an overprint over earlier ink (over paper it stays vector), a non-isolated group, a blend inside a group, compositing in a CMYK page group — becomes one `EMR_ALPHABLEND` of the page raster's own pixels over its box (grown 1 px, merged until disjoint); the vector page is clipped out of each box with `EMR_EXCLUDECLIPRECT`. The patched tallies (`overprint_approximated`, `non_isolated_groups_isolated`, `nonseparable_approximated`, `colorant_buffer_on_screen`) and `blend_modes_dropped` read 0, and `print_fallback()` no longer names them. A top-level blended highlight is still handled by `blends_flattened`, not by this switch. CLI `export-image --format emf --patch-approximations` |
 | know what was patched | `EmfOutcome::patches: EmfPatches` (`#[non_exhaustive]`, `Copy`) — `overprint`, `non_isolated_groups`, `blends`, `blending_space` (distinct regions per cause), `rasters` (bitmaps written after merging), `cases()` (the sum of the four causes) |
-| print with chosen options | `emf::print_metafile_with(&view, &page, &RenderOptions, &EmfOptions)` — `print_metafile` with every `EmfOptions` field the caller's; with patches on, a page whose only problem was an approximation prints as a metafile |
-| print, and keep the disclosure | `emf::print_export_with(&view, &page, &RenderOptions, &EmfOptions) -> Result<EmfExport, PrintMetafileError>` — `print_metafile_with` returning the whole `EmfExport`, so `outcome.diagnostics` (e.g. `icc_profiles_unmodelled`) reaches the print caller |
+| print with chosen options | `pdfcer_emf::print_metafile_with(&view, &page, &RenderOptions, &EmfOptions)` — `print_metafile` with every `EmfOptions` field the caller's; with patches on, a page whose only problem was an approximation prints as a metafile |
+| print, and keep the disclosure | `pdfcer_emf::print_export_with(&view, &page, &RenderOptions, &EmfOptions) -> Result<EmfExport, PrintMetafileError>` — `print_metafile_with` returning the whole `EmfExport`, so `outcome.diagnostics` (e.g. `icc_profiles_unmodelled`) reaches the print caller |
 | why a page prints as an image | `EmfOutcome::print_fallback() -> Option<RasterReason>` — first of `SemiTransparentPaint`, `TransparencyGroup`, `BlendMode`, `Shading`, `Overprint`, `BlendingColourSpace`, `TilingPattern`, `ExtraRasters` (`#[non_exhaustive]`); `as_str()` / `Display` give the CLI's wording |
 
 **What EMF cannot hold, and what the writer does** (each is a counter): no
@@ -5177,8 +5184,8 @@ For the clipboard, outlines stay the right default.
 
 | You want | Call |
 |---|---|
-| one EMF per ink | `emf::export_emf_plates(&doc, &page, &RenderOptions, &EmfOptions) -> Result<EmfPlates, RenderError>`; `export_emf_plates_view` for a live `DocumentView` |
-| refuse a page whose plates would need pixels | `emf::export_emf_plates_strict(&view, &page, &RenderOptions, &EmfOptions) -> Result<EmfPlates, PlateMetafileError>` — `PlateMetafileError::Raster { ink, reason: PlateRaster }` names the first plate and why ("the Cyan plate needs pixels for image"); `::Export(RenderError)` when export failed |
+| one EMF per ink | `pdfcer_emf::export_emf_plates(&doc, &page, &RenderOptions, &EmfOptions) -> Result<EmfPlates, RenderError>`; `export_emf_plates_view` for a live `DocumentView` |
+| refuse a page whose plates would need pixels | `pdfcer_emf::export_emf_plates_strict(&view, &page, &RenderOptions, &EmfOptions) -> Result<EmfPlates, PlateMetafileError>` — `PlateMetafileError::Raster { ink, reason: PlateRaster }` names the first plate and why ("the Cyan plate needs pixels for image"); `::Export(RenderError)` when export failed |
 | the result | `EmfPlates::Separated(Vec<EmfPlate>)` in `plates::render_plates` ink order (Cyan, Magenta, Yellow, Black, then spots in plane order), or `EmfPlates::Composite(Box<EmfExport>)` — the ordinary metafile — when the page has no inks, as `Plates::Composite` (`#[non_exhaustive]`) |
 | one plate | `EmfPlate { ink: String, emf: Vec<u8>, outcome: EmfPlateOutcome }` |
 | what each plate holds | `EmfPlateOutcome` — `width_pt`, `height_pt`, `ops` (vector paths written), `knockouts` (white paths), `knockouts_elided` (white paths dropped because nothing was painted beneath), `overprints_kept` (paints left off this plate so the ink beneath survives), `patches: PlatePatches` |

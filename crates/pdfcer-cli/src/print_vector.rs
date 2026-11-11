@@ -1,5 +1,5 @@
 //! `print`'s vector route: a page goes to the printer as an Enhanced
-//! Metafile when `pdfcer_render::emf::print_export_with` says the metafile
+//! Metafile when `pdfcer_emf::print_export_with` says the metafile
 //! is the whole page, and as a raster otherwise. Each page's route, and any
 //! embedded colour profile that could not be used, is reported on stderr
 //! (rule 4).
@@ -9,7 +9,7 @@
 #![cfg_attr(not(windows), allow(dead_code))]
 
 use pdfcer_core::page_tree::Page;
-use pdfcer_render::emf::{EmfExport, EmfOptions, PrintMetafileError, print_export_with};
+use pdfcer_emf::{EmfExport, EmfOptions, PrintMetafileError, print_export_with};
 use pdfcer_render::{DocumentView, RenderOptions};
 
 /// The page as a printable metafile at `scale` device pixels per point, or

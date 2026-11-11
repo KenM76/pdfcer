@@ -12,8 +12,8 @@ use pdfcer_core::page_tree::Page;
 use pdfcer_core::view::DocumentView;
 
 use super::{EmfExport, EmfOptions, EmfOutcome, export_emf_view};
-use crate::RenderError;
-use crate::font::RenderOptions;
+use pdfcer_render::RenderError;
+use pdfcer_render::font::RenderOptions;
 
 /// Why a page prints as an image rather than as its metafile.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -157,9 +157,9 @@ pub fn print_metafile_with(
 ///
 /// ```no_run
 /// # fn f(view: &pdfcer_core::view::DocumentView<'_>, page: &pdfcer_core::page_tree::Page)
-/// # -> Result<(), pdfcer_render::emf::PrintMetafileError> {
+/// # -> Result<(), pdfcer_emf::PrintMetafileError> {
 /// use pdfcer_render::RenderOptions;
-/// use pdfcer_render::emf::{EmfOptions, print_export_with};
+/// use pdfcer_emf::{EmfOptions, print_export_with};
 ///
 /// let export = print_export_with(view, page, &RenderOptions::default(), &EmfOptions::default())?;
 /// if export.outcome.diagnostics.icc_profiles_unmodelled > 0 {

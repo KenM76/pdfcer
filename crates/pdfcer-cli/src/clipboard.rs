@@ -26,7 +26,7 @@
 //! | # | format | payload | reaches |
 //! |---|---|---|---|
 //! | 1 | registered `"image/svg+xml"` | UTF-8 SVG **plus one trailing NUL** — byte-for-byte what Chromium ≥ M127 writes and what Microsoft validated Office against | Word/PowerPoint/Excel as an editable SVG graphic; Inkscape (its 2nd preference, above EMF and PDF); LibreOffice ≥ 25.2; browsers |
-//! | 1b | `CF_ENHMETAFILE` (`Pass 248.4`) | an [MS-EMF] metafile from `pdfcer_render::emf`, placed as a GDI handle via `SetEnhMetaFileBits` | LibreOffice 24.x (its ONLY vector route on Windows), Office *Paste Special → Picture (Enhanced Metafile)*, Visio/CorelDRAW/CAD; Inkscape ranks it 5th, after the SVG |
+//! | 1b | `CF_ENHMETAFILE` (`Pass 248.4`) | an [MS-EMF] metafile from `pdfcer_emf`, placed as a GDI handle via `SetEnhMetaFileBits` | LibreOffice 24.x (its ONLY vector route on Windows), Office *Paste Special → Picture (Enhanced Metafile)*, Visio/CorelDRAW/CAD; Inkscape ranks it 5th, after the SVG |
 //! | 2 | registered `"PNG"` | the PNG file bytes, straight alpha, DPI in `pHYs` | Office's preferred raster, Paint.NET, GIMP, Inkscape, LibreOffice, Firefox/Chromium, Snip & Sketch |
 //! | 3 | `CF_DIBV5` | `BITMAPV5HEADER` + 32 bpp `BI_BITFIELDS` BGRA, premultiplied, top-down | readers older than the `"PNG"` convention; Windows synthesises `CF_DIB`/`CF_BITMAP` from it |
 //! | 4 | registered `"application/pdf"` | the page as a one-page PDF | Inkscape (7th preference; it imports it through its PDF dialog); nobody else on Windows |

@@ -234,8 +234,6 @@ pub(crate) mod device_clip;
 pub mod display_list;
 mod divergence;
 pub mod edit_preview;
-pub mod emf;
-mod emf_text;
 pub mod export;
 mod export_sites;
 pub mod font;
@@ -266,6 +264,8 @@ mod visual_diff;
 mod visual_match;
 mod visual_regions;
 mod white_margins;
+#[doc(hidden)]
+pub mod writer_seam;
 pub mod xfa;
 
 use pdfcer_core::document::Document;

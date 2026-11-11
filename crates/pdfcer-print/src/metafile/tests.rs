@@ -81,11 +81,11 @@ fn a_played_metafile_matches_the_raster_and_lands_at_the_placement() {
     let page = pdfcer_core::page_tree::pages(&doc).unwrap().remove(0);
     let view = pdfcer_core::view::DocumentView::new(&doc, doc.bytes(), doc.version());
     let options = pdfcer_render::RenderOptions::default();
-    let emf = pdfcer_render::emf::export_emf_view(
+    let emf = pdfcer_emf::export_emf_view(
         &view,
         &page,
         &options,
-        &pdfcer_render::emf::EmfOptions::default().with_raster_dpi(144.0),
+        &pdfcer_emf::EmfOptions::default().with_raster_dpi(144.0),
     )
     .unwrap()
     .emf;

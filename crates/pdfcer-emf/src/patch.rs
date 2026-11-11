@@ -16,10 +16,10 @@ use pdfcer_core::view::DocumentView;
 use tiny_skia::{BlendMode, Pixmap};
 
 use super::{Writer, rectl};
-use crate::canvas::Brush;
-use crate::display_list::{DeviceBounds, ExportRecording, Op};
-use crate::export_sites::{Site, SiteCause, op_box};
-use crate::font::RenderOptions;
+use pdfcer_render::font::RenderOptions;
+use pdfcer_render::writer_seam::Brush;
+use pdfcer_render::writer_seam::{DeviceBounds, ExportRecording, Op};
+use pdfcer_render::writer_seam::{Site, SiteCause, op_box};
 
 /// What [`super::EmfOptions::with_patch_approximations`] replaced with
 /// pixels. All zero with the switch off.
@@ -81,7 +81,7 @@ impl Plan {
     }
 }
 
-/// Plan the patches for `rec` (after [`crate::blend_flatten`]) and drop the
+/// Plan the patches for `rec` (after [`pdfcer_render::writer_seam::flatten_blends`]) and drop the
 /// top-level ops lying wholly inside one. `None` when there is nothing to
 /// patch or the raster could not be made; then nothing is changed.
 pub(super) fn plan(
@@ -102,8 +102,8 @@ pub(super) fn plan(
     if !rects.is_empty() {
         let options = render
             .clone()
-            .with_backdrop(crate::PageBackdrop::Transparent);
-        let truth = crate::render_page_with_view(view, page, scale, &options)
+            .with_backdrop(pdfcer_render::PageBackdrop::Transparent);
+        let truth = pdfcer_render::render_page_with_view(view, page, scale, &options)
             .ok()?
             .pixmap;
         if (truth.width(), truth.height()) != (w, h) {

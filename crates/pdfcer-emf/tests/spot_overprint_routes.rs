@@ -12,7 +12,7 @@
 use pdfcer_core::document::Document;
 use pdfcer_core::page_tree;
 #[cfg(windows)]
-use pdfcer_render::emf::{EmfOptions, export_emf_view};
+use pdfcer_emf::{EmfOptions, export_emf_view};
 use pdfcer_render::plates::{Plates, render_plates};
 use pdfcer_render::{EdgeAntialiasing, PageBackdrop, RenderOptions};
 

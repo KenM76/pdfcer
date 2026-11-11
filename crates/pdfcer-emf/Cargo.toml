@@ -1,0 +1,41 @@
+[package]
+name = "pdfcer-emf"
+description = "pdfcer Enhanced Metafile writer: PDF pages to vector [MS-EMF] metafiles for printing, the clipboard and export, plus per-ink separation plates. Pure Rust over pdfcer-render's export recording; no GUI, platform or network dependencies, builds for wasm32."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+publish = true
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+readme = "README.md"
+keywords = ["pdf", "emf", "metafile", "printing", "vector"]
+categories = ["graphics", "rendering", "encoding"]
+# One integration-test binary per crate (tests/all.rs); see
+# tools/check-tests-harnessed.py.
+autotests = false
+
+[dependencies]
+# Every dependency below is already in the workspace graph through
+# pdfcer-render, at the same version requirement, so this crate adds no
+# package and no licence (rule 13). None is a GUI, windowing or network crate.
+#
+# pdfcer-render is read through its `writer_seam` module, which carries no
+# semver promise: this crate is released in lockstep with it at one workspace
+# version, and a consumer takes both at that version.
+pdfcer-core.workspace = true
+pdfcer-render.workspace = true
+# tiny-skia: the paths, transforms and pixmaps the recording is made of.
+# BSD-3-Clause.
+tiny-skia = "0.11"
+# skrifa: reads a font's family and weight for an EMF text record. Pinned to
+# pdfcer-render's line so one fontations stack exists (decision 004 R21).
+# MIT OR Apache-2.0.
+skrifa = "0.42"
+# thiserror: C-GOOD-ERR error derive. MIT OR Apache-2.0.
+thiserror = "2"
+
+[[test]]
+name = "all"
+path = "tests/all.rs"

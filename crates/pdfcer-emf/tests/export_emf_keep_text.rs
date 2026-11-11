@@ -15,8 +15,8 @@
 use pdfcer_core::document::Document;
 use pdfcer_core::page_tree;
 use pdfcer_core::text_edit::addtext::{self, AddTextRequest};
+use pdfcer_emf::{EmfExport, EmfOptions, EmfText, export_emf, walk_records};
 use pdfcer_render::RenderOptions;
-use pdfcer_render::emf::{EmfExport, EmfOptions, EmfText, export_emf, walk_records};
 use pdfcer_render::font::subset::plan_subset;
 use skrifa::prelude::{LocationRef, Size};
 use skrifa::{FontRef, MetadataProvider};

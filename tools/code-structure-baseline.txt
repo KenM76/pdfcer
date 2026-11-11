@@ -9,7 +9,6 @@ dup pdfcer-core::rect_array in pdfcer-core/src/annot_author.rs, pdfcer-core/src/
 dup pdfcer-core::rect_object in pdfcer-core/src/annot_author.rs, pdfcer-core/src/pageops/scale.rs
 dup pdfcer-core::stage in pdfcer-core/src/redact.rs, pdfcer-core/src/text_edit/edit.rs
 dup pdfcer-image-codec::geometry_disagrees in pdfcer-image-codec/src/ccitt.rs, pdfcer-image-codec/src/jbig2.rs
-dup pdfcer-render::_types in pdfcer-render/src/emf.rs, pdfcer-render/src/svg.rs
 file pdfcer-cli/src/annot_edit.rs
 file pdfcer-cli/src/arg_types.rs
 file pdfcer-cli/src/cli.rs
@@ -88,7 +87,7 @@ file pdfcer-render/src/annot.rs
 file pdfcer-render/src/color.rs
 file pdfcer-render/src/compositor.rs
 file pdfcer-render/src/display_list.rs
-file pdfcer-render/src/emf.rs
+file pdfcer-emf/src/lib.rs
 file pdfcer-render/src/font/mod.rs
 file pdfcer-render/src/gstate.rs
 file pdfcer-render/src/image.rs
@@ -479,7 +478,7 @@ fn pdfcer-render/src/color.rs::resolve_icc_based
 fn pdfcer-render/src/color.rs::to_rgb
 fn pdfcer-render/src/display_list.rs::record_impl
 fn pdfcer-render/src/display_list.rs::replay_ops
-fn pdfcer-render/src/emf.rs::write_ops
+fn pdfcer-emf/src/lib.rs::write_ops
 fn pdfcer-render/src/font/select.rs::candidate_names
 fn pdfcer-render/src/font/webfont.rs::wrap_cff
 fn pdfcer-render/src/image.rs::decode

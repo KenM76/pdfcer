@@ -56,5 +56,6 @@ windows = { version = "0.62", features = [
 [dev-dependencies]
 pdfcer-core.workspace = true
 pdfcer-render.workspace = true
+pdfcer-emf.workspace = true
 # The X063 tests author a wide-gamut profile from icccer's primaries math.
 icccer-color = "=0.4.2"
