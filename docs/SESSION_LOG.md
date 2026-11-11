@@ -4,6 +4,16 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-11-11 (1510th filing) — `31ef6a12` + `0bef7d51` `Pass 700.6` + `700.7` SHIPPED: `/NeedAppearances` + field text geometry (X070), formatted values + list-box rows (X069)
+
+**Shipped (engineer-reported; no shell here, git/CI state not checked from here; in `main`, NOT in a release):**
+- `Pass 700.6` (`31ef6a12`, X070): `/NeedAppearances` honoured when rendering (`NeedAppearances::{Honour, AsStored}`, CLI `--need-appearances`, counted `annots_need_appearances_redrawn=` as the last key), optional `FieldHighlight`, and core `WidgetAppearances::text_geometry` (lines, character boxes, carets, hit-test; UTF-8 byte offsets). Geometry has no CLI caller.
+- `Pass 700.7` (`0bef7d51`, X069): widget appearances show the `AF*_Format` formatted value and draw list-box rows from `/TI` with the selection highlighted, via new `pdfcer_core::field_display`; CLI prints the counts.
+
+**Decisions / FEATURES:** none new in `ARCHITECTURE.md`. Divergence recorded: absent `/TI` scrolls the selection into view (request asked; spec default and Acrobat open at row 0). Gaps left open: `FillOutcome` carries no counts; `set_field_format` does not trigger a redraw. FEATURES: one row amended, two added; gui `[ ]` throughout. IDs `700.6`/`700.7` verified free by grep before filing. Suites reported green at merge; exact counts pending from the engineer. Detail in `ROADMAP.md` Shipped.
+
+**For next session:** the release the requester asked for, before `X071` starts; engineer's sweep for stale "NeedAppearances is disclosure-only" and "large sheet refused" wording; gui engine pin bump; `705.4`.
+
 ## 2026-11-11 (1509th filing) — `dc178ee6` + `8bcc094f` `Pass 700.4` + `700.5` SHIPPED: tiled supersampled large sheets, `Settings::preserve_calibrated_cmyk`
 
 **Shipped (engineer-reported; no shell here, git/CI state not checked from here; in `main`, NOT in a release):**
