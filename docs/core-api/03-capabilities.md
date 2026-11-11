@@ -4597,6 +4597,28 @@ project builds against, was restating the very claim `Pass 174.0` measured
 away. Recorded rather than silently corrected: a worked example is a claim,
 and a stale one is a wrong claim that reads as an illustration.)*
 
+### 7.3c Banded replay — one page on several threads (`Pass 704.0`, decision 223)
+
+`DisplayList` is `Send + Sync`. `list.replay_rows(list.key(), r0..r1)` replays
+device rows `r0..r1` of the raster `replay_region(key, page.crop_box)` would
+produce, at full width. The engine starts no threads; the host replays bands
+on its own and stacks them top to bottom.
+
+- **Band edges sit on `BAND_ROW_LATTICE` (64) rows**, except the final edge,
+  which is the page height. Anything else returns
+  `RenderError::BandNotAligned { start, end, lattice }`.
+- **Byte-identical only when `list.band_exact()` is `Ok(())`.** Otherwise it
+  returns a `BandBlocker` (`Image`, `Gradient`, `LayerMask`): such a page can
+  differ from the whole replay by a level or two where a shader samples. In
+  that case replay the whole page on one worker. Do not band it and accept
+  the difference, because the stitched picture would not match the snapshot
+  the CPU route saves.
+- `BadRasterSize` is returned for an empty range, a range past the page
+  height, or a page with no raster at this scale. `DisplayListStale` is
+  returned as for `replay_region`.
+
+Measured (`tools/render-profile --bands`): see `docs/render-region-measurements.md`.
+
 ### 7.3 Cancellation — the off-thread contract
 
 `RenderCancel` (`crates/pdfcer-render/src/cancel.rs`) is a plain
@@ -4823,6 +4845,8 @@ claims, and the file can only carry the second.
 - **`replay_region` (the display-list cache) still flattens over white.** The
   shell's cached panning route is untouched by `backdrop`; a transparent
   export must go through a direct render.
+- **`replay_rows` bands are lattice-aligned and conditional** (§7.3c): check
+  `band_exact()` first, and only then split a page across threads.
 - **JPEG's 16-bit dimensions.** `encode_jpeg` refuses a side over 65 535 px
   (`ExportError::TooLargeForJpeg`); PNG has no such limit but
   `MAX_PIXMAP_EDGE` still bounds the render.

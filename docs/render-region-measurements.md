@@ -495,3 +495,48 @@ precisely the decision the number exists to inform.
 - **A change of scale**, which invalidates a list by design (`display_list`
   module docs §2.1). Panning at a fixed zoom is what these numbers measure.
 - **Multi-page holding.** Every figure here is one page.
+
+# Banded replay — one page across threads (Pass 704.0, decision 223)
+
+**Measured 2026-11-10** on the same drawing, now at
+`D:\Dev\pdfTests\ncored-benchmark-cad-drawing.pdf` (the path above no longer
+exists). Release build, best of 3, on a single machine with other load
+present. Re-runnable:
+
+```text
+cd tools/render-profile
+cargo run --release -- <file.pdf> --scales 1,2,4.1667 --bands 2,4,8 --repeat 3
+```
+
+| scale | MP | record ms | replay ms (1 thread) | 2 bands | 4 bands | 8 bands | PNG ms |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| 1 | 1.0 | 607 | 769 | 527 (1.46x) | 429 (1.79x) | 294 (2.61x) | 7 |
+| 2 | 4.0 | 636 | 1135 | 690 (1.65x) | 597 (1.90x) | 390 (2.91x) | 25 |
+| 4.1667 | 17.4 | 643 | 2091 | 1270 (1.65x) | 1079 (1.94x) | 706 (2.96x) | 92 |
+
+The display list is 40.1 MB at every scale. Every banded picture is
+**byte-identical** to the whole-page replay.
+
+## Why bands are cut at 64-row lines
+
+tiny-skia derives a line's fixed-point slope from the endpoints it is given,
+and it chops any line that leaves the pixmap. A line that crosses a band edge
+therefore rasterised differently in the band than in the whole page.
+
+- **Before the fix:** 713 B with a maximum difference of 29 levels at scale 1
+  with 2 bands; 9,448 B with a maximum of 215 at scale 4.17 with 8 bands. The
+  215s were aliased lines shifting by one pixel.
+- **The fix:** `device_clip::in_range` cuts every edge at absolute device rows
+  k·64 before tiny-skia sees it. It rounds the cut points to `f32` in unbanded
+  space and then subtracts the band's integer origin, which is exact.
+- **The cost:** a single-thread replay costs about 4–7 % more (720 → 769 ms
+  at scale 1, 2011 → 2091 ms at scale 4.17).
+- **Already exact:** curves were made band-exact first, by deciding their
+  flattening under the transform's linear part only.
+
+## What is NOT band-exact
+
+Shader-sampled paints (images, gradients) and group soft masks invert a
+transform that includes the band offset, in `f32`. `DisplayList::band_exact()`
+reports them, and a host replays such a page whole. The CAD sheet has none.
+Owning the image and pattern sampler is the follow-up that lifts this.

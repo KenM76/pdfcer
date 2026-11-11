@@ -82,6 +82,8 @@
 //! Exits 2 on a usage or load error, 0 otherwise. It reports; it does
 //! not judge, and has no pass/fail threshold to drift out of date.
 
+mod bands;
+
 use std::time::Instant;
 
 use pdfcer_core::document::Document;
@@ -123,6 +125,7 @@ fn main() -> std::process::ExitCode {
     let mut repeat: usize = 1;
     let mut ablate: Option<Ablation> = None;
     let mut ablate_sweep = false;
+    let mut bands: Option<Vec<usize>> = None;
 
     while let Some(a) = args.next() {
         match a.as_str() {
@@ -146,6 +149,10 @@ fn main() -> std::process::ExitCode {
                 }
             }
             "--ablate-sweep" => ablate_sweep = true,
+            "--bands" => {
+                let v = args.next().unwrap_or_default();
+                bands = Some(v.split(',').filter_map(|s| s.trim().parse().ok()).collect());
+            }
             "--page" => {
                 page_index = args.next().and_then(|v| v.parse().ok()).unwrap_or(0);
             }
@@ -161,9 +168,12 @@ fn main() -> std::process::ExitCode {
                 eprintln!(
                     "render-profile <file.pdf> [--page N] [--scales 0.25,0.5,1,2] [--repeat N]\n\
                                                [--ablate SET | --ablate-sweep]\n\
+                                               [--bands 1,2,4,8]\n\
                      \n\
                      SET is a comma list of: clip-build, clip-sample, paint, all, none\n\
-                     --ablate-sweep runs each in turn and reports the FLOOR."
+                     --ablate-sweep runs each in turn and reports the FLOOR.\n\
+                     --bands records once per scale, then times whole replay, PNG\n\
+                     encode, and N row bands on N threads, checking each stitch."
                 );
                 return std::process::ExitCode::SUCCESS;
             }
@@ -246,6 +256,13 @@ fn main() -> std::process::ExitCode {
                  centre's cost, never its value (R164)"
             );
         }
+    }
+    if let Some(threads) = bands {
+        return if bands::run(&view, page, &scales, &threads, repeat) {
+            std::process::ExitCode::SUCCESS
+        } else {
+            std::process::ExitCode::from(1)
+        };
     }
     println!();
     println!(

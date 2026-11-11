@@ -294,8 +294,8 @@ pub use annot::{AnnotationClass, AnnotationScope, FreeTextC, MarkupWithoutAp, Wi
 // name its type without knowing which module it lives in.
 pub use color::{ColorDiagnostics, ColorSpace, ColorState, Colorant, DeviceSpace};
 pub use display_list::{
-    ClipId, DisplayList, DisplayListKey, ExportTally, MAX_DISPLAY_LIST_BYTES, PoisonReason,
-    record_page,
+    BAND_ROW_LATTICE, BandBlocker, ClipId, DisplayList, DisplayListKey, ExportTally,
+    MAX_DISPLAY_LIST_BYTES, PoisonReason, record_page,
 };
 pub use font::{
     EdgeAntialiasing, FallbackKey, FontData, FontEnvironment, GlyphSource, InkProbe,
@@ -626,6 +626,16 @@ pub enum RenderError {
         width: u32,
         /// Requested height in pixels.
         height: u32,
+    },
+    /// A [`DisplayList::replay_rows`] band edge is not on the lattice.
+    #[error("band rows {start}..{end} do not start and end on multiples of {lattice}")]
+    BandNotAligned {
+        /// First requested row.
+        start: u32,
+        /// One past the last requested row.
+        end: u32,
+        /// [`BAND_ROW_LATTICE`].
+        lattice: u32,
     },
     /// The page uses an operator that has no recordable formulation, so
     /// [`display_list::record_page`] refused rather than returning a list

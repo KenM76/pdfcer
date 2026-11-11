@@ -714,14 +714,7 @@ impl DisplayList {
         expected: DisplayListKey,
         region: PageRect,
     ) -> Result<RenderedPage, RenderError> {
-        if expected != self.key {
-            return Err(RenderError::DisplayListStale {
-                expected_epoch: expected.epoch,
-                recorded_epoch: self.key.epoch,
-                expected_scale: expected.scale,
-                recorded_scale: self.key.scale,
-            });
-        }
+        self.check_key(expected)?;
         // The SAME arithmetic a fresh region render uses, called rather
         // than copied: a second implementation of the corner mapping is a
         // second place for the `/Rotate` axis swap to be got wrong, and
@@ -741,7 +734,93 @@ impl DisplayList {
                 width: 0,
                 height: 0,
             })?;
-        let (width, height, x0, y0) = (g.width, g.height, g.x0, g.y0);
+        self.replay_at(g.width, g.height, g.x0, g.y0, 0)
+    }
+
+    /// Replay device rows `rows` of the whole-page raster — the raster
+    /// [`Self::replay_region`] produces for the page's crop box — at full
+    /// width.
+    ///
+    /// Bands whose edges fall on multiples of [`BAND_ROW_LATTICE`] (or the
+    /// page's last row) and that partition `0..height` stitch, top to
+    /// bottom, into exactly that whole-page raster, byte for byte, when
+    /// [`Self::band_exact`] is `Ok` (decision 223). Otherwise a band can
+    /// differ by a level or two where an image or gradient is sampled, so
+    /// replay the whole page instead. A list is [`Sync`], so a host may
+    /// replay bands on its own threads; the engine starts none. Addressed
+    /// in rows because at a non-integer scale a page-space rectangle cannot
+    /// name an exact row.
+    ///
+    /// # Errors
+    ///
+    /// - [`RenderError::DisplayListStale`] as for [`Self::replay_region`].
+    /// - [`RenderError::BadRasterSize`] if `rows` is empty, ends past the
+    ///   page's height, or the page has no raster at this scale.
+    /// - [`RenderError::BandNotAligned`] if `rows.start`, or `rows.end`
+    ///   short of the last row, is not a multiple of [`BAND_ROW_LATTICE`].
+    pub fn replay_rows(
+        &self,
+        expected: DisplayListKey,
+        rows: std::ops::Range<u32>,
+    ) -> Result<RenderedPage, RenderError> {
+        self.check_key(expected)?;
+        #[allow(clippy::cast_possible_truncation)] // as `crate::effective_scale`
+        let scale = (f64::from(self.key.scale) * self.page_user_unit) as f32;
+        let g =
+            crate::region_base_geometry_of(self.page_box, self.page_rotate, scale, self.page_box)
+                .ok_or(RenderError::BadRasterSize {
+                width: 0,
+                height: 0,
+            })?;
+        if rows.start >= rows.end || rows.end > g.height {
+            return Err(RenderError::BadRasterSize {
+                width: g.width,
+                height: rows.end.saturating_sub(rows.start),
+            });
+        }
+        let off = |r: u32| !r.is_multiple_of(BAND_ROW_LATTICE) && r != g.height;
+        if off(rows.start) || off(rows.end) {
+            return Err(RenderError::BandNotAligned {
+                start: rows.start,
+                end: rows.end,
+                lattice: BAND_ROW_LATTICE,
+            });
+        }
+        self.replay_at(g.width, rows.end - rows.start, g.x0, g.y0, rows.start)
+    }
+
+    /// `Ok` when [`Self::replay_rows`] bands of this list stitch byte for
+    /// byte; otherwise the first kind of op that may not.
+    ///
+    /// # Errors
+    ///
+    /// [`BandBlocker`] naming that op. Replay the whole page instead.
+    pub fn band_exact(&self) -> Result<(), BandBlocker> {
+        band_blocker(&self.ops).map_or(Ok(()), Err)
+    }
+
+    fn check_key(&self, expected: DisplayListKey) -> Result<(), RenderError> {
+        if expected == self.key {
+            return Ok(());
+        }
+        Err(RenderError::DisplayListStale {
+            expected_epoch: expected.epoch,
+            recorded_epoch: self.key.epoch,
+            expected_scale: expected.scale,
+            recorded_scale: self.key.scale,
+        })
+    }
+
+    /// Replay into a `width` x `height` raster: rows `row0..` of the raster
+    /// whose top-left is page-device `(x0, y0)`.
+    fn replay_at(
+        &self,
+        width: u32,
+        height: u32,
+        x0: f32,
+        y0: f32,
+        row0: u32,
+    ) -> Result<RenderedPage, RenderError> {
         if width == 0
             || height == 0
             || width > crate::MAX_PIXMAP_EDGE
@@ -759,13 +838,17 @@ impl DisplayList {
         #[allow(clippy::cast_precision_loss)]
         let region_bounds = DeviceBounds {
             left: x0,
-            top: y0,
+            top: y0 + row0 as f32,
             right: x0 + width as f32,
-            bottom: y0 + height as f32,
+            bottom: y0 + (row0 + height) as f32,
         };
 
+        // Edges are cut and rounded in the unbanded raster's space and
+        // then moved up `row0` rows (`device_clip::ROW_LATTICE`).
         let mut masks = MaskBuilder::new(&self.clips, width, height, x0, y0);
-        replay_ops(&self.ops, &mut pixmap, &mut masks, region_bounds);
+        crate::device_clip::with_row_origin(row0, || {
+            replay_ops(&self.ops, &mut pixmap, &mut masks, region_bounds);
+        });
 
         // §11.4.7's second formula, exactly as `render_impl` performs it.
         crate::flatten_page_group_over_white(&mut pixmap);
@@ -1047,6 +1130,43 @@ fn record_impl(
         diagnostics,
         poison,
         tally,
+    })
+}
+
+/// Rows a [`DisplayList::replay_rows`] band must start and end on.
+pub const BAND_ROW_LATTICE: u32 = crate::device_clip::ROW_LATTICE;
+
+/// Why [`DisplayList::band_exact`] refused: the first op kind whose
+/// sampling is not invariant under an integer row shift, because tiny-skia
+/// inverts a shader transform that includes the band's offset in `f32`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, thiserror::Error)]
+#[non_exhaustive]
+pub enum BandBlocker {
+    /// An image, sampled through a pattern shader.
+    #[error("an image is sampled through a shader")]
+    Image,
+    /// A gradient, from the export recorder.
+    #[error("a gradient is sampled through a shader")]
+    Gradient,
+    /// A soft mask applied to a group's result.
+    #[error("a group carries a soft mask raster")]
+    LayerMask,
+}
+
+fn band_blocker(ops: &[Op]) -> Option<BandBlocker> {
+    use crate::canvas::Brush;
+    let brush = |b: &crate::canvas::BrushSpec| match b.brush {
+        Brush::Solid { .. } => None,
+        Brush::Image { .. } => Some(BandBlocker::Image),
+        Brush::Gradient(_) => Some(BandBlocker::Gradient),
+    };
+    ops.iter().find_map(|op| match op {
+        Op::Fill { brush: b, .. } | Op::Stroke { brush: b, .. } => brush(b),
+        Op::Text { ops, .. } => band_blocker(ops),
+        Op::Layer { ops, mask, .. } => mask
+            .as_ref()
+            .map(|_| BandBlocker::LayerMask)
+            .or_else(|| band_blocker(ops)),
     })
 }
 

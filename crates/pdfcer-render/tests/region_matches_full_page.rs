@@ -656,3 +656,126 @@ fn a_recording_scale_past_f32_precision_is_refused_by_name() {
         "an ordinary scale must still record -- a guard that refuses everything is not a guard",
     );
 }
+
+/// Compile-time half of decision 223's seam: a host may share one recorded
+/// list across worker threads and replay a band on each.
+#[test]
+fn a_display_list_can_be_shared_across_threads() {
+    fn assert_sync_send<T: Sync + Send>() {}
+    assert_sync_send::<pdfcer_render::DisplayList>();
+}
+
+/// Replay `list` in row bands of `heights` and assert the stack is the
+/// whole replay, byte for byte. Bands are uneven on purpose: an off-by-one
+/// in the row arithmetic shows on a band that is not a divisor of the page.
+fn assert_bands_stitch(
+    doc: &pdfcer_core::document::Document,
+    page: &pdfcer_core::page_tree::Page,
+    scale: f32,
+    bands: usize,
+    what: &str,
+) {
+    let list = record_page(&doc.view(), page, scale, 1, &RenderOptions::default())
+        .unwrap_or_else(|e| panic!("{what}: recording: {e}"));
+    let whole = list
+        .replay_region(list.key(), page.crop_box)
+        .unwrap_or_else(|e| panic!("{what}: whole replay: {e}"));
+    let (w, h) = (whole.pixmap.width(), whole.pixmap.height());
+    let mut stitched = Vec::with_capacity(whole.pixmap.data().len());
+    let mut r0 = 0u32;
+    for i in 0..bands {
+        let lat = pdfcer_render::BAND_ROW_LATTICE;
+        let r1 = if i + 1 == bands {
+            h
+        } else {
+            ((h * (i as u32 + 1)) / bands as u32 / lat + i as u32 % 2) * lat
+        }
+        .min(h);
+        if r1 <= r0 {
+            continue;
+        }
+        let band = list
+            .replay_rows(list.key(), r0..r1)
+            .unwrap_or_else(|e| panic!("{what}: band {i}: {e}"));
+        assert_eq!(
+            (band.pixmap.width(), band.pixmap.height()),
+            (w, r1 - r0),
+            "{what}: band {i} must cover exactly rows {r0}..{r1} at full width"
+        );
+        stitched.extend_from_slice(band.pixmap.data());
+        r0 = r1;
+    }
+    let differing = whole
+        .pixmap
+        .data()
+        .iter()
+        .zip(stitched.iter())
+        .filter(|(a, b)| a != b)
+        .count();
+    let max_delta = whole
+        .pixmap
+        .data()
+        .iter()
+        .zip(stitched.iter())
+        .map(|(a, b)| a.abs_diff(*b))
+        .max()
+        .unwrap_or(0);
+    let stride = w as usize * 4;
+    let rows: Vec<usize> = (0..h as usize)
+        .filter(|r| {
+            let span = r * stride..(r + 1) * stride;
+            whole.pixmap.data()[span.clone()] != stitched[span]
+        })
+        .collect();
+    assert_eq!(
+        stitched.len(),
+        whole.pixmap.data().len(),
+        "{what}: row count"
+    );
+    assert_eq!(
+        differing, 0,
+        "{what}: {bands} stitched bands must be BYTE-identical to the whole \
+         replay; {differing} bytes differ (max {max_delta} levels) on rows {rows:?}. Rows next to a \
+         band edge are a seam (antialiasing cut at the band edge); rows spread \
+         through a band are a band replaying different geometry."
+    );
+}
+
+/// Decision 223's seam: integer-row bands from one list stitch into the
+/// whole replay exactly — curves and strokes crossing every band edge, a
+/// fractional `cm` offset, a `/ca` layer, text and an annotation, at
+/// integer and non-integer scales (300 DPI is 4.1666…).
+#[test]
+fn row_bands_stitch_byte_identical_to_the_whole_replay() {
+    let synthetic = [
+        one_page(
+            "/ExtGState << /G << /ca 0.5 /CA 0.5 >> >>",
+            "0.2 0.4 0.8 rg 10 10 m 110 30 l 60 115 l h f              1 0 0 RG 3 w 5 5 m 115 117 l S              /G gs 0 0.6 0 rg 60 60 m 90 60 90 100 60 100 c 30 100 30 60 60 60 c f              0 0 1 RG 1.5 w 10 110 m 40 -20 80 140 110 10 c S",
+        ),
+        one_page(
+            "",
+            "1 0 0 1 0.37 0.61 cm 0.2 0.4 0.8 rg 10 10 m 110 30 l 60 115 l h f",
+        ),
+    ];
+    let scales = [(1.0_f32, 3), (2.0, 4), (4.166_666_5, 7), (7.3, 9)];
+    for (n, pdf) in synthetic.into_iter().enumerate() {
+        let doc = Document::from_bytes(pdf).expect("synthetic page parses");
+        let pages = page_tree::pages(&doc).expect("page tree");
+        for (scale, bands) in scales {
+            assert_bands_stitch(
+                &doc,
+                &pages[0],
+                scale,
+                bands,
+                &format!("synthetic {n} @{scale}"),
+            );
+        }
+    }
+    for rel in ["addtext/plain.pdf", "annot/demo-annotated.pdf"] {
+        let doc = Document::load(&fixture(rel)).expect("fixture loads");
+        let pages = page_tree::pages(&doc).expect("page tree");
+        for (scale, bands) in &scales[..3] {
+            assert_bands_stitch(&doc, &pages[0], *scale, *bands, &format!("{rel} @{scale}"));
+        }
+    }
+}

@@ -38,11 +38,9 @@ const MAX_DEPTH: u32 = 32;
 type P = (f64, f64);
 
 /// What to hand tiny-skia for a fill.
-pub(crate) enum Fit<'a> {
-    /// In range: draw `path` under the transform unchanged.
-    AsIs(&'a Path, Transform),
-    /// Pre-clipped, already in device space: draw under the identity, with
-    /// the paint's shader moved by the original transform.
+pub(crate) enum Fit {
+    /// In the target's device space: draw under the identity, with the
+    /// paint's shader moved by the original transform.
     Device(Path),
     /// Nothing of the path reaches the target.
     Nothing,
@@ -81,12 +79,13 @@ struct Window {
 }
 
 impl Window {
-    fn around(width: u32, height: u32) -> Self {
+    /// The target plus [`MARGIN`], in the unbanded space `origin` rows up.
+    fn around(width: u32, height: u32, origin: f64) -> Self {
         Self {
             x0: -MARGIN,
-            y0: -MARGIN,
+            y0: origin - MARGIN,
             x1: f64::from(width) + MARGIN,
-            y1: f64::from(height) + MARGIN,
+            y1: origin + f64::from(height) + MARGIN,
         }
     }
 
@@ -98,20 +97,57 @@ impl Window {
     }
 }
 
-/// Decides how a fill of `path` under `ts` reaches a `width` x `height`
-/// target.
-pub(crate) fn fit(path: &Path, ts: Transform, width: u32, height: u32) -> Fit<'_> {
-    if !exceeds(path, ts, 0.0) {
-        return Fit::AsIs(path, ts);
+/// Device rows at which every in-range edge is cut, in the target's
+/// *unbanded* device space.
+///
+/// tiny-skia derives a line's fixed-point slope from the endpoints it is
+/// handed and chops a line that leaves the target, so a line crossing a
+/// row-band edge would rasterise differently in the band than in the whole
+/// page. Cutting every edge at absolute multiples of this many rows, before
+/// tiny-skia sees it, gives whole and banded replays the same edges up to
+/// an integer row shift. [`crate::DisplayList::replay_rows`] bands must
+/// start on a multiple of it. Decision 223.
+pub(crate) const ROW_LATTICE: u32 = 64;
+
+thread_local! {
+    /// Rows between the unbanded device space `fit` cuts in and the target
+    /// it draws into. Non-zero only inside [`with_row_origin`].
+    static ROW_ORIGIN: std::cell::Cell<u32> = const { std::cell::Cell::new(0) };
+}
+
+/// Run `f` with every fit on this thread drawing rows `origin..` of the
+/// unbanded device space into its target's row 0. Restored on unwind.
+pub(crate) fn with_row_origin<R>(origin: u32, f: impl FnOnce() -> R) -> R {
+    struct Restore(u32);
+    impl Drop for Restore {
+        fn drop(&mut self) {
+            ROW_ORIGIN.with(|o| o.set(self.0));
+        }
     }
-    let win = Window::around(width, height);
+    let _restore = Restore(ROW_ORIGIN.with(|o| o.replace(origin)));
+    f()
+}
+
+fn row_origin() -> u32 {
+    ROW_ORIGIN.with(std::cell::Cell::get)
+}
+
+/// Decides how a fill of `path` under `ts` reaches a `width` x `height`
+/// target. `ts` maps to the unbanded device space; the result is in the
+/// target's, [`with_row_origin`] rows up.
+pub(crate) fn fit(path: &Path, ts: Transform, width: u32, height: u32) -> Fit {
+    let origin = f64::from(row_origin());
+    if !exceeds(path, ts, 0.0) {
+        return in_range(path, ts).map_or(Fit::Nothing, Fit::Device);
+    }
+    let win = Window::around(width, height, origin);
     let mut pb = PathBuilder::new();
     let mut contour: Vec<P> = Vec::new();
     let mut last: P = (0.0, 0.0);
     for seg in path.segments() {
         match seg {
             PathSegment::MoveTo(p) => {
-                emit(&mut contour, win, &mut pb);
+                emit(&mut contour, win, origin, &mut pb);
                 last = map(ts, p.x, p.y);
                 contour.push(last);
             }
@@ -121,12 +157,7 @@ pub(crate) fn fit(path: &Path, ts: Transform, width: u32, height: u32) -> Fit<'_
             }
             PathSegment::QuadTo(c, p) => {
                 let (c, p) = (map(ts, c.x, c.y), map(ts, p.x, p.y));
-                let c1 = (
-                    last.0 + 2.0 / 3.0 * (c.0 - last.0),
-                    last.1 + 2.0 / 3.0 * (c.1 - last.1),
-                );
-                let c2 = (p.0 + 2.0 / 3.0 * (c.0 - p.0), p.1 + 2.0 / 3.0 * (c.1 - p.1));
-                flatten([last, c1, c2, p], win, 0, &mut contour);
+                flatten(quad_to_cubic(last, c, p), win, 0, &mut contour);
                 last = p;
             }
             PathSegment::CubicTo(c1, c2, p) => {
@@ -141,7 +172,7 @@ pub(crate) fn fit(path: &Path, ts: Transform, width: u32, height: u32) -> Fit<'_
             }
             PathSegment::Close => {
                 let start = contour.first().copied();
-                emit(&mut contour, win, &mut pb);
+                emit(&mut contour, win, origin, &mut pb);
                 if let Some(s) = start {
                     last = s;
                     contour.push(s);
@@ -149,8 +180,144 @@ pub(crate) fn fit(path: &Path, ts: Transform, width: u32, height: u32) -> Fit<'_
             }
         }
     }
-    emit(&mut contour, win, &mut pb);
+    emit(&mut contour, win, origin, &mut pb);
     pb.finish().map_or(Fit::Nothing, Fit::Device)
+}
+
+fn quad_to_cubic(p0: P, c: P, p: P) -> [P; 4] {
+    let c1 = (
+        p0.0 + 2.0 / 3.0 * (c.0 - p0.0),
+        p0.1 + 2.0 / 3.0 * (c.1 - p0.1),
+    );
+    let c2 = (p.0 + 2.0 / 3.0 * (c.0 - p.0), p.1 + 2.0 / 3.0 * (c.1 - p.1));
+    [p0, c1, c2, p]
+}
+
+/// `path` under `ts` as device-space lines: curves flattened to [`FLAT`],
+/// every edge cut at the [`ROW_LATTICE`], then moved up by the row origin.
+///
+/// tiny-skia also chops a *curve* where it leaves the target and re-flattens
+/// the pieces (up to 48 levels apart on an edge pixel). Subdivision here is
+/// decided under the transform's linear part only, so targets that differ
+/// by a translation flatten a curve into the same polyline. Points are
+/// rounded to `f32` in the unbanded space and the integer origin subtracted
+/// after, which is exact, so a band's edges are the whole page's shifted.
+fn in_range(path: &Path, ts: Transform) -> Option<Path> {
+    let lin = Transform::from_row(ts.sx, ts.ky, ts.kx, ts.sy, 0.0, 0.0);
+    let mut out = LatticeOut {
+        pb: PathBuilder::new(),
+        t: (f64::from(ts.tx), f64::from(ts.ty)),
+        origin: row_origin(),
+        pen: (0.0, 0.0),
+    };
+    let all = Window {
+        x0: f64::NEG_INFINITY,
+        y0: f64::NEG_INFINITY,
+        x1: f64::INFINITY,
+        y1: f64::INFINITY,
+    };
+    let (mut last, mut start): (P, P) = ((0.0, 0.0), (0.0, 0.0));
+    let mut pts: Vec<P> = Vec::new();
+    for seg in path.segments() {
+        pts.clear();
+        match seg {
+            PathSegment::MoveTo(p) => {
+                last = map(lin, p.x, p.y);
+                start = last;
+                out.move_to(last);
+                continue;
+            }
+            PathSegment::LineTo(p) => pts.push(map(lin, p.x, p.y)),
+            PathSegment::QuadTo(c, p) => {
+                let (c, p) = (map(lin, c.x, c.y), map(lin, p.x, p.y));
+                flatten(quad_to_cubic(last, c, p), all, 0, &mut pts);
+            }
+            PathSegment::CubicTo(c1, c2, p) => {
+                let c = [
+                    last,
+                    map(lin, c1.x, c1.y),
+                    map(lin, c2.x, c2.y),
+                    map(lin, p.x, p.y),
+                ];
+                flatten(c, all, 0, &mut pts);
+            }
+            PathSegment::Close => {
+                out.line_to(start);
+                out.pb.close();
+                last = start;
+                continue;
+            }
+        }
+        for &p in &pts {
+            out.line_to(p);
+        }
+        if let Some(&p) = pts.last() {
+            last = p;
+        }
+    }
+    out.pb.finish()
+}
+
+/// Path output for [`in_range`]: lattice cuts, `f32` rounding, row origin.
+struct LatticeOut {
+    pb: PathBuilder,
+    /// The transform's translation, added in `f64` before rounding.
+    t: P,
+    origin: u32,
+    /// Last point, in the unbanded device space.
+    pen: P,
+}
+
+impl LatticeOut {
+    fn device(&self, p: P) -> P {
+        (p.0 + self.t.0, p.1 + self.t.1)
+    }
+
+    fn put(&mut self, d: P, first: bool) {
+        #[allow(clippy::cast_possible_truncation)] // in range: `exceeds` was false
+        let (x, y) = (d.0 as f32, d.1 as f32);
+        #[allow(clippy::cast_precision_loss)] // a row index, exact in f32
+        let y = y - self.origin as f32;
+        if first {
+            self.pb.move_to(x, y);
+        } else {
+            self.pb.line_to(x, y);
+        }
+    }
+
+    fn move_to(&mut self, p: P) {
+        self.pen = self.device(p);
+        self.put(self.pen, true);
+    }
+
+    /// A line from the pen to `p`, with a vertex wherever it crosses a
+    /// lattice row. Crossings are computed from the two endpoints alone,
+    /// so every target computes the same ones.
+    fn line_to(&mut self, p: P) {
+        let (a, b) = (self.pen, self.device(p));
+        let l = f64::from(ROW_LATTICE);
+        let (lo, hi) = (a.1.min(b.1), a.1.max(b.1));
+        let (first, last) = ((lo / l).floor() + 1.0, (hi / l).ceil() - 1.0);
+        // In range, so |y| < GUARD and the row count is bounded.
+        #[allow(clippy::cast_possible_truncation)]
+        let rows = (first as i64)..=(last as i64);
+        #[allow(clippy::cast_precision_loss)] // |k| < GUARD / 64
+        let at = |k: i64| {
+            let y = k as f64 * l;
+            (a.0 + (y - a.1) * (b.0 - a.0) / (b.1 - a.1), y)
+        };
+        if b.1 > a.1 {
+            for k in rows {
+                self.put(at(k), false);
+            }
+        } else {
+            for k in rows.rev() {
+                self.put(at(k), false);
+            }
+        }
+        self.put(b, false);
+        self.pen = b;
+    }
 }
 
 /// Appends a flattening of cubic `c` to `out`, excluding its start point.
@@ -185,7 +352,7 @@ fn flat(c: [P; 4]) -> bool {
 
 /// Clips the implicitly closed polygon `contour` to `win` and appends the
 /// result to `pb` as one closed contour. Empties `contour`.
-fn emit(contour: &mut Vec<P>, win: Window, pb: &mut PathBuilder) {
+fn emit(contour: &mut Vec<P>, win: Window, origin: f64, pb: &mut PathBuilder) {
     let mut poly = std::mem::take(contour);
     for edge in 0..4 {
         if poly.len() < 3 {
@@ -195,7 +362,7 @@ fn emit(contour: &mut Vec<P>, win: Window, pb: &mut PathBuilder) {
     }
     let mut pts = poly.iter().map(|&(x, y)| {
         #[allow(clippy::cast_possible_truncation)] // within the window, so well inside f32
-        Point::from_xy(x as f32, y as f32)
+        Point::from_xy(x as f32, (y - origin) as f32)
     });
     let Some(first) = pts.next() else { return };
     if poly.len() < 3 {
@@ -310,10 +477,11 @@ impl FitPaint for PixmapMut<'_> {
         mask: Option<&Mask>,
     ) {
         match fit(path, ts, self.width(), self.height()) {
-            Fit::AsIs(p, t) => self.fill_path(p, paint, rule, t, mask),
             Fit::Device(p) => {
                 let mut paint = paint.clone();
-                paint.shader.transform(ts);
+                #[allow(clippy::cast_precision_loss)] // a row index
+                let origin = row_origin() as f32;
+                paint.shader.transform(ts.post_translate(0.0, -origin));
                 self.fill_path(&p, &paint, rule, Transform::identity(), mask);
             }
             Fit::Nothing => {}
@@ -367,7 +535,6 @@ pub(crate) trait FitMask {
 impl FitMask for Mask {
     fn fill_path_fit(&mut self, path: &Path, rule: FillRule, anti_alias: bool, ts: Transform) {
         match fit(path, ts, self.width(), self.height()) {
-            Fit::AsIs(p, t) => self.fill_path(p, rule, anti_alias, t),
             Fit::Device(p) => self.fill_path(&p, rule, anti_alias, Transform::identity()),
             Fit::Nothing => {}
         }
@@ -390,12 +557,41 @@ mod tests {
     }
 
     #[test]
-    fn in_range_paths_are_untouched() {
-        let p = square(0.0, 0.0, 10.0, 10.0);
-        assert!(matches!(
-            fit(&p, Transform::from_scale(100.0, 100.0), 64, 64),
-            Fit::AsIs(..)
-        ));
+    fn in_range_edges_are_cut_at_the_row_lattice() {
+        let mut pb = PathBuilder::new();
+        pb.move_to(0.0, 10.0);
+        pb.line_to(100.0, 210.0);
+        pb.close();
+        let p = pb.finish().expect("path");
+        let Fit::Device(d) = fit(&p, Transform::identity(), 256, 256) else {
+            panic!("expected a device path");
+        };
+        let ys: Vec<f32> = d.points().iter().map(|q| q.y).collect();
+        assert_eq!(
+            ys,
+            [10.0, 64.0, 128.0, 192.0, 210.0, 192.0, 128.0, 64.0, 10.0]
+        );
+        assert_eq!(d.points()[1].x, 27.0);
+    }
+
+    #[test]
+    fn a_band_gets_the_whole_pages_edges_shifted_by_its_origin() {
+        let mut pb = PathBuilder::new();
+        pb.move_to(3.3, 1.7);
+        pb.cubic_to(80.1, 20.2, 10.9, 300.3, 97.7, 250.1);
+        pb.close();
+        let p = pb.finish().expect("path");
+        let ts = Transform::from_row(1.3, 0.1, -0.2, 1.1, 0.37, 0.61);
+        let Fit::Device(whole) = fit(&p, ts, 128, 320) else {
+            panic!("whole");
+        };
+        let Fit::Device(band) = with_row_origin(128, || fit(&p, ts, 128, 64)) else {
+            panic!("band");
+        };
+        let shifted: Vec<(f32, f32)> = whole.points().iter().map(|q| (q.x, q.y - 128.0)).collect();
+        let banded: Vec<(f32, f32)> = band.points().iter().map(|q| (q.x, q.y)).collect();
+        assert_eq!(banded, shifted);
+        assert_eq!(row_origin(), 0, "the origin is restored");
     }
 
     #[test]
