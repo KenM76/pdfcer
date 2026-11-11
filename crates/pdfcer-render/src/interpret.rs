@@ -5519,7 +5519,7 @@ impl<'a> Interpreter<'a> {
             return;
         }
         // `sh` paints the whole clip region.
-        if self.coverage_spent(None, None, canvas) {
+        if self.coverage_spent(None, None, (true, false), canvas) {
             return;
         }
 
@@ -8645,7 +8645,7 @@ impl<'a> Interpreter<'a> {
         // before the decode, so a spent budget skips the decode too.
         let unit = tiny_skia::Rect::from_ltrb(0.0, 0.0, 1.0, 1.0)
             .and_then(|r| r.transform(self.gs.current.ctm));
-        if self.coverage_spent(unit, None, canvas) {
+        if self.coverage_spent(unit, None, (true, false), canvas) {
             return;
         }
 

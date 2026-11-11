@@ -8,21 +8,25 @@ use tiny_skia::{Path, PathSegment, Rect, Transform};
 
 use super::Interpreter;
 use crate::canvas::Canvas;
-use crate::page_budget::Refusal;
+use crate::page_budget::{BLENDED_PAINT_WEIGHT, Refusal};
 
 impl Interpreter<'_> {
     /// Charge a paint whose device-space bounds are `bounds` (`None`: the
     /// whole clip) and whose painted area cannot exceed `cap` pixels.
-    /// Returns `true` when the paint must be skipped.
+    /// `fill` and `stroke` say which alphas apply; a fill-only paint (`sh`,
+    /// an image) passes `fill` alone. Returns `true` when the paint must be
+    /// skipped.
     pub(super) fn coverage_spent(
         &mut self,
         bounds: Option<Rect>,
         cap: Option<u64>,
+        (fill, stroke): (bool, bool),
         canvas: &Canvas<'_>,
     ) -> bool {
         let (w, h) = (canvas.width(), canvas.height());
         let area = reach(bounds, w, h, self.gs.current.clip_bbox);
         let area = cap.map_or(area, |c| area.min(c));
+        let area = area.saturating_mul(self.paint_weight(fill, stroke));
         if self.budget.cover(area, u64::from(w) * u64::from(h)) {
             return false;
         }
@@ -61,7 +65,17 @@ impl Interpreter<'_> {
             Some(w) if !fill => Some(stroke_area(path, ctm, w)),
             _ => None,
         };
-        self.coverage_spent(bounds, cap, canvas)
+        self.coverage_spent(bounds, cap, (fill, stroke), canvas)
+    }
+
+    /// [`BLENDED_PAINT_WEIGHT`] when the paint composites rather than
+    /// overwrites, else 1.
+    fn paint_weight(&self, fill: bool, stroke: bool) -> u64 {
+        let gs = &self.gs.current;
+        let blended = gs.blend_mode != tiny_skia::BlendMode::SourceOver
+            || (fill && gs.fill_alpha < 1.0)
+            || (stroke && gs.stroke_alpha < 1.0);
+        if blended { BLENDED_PAINT_WEIGHT } else { 1 }
     }
 }
 

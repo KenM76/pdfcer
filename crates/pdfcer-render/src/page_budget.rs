@@ -37,6 +37,13 @@ pub const COVERAGE_PER_CANVAS: u64 = 256;
 /// size. About four seconds of full-canvas fills.
 pub const MIN_COVERAGE: u64 = 1 << 33;
 
+/// How many pixels of the ceiling one pixel of a translucent or blended
+/// paint costs: a fill, stroke, `sh` or image under a constant alpha below
+/// 1 or a blend mode other than `Normal`. Measured: a half-alpha full-page
+/// fill costs about 14 times an opaque one per pixel, so without the weight
+/// the ceiling allowed about 40 seconds of them.
+pub const BLENDED_PAINT_WEIGHT: u64 = 16;
+
 /// Why [`PageBudget::enter`] refused a stream.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum Refusal {

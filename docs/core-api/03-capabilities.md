@@ -4508,7 +4508,10 @@ streams on the stack. Depths 0 and 1 are free. It also counts each
 fill, stroke, glyph, `sh` or image skipped once the page has painted past
 its coverage ceiling: the device area each paint can reach, summed over the
 render, against `COVERAGE_PER_CANVAS` (256) canvases or `MIN_COVERAGE`
-(2^33 pixels), whichever is larger. A stroke is charged no more than its
+(2^33 pixels), whichever is larger. A translucent or blended paint (a
+constant alpha below 1, or a blend mode other than `Normal`) is charged
+`BLENDED_PAINT_WEIGHT` (16) pixels per pixel, since compositing costs about
+14 times an opaque overwrite. A stroke is charged no more than its
 length times its width; a clip-only path (`n`) and hidden content are
 not charged. All four are constants, not `RenderOptions`
 settings. A non-zero value on a hostile file is the bound

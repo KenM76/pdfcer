@@ -11,7 +11,7 @@
 use pdfcer_core::document::Document;
 use pdfcer_core::page_tree;
 use pdfcer_render::RenderedPage;
-use pdfcer_render::page_budget::{COVERAGE_PER_CANVAS, MIN_COVERAGE};
+use pdfcer_render::page_budget::{BLENDED_PAINT_WEIGHT, COVERAGE_PER_CANVAS, MIN_COVERAGE};
 
 /// The page side in points, rendered at scale 1.
 const SIDE: u64 = 4000;
@@ -23,7 +23,8 @@ fn pdf(content: &str) -> Vec<u8> {
         format!(
             "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 {SIDE} {SIDE}] \
              /Resources << /ColorSpace << /CS0 [/Separation /None /DeviceGray \
-             << /FunctionType 2 /Domain [0 1] /C0 [1] /C1 [0] /N 1 >>] >> >> \
+             << /FunctionType 2 /Domain [0 1] /C0 [1] /C1 [0] /N 1 >>] >> \
+             /ExtGState << /G0 << /ca 0.5 /CA 0.5 >> >> >> \
              /Contents 4 0 R >>"
         ),
         format!(
@@ -93,6 +94,22 @@ fn fills_past_the_ceiling_leave_the_rest_of_the_page_out() {
 #[test]
 fn fills_under_the_ceiling_draw_everything() {
     let p = render(page(fills_to_ceiling() - 10, FULL_FILL));
+    assert_eq!(p.diagnostics.content_truncated, 0);
+    assert!(red_drawn(&p));
+}
+
+#[test]
+fn translucent_fills_spend_the_ceiling_sooner() {
+    let fills = fills_to_ceiling() / BLENDED_PAINT_WEIGHT + 50;
+    let p = render(page(fills, &format!("q /G0 gs {FULL_FILL} Q")));
+    assert!(p.diagnostics.content_truncated > 0);
+    assert!(!red_drawn(&p));
+}
+
+#[test]
+fn opaque_fills_keep_the_full_ceiling() {
+    let fills = fills_to_ceiling() / BLENDED_PAINT_WEIGHT + 50;
+    let p = render(page(fills, &format!("q {FULL_FILL} Q")));
     assert_eq!(p.diagnostics.content_truncated, 0);
     assert!(red_drawn(&p));
 }

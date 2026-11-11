@@ -2465,7 +2465,7 @@ cyclic; their content is missing from the raster",
     }
     if d.content_truncated > 0 {
         eprintln!(
-            "pdfcer: warning: content truncated: {} nested content stream(s) left out because the page's paint budget or held-content ceiling was spent; that content is missing from the raster",
+            "pdfcer: warning: content truncated: {} paint(s) or content stream(s) left out because a page work limit was spent (nested paints, held content, painted area or decoded size); that content is missing from the raster",
             d.content_truncated
         );
     }
