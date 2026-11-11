@@ -11,7 +11,7 @@ use std::fmt;
 use pdfcer_core::page_tree::Page;
 use pdfcer_core::view::DocumentView;
 
-use super::{EmfOptions, EmfOutcome, export_emf_view};
+use super::{EmfExport, EmfOptions, EmfOutcome, export_emf_view};
 use crate::RenderError;
 use crate::font::RenderOptions;
 
@@ -141,9 +141,41 @@ pub fn print_metafile_with(
     render: &RenderOptions,
     emf: &EmfOptions,
 ) -> Result<Vec<u8>, PrintMetafileError> {
+    print_export_with(view, page, render, emf).map(|export| export.emf)
+}
+
+/// [`print_metafile_with`], keeping the metafile's [`EmfOutcome`] — the
+/// print route's disclosure. Its `diagnostics` carry what the page's
+/// colour fell back on, e.g. `icc_profiles_unmodelled` for an embedded
+/// profile no transform could be built from.
+///
+/// # Errors
+///
+/// As [`print_metafile`].
+///
+/// # Examples
+///
+/// ```no_run
+/// # fn f(view: &pdfcer_core::view::DocumentView<'_>, page: &pdfcer_core::page_tree::Page)
+/// # -> Result<(), pdfcer_render::emf::PrintMetafileError> {
+/// use pdfcer_render::RenderOptions;
+/// use pdfcer_render::emf::{EmfOptions, print_export_with};
+///
+/// let export = print_export_with(view, page, &RenderOptions::default(), &EmfOptions::default())?;
+/// if export.outcome.diagnostics.icc_profiles_unmodelled > 0 {
+///     eprintln!("an embedded colour profile could not be used");
+/// }
+/// # Ok(()) }
+/// ```
+pub fn print_export_with(
+    view: &DocumentView<'_>,
+    page: &Page,
+    render: &RenderOptions,
+    emf: &EmfOptions,
+) -> Result<EmfExport, PrintMetafileError> {
     let export = export_emf_view(view, page, render, emf)?;
     match export.outcome.print_fallback() {
-        None => Ok(export.emf),
+        None => Ok(export),
         Some(why) => Err(PrintMetafileError::Raster(why)),
     }
 }

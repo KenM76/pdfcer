@@ -2605,20 +2605,15 @@ impl Space {
             // of the "same" CMYK agree on screen by construction rather
             // than by two formulas being kept in step (gstate.rs docs).
             Self::Cmyk => Rgb::from_cmyk(intent, c(0), c(1), c(2), c(3)),
-            // THE sRGB PATH DELIBERATELY DOES NOT MOVE. An `Icc` space
-            // renders on screen exactly as the device space its `/N` implies,
-            // which is what it did before this variant existed.
-            //
-            // Only `to_cmyk` is colour-managed. That confines the change to
-            // pages that composite in ink -- where a wrong conversion is
-            // measurably wrong against a reference -- and keeps every additive
-            // page byte-identical, including the parity fixtures that pin the
-            // quantised sRGB output. Same split `Pass 199.2` used for path
-            // fills, and for the same reason: two coexisting answers, neither
-            // derived from the other.
-            Self::Icc { n, .. } => match n {
+            // `N 4`: the screen shows the ink `to_cmyk` lays down
+            // (`icc::ink_on_screen`, ISO 32000-2 §8.6.5.5), so an EMF bitmap,
+            // an additive raster and the plates agree on a source profile
+            // that differs from the output intent. `N 1` still renders as
+            // `DeviceGray` on screen.
+            Self::Icc { n, bridge } => match n {
                 1 => Rgb::from_gray(c(0)),
-                4 => Rgb::from_cmyk(intent, c(0), c(1), c(2), c(3)),
+                4 => crate::icc::ink_on_screen(bridge, comps, intent)
+                    .unwrap_or_else(|| Rgb::from_cmyk(intent, c(0), c(1), c(2), c(3))),
                 _ => Rgb::from_rgb(c(0), c(1), c(2)),
             },
             // THE DISPLAY ROUTE (`Pass 240.0`): the profile's own answer

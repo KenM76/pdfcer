@@ -951,8 +951,8 @@ untiled; {tiled_pages} page(s) were tiled."
                     &print_options,
                 );
                 crate::print_vector::report_route(plan.index, &route);
-                if let Ok(emf) = route {
-                    vectors.insert(bitmaps.len(), emf);
+                if let Ok(export) = route {
+                    vectors.insert(bitmaps.len(), export.emf);
                     bitmaps.push(pdfcer_print::PageBitmap {
                         width: 0,
                         height: 0,
@@ -983,6 +983,10 @@ untiled; {tiled_pages} page(s) were tiled."
                     return exit::RUNTIME_ERROR;
                 }
             };
+            crate::print_vector::report_unmodelled(
+                plan.index,
+                rendered.diagnostics.icc_profiles_unmodelled,
+            );
             bitmaps.push(pdfcer_print::PageBitmap {
                 width: rendered.pixmap.width(),
                 height: rendered.pixmap.height(),

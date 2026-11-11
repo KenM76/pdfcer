@@ -385,6 +385,18 @@ pub struct Diagnostics {
     /// renders through the approximate path is entitled to know it did,
     /// off-canvas and without anything being drawn differently.
     pub icc_unmanaged_paints: usize,
+    /// Embedded `ICCBased` profiles for which icccer could build no
+    /// transform — the profile, or the output intent it was paired with,
+    /// would not parse or model — so their paints fell back to Table 66's
+    /// `/Alternate` (or `/N`) reinterpretation (ISO 32000-2 §8.6.5.5).
+    ///
+    /// Counted once per distinct profile per content stream; a form
+    /// XObject or pattern that uses the same profile counts it again, and
+    /// the page's total sums them. Zero on a page with no output intent and
+    /// under `preserve_calibrated_cmyk` for `N 4`, where no transform was
+    /// asked for. The sibling of `color.icc_device_fallback_used`, which
+    /// counts a missing `/Alternate`, not a refused profile.
+    pub icc_profiles_unmodelled: usize,
     /// Process-space sampled images painted under `/OP true` onto a
     /// subtractive buffer, where Table 149's SPOT sub-row could not be
     /// honoured.
@@ -2006,6 +2018,7 @@ polarity unverifiable (decision 006 R30)",
         self.rendering_intents_set += other.rendering_intents_set;
         self.icc_managed_paints += other.icc_managed_paints;
         self.icc_unmanaged_paints += other.icc_unmanaged_paints;
+        self.icc_profiles_unmodelled += other.icc_profiles_unmodelled;
         self.overprint_process_images_unsupported += other.overprint_process_images_unsupported;
         self.blend_modes_ignored += other.blend_modes_ignored;
         self.soft_masks_ignored += other.soft_masks_ignored;
@@ -2729,9 +2742,10 @@ fn run_nested(
     // Fold the ICC cache's tallies in before handing the diagnostics back.
     // See `IccBridgeCache`'s field docs for why they are counted there and
     // moved here rather than incremented in place.
-    let (managed, unmanaged) = interp.icc.tallies();
+    let (managed, unmanaged, unmodelled) = interp.icc.tallies();
     interp.diag.icc_managed_paints += managed;
     interp.diag.icc_unmanaged_paints += unmanaged;
+    interp.diag.icc_profiles_unmodelled += unmodelled;
     // And the hairline ceiling's tally, for the same reason and by the same
     // route: `stroke_params` takes `&self` and cannot reach `diag` where the
     // capping happens. See `Interpreter::hairline_capped`.
@@ -2897,9 +2911,10 @@ pub(crate) fn run_form_at_on(
     // Fold the ICC cache's tallies in before handing the diagnostics back.
     // See `IccBridgeCache`'s field docs for why they are counted there and
     // moved here rather than incremented in place.
-    let (managed, unmanaged) = interp.icc.tallies();
+    let (managed, unmanaged, unmodelled) = interp.icc.tallies();
     interp.diag.icc_managed_paints += managed;
     interp.diag.icc_unmanaged_paints += unmanaged;
+    interp.diag.icc_profiles_unmodelled += unmodelled;
     // And the hairline ceiling's tally, for the same reason and by the same
     // route: `stroke_params` takes `&self` and cannot reach `diag` where the
     // capping happens. See `Interpreter::hairline_capped`.
@@ -4018,7 +4033,31 @@ impl<'a> Interpreter<'a> {
         let (space, comps) = resolved
             .as_ref()
             .map_or((space, comps), |(b, c)| (*b, c.as_slice()));
-        self.display_bridge(space)?.convert_to_rgb(comps)
+        if let Some(bridge) = self.display_bridge(space) {
+            return bridge.convert_to_rgb(comps);
+        }
+        self.display_through_ink(space, comps)
+    }
+
+    /// The screen colour of an `ICCBased N 4` paint whose profile bridges
+    /// to the output intent: the same ink [`Self::authored_cmyk`] lays
+    /// down, shown as `DeviceCMYK` is (`crate::icc::ink_on_screen`).
+    /// Without it the EMF brush and the additive raster reinterpret the
+    /// numbers as output-intent CMYK (Table 66's fallback) while the plates
+    /// convert them. `None` under `preserve_calibrated_cmyk`, where the
+    /// cache declines the bridge and the reinterpretation is the answer.
+    fn display_through_ink(&self, space: &crate::color::ColorSpace, comps: &[f32]) -> Option<Rgb> {
+        let crate::color::ColorSpace::IccBased {
+            n: 4,
+            profile: Some(src),
+            ..
+        } = space
+        else {
+            return None;
+        };
+        let conv = self.conversion(self.gs.current.rendering_intent);
+        let bridge = self.icc.get(src, 4, conv)?;
+        crate::icc::ink_on_screen(&bridge, comps, self.policy.cmyk_intent)
     }
 
     /// The display bridge for a space, when one applies: `ICCBased`, `N 3`,

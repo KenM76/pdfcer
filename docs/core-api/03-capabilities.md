@@ -4483,7 +4483,11 @@ composites in ink (a CMYK page group or output intent), instead of
 converting them from their own profile to the output intent
 (ISO 32000-2 §8.6.5.5). A print-shop "preserve CMYK numbers" policy: 100 %
 magenta stays 100 % magenta. Fills, strokes and images alike; other spaces
-and RGB compositing are unaffected. Persisted as
+and RGB compositing are unaffected. Without it, an `N = 4` colour on the
+screen route (an additive page, the EMF export, the print metafile) is shown
+as the output-intent CMYK its profile converts to, so screen and ink agree;
+an embedded profile icccer cannot model falls back to `/Alternate` and is
+counted in `Diagnostics::icc_profiles_unmodelled`. Persisted as
 `Settings::preserve_calibrated_cmyk` (`settings.toml` key
 `preserve_calibrated_cmyk`, default `false`); the CLI flag turns it on for one
 run and never turns off a setting that asked for it.
@@ -5144,6 +5148,7 @@ shape.
 | write approximated regions as true pixels | `EmfOptions::default().with_patch_approximations(true)` (field `patch_approximations`, default `false`; off is byte-identical). Each region the recording can only approximate — an overprint over earlier ink (over paper it stays vector), a non-isolated group, a blend inside a group, compositing in a CMYK page group — becomes one `EMR_ALPHABLEND` of the page raster's own pixels over its box (grown 1 px, merged until disjoint); the vector page is clipped out of each box with `EMR_EXCLUDECLIPRECT`. The patched tallies (`overprint_approximated`, `non_isolated_groups_isolated`, `nonseparable_approximated`, `colorant_buffer_on_screen`) and `blend_modes_dropped` read 0, and `print_fallback()` no longer names them. A top-level blended highlight is still handled by `blends_flattened`, not by this switch. CLI `export-image --format emf --patch-approximations` |
 | know what was patched | `EmfOutcome::patches: EmfPatches` (`#[non_exhaustive]`, `Copy`) — `overprint`, `non_isolated_groups`, `blends`, `blending_space` (distinct regions per cause), `rasters` (bitmaps written after merging), `cases()` (the sum of the four causes) |
 | print with chosen options | `emf::print_metafile_with(&view, &page, &RenderOptions, &EmfOptions)` — `print_metafile` with every `EmfOptions` field the caller's; with patches on, a page whose only problem was an approximation prints as a metafile |
+| print, and keep the disclosure | `emf::print_export_with(&view, &page, &RenderOptions, &EmfOptions) -> Result<EmfExport, PrintMetafileError>` — `print_metafile_with` returning the whole `EmfExport`, so `outcome.diagnostics` (e.g. `icc_profiles_unmodelled`) reaches the print caller |
 | why a page prints as an image | `EmfOutcome::print_fallback() -> Option<RasterReason>` — first of `SemiTransparentPaint`, `TransparencyGroup`, `BlendMode`, `Shading`, `Overprint`, `BlendingColourSpace`, `TilingPattern`, `ExtraRasters` (`#[non_exhaustive]`); `as_str()` / `Display` give the CLI's wording |
 
 **What EMF cannot hold, and what the writer does** (each is a counter): no

@@ -336,7 +336,8 @@ pub enum ColorSpace {
     /// (`Interpreter::authored_cmyk`); since `Pass 240.0` an `N 3` paint on
     /// ANY page is converted through it to the screen
     /// (`Interpreter::display_managed_rgb`), and images take both routes
-    /// through `image::Space::IccRgb`. Those conversions live on the
+    /// through `image::Space::IccRgb`. An `N 4` paint with an output intent
+    /// is shown on screen as the ink that conversion produces. Those conversions live on the
     /// interpreter, which holds the bridge cache and the graphics state's
     /// intent; this type holds the profile bytes for them. What is still
     /// substituted, and still counted by [`ColorDiagnostics::icc_alternate_used`]

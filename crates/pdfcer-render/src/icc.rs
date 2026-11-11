@@ -105,6 +105,10 @@
 //! entry between them would make a document's `ri` operator do nothing while
 //! the counter said it had been honoured.
 
+mod bridges;
+
+pub use bridges::ColorBridges;
+pub(crate) use bridges::ink_on_screen;
 use pdfcer_core::color::RenderingIntent;
 
 /// A built, ready-to-use source→destination colour transform.
@@ -422,101 +426,6 @@ impl PcsBridge {
     }
 }
 
-/// Every bridge one colour space can have, resolved once and applied in
-/// front of [`crate::color::ColorSpace::to_rgb`] / `to_cmyk` (`Pass 243.0`).
-///
-/// # Why this exists
-///
-/// Three Passes put three routes onto three object types one at a time —
-/// `ICCBased` fills (`199.2`), `ICCBased` images (`214.0`/`240.0`), CIE
-/// colours (`242.0`) — and each time the shading and mesh readers stayed
-/// behind, because their colour is resolved inside `shading.rs`/`mesh.rs`
-/// through a bare `ColorSpace` that knows nothing about the page's bridge
-/// cache. The fill's and image's route decisions are each spelled out at
-/// their own call sites; a fourth copy of that ladder in the ramp builder
-/// and a fifth in the vertex reader would be the "two answers to one
-/// question" this crate's colour design exists to prevent.
-///
-/// So the ladder is HERE, once, and the readers call [`Self::to_rgb`] and
-/// [`Self::to_cmyk`] instead of the space's own. The order is the fill
-/// path's order (`Interpreter::authored_cmyk`, `display_managed_rgb`):
-///
-/// | space | `to_rgb` | `to_cmyk` |
-/// |---|---|---|
-/// | `ICCBased N 3` | profile → sRGB | profile → output intent, else `None` |
-/// | `ICCBased N 4` | the space's own (`from_cmyk`) | profile → output intent, else `None` |
-/// | `Lab` / `CalRGB` / `CalGray` | the space's own (`xyz_to_srgb`) | PCS → output intent, else `None` |
-/// | everything else | the space's own | the space's own |
-///
-/// An empty bundle ([`Self::none`]) is the identity — every method falls
-/// through to the space — which is what a document with no bridges gets,
-/// so nothing about a plain `DeviceRGB` gradient moves.
-#[derive(Debug, Clone, Default)]
-pub struct ColorBridges {
-    display: Option<std::sync::Arc<IccBridge>>,
-    ink: Option<std::sync::Arc<IccBridge>>,
-    pcs: Option<std::sync::Arc<PcsBridge>>,
-}
-
-impl ColorBridges {
-    /// No bridges: every conversion is the space's own.
-    #[must_use]
-    pub fn none() -> Self {
-        Self::default()
-    }
-
-    /// Whether any route here differs from the space's own.
-    #[must_use]
-    pub fn is_managed(&self) -> bool {
-        self.display.is_some() || self.ink.is_some() || self.pcs.is_some()
-    }
-
-    /// The screen answer: the display bridge for an `ICCBased N 3` source,
-    /// the space's own otherwise.
-    #[must_use]
-    pub fn to_rgb(
-        &self,
-        space: &crate::color::ColorSpace,
-        comps: &[f32],
-        intent: pdfcer_core::settings::CmykIntent,
-        diag: &mut crate::color::ColorDiagnostics,
-    ) -> Option<crate::gstate::Rgb> {
-        if let Some(bridge) = &self.display
-            && let Some(rgb) = bridge.convert_to_rgb(comps)
-        {
-            return Some(rgb);
-        }
-        space.to_rgb(comps, intent, diag)
-    }
-
-    /// The ink answer, in the fill path's ladder: the document's own
-    /// `DeviceCMYK` answer first, then the profile bridge, then the PCS
-    /// bridge, then `None` — which the caller bridges through `rgb_to_cmyk`
-    /// exactly as before.
-    #[must_use]
-    pub fn to_cmyk(
-        &self,
-        space: &crate::color::ColorSpace,
-        comps: &[f32],
-        diag: &mut crate::color::ColorDiagnostics,
-    ) -> Option<[f32; 4]> {
-        if let Some(own) = space.to_cmyk(comps, diag) {
-            return Some(own);
-        }
-        if let Some(bridge) = &self.ink
-            && let Some(cmyk) = bridge.convert_components(comps)
-        {
-            return Some(cmyk);
-        }
-        if let Some(bridge) = &self.pcs
-            && let Some(xyz) = space.to_pcs_xyz(comps)
-        {
-            return bridge.to_ink(xyz);
-        }
-        None
-    }
-}
-
 /// A page-lifetime cache of built [`IccBridge`]es.
 pub(crate) struct IccBridgeCache {
     /// The destination profile for this document, decoded once from
@@ -540,6 +449,9 @@ pub(crate) struct IccBridgeCache {
     /// and keeps the public `Diagnostics` free of interior mutability.
     managed: std::cell::Cell<usize>,
     unmanaged: std::cell::Cell<usize>,
+    /// Distinct embedded profiles icccer would not parse or model, counted
+    /// once per profile per cache (`Diagnostics::icc_profiles_unmodelled`).
+    unmodelled: std::cell::Cell<usize>,
 }
 
 /// Which destination a cached bridge was built to.
@@ -591,6 +503,7 @@ impl IccBridgeCache {
             pcs: std::cell::RefCell::new(Vec::new()),
             managed: std::cell::Cell::new(0),
             unmanaged: std::cell::Cell::new(0),
+            unmodelled: std::cell::Cell::new(0),
         }
     }
 
@@ -663,9 +576,40 @@ impl IccBridgeCache {
         self.unmanaged.set(self.unmanaged.get().saturating_add(1));
     }
 
-    /// The two tallies, for folding into the renderer's diagnostics.
-    pub(crate) fn tallies(&self) -> (usize, usize) {
-        (self.managed.get(), self.unmanaged.get())
+    /// The tallies `(managed, unmanaged, unmodelled)`, for folding into the
+    /// renderer's diagnostics.
+    pub(crate) fn tallies(&self) -> (usize, usize, usize) {
+        (
+            self.managed.get(),
+            self.unmanaged.get(),
+            self.unmodelled.get(),
+        )
+    }
+
+    /// Cache a freshly built bridge, counting a refusal once per profile.
+    fn remember(
+        &self,
+        src: &std::sync::Arc<[u8]>,
+        src_components: usize,
+        conv: Conversion,
+        dest: BridgeDest,
+        bridge: Option<std::sync::Arc<IccBridge>>,
+    ) {
+        let mut entries = self.entries.borrow_mut();
+        if bridge.is_none()
+            && !entries
+                .iter()
+                .any(|e| e.bridge.is_none() && same_profile(&e.src, src))
+        {
+            self.unmodelled.set(self.unmodelled.get().saturating_add(1));
+        }
+        entries.push(CacheEntry {
+            src: std::sync::Arc::clone(src),
+            src_components,
+            conv,
+            dest,
+            bridge,
+        });
     }
 
     /// Every bridge `space` can have at `intent`, resolved once — see
@@ -712,13 +656,13 @@ impl IccBridgeCache {
             return hit;
         }
         let bridge = IccBridge::build(src, src_components, dest, conv).map(std::sync::Arc::new);
-        self.entries.borrow_mut().push(CacheEntry {
-            src: std::sync::Arc::clone(src),
+        self.remember(
+            src,
             src_components,
             conv,
-            dest: BridgeDest::OutputIntent,
-            bridge: bridge.clone(),
-        });
+            BridgeDest::OutputIntent,
+            bridge.clone(),
+        );
         bridge
     }
 
@@ -740,13 +684,7 @@ impl IccBridgeCache {
             return hit;
         }
         let bridge = IccBridge::build_to_srgb(src, src_components, conv).map(std::sync::Arc::new);
-        self.entries.borrow_mut().push(CacheEntry {
-            src: std::sync::Arc::clone(src),
-            src_components,
-            conv,
-            dest: BridgeDest::Srgb,
-            bridge: bridge.clone(),
-        });
+        self.remember(src, src_components, conv, BridgeDest::Srgb, bridge.clone());
         bridge
     }
 

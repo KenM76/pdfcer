@@ -1,14 +1,15 @@
 //! `print`'s vector route: a page goes to the printer as an Enhanced
-//! Metafile when `pdfcer_render::emf::print_metafile` says the metafile is
-//! the whole page, and as a raster otherwise. Each page's route is reported
-//! on stderr (rule 4).
+//! Metafile when `pdfcer_render::emf::print_export_with` says the metafile
+//! is the whole page, and as a raster otherwise. Each page's route, and any
+//! embedded colour profile that could not be used, is reported on stderr
+//! (rule 4).
 
 // Called only by the `#[cfg(windows)]` `cmd_print`; pure, so compiled and
 // tested everywhere.
 #![cfg_attr(not(windows), allow(dead_code))]
 
 use pdfcer_core::page_tree::Page;
-use pdfcer_render::emf::{PrintMetafileError, print_metafile};
+use pdfcer_render::emf::{EmfExport, EmfOptions, PrintMetafileError, print_export_with};
 use pdfcer_render::{DocumentView, RenderOptions};
 
 /// The page as a printable metafile at `scale` device pixels per point, or
@@ -18,18 +19,36 @@ pub(crate) fn vector_page(
     page: &Page,
     scale: f32,
     options: &RenderOptions,
-) -> Result<Vec<u8>, String> {
-    print_metafile(view, page, options, scale * 72.0).map_err(|e| match e {
+) -> Result<EmfExport, String> {
+    let emf = EmfOptions::default().with_raster_dpi(scale * 72.0);
+    print_export_with(view, page, options, &emf).map_err(|e| match e {
         PrintMetafileError::Raster(why) => why.as_str().to_owned(),
         other => other.to_string(),
     })
 }
 
 /// Say how page `index` (0-based) printed: `vector`, or `raster (why)`.
-pub(crate) fn report_route(index: usize, route: &Result<Vec<u8>, String>) {
+pub(crate) fn report_route(index: usize, route: &Result<EmfExport, String>) {
     match route {
-        Ok(_) => eprintln!("pdfcer: page {}: vector", index + 1),
+        Ok(export) => {
+            eprintln!("pdfcer: page {}: vector", index + 1);
+            report_unmodelled(index, export.outcome.diagnostics.icc_profiles_unmodelled);
+        }
         Err(why) => eprintln!("pdfcer: page {}: raster ({why})", index + 1),
+    }
+}
+
+/// Say when page `index` (0-based) used `n` embedded colour profiles that
+/// no transform could be built from, so their colours came from the
+/// profile's `/Alternate` space instead (ISO 32000-2 §8.6.5.5; rule 4).
+pub(crate) fn report_unmodelled(index: usize, n: usize) {
+    if n > 0 {
+        let s = if n == 1 { "" } else { "s" };
+        eprintln!(
+            "pdfcer: page {}: {n} embedded colour profile{s} could not be used; \
+             those colours print from the profile's alternate colour space",
+            index + 1
+        );
     }
 }
 
@@ -98,7 +117,7 @@ mod tests {
     fn route(doc: &Document) -> Result<Vec<u8>, String> {
         let page = pdfcer_core::page_tree::pages(doc).expect("pages").remove(0);
         let view = DocumentView::new(doc, doc.bytes(), doc.version());
-        vector_page(&view, &page, 2.0, &RenderOptions::default())
+        vector_page(&view, &page, 2.0, &RenderOptions::default()).map(|e| e.emf)
     }
 
     #[test]

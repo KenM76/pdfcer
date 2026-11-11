@@ -95,7 +95,9 @@ mod bitmap;
 mod patch;
 mod print;
 pub use patch::EmfPatches;
-pub use print::{PrintMetafileError, RasterReason, print_metafile, print_metafile_with};
+pub use print::{
+    PrintMetafileError, RasterReason, print_export_with, print_metafile, print_metafile_with,
+};
 
 /// How an EMF is written.
 #[derive(Debug, Clone, PartialEq)]

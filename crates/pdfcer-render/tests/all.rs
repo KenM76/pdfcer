@@ -47,6 +47,7 @@ mod group_spot_planes;
 mod hairline_minimum;
 mod huge_content_streams_draw;
 mod icc_rgb;
+mod iccbased_cmyk_lut_source;
 mod image_stamp_transparency;
 mod image_transparency;
 mod ink_answered_before_rendering;
