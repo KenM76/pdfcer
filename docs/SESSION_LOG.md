@@ -4,6 +4,18 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-11-11 (1507th filing) — `7897f7e2` + `66270eeb` `Pass 700.2` + `700.3` SHIPPED: seamless supersampled edges, preserve calibrated CMYK (X068)
+
+**Shipped (engineer-reported; no shell here, git/CI state not checked from here):**
+- `Pass 700.2` (`7897f7e2`, `66270eeb`): `EdgeAntialiasing::Supersampled` (4x hard-edged, box-mean premultiplied); removes the conflation seam that drew the failure "X" on the overprint, knockout and isolated-group patches of the licensed print test file at 108 dpi and up. CLI `--edge-antialiasing auto|on|off|seamless`, default `auto` (seamless below 300 DPI, off at and above); library default stays `On`.
+- `Pass 700.3` (`66270eeb`): `--preserve-calibrated-cmyk` / `with_preserve_calibrated_cmyk`; patch 16.4 residual 6 levels to 1. Patch 16.1 (ICCBased RGB) left to iccce (decision 064).
+
+**Decisions / FEATURES:** none new in `ARCHITECTURE.md`. `FEATURES.md`: edge row rewritten, preserve-CMYK row added; gui boxes not ticked. Pass IDs `700.2`/`700.3` verified free by grep before filing.
+
+**Findings:** personal_rag/pdf lesson on abutting-shape conflation seams written (cross-links the SolidWorks image-tile lesson). Full detail in `ROADMAP.md` Shipped.
+
+**For next session:** engineer to sweep `--help` and rustdoc for stale `auto|on|off` / "auto = off at 300 DPI" wording; gui engine pin bump; `705.4`.
+
 ## 2026-11-11 (1506th filing) — `b41663ca` doc-link fix: `IndirectOptions` link failed CI `cargo doc`
 
 **Shipped (engineer-reported; no shell here, git/CI state not checked from here):**
