@@ -249,6 +249,10 @@ pub(crate) struct SpotInk {
     /// interpreter, which is the only place the tint transform is
     /// reachable.
     pub lut: std::sync::Arc<crate::cmyk_buffer::SpotLut>,
+    /// `lut` came from the space's `/Colorants` entry for this colorant
+    /// rather than its tint transform, so the paint's flattened sRGB colour
+    /// (the transform's) is not what the colorant buffer composites.
+    pub own_appearance: bool,
 }
 
 impl BrushSpec {

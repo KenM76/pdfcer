@@ -133,6 +133,8 @@ use pdfcer_core::view::DocumentView;
 
 use crate::gstate::Rgb;
 
+mod nchannel;
+
 /// Maximum nesting accepted while resolving a colour-space object.
 ///
 /// A legitimate space nests two or three deep (`Indexed` over `ICCBased`,
@@ -432,16 +434,18 @@ pub enum ColorSpace {
     /// `[/DeviceN names alternateSpace tintTransform]` (+ optional
     /// `attributes`) — §8.6.6.5.
     ///
-    /// `NChannel` (`/Subtype /NChannel`, PDF 1.6) is deliberately treated as
-    /// plain `DeviceN`, which §8.6.6.5 explicitly blesses: "Conforming
-    /// readers that do not support PDF 1.6 shall treat these colour spaces
-    /// as normal `DeviceN` colour spaces and shall use the tint
-    /// transformation function as appropriate", and "`alternateSpace` and
-    /// `tintTransform` shall always be provided". Reading `/Colorants`,
-    /// `/Process` and `/MixingHints` is optional even for `NChannel`.
+    /// Two attributes are read, for any subtype: `/Process` (Table 72)
+    /// renames the components it maps onto a CMYK process space to the
+    /// standard CMYK names, and `/Colorants` (Table 71) supplies each spot
+    /// colorant's own appearance (`colorants`). `/MixingHints` is not read;
+    /// "Conforming readers that do not support PDF 1.6 shall treat these
+    /// colour spaces as normal `DeviceN` colour spaces", and
+    /// "`alternateSpace` and `tintTransform` shall always be provided".
     DeviceN {
         /// One entry per component, in `names`-array order — the order
-        /// `scn` operands and image samples are given in.
+        /// `scn` operands and image samples are given in. A component
+        /// `/Process` maps onto a CMYK process space carries the standard
+        /// name (`Cyan`, `Magenta`, `Yellow`, `Black`), not the authored one.
         names: Arc<[Colorant]>,
         /// As `Separation`: any device or CIE-based space, never another
         /// special space.
@@ -449,6 +453,10 @@ pub enum ColorSpace {
         /// `tintTransform` (§7.10), loaded — one input per name, one
         /// output per component of `alternate`. See `Separation::tint`.
         tint: Option<Arc<pdfcer_core::function::PdfFunction>>,
+        /// Per component, the `Separation` space `/Colorants` gives for it
+        /// ("the appearance of that colorant alone", Table 71), or `None`.
+        /// Empty when no component has one. Process components never do.
+        colorants: Arc<[Option<Arc<ColorSpace>>]>,
     },
     /// `Pattern` (§8.6.6.2) — `/Pattern` alone, or `[/Pattern underlying]`
     /// for an uncoloured tiling pattern whose colour comes from
@@ -643,6 +651,7 @@ impl ColorSpace {
                 names,
                 alternate,
                 tint,
+                ..
             } => {
                 if names.iter().all(|c| matches!(c, Colorant::None)) {
                     return None;
@@ -804,6 +813,7 @@ impl ColorSpace {
                 names,
                 alternate,
                 tint,
+                ..
             } => device_n_to_rgb(names, alternate, tint.as_deref(), comps, intent, diag),
             Self::Pattern { .. } => None,
         }
@@ -1886,7 +1896,7 @@ fn resolve_device_n(
     depth: usize,
     diag: &mut ColorDiagnostics,
 ) -> Option<Arc<ColorSpace>> {
-    let names: Vec<Colorant> = args
+    let mut names: Vec<Colorant> = args
         .first()
         .map(|o| doc.resolve(o))
         .and_then(Object::as_array)?
@@ -1909,10 +1919,13 @@ fn resolve_device_n(
     }
     let alternate = alternate_space(doc, args.get(1), resources, depth, diag);
     let tint = load_tint(doc, args.get(2), alternate.components());
+    nchannel::map_process_names(doc, args, resources, depth, &mut names, diag);
+    let colorants = nchannel::colorant_spaces(doc, args, resources, depth, &names, diag);
     Some(Arc::new(ColorSpace::DeviceN {
         names: Arc::from(names.into_boxed_slice()),
         alternate,
         tint,
+        colorants,
     }))
 }
 

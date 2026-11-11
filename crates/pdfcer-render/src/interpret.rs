@@ -1032,7 +1032,24 @@ pub struct Diagnostics {
     /// `MAX_SPOTS` roster cap or the colorant-buffer byte ceiling), so
     /// they were flattened through their tint transform instead of kept
     /// as separate ink. A disclosure: the page still paints, approximately.
+    ///
+    /// Always the sum of `cmyk_spots_flattened_roster`,
+    /// `cmyk_spots_flattened_ceiling` and `cmyk_spots_flattened_allocation`.
     pub cmyk_spots_flattened: u64,
+    /// Distinct spot colorants kept on planes of their own (§8.6.6.4
+    /// `Separation`/`DeviceN` colorants under overprint simulation).
+    pub cmyk_spot_planes: u64,
+    /// Of `cmyk_spots_flattened`: refused because the page already held
+    /// `MAX_SPOTS` planes. Raising the byte ceiling does not help.
+    pub cmyk_spots_flattened_roster: u64,
+    /// Of `cmyk_spots_flattened`: refused because one more plane would
+    /// have crossed the colorant-buffer byte ceiling. A banded render
+    /// re-plans its bands to hold every plane, so this is non-zero only
+    /// when not even one row with every plane fits the ceiling.
+    pub cmyk_spots_flattened_ceiling: u64,
+    /// Of `cmyk_spots_flattened`: refused because the allocator could not
+    /// supply the plane, under the ceiling.
+    pub cmyk_spots_flattened_allocation: u64,
     /// Pixels whose value the overprint composites actually changed.
     ///
     /// The measurement that distinguishes "overprint ran and mattered" from
@@ -1971,6 +1988,10 @@ polarity unverifiable (decision 006 R30)",
         self.cmyk_groups_approximated += other.cmyk_groups_approximated;
         self.cmyk_unbridged_images += other.cmyk_unbridged_images;
         self.cmyk_spots_flattened += other.cmyk_spots_flattened;
+        self.cmyk_spot_planes += other.cmyk_spot_planes;
+        self.cmyk_spots_flattened_roster += other.cmyk_spots_flattened_roster;
+        self.cmyk_spots_flattened_ceiling += other.cmyk_spots_flattened_ceiling;
+        self.cmyk_spots_flattened_allocation += other.cmyk_spots_flattened_allocation;
         self.blends_in_wrong_space += other.blends_in_wrong_space;
         self.overprint_pixels += other.overprint_pixels;
         self.overprint_mode1_requested += other.overprint_mode1_requested;
@@ -4654,11 +4675,11 @@ impl<'a> Interpreter<'a> {
         let op_fill = !skip_paint
             && self.gs.current.text.fills()
             && self.color.paints(false)
-            && self.overprint_would_change(false, canvas.spot_plane_count());
+            && self.overprint_would_change(false, self.overprint_spot_planes(canvas));
         let op_stroke = !skip_paint
             && self.gs.current.text.strokes()
             && self.color.paints(true)
-            && self.overprint_would_change(true, canvas.spot_plane_count());
+            && self.overprint_would_change(true, self.overprint_spot_planes(canvas));
         if op_fill {
             self.diag.overprint_effective += 1;
         }
@@ -6019,6 +6040,25 @@ impl<'a> Interpreter<'a> {
         }
     }
 
+    /// The spot-plane count [`Self::overprint_would_change`] must assume
+    /// for `canvas`: its buffer's own, or `1` for the export recorder on a
+    /// subtractive page.
+    ///
+    /// The recorder holds no planes, but the raster an export patches from
+    /// does, so a process paint that must leave a spot standing (§11.7.4.3,
+    /// Table 149's "any process colour space × spot colorant" row) has to
+    /// reach the overprint route and become a patch site. Over-reporting
+    /// costs a patch over a backdrop that held no spot; the patch is cut
+    /// from the truth raster, so it is still exact.
+    fn overprint_spot_planes(&self, canvas: &Canvas<'_>) -> usize {
+        let planes = canvas.spot_plane_count();
+        if planes == 0 && canvas.exporting() && self.blend_space.is_subtractive() {
+            1
+        } else {
+            planes
+        }
+    }
+
     /// Would honouring overprint have changed this paint?
     ///
     /// Implements the §11.7.4.3 selection rule as a PREDICATE rather than
@@ -7026,6 +7066,7 @@ impl<'a> Interpreter<'a> {
                 colorant: Arc::from(name),
                 tint,
                 lut,
+                own_appearance: crate::overprint::colorant_space(space, component).is_some(),
             });
         }
         out
@@ -9193,7 +9234,7 @@ impl<'a> Interpreter<'a> {
         };
 
         if self.gs.current.overprint_fill
-            && self.overprint_would_change(false, canvas.spot_plane_count())
+            && self.overprint_would_change(false, self.overprint_spot_planes(canvas))
             && let Some(plan) = self.overprint_plan(false)
         {
             self.diag.overprint_effective += 1;
@@ -9839,7 +9880,7 @@ impl<'a> Interpreter<'a> {
         // Read once, before the two predicates: a spot plane on this page
         // makes "overprint changes nothing" false whatever the source space
         // says. See `overprint_would_change`.
-        let spot_planes = canvas.spot_plane_count();
+        let spot_planes = self.overprint_spot_planes(canvas);
         if !skip_paint {
             if fill && fill_rule.is_some() && self.overprint_would_change(false, spot_planes) {
                 self.diag.overprint_effective += 1;

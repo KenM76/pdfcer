@@ -1037,7 +1037,7 @@ fn render_impl_rasterize(
             (b.cols, b.rows, ctm, ctm64)
         }
     };
-    rasterize_at(
+    let first = rasterize_at(
         doc,
         page,
         scale,
@@ -1045,7 +1045,20 @@ fn render_impl_rasterize(
         band,
         options,
         (width, height, base_ctm, base_ctm64),
-    )
+    )?;
+    // A spot plane the ceiling refused is re-rendered in bands that hold
+    // every plane, so the spot keeps its own ink (§8.6.6.4, §11.7.4).
+    let replan = band
+        .is_none()
+        .then(|| banding::replan_for_spots(width, height, options, &first.diagnostics))
+        .flatten();
+    match replan.and_then(|bands| Some((bands, Pixmap::new(width, height)?))) {
+        Some((bands, full)) => {
+            drop(first);
+            banding::render_bands(doc, page, scale, region, options, &bands, full)
+        }
+        None => Ok(first),
+    }
 }
 
 /// The output raster's size and base CTM: the page, or `region` of it.
@@ -1305,6 +1318,15 @@ fn collapse_ink(
     diagnostics.cmyk_groups_approximated += buffer.groups_approximated();
     diagnostics.cmyk_unbridged_images += buffer.unbridged_images();
     diagnostics.cmyk_spots_flattened += buffer.spots_flattened();
+    diagnostics.cmyk_spot_planes += buffer.spot_plane_count() as u64;
+    {
+        use cmyk_buffer::SpotRefusal;
+        diagnostics.cmyk_spots_flattened_roster += buffer.spots_flattened_for(SpotRefusal::Roster);
+        diagnostics.cmyk_spots_flattened_ceiling +=
+            buffer.spots_flattened_for(SpotRefusal::Ceiling);
+        diagnostics.cmyk_spots_flattened_allocation +=
+            buffer.spots_flattened_for(SpotRefusal::Allocation);
+    }
     // The one failure mode here is an allocation the page has already
     // proven possible, so falling back to the transparent pixmap would
     // be a blank page. Keeping the (empty) pixmap and flattening it is
@@ -1461,7 +1483,7 @@ fn rasterize_at(
     // bands that each fit, rather than in sRGB (`banding`).
     if cmyk_refused == 1
         && band.is_none()
-        && let Some(bands) = banding::plan(width, height, options)
+        && let Some(bands) = banding::plan(width, height, options, 0)
     {
         drop(cmyk);
         return banding::render_bands(doc, page, scale, region, options, &bands, pixmap);

@@ -596,6 +596,11 @@ fn renders_a_single_page_to_png_with_the_stable_stdout_line() {
             "annots_need_appearances_redrawn",
             // Appended: annotations asked for /R or /D and drawn from /N.
             "annots_state_fallback",
+            // Appended: spot planes carried, and the flattened ones by reason.
+            "cmyk_spot_planes",
+            "cmyk_spots_flattened_roster",
+            "cmyk_spots_flattened_ceiling",
+            "cmyk_spots_flattened_allocation",
         ],
         "metrics key order is part of the stable contract"
     );
@@ -2244,7 +2249,10 @@ fn a_spot_ink_beyond_the_plane_roster_is_counted_once_and_disclosed() {
         ])
     }
     let dir = TempDir::new("spots-flattened");
-    for (inks, expected) in [(5, "cmyk_spots_flattened=1"), (4, "cmyk_spots_flattened=0")] {
+    for (inks, expected) in [
+        (5, "cmyk_spots_flattened=1 cmyk_spots_flattened_roster=1"),
+        (4, "cmyk_spots_flattened=0 cmyk_spots_flattened_roster=0"),
+    ] {
         let pdf = dir.write(&format!("spots{inks}.pdf"), &spots_pdf(inks));
         let png = dir.join(&format!("spots{inks}.png"));
         let out = run(&[
@@ -2256,11 +2264,14 @@ fn a_spot_ink_beyond_the_plane_roster_is_counted_once_and_disclosed() {
         assert_eq!(code(&out), 0, "stderr: {}", stderr(&out));
         let line = stdout(&out);
         assert!(
-            line.split_whitespace().any(|kv| kv == expected),
+            expected
+                .split(' ')
+                .all(|want| line.split_whitespace().any(|kv| kv == want)),
             "{inks} inks: expected {expected} in the metrics line: {line:?}"
         );
         assert_eq!(
-            stderr(&out).contains("SPOT COLORANT(s) got no plane"),
+            stderr(&out).contains("SPOT COLORANT(s) got no plane")
+                && stderr(&out).contains("1 beyond the 4-plane roster"),
             inks == 5,
             "the note appears exactly when something was flattened: {}",
             stderr(&out)

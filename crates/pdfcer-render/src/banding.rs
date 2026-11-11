@@ -42,10 +42,28 @@ impl Band {
 /// Fold one band's diagnostics into the running total: the first band's
 /// counters stand for all (each band interprets the same operators), pixel
 /// tallies are summed and a refusal in any band is kept.
+///
+/// Spot-plane counters take the band that needed most: a band skips the
+/// paints outside it, so different bands name different colorants. That is
+/// the page's own count whenever the bands refuse the same inks, and the
+/// budget [`replan_for_spots`] needs either way.
 pub(crate) fn absorb(merged: &mut Option<crate::Diagnostics>, d: crate::Diagnostics) {
     match merged.as_mut() {
         None => *merged = Some(d),
         Some(m) => {
+            m.cmyk_spot_planes = m.cmyk_spot_planes.max(d.cmyk_spot_planes);
+            m.cmyk_spots_flattened_roster = m
+                .cmyk_spots_flattened_roster
+                .max(d.cmyk_spots_flattened_roster);
+            m.cmyk_spots_flattened_ceiling = m
+                .cmyk_spots_flattened_ceiling
+                .max(d.cmyk_spots_flattened_ceiling);
+            m.cmyk_spots_flattened_allocation = m
+                .cmyk_spots_flattened_allocation
+                .max(d.cmyk_spots_flattened_allocation);
+            m.cmyk_spots_flattened = m.cmyk_spots_flattened_roster
+                + m.cmyk_spots_flattened_ceiling
+                + m.cmyk_spots_flattened_allocation;
             m.nonseparable_pixels += d.nonseparable_pixels;
             m.cmyk_bridged_pixels += d.cmyk_bridged_pixels;
             m.cmyk_native_image_pixels += d.cmyk_native_image_pixels;
@@ -56,11 +74,20 @@ pub(crate) fn absorb(merged: &mut Option<crate::Diagnostics>, d: crate::Diagnost
     }
 }
 
-/// The bands a `width × height` whole-page raster splits into, or `None`
-/// when banding cannot help: the whole raster already fits (the buffer was
-/// refused for another reason) or not even one row does.
-pub(crate) fn plan(width: u32, height: u32, options: &RenderOptions) -> Option<Vec<Band>> {
-    let cap = crate::max_cmyk_composite_pixels(options.policy().max_cmyk_buffer_bytes);
+/// The bands a `width × height` whole-page raster splits into when each
+/// band's buffer must hold the five base planes plus `spot_planes` spot
+/// planes, or `None` when banding cannot help: the whole raster already
+/// fits (the buffer was refused for another reason) or not even one row
+/// does.
+pub(crate) fn plan(
+    width: u32,
+    height: u32,
+    options: &RenderOptions,
+    spot_planes: usize,
+) -> Option<Vec<Band>> {
+    let bytes = crate::cmyk_buffer::resolve_max_bytes(options.policy().max_cmyk_buffer_bytes);
+    let per_px = crate::CMYK_BYTES_PER_PIXEL + spot_planes * (crate::CMYK_BYTES_PER_PIXEL / 5);
+    let cap = (bytes / per_px) as u64;
     let rows = u32::try_from(cap / u64::from(width.max(1))).unwrap_or(u32::MAX);
     if rows == 0 || rows >= height {
         return None;
@@ -78,12 +105,39 @@ pub(crate) fn plan(width: u32, height: u32, options: &RenderOptions) -> Option<V
     )
 }
 
-/// Render every band of `bands` into `full` (the whole raster: the page, or
+/// The bands to re-render a `width × height` raster in when `first` (its
+/// render) refused spot planes for the byte ceiling, sized so every band
+/// holds every spot plane the page named; `None` when nothing was refused
+/// for the ceiling or not even one row with those planes fits.
+///
+/// Without this a banded render refuses every spot plane, because the
+/// five-plane plan fills each band's buffer exactly. One re-render is
+/// enough: `first` named every colorant the page paints.
+pub(crate) fn replan_for_spots(
+    width: u32,
+    height: u32,
+    options: &RenderOptions,
+    first: &crate::Diagnostics,
+) -> Option<Vec<Band>> {
+    if first.cmyk_spots_flattened_ceiling == 0 {
+        return None;
+    }
+    let wanted = first.cmyk_spot_planes + first.cmyk_spots_flattened_ceiling;
+    let wanted = usize::try_from(wanted)
+        .unwrap_or(usize::MAX)
+        .min(crate::compositor::MAX_SPOTS);
+    let bands = plan(width, height, options, wanted)?;
+    (bands.len() > first.cmyk_bands).then_some(bands)
+}
+
+/// Render every band of `bands` into `full`(the whole raster: the page, or
 /// `region` of it) and return it with one set of diagnostics.
 ///
 /// Diagnostics come from the first band, because every band interprets the
 /// same operators; the pixel tallies are summed, a refusal in any band is
-/// kept, and `cmyk_bands` records the split. An ink probe is answered by the
+/// kept, the spot-plane counters take the most any one band reported (a
+/// spot band 0 never paints gets no plane there), and `cmyk_bands` records
+/// the split. An ink probe is answered by the
 /// band holding its row, in whole-page coordinates.
 pub(crate) fn render_bands(
     doc: &DocumentView<'_>,
@@ -140,7 +194,7 @@ mod tests {
     fn plan_covers_every_row_once_within_the_cap() {
         // 40 bytes is 2 pixels: a 1-pixel-wide, 5-row raster bands 2+2+1.
         let options = RenderOptions::default().with_max_cmyk_buffer_bytes(Some(40));
-        let bands = plan(1, 5, &options).unwrap();
+        let bands = plan(1, 5, &options, 0).unwrap();
         assert_eq!(
             bands,
             [
@@ -169,7 +223,39 @@ mod tests {
     #[test]
     fn plan_declines_when_banding_cannot_help() {
         let options = RenderOptions::default().with_max_cmyk_buffer_bytes(Some(40));
-        assert_eq!(plan(1, 2, &options), None, "already fits");
-        assert_eq!(plan(3, 5, &options), None, "not even one row fits");
+        assert_eq!(plan(1, 2, &options, 0), None, "already fits");
+        assert_eq!(plan(3, 5, &options, 0), None, "not even one row fits");
+    }
+
+    #[test]
+    fn plan_budgets_for_spot_planes() {
+        // 40 bytes holds two 20-byte pixels but one 24-byte (one-spot)
+        // pixel, and no 44-byte (six-spot) pixel.
+        let options = RenderOptions::default().with_max_cmyk_buffer_bytes(Some(40));
+        assert_eq!(plan(1, 4, &options, 0).unwrap().len(), 2);
+        assert_eq!(plan(1, 4, &options, 1).unwrap().len(), 4);
+        assert_eq!(plan(1, 4, &options, 6), None, "not one row with 6 spots");
+    }
+
+    #[test]
+    fn replan_only_for_ceiling_refusals() {
+        let options = RenderOptions::default().with_max_cmyk_buffer_bytes(Some(40));
+        let mut d = crate::Diagnostics {
+            cmyk_bands: 2,
+            ..Default::default()
+        };
+        assert_eq!(
+            replan_for_spots(1, 4, &options, &d),
+            None,
+            "nothing refused"
+        );
+        d.cmyk_spots_flattened_roster = 1;
+        assert_eq!(
+            replan_for_spots(1, 4, &options, &d),
+            None,
+            "roster, not ceiling"
+        );
+        d.cmyk_spots_flattened_ceiling = 1;
+        assert_eq!(replan_for_spots(1, 4, &options, &d).unwrap().len(), 4);
     }
 }

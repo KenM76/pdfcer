@@ -694,7 +694,9 @@ icc_managed_paints={} icc_unmanaged_paints={} \
 overprint_process_images_unsupported={} annots_icon_painted={} page_resources_defaulted={} \
 page_crop_box_clipped={} page_crop_box_unusable={} cmyk_spots_flattened={} \
 annots_widget_drawn={} annots_geometry_drawn={} content_truncated={} \
-annots_need_appearances_redrawn={} annots_state_fallback={}",
+annots_need_appearances_redrawn={} annots_state_fallback={} \
+cmyk_spot_planes={} cmyk_spots_flattened_roster={} \
+cmyk_spots_flattened_ceiling={} cmyk_spots_flattened_allocation={}",
         d.glyphs_substituted,
         d.glyphs_notdef,
         d.fonts_unsupported,
@@ -1095,6 +1097,12 @@ annots_need_appearances_redrawn={} annots_state_fallback={}",
         d.widgets_redrawn_for_need_appearances,
         // Appended: annotations asked for /R or /D and drawn from /N.
         d.annotations_state_fallback,
+        // Appended: spot planes carried, and `cmyk_spots_flattened` split
+        // by the reason each colorant got no plane.
+        d.cmyk_spot_planes,
+        d.cmyk_spots_flattened_roster,
+        d.cmyk_spots_flattened_ceiling,
+        d.cmyk_spots_flattened_allocation,
     )
 }
 
@@ -2314,15 +2322,7 @@ when comparing against another renderer",
             d.cmyk_bands
         );
     }
-    if d.cmyk_spots_flattened > 0 {
-        eprintln!(
-            "pdfcer: note: {} SPOT COLORANT(s) got no plane of their own (at most {} per page, \
-within --max-cmyk-buffer-bytes) and were FLATTENED through their tint transform: they paint, \
-but overprint and blending treat them as process ink",
-            d.cmyk_spots_flattened,
-            pdfcer_render::compositor::MAX_SPOTS
-        );
-    }
+    note_spots_flattened("", d);
     if d.cmyk_unbridged_images > 0 {
         eprintln!(
             "pdfcer: note: {} IMAGE BRUSH(es) reached a subtractive paint with no conversion path and were NOT PAINTED. This is not supposed to be reachable — the page is missing marks, and the render should be reported rather than trusted",
@@ -2583,6 +2583,54 @@ flag; honoured (not painted) AND disclosed",
     }
     report_color_diagnostics(&d.color);
     report_shading_diagnostics(&d.shading);
+}
+
+/// The stderr note for spot colorants that got no plane, prefixed by
+/// `page` (e.g. `"page 3: "`); nothing when none were flattened.
+pub(crate) fn note_spots_flattened(page: &str, d: &pdfcer_render::Diagnostics) {
+    if d.cmyk_spots_flattened > 0 {
+        eprintln!(
+            "pdfcer: {page}note: {} SPOT COLORANT(s) got no plane of their own and were FLATTENED \
+through their tint transform: they paint, but overprint and blending treat them as process \
+ink ({})",
+            d.cmyk_spots_flattened,
+            spot_flatten_reasons(d)
+        );
+    }
+}
+
+/// Why each flattened spot colorant got no plane, for the stderr note.
+pub(crate) fn spot_flatten_reasons(d: &pdfcer_render::Diagnostics) -> String {
+    let reasons = [
+        (
+            d.cmyk_spots_flattened_roster,
+            format!(
+                "{} beyond the {}-plane roster",
+                d.cmyk_spots_flattened_roster,
+                pdfcer_render::compositor::MAX_SPOTS
+            ),
+        ),
+        (
+            d.cmyk_spots_flattened_ceiling,
+            format!(
+                "{} with no room under --max-cmyk-buffer-bytes",
+                d.cmyk_spots_flattened_ceiling
+            ),
+        ),
+        (
+            d.cmyk_spots_flattened_allocation,
+            format!(
+                "{} whose plane could not be allocated",
+                d.cmyk_spots_flattened_allocation
+            ),
+        ),
+    ];
+    reasons
+        .into_iter()
+        .filter(|(n, _)| *n > 0)
+        .map(|(_, s)| s)
+        .collect::<Vec<_>>()
+        .join("; ")
 }
 
 /// The §8.7.4 shading half of the honesty report.

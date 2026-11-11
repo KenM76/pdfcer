@@ -90,6 +90,7 @@ mod shading_pattern_anchoring;
 mod sibling_font;
 mod signature_widget;
 mod smask_replaces_not_intersects;
+mod spot_overprint_routes;
 mod stray_q_and_text_pen;
 mod stroke_display_hairline;
 mod subset_allocated_code;

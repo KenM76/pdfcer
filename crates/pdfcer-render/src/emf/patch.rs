@@ -148,7 +148,11 @@ fn zero_tallies(rec: &mut ExportRecording) {
 fn composites(op: &Op) -> bool {
     match op {
         Op::Fill { brush, .. } | Op::Stroke { brush, .. } => match brush.brush {
-            Brush::Solid { rgba } => rgba[3] < 255 || brush.blend != BlendMode::SourceOver,
+            Brush::Solid { rgba } => {
+                rgba[3] < 255
+                    || brush.blend != BlendMode::SourceOver
+                    || brush.spots.iter().any(|s| s.own_appearance)
+            }
             _ => true,
         },
         Op::Layer { .. } => true,

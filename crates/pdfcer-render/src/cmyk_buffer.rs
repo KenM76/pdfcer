@@ -539,6 +539,18 @@ pub(crate) const fn resolve_max_bytes(max_bytes: Option<usize>) -> usize {
     }
 }
 
+/// Why a spot colorant got no plane of its own, for the per-reason
+/// counters on [`crate::Diagnostics`].
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum SpotRefusal {
+    /// The roster already held [`crate::compositor::MAX_SPOTS`] planes.
+    Roster,
+    /// The plane would have taken the buffer past its byte ceiling.
+    Ceiling,
+    /// The allocator could not supply the plane.
+    Allocation,
+}
+
 /// A page- or group-sized **subtractive** compositing buffer.
 ///
 /// # Model
@@ -639,7 +651,7 @@ pub(crate) struct CmykBuffer {
     /// the page is not wrong in the way a missing paint would be — it is
     /// approximate in a way the operator is entitled to know about, which
     /// is project rule 4 applied to a resource limit.
-    spots_flattened: Vec<Box<[u8]>>,
+    spots_flattened: Vec<(Box<[u8]>, SpotRefusal)>,
     /// Pixels whose colour reached this buffer through the sRGB bridge
     /// rather than as authored colorants.
     ///
@@ -986,8 +998,8 @@ impl CmykBuffer {
     /// incomplete but exactly backwards, since that page is the one most
     /// affected.
     pub(crate) fn absorb_counters(&mut self, child: &Self) {
-        for colorant in &child.spots_flattened {
-            self.note_flattened(colorant);
+        for (colorant, reason) in &child.spots_flattened {
+            self.note_flattened(colorant, *reason);
         }
         self.bridged += child.bridged;
         self.groups_approximated += child.groups_approximated;
@@ -1165,7 +1177,7 @@ impl CmykBuffer {
             return Some(found);
         }
         if self.spots.len() >= crate::compositor::MAX_SPOTS {
-            self.note_flattened(colorant);
+            self.note_flattened(colorant, SpotRefusal::Roster);
             return None;
         }
         let n = (self.width as usize).saturating_mul(self.height as usize);
@@ -1176,15 +1188,15 @@ impl CmykBuffer {
             .checked_mul(core::mem::size_of::<Chan>())
             .and_then(|per_px| per_px.checked_mul(n));
         let Some(bytes_after) = bytes_after else {
-            self.note_flattened(colorant);
+            self.note_flattened(colorant, SpotRefusal::Ceiling);
             return None;
         };
         if bytes_after > self.max_bytes {
-            self.note_flattened(colorant);
+            self.note_flattened(colorant, SpotRefusal::Ceiling);
             return None;
         }
         let Some(tint) = Self::try_planes(n) else {
-            self.note_flattened(colorant);
+            self.note_flattened(colorant, SpotRefusal::Allocation);
             return None;
         };
         // The closure runs ONLY here -- on the transition from "this page
@@ -1238,10 +1250,19 @@ impl CmykBuffer {
         self.spots_flattened.len() as u64
     }
 
-    /// Record `colorant` as flattened, once per distinct name.
-    fn note_flattened(&mut self, colorant: &[u8]) {
-        if !self.spots_flattened.iter().any(|c| &**c == colorant) {
-            self.spots_flattened.push(colorant.into());
+    /// How many of [`Self::spots_flattened`] were refused for `reason`.
+    pub(crate) fn spots_flattened_for(&self, reason: SpotRefusal) -> u64 {
+        self.spots_flattened
+            .iter()
+            .filter(|(_, r)| *r == reason)
+            .count() as u64
+    }
+
+    /// Record `colorant` as flattened, once per distinct name; the first
+    /// refusal's reason is the one kept.
+    fn note_flattened(&mut self, colorant: &[u8], reason: SpotRefusal) {
+        if !self.spots_flattened.iter().any(|(c, _)| &**c == colorant) {
+            self.spots_flattened.push((colorant.into(), reason));
         }
     }
 
@@ -3595,7 +3616,7 @@ mod tests {
     fn a_reused_child_does_not_carry_counters_into_the_next_group() {
         let mut page = CmykBuffer::new(4, 4, CmykIntent::Calibrated, None).unwrap();
         let mut first = page.take_child().unwrap();
-        first.note_flattened(b"lost ink");
+        first.note_flattened(b"lost ink", SpotRefusal::Roster);
         first.native_images_pixels = 7;
         page.absorb_counters(&first);
         page.give_back_child(first);

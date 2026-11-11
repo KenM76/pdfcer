@@ -4207,7 +4207,16 @@ before any plate is hidden. Diagnostics, all zero/empty without a preview:
 ★ **What the UI must disclose:** `inks_forced_subtractive` (blends and
 transparency can then differ from the normal view), any `inks_unmatched`,
 and `cmyk_spots_flattened` (a spot past the plane cap was folded into process
-ink and cannot be hidden alone). A display aid; print and export leave it
+ink and cannot be hidden alone). Its reasons: `cmyk_spots_flattened_roster`
+(past `compositor::MAX_SPOTS`), `cmyk_spots_flattened_ceiling` (no room
+under `max_cmyk_buffer_bytes` even in a one-row band; a page too large for
+one buffer is banded so every spot keeps its plane) and
+`cmyk_spots_flattened_allocation`; the three sum to it.
+`cmyk_spot_planes` counts the planes carried (the most in any one band).
+All `u64`. `DeviceN` spaces read `/Process` (Table 72: components it maps
+onto a CMYK process space are the process inks, not spots) and
+`/Colorants` (Table 71: a spot's own appearance replaces the tint
+transform's for that ink). A display aid; print and export leave it
 `None`. CLI: `render-page` / `export-image --separation-preview` and
 `--hide-ink NAME` (repeatable, implies the preview); notes go to stderr.
 

@@ -560,7 +560,13 @@ pub(crate) fn cmd_print(
                     scale as f32,
                     &options,
                 ) {
-                    Ok(r) => r,
+                    Ok(r) => {
+                        crate::render_export::note_spots_flattened(
+                            &format!("page {}: ", source + 1),
+                            &r.diagnostics,
+                        );
+                        r
+                    }
                     Err(err) => {
                         eprintln!("pdfcer: page {}: {err}", source + 1);
                         return exit::RUNTIME_ERROR;
@@ -656,7 +662,13 @@ pub(crate) fn cmd_print(
                     render_scale as f32,
                     &options,
                 ) {
-                    Ok(r) => r,
+                    Ok(r) => {
+                        crate::render_export::note_spots_flattened(
+                            &format!("page {}: ", index + 1),
+                            &r.diagnostics,
+                        );
+                        r
+                    }
                     Err(err) => {
                         eprintln!("pdfcer: page {}: {err}", index + 1);
                         return exit::RUNTIME_ERROR;
@@ -819,7 +831,13 @@ untiled; {tiled_pages} page(s) were tiled."
                     scale as f32,
                     &options,
                 ) {
-                    Ok(r) => r,
+                    Ok(r) => {
+                        crate::render_export::note_spots_flattened(
+                            &format!("page {}: ", source + 1),
+                            &r.diagnostics,
+                        );
+                        r
+                    }
                     Err(err) => {
                         eprintln!("pdfcer: page {}: {err}", source + 1);
                         return exit::RUNTIME_ERROR;
@@ -953,7 +971,13 @@ untiled; {tiled_pages} page(s) were tiled."
                 render_scale as f32,
                 &options,
             ) {
-                Ok(r) => r,
+                Ok(r) => {
+                    crate::render_export::note_spots_flattened(
+                        &format!("page {}: ", plan.index + 1),
+                        &r.diagnostics,
+                    );
+                    r
+                }
                 Err(err) => {
                     eprintln!("pdfcer: page {}: {err}", plan.index + 1);
                     return exit::RUNTIME_ERROR;

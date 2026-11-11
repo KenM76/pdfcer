@@ -176,7 +176,11 @@ pub(crate) fn resolve_spot_planes(
 }
 
 /// One spot colorant's tint curve — the colorant ALONE on white paper,
-/// sampled across `0..=1` through the space's own tint transform.
+/// sampled across `0..=1` through the space's own tint transform, or
+/// through the colorant's `/Colorants` `Separation` when the `DeviceN`
+/// space gives one (ISO 32000-2 §8.6.6.5, Table 71: that space describes
+/// "the appearance of that colorant alone", the `DeviceN` transform only
+/// "its colorants in combination").
 ///
 /// # Why this is one function and not two
 ///
@@ -203,6 +207,9 @@ pub(crate) fn spot_lut(
     arity: usize,
     intent: CmykIntent,
 ) -> crate::cmyk_buffer::SpotLut {
+    if let Some(own) = colorant_space(space, component) {
+        return spot_lut(own, 0, 1, intent);
+    }
     crate::cmyk_buffer::SpotLut::build(|t| {
         let mut probe = vec![0.0_f32; arity.max(component + 1)];
         if let Some(slot) = probe.get_mut(component) {
@@ -216,6 +223,16 @@ pub(crate) fn spot_lut(
             .to_rgb(&probe, intent, &mut scratch)
             .map_or([1.0, 1.0, 1.0], |rgb| [rgb.r, rgb.g, rgb.b])
     })
+}
+
+/// The `/Colorants` `Separation` a `DeviceN` `space` gives its component
+/// `component`, if any.
+#[must_use]
+pub(crate) fn colorant_space(space: &ColorSpace, component: usize) -> Option<&ColorSpace> {
+    match space {
+        ColorSpace::DeviceN { colorants, .. } => colorants.get(component)?.as_deref(),
+        _ => None,
+    }
 }
 
 /// Which of Table 149's source-space rows applies.
@@ -1672,6 +1689,7 @@ mod tests {
             ),
             alternate: std::sync::Arc::new(ColorSpace::DeviceCmyk),
             tint: None,
+            colorants: std::sync::Arc::from([]),
         };
         let indexed = ColorSpace::Indexed {
             base: std::sync::Arc::new(base),
