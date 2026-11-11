@@ -73,13 +73,10 @@
 //!   not in the document"* by a full reader; pdfcer paints it (consistent
 //!   with the rest of the renderer ignoring OC). Recorded as a known,
 //!   consistent deferral rather than a silent divergence.
-//! - **`/R` and `/D`** (rollover/down) are recognised but never selected —
-//!   they are interaction states no static display drives (§12.5.5); this
-//!   module models only `/N`. **(`Pass 38.5` note: the deletion verb
-//!   nevertheless collects `/R` and `/D` streams when it removes an
-//!   annotation. "Never selected for painting" and "never cleaned up" are
-//!   different claims, and leaving them would orphan a stream in every
-//!   subsequent save.)**
+//! - **`/R` and `/D`** (rollover/down) are selected only on request, via
+//!   [`select_appearance`] with an [`AppearanceKind`]; a static render
+//!   paints `/N` (§12.5.5). The deletion verb collects `/R` and `/D`
+//!   streams with `/N`, or every later save would orphan them.
 //! - **The pop-up's own `/Parent` back-reference** (Table 183) is not
 //!   modelled, and [`Annotation::popup`] is. Deliberate, not an
 //!   asymmetry to be tidied: the authoritative direction is the parent's
