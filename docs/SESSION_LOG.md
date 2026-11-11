@@ -4,6 +4,20 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-11-11 (1505th filing) — `cea1b8cc` `Pass 705.3` SHIPPED: bounce light in the WebGL 2 shader, `FrameBounce`
+
+**Shipped (engineer-reported; no shell here, git/CI state not checked from here):**
+- `cea1b8cc3dc7c42e1ec90ad04cf1da1785aeffc9`, `feat(3d): bounce light in the WebGL 2 shader, FrameBounce (Pass 705.3)`. `PreparedModel::frame_bounce` returns a `FrameBounce` RGBA32F atlas; the fragment shader mirrors the CPU gather. Detail is in the ROADMAP Shipped entry and the commit message.
+- Tests: 11 bounce tests pass (shader mirror vs CPU over 1,323 points < 0.5/255; lens identity); clippy, fmt, code-structure, core-api-verbs clean.
+
+**Decisions:** none new (decision 224). **FEATURES.md:** bounced-light row text updated, core already ticked, gui not ticked, stays in *Planned*.
+
+**Findings:** SwiftShader room scene 256x256, GPU vs CPU: mean 0.075 levels, max 24, 16 of 8,306 interior pixels over 1 level. Cause is 0.01-0.03 px sample-point difference against a steep bounce gradient at wall-floor contacts. Within rasterizer precision, not the arc's +-1 on every pixel; recorded as such. Lenses were not run under SwiftShader.
+
+**Still in flight:** GUI must wire `FrameBounce`; `705.0` Adreno timing (E065a reply owed).
+
+**For next session:** `705.4` `EveryLight` live-view volume swapping.
+
 ## 2026-11-11 (1504th filing) — `339d1127` `Pass 705.2b` SHIPPED: bounce light on by default in every CPU render, with CLI flags (`705.2` CPU path complete)
 
 **Shipped (engineer-reported; no shell here, git/CI state not checked from here):**
