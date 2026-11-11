@@ -4,6 +4,21 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-11-11 (1502nd filing) — `a8c3f267` `Pass 705.1` SHIPPED: `PickIndex` closest-hit and any-hit ray queries
+
+**Shipped (engineer-reported; no shell here, git/push/CI state not checked from here; docs only, engineer commits):**
+- `a8c3f267a8e3fb400bea59b41e0a827cc88d32b3`, `feat(3d): PickIndex closest-hit and any-hit ray queries through holes and see-through surfaces (Pass 705.1)`. `pdfcer-3d` only. `first_hit(ray, max_distance, include, clear)` and `transmittance(ray, max_distance, include, share)`; one private `walk()` drives them and `pick_where` (behaviour unchanged). Both callbacks get barycentric weights for texture-alpha sampling.
+- Tests: brute-force scan comparison (500 triangles, two distance limits, bit-exact via power-of-two shares), early stop, clamping, weights reproduce the hit point; sabotage fails 3 tests. `pdfcer-3d` 483 lib + 5 + 32 doc. fmt, clippy `-D warnings`, code-structure, `check-core-api-verbs` clean. No manifest change.
+- Docs: `docs/core-api/01-reading-and-model.md` new row; `index.md` counts (5,171 lines, 270 clauses).
+
+**Decisions:** none new; decision 224 doc marks `705.1` DONE (Passes table and Outcomes). **FEATURES.md:** the `PickIndex` row text extended; boxes unchanged (`[x]` core, `[ ]` cli, `[ ]` gui; core-only, no caller until `705.2`).
+
+**Findings (housekeeping):** outbound request E065a had no `from:` header, so `tools/check-requests-scoped.py` (`OUTBOUND_RE`, header = first 8 lines) read it as an unanswered SCOPED inbound request and failed. A `from: pdfcer engine · to: pdfceGUI · 2026-11-11` line was added to the request file (outside the repo). Rule: an outbound request needs a `from:` header in its first 8 lines. No RAG file written: the script's own comment at lines 216-224 already states it; no project-gotcha document exists to hold it.
+
+**Still in flight:** `705.0` stays under Next up; only the Adreno 643 timing (E065a, reply owed) is open.
+
+**For next session:** on the E065a reply close `705.0`, then `705.2` (bounce, CPU path).
+
 ## 2026-11-11 (1501st filing) — `2a0dbed3` `Pass 705.0` second PARTIAL: RGBA32F texelFetch check done, Adreno timing still open
 
 **Shipped (engineer-reported; no shell here, git/push/CI state not checked from here; docs only, engineer commits):**

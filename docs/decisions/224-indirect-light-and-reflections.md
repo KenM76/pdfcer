@@ -113,6 +113,8 @@ Corpus: 35 3D models extracted from local test PDFs (18 PRC, 13 U3D, 4 other). "
 
 **Closed 2026-11-11 (`2a0dbed37efae95767d2bc6f4e48a4e50555fbf5`):** the SwiftShader sampler and RGBA32F check (`tools/3d-measure/webgl/rgba32f_texelfetch.html`): `texelFetch` on RGBA32F is bit-exact against an RGBA32UI copy, 0 mismatches of 409,600 (2D), 6,553,600 (3D) and 6,553,600 (2D array) texels; sabotage-checked. The texelFetch-only design needs no float-filtering extension.
 
+**`705.1` DONE 2026-11-11 (`a8c3f267a8e3fb400bea59b41e0a827cc88d32b3`):** `PickIndex::first_hit` and `PickIndex::transmittance`, checked against a brute-force linear scan (500 triangles, bit-exact), sabotage-checked; `pick_where` unchanged. Core only; `705.2` is the first consumer.
+
 **Still open in `705.0`:** the Adreno 643 lookup timing, from the GUI project. Micro-shader supplied (`tools/3d-measure/webgl/probe_lookup_bench.html`: 40 `texelFetch` per pixel from a 4,096-probe atlas; SwiftShader 17.1 ms a pass at 776x508 = 43 ns per pixel, a CPU rasteriser and not a device estimate). Request E065a filed, reply owed.
 
 ## Scope ("all things 3D")
@@ -136,7 +138,7 @@ Corpus: 35 3D models extracted from local test PDFs (18 PRC, 13 U3D, 4 other). "
 | Pass | Scope | Gate |
 |---|---|---|
 | 705.0 | **Measure.** Corpus counts: models with model-fixed lights, finish distribution, glow, and the `texture_mapping_attributes` values seen. Also `PickIndex` rays/s natively and on wasm32, the SwiftShader sampler and RGBA32F check, the Adreno 643 lookup timing from the GUI, and Acrobat's behaviour from the acrobat-librarian. | No digest changes. |
-| 705.1 | **`PickIndex` ray queries** (closest-hit and any-hit with transmission and cut-outs), checked against brute-force Möller-Trumbore. | Picks unchanged. |
+| 705.1 | **DONE (`a8c3f267`).** **`PickIndex` ray queries** (closest-hit and any-hit with transmission and cut-outs), checked against brute-force Möller-Trumbore. | Picks unchanged. |
 | 705.2 | **Bounce, CPU path,** with an incremental `step(budget)` build. Tests: a Cornell-box bleed ratio, a sealed box adding ≤ 2/255, a thin-wall leak bound, albedo 0 adding 0, linearity in gain, and thread-count invariance. Off, or no model-fixed lights, is byte-identical. Probes inside solids are found by a short-hit plus crossing-parity vote, because winding is untrusted. CLI flags and disclosure notes ship. | All existing digests unchanged; new digests pinned and sabotage-checked. |
 | 705.3 | **Bounce, GPU path:** the `FrameBounce` atlas plus a GLSL lookup in its own shader chunk. | Software formula, then SwiftShader, ±1 including fisheye and equirectangular. |
 | 705.4 | **`EveryLight`:** the live view keeps the last complete volume and swaps whole volumes only; a saved picture always builds a fresh one. | Live equals saved to ±1 once current. |
