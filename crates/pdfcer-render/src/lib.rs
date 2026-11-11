@@ -947,7 +947,16 @@ fn render_impl(
     // tempted to add a hook here should remember that the point is to stop
     // losing the worker, not to stop hearing about it.
     match std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-        render_impl_rasterize(doc, page, scale, region, None, options)
+        // A region cuts its edges on the page raster's lattice, so a tile
+        // reassembles into the whole page byte for byte.
+        let anchor = region
+            .and_then(|r| region_base_geometry(page, scale, r))
+            .map_or((0.0, 0.0), |g| {
+                region_lattice_anchor(page.crop_box, page.rotate, effective_scale(page, scale), &g)
+            });
+        device_clip::with_lattice_anchor(anchor, || {
+            render_impl_rasterize(doc, page, scale, region, None, options)
+        })
     })) {
         Ok(result) => result,
         Err(payload) => Err(RenderError::RasterizerLimit {
@@ -1557,6 +1566,19 @@ pub fn region_device_geometry(
     #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
     let h = (max_y.ceil() - y0).max(0.0) as u32;
     Some((w, h, x0, y0))
+}
+
+/// Whole device pixels from the page raster's top-left to region `g`'s, for
+/// `device_clip::with_lattice_anchor`; zero when it is not a whole pixel.
+pub(crate) fn region_lattice_anchor(
+    crop: pdfcer_core::page_tree::Rect,
+    rotate: u16,
+    scale: f32,
+    g: &RegionGeometry,
+) -> (f64, f64) {
+    region_base_geometry_of(crop, rotate, scale, crop).map_or((0.0, 0.0), |p| {
+        device_clip::lattice_anchor((g.x0 - p.x0, g.y0 - p.y0))
+    })
 }
 
 /// The device pixmap size and base CTM for a **region** of a page, with

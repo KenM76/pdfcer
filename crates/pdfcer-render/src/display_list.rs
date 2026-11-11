@@ -734,7 +734,8 @@ impl DisplayList {
                 width: 0,
                 height: 0,
             })?;
-        self.replay_at(g.width, g.height, g.x0, g.y0, 0)
+        let anchor = crate::region_lattice_anchor(self.page_box, self.page_rotate, scale, &g);
+        self.replay_at(g.width, g.height, g.x0, g.y0, 0, anchor)
     }
 
     /// Replay device rows `rows` of the whole-page raster — the raster
@@ -786,7 +787,14 @@ impl DisplayList {
                 lattice: BAND_ROW_LATTICE,
             });
         }
-        self.replay_at(g.width, rows.end - rows.start, g.x0, g.y0, rows.start)
+        self.replay_at(
+            g.width,
+            rows.end - rows.start,
+            g.x0,
+            g.y0,
+            rows.start,
+            (0.0, 0.0),
+        )
     }
 
     /// `Ok` when [`Self::replay_rows`] bands of this list stitch byte for
@@ -812,7 +820,9 @@ impl DisplayList {
     }
 
     /// Replay into a `width` x `height` raster: rows `row0..` of the raster
-    /// whose top-left is page-device `(x0, y0)`.
+    /// whose top-left is page-device `(x0, y0)`, edges cut on the lattice
+    /// `anchor` pixels away (`device_clip::with_lattice_anchor`).
+    #[allow(clippy::too_many_arguments)] // one raster's geometry, not options
     fn replay_at(
         &self,
         width: u32,
@@ -820,6 +830,7 @@ impl DisplayList {
         x0: f32,
         y0: f32,
         row0: u32,
+        anchor: (f64, f64),
     ) -> Result<RenderedPage, RenderError> {
         if width == 0
             || height == 0
@@ -846,8 +857,10 @@ impl DisplayList {
         // Edges are cut and rounded in the unbanded raster's space and
         // then moved up `row0` rows (`device_clip::ROW_LATTICE`).
         let mut masks = MaskBuilder::new(&self.clips, width, height, x0, y0);
-        crate::device_clip::with_row_origin(row0, || {
-            replay_ops(&self.ops, &mut pixmap, &mut masks, region_bounds);
+        crate::device_clip::with_lattice_anchor(anchor, || {
+            crate::device_clip::with_row_origin(row0, || {
+                replay_ops(&self.ops, &mut pixmap, &mut masks, region_bounds);
+            });
         });
 
         // §11.4.7's second formula, exactly as `render_impl` performs it.

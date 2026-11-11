@@ -132,6 +132,45 @@ fn row_origin() -> u32 {
     ROW_ORIGIN.with(std::cell::Cell::get)
 }
 
+thread_local! {
+    /// Whole device pixels from the page raster's origin to the unbanded
+    /// raster's. Non-zero only inside [`with_lattice_anchor`].
+    static ANCHOR: std::cell::Cell<(f64, f64)> = const { std::cell::Cell::new((0.0, 0.0)) };
+}
+
+/// Run `f` with every in-range edge cut and rounded in the *page* raster's
+/// device space, `anchor` pixels from the unbanded raster's. A region whose
+/// top-left is a whole pixel into the page then receives the page's edges
+/// shifted by that pixel, so a tile reassembles into the whole page byte
+/// for byte. `anchor` must be whole and small (see [`lattice_anchor`]).
+pub(crate) fn with_lattice_anchor<R>(anchor: (f64, f64), f: impl FnOnce() -> R) -> R {
+    struct Restore((f64, f64));
+    impl Drop for Restore {
+        fn drop(&mut self) {
+            ANCHOR.with(|o| o.set(self.0));
+        }
+    }
+    let _restore = Restore(ANCHOR.with(|o| o.replace(anchor)));
+    f()
+}
+
+/// The anchor for a raster whose top-left is page-device `offset` from the
+/// page raster's: that offset when it is a whole pixel within a renderable
+/// page, else zero. A deep-zoom region sits millions of pixels in, where
+/// rounding at the page's magnitude would cost every bit the region's own
+/// space keeps, and it has no whole page to agree with anyway.
+pub(crate) fn lattice_anchor(offset: (f32, f32)) -> (f64, f64) {
+    let edge = f64::from(crate::MAX_PIXMAP_EDGE);
+    let whole = |v: f32| {
+        let v = f64::from(v);
+        (v.fract() == 0.0 && v.abs() <= edge).then_some(v)
+    };
+    match (whole(offset.0), whole(offset.1)) {
+        (Some(x), Some(y)) => (x, y),
+        _ => (0.0, 0.0),
+    }
+}
+
 /// Decides how a fill of `path` under `ts` reaches a `width` x `height`
 /// target. `ts` maps to the unbanded device space; the result is in the
 /// target's, [`with_row_origin`] rows up.
@@ -208,6 +247,7 @@ fn in_range(path: &Path, ts: Transform) -> Option<Path> {
         pb: PathBuilder::new(),
         t: (f64::from(ts.tx), f64::from(ts.ty)),
         origin: row_origin(),
+        anchor: ANCHOR.with(std::cell::Cell::get),
         pen: (0.0, 0.0),
     };
     let all = Window {
@@ -264,20 +304,30 @@ struct LatticeOut {
     /// The transform's translation, added in `f64` before rounding.
     t: P,
     origin: u32,
-    /// Last point, in the unbanded device space.
+    /// [`with_lattice_anchor`]'s offset; the lattice and the `f32`
+    /// rounding live in the space it reaches.
+    anchor: P,
+    /// Last point, in the anchored device space.
     pen: P,
 }
 
 impl LatticeOut {
     fn device(&self, p: P) -> P {
-        (p.0 + self.t.0, p.1 + self.t.1)
+        (
+            p.0 + self.t.0 + self.anchor.0,
+            p.1 + self.t.1 + self.anchor.1,
+        )
     }
 
     fn put(&mut self, d: P, first: bool) {
         #[allow(clippy::cast_possible_truncation)] // in range: `exceeds` was false
         let (x, y) = (d.0 as f32, d.1 as f32);
-        #[allow(clippy::cast_precision_loss)] // a row index, exact in f32
-        let y = y - self.origin as f32;
+        // Whole numbers below 2^24, so each subtraction is exact.
+        #[allow(clippy::cast_possible_truncation, clippy::cast_precision_loss)]
+        let (x, y) = (
+            x - self.anchor.0 as f32,
+            y - (self.anchor.1 + f64::from(self.origin)) as f32,
+        );
         if first {
             self.pb.move_to(x, y);
         } else {
