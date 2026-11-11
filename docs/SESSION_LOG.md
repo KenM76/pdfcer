@@ -4,6 +4,19 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-11-11 (1511th filing) — `e6d4b3e1` doc-link fix: bracketed spec quote failed CI-style `cargo doc` (`Pass 700.6` follow-up)
+
+**Shipped (engineer-reported; no shell here, git/CI state not checked from here):**
+- `e6d4b3e121b4174176a5377f3fd83d3a804f7507`, `fix(render): escape the bracketed spec quote that failed cargo doc (Pass 700.6 follow-up)`. Doc-only, `crates/pdfcer-render/src/annot/widget.rs` line 38: the ISO 32000-1 §12.7.2 Table 218 quotation `specif[ies]` was parsed by rustdoc as an intra-doc link to `ies` under `-D rustdoc::broken_intra_doc_links`; escaped as `\[ies\]`. Defect came from `31ef6a12` (filed `ad46aa18`, 1510th).
+- Found by the pre-release scoped gate (workspace `cargo doc` with link-deny) before tagging `v0.145.0`. `cargo doc --workspace` clean after the fix. No test change.
+- The gate run first died on os error 112 (disk full); 31 GB of `target/debug/incremental` deleted, then re-run.
+
+**FEATURES.md:** no row changes. No capability change; core/cli/gui boxes unchanged.
+
+**Filed in:** `docs/ROADMAP.md`, bullet on the `Pass 700.6` + `700.7` Shipped entry (same shape as the 1506th's CI doc-link bullet).
+
+**For next session:** `v0.145.0` release continues from the green scoped gate.
+
 ## 2026-11-11 (1510th filing) — `31ef6a12` + `0bef7d51` `Pass 700.6` + `700.7` SHIPPED: `/NeedAppearances` + field text geometry (X070), formatted values + list-box rows (X069)
 
 **Shipped (engineer-reported; no shell here, git/CI state not checked from here; in `main`, NOT in a release):**
