@@ -1471,6 +1471,12 @@ pub struct Settings {
     /// assume. An explicit `/ON` or `/OFF` always wins, and absolute
     /// colorimetric never compensates.
     pub black_point_compensation: bool,
+    /// Whether an `ICCBased` CMYK colour keeps its own numbers as the ink
+    /// when a page composites in ink, instead of being converted to the
+    /// output intent (ISO 32000-1 §8.6.5.5 permits either). `false` by
+    /// default (colorimetric). A print-shop policy, not a view setting;
+    /// feeds `RenderOptions::with_preserve_calibrated_cmyk`.
+    pub preserve_calibrated_cmyk: bool,
     /// Which colour spaces get `OPM 1`'s zero-tint rule (`Pass 143.0`).
     /// See [`OverprintZeroTintScope`] — a **divergence from ISO 32000-1**
     /// toward Acrobat, edition-gated (32000-2 opens the question that 1.7
@@ -1591,6 +1597,7 @@ impl Default for Settings {
             // this module and in `pdfcer-render` pin that agreement.
             page_blend_space_source: PageBlendSpaceSource::default(),
             black_point_compensation: true,
+            preserve_calibrated_cmyk: false,
             overprint_zero_tint_scope: OverprintZeroTintScope::default(),
             spot_colorant_device_model: SpotColorantDeviceModel::default(),
             mesh_patch_padding: MeshPatchPadding::default(),
@@ -2191,6 +2198,16 @@ impl Settings {
                     using: Self::default().black_point_compensation.to_string(),
                 }),
             },
+            "preserve_calibrated_cmyk" => match value {
+                "true" => self.preserve_calibrated_cmyk = true,
+                "false" => self.preserve_calibrated_cmyk = false,
+                _ => notes.push(SettingNote::BadValue {
+                    key: key.to_owned(),
+                    value: value.to_owned(),
+                    line,
+                    using: Self::default().preserve_calibrated_cmyk.to_string(),
+                }),
+            },
             "word_gap_auto" => match value {
                 "true" => self.word_gap_auto = true,
                 "false" => self.word_gap_auto = false,
@@ -2644,6 +2661,17 @@ impl Settings {
             out,
             "black_point_compensation = {}\n",
             self.black_point_compensation
+        );
+
+        out.push_str(
+            "# When a page composites in ink, an ICCBased CMYK colour keeps its own\n\
+             # numbers as the ink (true) instead of converting to the output intent\n\
+             # (false, colorimetric). A print-shop policy: 100 % magenta stays 100 %.\n",
+        );
+        let _ = writeln!(
+            out,
+            "preserve_calibrated_cmyk = {}\n",
+            self.preserve_calibrated_cmyk
         );
 
         out.push_str(
@@ -3458,6 +3486,8 @@ mod tests {
             page_blend_space_source: PageBlendSpaceSource::DeviceNative,
             // NOT the default (`true`), same reason.
             black_point_compensation: false,
+            // NOT the default (`false`), same reason.
+            preserve_calibrated_cmyk: true,
             // NOT the default (`DeviceCmykOnly` since `Pass 244.0`), same reason.
             overprint_zero_tint_scope: OverprintZeroTintScope::GreyAsKOnly,
             // Non-default, per the discipline the comment above states.

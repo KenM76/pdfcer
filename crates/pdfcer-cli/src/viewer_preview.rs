@@ -134,13 +134,16 @@ impl ViewerPreview {
 
     /// `options` with this preview applied.
     pub(crate) fn apply(self, options: RenderOptions) -> RenderOptions {
+        // The flag turns the policy on for one run; it never turns off a
+        // `settings.toml` that asked for it.
+        let preserve = self.preserve_cmyk || options.policy().preserve_calibrated_cmyk;
         let options = options
             .with_overprint_preview(self.overprint)
             .with_separation_preview(self.separation)
             .with_markup_without_ap(self.markup)
             .with_widgets_without_ap(self.widgets)
             .with_edge_antialiasing(self.edges)
-            .with_preserve_calibrated_cmyk(self.preserve_cmyk);
+            .with_preserve_calibrated_cmyk(preserve);
         match self.free_text_c {
             Some(c) => options.with_free_text_c(c),
             None => options,
@@ -179,5 +182,24 @@ pub(crate) fn report_separation_preview(d: &Diagnostics) {
              folded into process ink and cannot be hidden on their own",
             d.cmyk_spots_flattened
         );
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::ViewerPreview;
+    use pdfcer_render::RenderOptions;
+
+    #[test]
+    fn the_flag_never_turns_off_a_setting_that_preserves_cmyk() {
+        let from_settings = RenderOptions::default().with_preserve_calibrated_cmyk(true);
+        let unflagged = ViewerPreview::default().apply(from_settings);
+        assert!(unflagged.policy().preserve_calibrated_cmyk);
+        let flagged = ViewerPreview::default()
+            .with_preserve_cmyk(true)
+            .apply(RenderOptions::default());
+        assert!(flagged.policy().preserve_calibrated_cmyk);
+        let neither = ViewerPreview::default().apply(RenderOptions::default());
+        assert!(!neither.policy().preserve_calibrated_cmyk);
     }
 }
