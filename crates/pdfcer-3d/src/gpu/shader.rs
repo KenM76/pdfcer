@@ -114,13 +114,17 @@ void main() {
 /// vertex stage's default). With a depth prepass
 /// ([`crate::GLSL_ES_300_PREPASS_FRAGMENT`]), `u_prepass` true,
 /// `u_prepass_depth` and `u_prepass_spread` skip the lighting of fragments
-/// it shows hidden. Writes straight RGBA.
+/// it shows hidden. From [`crate::FrameBounce`], the light bounced off
+/// other surfaces: `u_bounce` (false without one), `u_bounce_atlas`,
+/// `u_bounce_origin`, `u_bounce_spacing`, `u_bounce_dims` and
+/// `u_bounce_strength`. Writes straight RGBA.
 ///
 /// It writes `gl_FragDepth`: logarithmic in perspective (see
 /// [`crate::Camera::depth_range`] for the precision), the matrix's linear
 /// depth in orthographic. It assumes a depth buffer of at least 24 bits
 /// cleared to 1.0 with `LESS`; a 16-bit buffer resolves 256 times coarser.
-pub const GLSL_ES_300_FRAGMENT: &str = r"#version 300 es
+pub const GLSL_ES_300_FRAGMENT: &str = concat!(
+    r"#version 300 es
 precision highp float;
 in vec3 v_shade;
 flat in vec3 v_flat_shade;
@@ -423,7 +427,9 @@ vec3 finish(vec3 rgb, vec3 base, vec3 f, float sh, vec3 lamp_spec) {
     return rgb;
 }
 
-void main() {
+",
+    bounce_glsl!(),
+    r"void main() {
     vec4 base = u_colour;
     if (u_textured) {
         vec4 t = texture(u_texture, v_uv);
@@ -454,12 +460,19 @@ void main() {
         bool shiny = u_finished && u_mode == 2 && v != vec3(0.0);
         s += local(v_world, un, f, shiny, v, nv, lamp_spec);
     }
+    if (u_bounce) {
+        vec3 fv = dot(f, view_at(v_world)) < 0.0 ? -f : f;
+        vec3 bn = nl > 0.0 ? n / nl : fv;
+        if (dot(bn, fv) < 0.0) bn = -bn;
+        s += u_bounce_strength * bounce(v_world, bn);
+    }
     vec3 rgb = base.rgb * s;
     if (u_finished && u_mode != 1) rgb = finish(rgb, base.rgb, f, sh, lamp_spec);
     o_colour = vec4(clamp(rgb, 0.0, 1.0), base.a);
     gl_FragDepth = depth;
 }
-";
+"
+);
 
 impl TextureFunction {
     /// The fragment shader's `u_function` (0 Modulate, 1 Replace, 2 Blend,
@@ -516,6 +529,12 @@ mod tests {
             "u_specular",
             "u_emissive",
             "u_shininess",
+            "u_bounce",
+            "u_bounce_atlas",
+            "u_bounce_origin",
+            "u_bounce_spacing",
+            "u_bounce_dims",
+            "u_bounce_strength",
         ] {
             assert!(
                 GLSL_ES_300_FRAGMENT.contains(&format!(" {name};")),

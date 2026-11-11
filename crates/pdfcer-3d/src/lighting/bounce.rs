@@ -126,6 +126,16 @@ pub(crate) struct BounceLight {
 }
 
 impl BounceLight {
+    /// The probe volume packed for a GPU host.
+    pub(crate) fn atlas(&self) -> crate::indirect::Atlas {
+        self.volume.atlas()
+    }
+
+    /// The strength the light is added at.
+    pub(crate) fn strength(&self) -> f64 {
+        self.strength
+    }
+
     /// Adds the bounce light at model point `p` with normal `n` to `shade`,
     /// on the side of the triangle facing `face`, the seen side.
     pub(crate) fn add(&self, shade: &mut [f64; 3], p: [f64; 3], n: [f64; 3], face: [f64; 3]) {

@@ -4,6 +4,8 @@
 //! `docs/research/gpu-3d-draw-data-design.md`.
 
 pub(crate) mod ao;
+#[macro_use]
+pub(crate) mod bounce;
 pub(crate) mod finish;
 pub(crate) mod frame;
 pub(crate) mod lamp_shadow;

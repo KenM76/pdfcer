@@ -166,9 +166,15 @@ fn visibility(probe: &Probe, offset: [f64; 3]) -> f64 {
     if d <= mean {
         return 1.0;
     }
-    let variance = (square - mean * mean).abs().max(1e-12 * (1.0 + square));
+    let variance = variance(mean, square);
     let gap = d - mean;
     (variance / (variance + gap * gap)).powi(3)
+}
+
+/// The variance of a probe texel's distance from its `mean` and mean
+/// `square`, floored so a flat texel still weighs smoothly.
+pub(crate) fn variance(mean: f64, square: f64) -> f64 {
+    (square - mean * mean).abs().max(1e-12 * (1.0 + square))
 }
 
 /// Bilinear irradiance at `d` from a probe map.

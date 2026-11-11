@@ -4041,6 +4041,25 @@ let image = render_coloured(&meshes, &colours, &camera, &RenderOptions { width: 
     `u_ao`) to the screen. Both bind the main depth as `u_depth` and take
     `size` → `u_ao_size` (ivec2), `orthographic`, `depth_range`,
     `unproject`, `pixels`, `radius` as `u_ao_*`.
+  - Bounce light (light reflected off other surfaces), per model + paint +
+    lights: `PreparedModel::frame_bounce(&model, &camera, &options) ->
+    Result<Option<FrameBounce>, RenderError>`; `None` when the frame adds
+    none (bounce off, strength 0, unlit, nothing that bounces). Upload
+    `atlas` (`atlas_width` 1,024 × `atlas_height` texels, RGBA32F,
+    `NEAREST`, clamp) as `u_bounce_atlas` on its own unit, and set
+    `u_bounce` true, `u_bounce_origin` = `origin`, `u_bounce_spacing` =
+    `spacing`, `u_bounce_dims` = `dims` (ivec3), `u_bounce_strength` =
+    `strength` on the main shader; with `None` set `u_bounce` false (the
+    sampler still needs a unit). Rebuild only when the model, paint or
+    lights change, or every frame when `follows_camera` is true. Building
+    traces up to ~800,000 rays: do it off the frame loop. Under a
+    `FrameLens`, build it once from the fisheye camera and use it on every
+    face. WebGL 2 run (headless Edge, SwiftShader; lit room, 256²): GPU vs
+    CPU 0.075 levels mean, 0.19% of interior pixels over 1 level, max 24 —
+    the CPU and GPU sample points differ by 0.01–0.03 px and the bounce is
+    steep within ~0.001 units of a wall–floor contact. The shader formula
+    itself matches the CPU exactly (tested). Lenses tested (same bounce for
+    every lens), not run in WebGL.
   - Lines: `DrawData::lines: Vec<f32>`, two vertices per segment,
     `LINE_VERTEX_FLOATS` (18) per vertex — position 3, colour RGBA 4 (0–1),
     segment midpoint 3, two face normals 3 + 3, kind 1 (0 always drawn), shaded 1;

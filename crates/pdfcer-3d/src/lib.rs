@@ -79,6 +79,8 @@ pub use gpu::ao::{
     GLSL_ES_300_SCREEN_VERTEX,
 };
 #[cfg(feature = "render")]
+pub use gpu::bounce::FrameBounce;
+#[cfg(feature = "render")]
 pub use gpu::finish::DrawFinish;
 #[cfg(feature = "render")]
 pub use gpu::frame::{

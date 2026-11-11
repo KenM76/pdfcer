@@ -13,6 +13,7 @@
 //! Results are identical at any thread count and any step budget: each probe
 //! of a bounce is built from the previous bounce alone.
 
+mod atlas;
 mod grid;
 mod inside;
 mod octa;
@@ -27,6 +28,7 @@ use crate::camera::pick_index::PickIndex;
 use crate::lighting::shade::Local;
 use crate::render::corners;
 use crate::render::parallel::{run_each, workers};
+pub(crate) use atlas::Atlas;
 use grid::Grid;
 use octa::TEXELS;
 use trace::Published;
