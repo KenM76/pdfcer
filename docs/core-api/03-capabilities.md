@@ -1374,7 +1374,7 @@ in its own counter, not `annotations_painted`.
 |---|---|
 | `pdfcer_render::NeedAppearances` | `#[non_exhaustive]` enum: `Honour` (default) or `AsStored` (always paint the stored `/AP`). |
 | `RenderOptions::with_need_appearances(mode)` | `const fn`, carried into `RenderPolicy::need_appearances`. |
-| `Diagnostics::widgets_redrawn_for_need_appearances: usize` | widgets drawn from `/V` instead of their stored `/AP`. CLI `render-page` key `annots_need_appearances_redrawn=` (last key), stderr note when non-zero; flag `--need-appearances honour\|as-stored` on `render-page` and `export-image`. |
+| `Diagnostics::widgets_redrawn_for_need_appearances: usize` | widgets drawn from `/V` instead of their stored `/AP`. CLI `render-page` key `annots_need_appearances_redrawn=`, stderr note when non-zero; flag `--need-appearances honour\|as-stored` on `render-page` and `export-image`. |
 
 **★ UI must disclose:** when the count is non-zero, say off-canvas that the
 form's stored appearances may be stale and fields are shown from their values.
@@ -1411,6 +1411,40 @@ Multiline wrap, Comb with `/MaxLen`, Password masking, `/MK /R`.
 | `FieldTextGeometry::caret_at_point(&self, x, y) -> usize` | nearest line band, then nearest caret. |
 | `FieldCaret { offset, line, bottom: PagePoint, top: PagePoint }` | `#[non_exhaustive]`, `Copy`; rotated with `/MK /R`. |
 | `pdfcer_core::vartext::{layout_variable_text, layout_comb_text}` | the form-space layout under it: `TextLayout { font_size, ascent, descent, lines: Vec<LineLayout>, unencodable_chars }`, `LineLayout { start, end, baseline, x0, x1, chars: Vec<CharSpan> }`, `CharSpan { offset, end, x0, x1 }` (`CharSpan::new`). |
+
+#### Rollover and down appearances on request (`X071` part 1)
+
+§12.5.5 Table 168: `/N` is required; `/R` (pointer over) and `/D` (pressed)
+are optional, each a stream or an `/AS`-keyed subdictionary, and **default to
+`/N`**. pdfcer draws one chosen state per render; it never animates. `/AS`
+selects inside `/R` or `/D` exactly as inside `/N`. A state the annotation
+lacks is drawn from `/N`, **counted and noted** (rule 4). A `/NeedAppearances`
+redraw replaces `/N` only, never a stored `/R` or `/D`.
+
+A **push button with no `/AP`** is built in the asked state: Down inverts the
+bevel/inset bands (`/BS /S /B` or `/I`) and uses the `/MK /AC` caption, else
+`/CA`; Rollover uses `/MK /RC`, else `/CA` (§12.5.6.19 Table 189). Other
+widgets without `/AP` have no built-in pressed look and count as a fallback.
+
+**Divergence from Table 188:** "a highlighting mode other than P shall
+override any down appearance". pdfcer still draws `/D` when it is asked for,
+because the caller asked to see it, and says so in a note when `/H` is not
+`P` or `T` (absent `/H` is `I`).
+
+| item | contract |
+|---|---|
+| `pdfcer_core::annot::AppearanceKind` | `#[non_exhaustive]`, `Copy`, `Hash`: `Normal` (default), `Rollover`, `Down`. `ap_key(self) -> &'static [u8]` = `N`, `R`, `D`. |
+| `annot::select_appearance(graph, annot: &Dict, kind, missing_as) -> SelectedAppearance` | the `/AP` entry for `kind`, through the same `/AS` rules as `/N`. |
+| `SelectedAppearance { appearance, fell_back_to_normal, highlight_overrides_down }` | `#[non_exhaustive]`. `fell_back_to_normal`: the entry was absent or unusable, `appearance` is `/N`'s. `highlight_overrides_down`: `kind` is `Down` on a widget whose `/H` is not `P` or `T`. |
+| `WidgetAppearances::appearance_in(&self, view, widget_id, kind) -> Option<SynthesizedAppearance>` | `appearance` in a chosen state; differs from `Normal` only for a push button. `appearance(..)` is `appearance_in(.., Normal)`. |
+| `pdfcer_core::forms::Widget::{alternate_caption, rollover_caption}: Option<Vec<u8>>` | `/MK /AC` and `/MK /RC`, raw bytes. |
+| `annot_author::WidgetChrome::pressed: bool` / `with_pressed(bool)` | `const fn`; swaps the light and dark bevel/inset bands. |
+| `RenderOptions::with_widget_state(kind)` | `const fn`; the state every widget is drawn in (default `Normal`). Non-widgets stay `/N`. Carried into `RenderPolicy::widget_state`. |
+| `RenderOptions::with_appearance_states(impl IntoIterator<Item = (ObjId, AppearanceKind)>)` | per-annotation choice by object id, overriding `widget_state`; any annotation subtype. A GUI sets the hovered or pressed widget here. Carried into `RenderPolicy::appearance_states`. |
+| `Diagnostics::annotations_state_fallback: usize` | annotations asked for `/R` or `/D` and drawn from `/N`; a note names each. CLI `render-page` key `annots_state_fallback=` (last key), stderr note when non-zero; flag `--widget-state normal\|rollover\|down` on `render-page` and `export-image`. |
+
+**★ UI must disclose:** a non-zero fallback count, off-canvas, when the operator
+asked to preview a state.
 
 #### Markup annotations with no `/AP` — drawn from their own geometry (`Pass 646.20`–`646.22`, `G236`, decision 203)
 

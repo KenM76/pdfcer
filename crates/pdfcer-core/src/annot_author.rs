@@ -4326,6 +4326,10 @@ pub struct WidgetChrome {
     /// `/BS` `/D` — the dash pattern a `Dashed` border is drawn with. `None`
     /// draws Table 166's default `[3]`. Ignored for every other style.
     pub border_dash: Option<BorderDash>,
+    /// Draw the pressed (down) look: a `Beveled` or `Inset` band's light and
+    /// shaded halves are swapped, so a raised button reads as pushed in. No
+    /// effect on other border styles. See [`Self::with_pressed`].
+    pub pressed: bool,
 }
 
 impl WidgetChrome {
@@ -4337,7 +4341,18 @@ impl WidgetChrome {
             border_color,
             border: None,
             border_dash: None,
+            pressed: false,
         }
+    }
+
+    /// The same chrome drawn pressed or not. A push button's down
+    /// appearance (§12.5.5 Table 168 `/D`) is the one consumer: §12.5.6.19
+    /// names a down caption (`/MK /AC`) but no down border, so pdfcer
+    /// inverts the bevel, the conventional pushed-in look.
+    #[must_use]
+    pub const fn with_pressed(mut self, pressed: bool) -> Self {
+        self.pressed = pressed;
+        self
     }
 
     /// The same colours with a `/BS` border style, which every widget
@@ -4465,6 +4480,11 @@ fn stroke_frame(b: &mut ContentBuilder, chrome: &WidgetChrome, w: f64, h: f64) {
         BorderStyle::Beveled => (1.0, 0.5),
         BorderStyle::Inset => (0.5, 0.75),
         _ => return,
+    };
+    let (light, dark) = if chrome.pressed {
+        (dark, light)
+    } else {
+        (light, dark)
     };
     // Too small for a band inside the frame: the frame alone is the border.
     if w <= 4.0 * bw || h <= 4.0 * bw {

@@ -108,4 +108,5 @@ mod vector_edit_render;
 mod version_banner_names_icccer;
 mod visual_diff;
 mod white_margin_crop;
+mod widget_appearance_states;
 mod widget_without_ap;

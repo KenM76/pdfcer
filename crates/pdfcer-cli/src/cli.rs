@@ -5839,6 +5839,14 @@ pub(crate) enum Command {
         /// their stored drawing either way. The file is not changed.
         #[arg(long, value_enum, default_value_t)]
         need_appearances: crate::viewer_preview::NeedAppearancesArg,
+        /// Which of each form field's drawings to show: normal (the default),
+        /// rollover (pointer over it) or down (mouse button held on it). A
+        /// field with no drawing for that state shows its normal one, and the
+        /// count is reported as annots_state_fallback. A push button with no
+        /// stored drawing is drawn pressed, with its down caption. The file
+        /// is not changed.
+        #[arg(long, value_enum, default_value_t)]
+        widget_state: crate::viewer_preview::WidgetStateArg,
         /// How shape, clip and image edges are smoothed. auto (the default)
         /// is seamless below 300 DPI and hard edges at 300 DPI and above.
         /// seamless keeps edges smooth with no seam where shapes touch
@@ -6057,6 +6065,14 @@ pub(crate) enum Command {
         /// their stored drawing either way. The file is not changed.
         #[arg(long, value_enum, default_value_t)]
         need_appearances: crate::viewer_preview::NeedAppearancesArg,
+        /// Which of each form field's drawings to show: normal (the default),
+        /// rollover (pointer over it) or down (mouse button held on it). A
+        /// field with no drawing for that state shows its normal one, and the
+        /// count is reported as annots_state_fallback. A push button with no
+        /// stored drawing is drawn pressed, with its down caption. The file
+        /// is not changed.
+        #[arg(long, value_enum, default_value_t)]
+        widget_state: crate::viewer_preview::WidgetStateArg,
         /// How shape, clip and image edges are smoothed. auto (the default)
         /// is seamless below 300 DPI and hard edges at 300 DPI and above.
         /// seamless keeps edges smooth with no seam where shapes touch

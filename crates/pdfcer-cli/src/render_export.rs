@@ -694,7 +694,7 @@ icc_managed_paints={} icc_unmanaged_paints={} \
 overprint_process_images_unsupported={} annots_icon_painted={} page_resources_defaulted={} \
 page_crop_box_clipped={} page_crop_box_unusable={} cmyk_spots_flattened={} \
 annots_widget_drawn={} annots_geometry_drawn={} content_truncated={} \
-annots_need_appearances_redrawn={}",
+annots_need_appearances_redrawn={} annots_state_fallback={}",
         d.glyphs_substituted,
         d.glyphs_notdef,
         d.fonts_unsupported,
@@ -1093,6 +1093,8 @@ annots_need_appearances_redrawn={}",
         d.content_truncated,
         // Appended: text/choice widgets drawn from /V under /NeedAppearances.
         d.widgets_redrawn_for_need_appearances,
+        // Appended: annotations asked for /R or /D and drawn from /N.
+        d.annotations_state_fallback,
     )
 }
 
@@ -2512,6 +2514,12 @@ cyclic; their content is missing from the raster",
         eprintln!(
             "pdfcer: note: {} form field(s) drawn from their value: the form sets /NeedAppearances, so their stored appearances may be stale; nothing was written (--need-appearances as-stored shows the stored drawing)",
             d.widgets_redrawn_for_need_appearances
+        );
+    }
+    if d.annotations_state_fallback > 0 {
+        eprintln!(
+            "pdfcer: note: {} annotation(s) have no drawing for the requested --widget-state, so their normal drawing was shown",
+            d.annotations_state_fallback
         );
     }
     if d.annotations_appearance_state_missing > 0 {

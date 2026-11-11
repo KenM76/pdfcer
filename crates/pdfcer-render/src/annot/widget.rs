@@ -4,7 +4,7 @@
 //! The appearance comes from [`pdfcer_core::widget_draw`], the same layout a
 //! redraw would write; here it is only painted, never stored.
 
-use pdfcer_core::annot::Annotation;
+use pdfcer_core::annot::{Annotation, AppearanceKind};
 use pdfcer_core::forms::{ButtonKind, FieldType};
 use pdfcer_core::graph::ObjectGraph;
 use pdfcer_core::object::{ObjId, Object};
@@ -130,8 +130,9 @@ impl FormCache {
     }
 }
 
-/// Draw widget `annot` from its field data. `false` when there is nothing
-/// to draw (not a widget, no field, no `/Rect`, a signature field).
+/// Draw widget `annot` from its field data, in appearance `state` (only a
+/// push button differs by state). `None` when there is nothing to draw (not
+/// a widget, no field, no `/Rect`, a signature field); else what was drawn.
 #[allow(clippy::too_many_arguments)] // every argument is placement input.
 pub(super) fn paint_synthesized_widget(
     doc: &DocumentView<'_>,
@@ -139,31 +140,30 @@ pub(super) fn paint_synthesized_widget(
     fonts: &FontEnvironment,
     annot: &Annotation,
     form: &mut FormCache,
+    state: AppearanceKind,
     diag: &mut Diagnostics,
     canvas: &mut Canvas<'_>,
     cancel: Option<&crate::cancel::RenderCancel>,
     policy: RenderPolicy,
-) -> bool {
+) -> Option<SynthesizedKind> {
     if !annot.is_widget() || policy.widgets_without_ap != WidgetsWithoutAp::Draw {
-        return false;
+        return None;
     }
-    let Some(id) = annot.id else {
-        return false;
-    };
-    let Some(drawn) = form.get(doc).and_then(|f| f.appearance(doc, id)) else {
-        return false;
-    };
+    let id = annot.id?;
+    let drawn = form
+        .get(doc)
+        .and_then(|f| f.appearance_in(doc, id, state))?;
     let kind = drawn.kind;
     if !paint_built(
         doc, base_ctm, fonts, annot, drawn, diag, canvas, cancel, policy,
     ) {
-        return false;
+        return None;
     }
     diag.note_annotation(&format!(
         "widget {id} has no /AP - drawn as a {kind:?} field from its own value, /DA and /MK \
          (12.7.3.3 puts that on the reader); nothing was written to the file",
     ));
-    true
+    Some(kind)
 }
 
 /// Draw a text or choice widget that has an `/AP` from its value instead,

@@ -72,6 +72,7 @@ use crate::gstate::GraphicsState;
 use crate::interpret::{self, Diagnostics};
 
 mod markup;
+mod state;
 mod widget;
 pub use markup::{FreeTextC, MarkupWithoutAp};
 pub use widget::{FieldHighlight, NeedAppearances, WidgetsWithoutAp};
@@ -613,65 +614,9 @@ pub(crate) fn survey_page_annotations(
         } else {
             None
         };
-        match &annot.appearance {
-            Appearance::Normal { stream_id } => {
-                // `annotations_painted` and the placement counters only
-                // mean something when painting is enabled; when suppressed
-                // the annotation is disclosed by `annotations_total` and
-                // `annotations_out_of_scope` alone.
-                if in_scope
-                    && widget::paint_for_need_appearances(
-                        doc, base_ctm, fonts, annot, &mut form, diag, canvas, cancel, policy,
-                    )
-                {
-                    diag.widgets_redrawn_for_need_appearances += 1;
-                } else if in_scope {
-                    paint_appearance(
-                        doc, page, base_ctm, fonts, annot, *stream_id, diag, canvas, cancel, policy,
-                    );
-                }
-            }
-            // `Pass 289.0`: an annotation that NAMES A STANDARD ICON is
-            // now drawn from pdfcer's own artwork, because §12.5.6.4 Table
-            // 172 and §12.5.6.12 Table 181 put that duty on the READER with
-            // a `shall`. A widget is drawn from its own data, and a markup
-            // annotation from its own geometry (decision 203); anything that
-            // would need guessing stays `R43` named-not-painted.
-            //
-            // The counter still increments either way: the annotation did
-            // have no `/AP`, and that is a fact about the FILE which the
-            // demand signal is measuring. `annotations_icon_painted` says
-            // how many of them were nevertheless drawn, so the two together
-            // answer "how many lacked an appearance" and "how many did the
-            // operator still see" without either number lying.
-            Appearance::None => {
-                *diag
-                    .annotations_without_ap
-                    .entry(annot.subtype_label())
-                    .or_insert(0) += 1;
-                if in_scope
-                    && paint_named_icon(doc, base_ctm, fonts, annot, diag, canvas, cancel, policy)
-                {
-                    diag.annotations_icon_painted += 1;
-                } else if in_scope
-                    && widget::paint_synthesized_widget(
-                        doc, base_ctm, fonts, annot, &mut form, diag, canvas, cancel, policy,
-                    )
-                {
-                    diag.annotations_widget_synthesized += 1;
-                } else if in_scope {
-                    markup::paint_from_geometry(
-                        doc, base_ctm, fonts, annot, diag, canvas, cancel, policy,
-                    );
-                }
-            }
-            // §12.5.5 NOTE 3: an /AS that could not be resolved — display
-            // nothing, counted separately (the annotation HAS appearances;
-            // only selection failed).
-            Appearance::StateUnresolved => {
-                diag.annotations_appearance_state_missing += 1;
-            }
-        }
+        state::paint_annotation(
+            doc, page, base_ctm, fonts, annot, in_scope, &mut form, diag, canvas, cancel, policy,
+        );
         if let Some(colour) = owed_border {
             widget::paint_highlight_border(annot, base_ctm, colour, canvas);
         }

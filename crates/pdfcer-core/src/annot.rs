@@ -96,7 +96,10 @@
 //!   note. A consumer that wants the resolved view builds it from the
 //!   links.
 
+mod appearance_kind;
 mod prints;
+
+pub use appearance_kind::{AppearanceKind, SelectedAppearance, select_appearance};
 
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -2416,6 +2419,17 @@ fn select_normal_appearance<G: ObjectGraph + ?Sized>(
     annot: &Dict,
     missing_as: MissingAppearanceState,
 ) -> Appearance {
+    select_ap_entry(graph, annot, b"N", missing_as)
+}
+
+/// Select the appearance under `/AP` entry `key` (`N`, `R` or `D`, Table
+/// 168), by the same stream-or-`/AS`-subdictionary rule for all three.
+fn select_ap_entry<G: ObjectGraph + ?Sized>(
+    graph: &G,
+    annot: &Dict,
+    key: &[u8],
+    missing_as: MissingAppearanceState,
+) -> Appearance {
     // /AP (Table 164) — a dictionary. Absent or non-dictionary ⇒ nothing
     // to paint.
     let Some(ap) = annot
@@ -2427,7 +2441,7 @@ fn select_normal_appearance<G: ObjectGraph + ?Sized>(
     };
     // /N (Table 168, Required). Absent ⇒ no normal appearance (R43
     // named-not-painted).
-    let Some(n) = ap.get(b"N") else {
+    let Some(n) = ap.get(key) else {
         return Appearance::None;
     };
 

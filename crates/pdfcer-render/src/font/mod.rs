@@ -836,6 +836,21 @@ pub struct RenderOptions {
     /// (the default) for none. Never drawn on a print render. See
     /// [`crate::FieldHighlight`].
     pub field_highlight: Option<crate::FieldHighlight>,
+    /// Which appearance every widget is drawn in (ISO 32000-1 §12.5.5 Table
+    /// 168): `/N` (the default), `/R` or `/D`, `/AS` selecting within it as
+    /// it does within `/N`. A widget with no such entry is drawn from `/N`
+    /// and counted in [`crate::Diagnostics::annotations_state_fallback`]; a
+    /// push button with no `/AP` is built in the requested state. An entry
+    /// in [`Self::appearance_states`] overrides this for its annotation.
+    /// Never writes the document.
+    pub widget_state: pdfcer_core::annot::AppearanceKind,
+    /// Per-annotation appearance choices, by annotation object id, applied
+    /// to any annotation subtype as [`Self::widget_state`] is to widgets.
+    /// Empty by default; the first entry for an id wins.
+    pub appearance_states: Vec<(
+        pdfcer_core::object::ObjId,
+        pdfcer_core::annot::AppearanceKind,
+    )>,
     /// What to paint for a markup annotation with no `/AP`: drawn from its
     /// own geometry at view time (decision 203), or left blank. Default
     /// [`crate::MarkupWithoutAp::FromGeometry`]; never writes the document.
@@ -1059,6 +1074,13 @@ pub struct RenderPolicy<'a> {
     pub need_appearances: crate::NeedAppearances,
     /// See [`RenderOptions::field_highlight`].
     pub field_highlight: Option<crate::FieldHighlight>,
+    /// See [`RenderOptions::widget_state`].
+    pub widget_state: pdfcer_core::annot::AppearanceKind,
+    /// See [`RenderOptions::appearance_states`].
+    pub appearance_states: &'a [(
+        pdfcer_core::object::ObjId,
+        pdfcer_core::annot::AppearanceKind,
+    )],
     /// See [`RenderOptions::markup_without_ap`].
     pub markup_without_ap: crate::MarkupWithoutAp,
     /// See [`RenderOptions::free_text_c`].
@@ -1311,6 +1333,8 @@ impl Default for RenderOptions {
             widgets_without_ap: crate::WidgetsWithoutAp::Draw,
             need_appearances: crate::NeedAppearances::Honour,
             field_highlight: None,
+            widget_state: pdfcer_core::annot::AppearanceKind::Normal,
+            appearance_states: Vec::new(),
             markup_without_ap: crate::MarkupWithoutAp::FromGeometry,
             free_text_c: crate::FreeTextC::Fill,
             overprint_preview: crate::OverprintPreview::Simulate,
@@ -1753,6 +1777,53 @@ impl RenderOptions {
         self
     }
 
+    /// Set which appearance widgets are drawn in, returning `self` for
+    /// chaining. See [`RenderOptions::widget_state`].
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use pdfcer_core::annot::AppearanceKind;
+    /// use pdfcer_render::RenderOptions;
+    ///
+    /// let options = RenderOptions::default().with_widget_state(AppearanceKind::Down);
+    /// assert_eq!(options.widget_state, AppearanceKind::Down);
+    /// ```
+    #[must_use]
+    pub const fn with_widget_state(mut self, kind: pdfcer_core::annot::AppearanceKind) -> Self {
+        self.widget_state = kind;
+        self
+    }
+
+    /// Set per-annotation appearance choices, returning `self` for chaining.
+    /// See [`RenderOptions::appearance_states`].
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use pdfcer_core::annot::AppearanceKind;
+    /// use pdfcer_core::object::ObjId;
+    /// use pdfcer_render::RenderOptions;
+    ///
+    /// let one = ObjId::new(12, 0);
+    /// let options =
+    ///     RenderOptions::default().with_appearance_states([(one, AppearanceKind::Rollover)]);
+    /// assert_eq!(options.appearance_states, [(one, AppearanceKind::Rollover)]);
+    /// ```
+    #[must_use]
+    pub fn with_appearance_states(
+        mut self,
+        states: impl IntoIterator<
+            Item = (
+                pdfcer_core::object::ObjId,
+                pdfcer_core::annot::AppearanceKind,
+            ),
+        >,
+    ) -> Self {
+        self.appearance_states = states.into_iter().collect();
+        self
+    }
+
     /// Set how a markup annotation with no `/AP` is painted, returning
     /// `self` for chaining. See [`RenderOptions::markup_without_ap`].
     #[must_use]
@@ -1818,6 +1889,8 @@ impl RenderOptions {
             widgets_without_ap: self.widgets_without_ap,
             need_appearances: self.need_appearances,
             field_highlight: self.field_highlight,
+            widget_state: self.widget_state,
+            appearance_states: self.appearance_states.as_slice(),
             markup_without_ap: self.markup_without_ap,
             free_text_c: self.free_text_c,
         }
@@ -1887,6 +1960,11 @@ mod render_policy_tests {
             .with_widgets_without_ap(crate::WidgetsWithoutAp::Blank)
             .with_need_appearances(crate::NeedAppearances::AsStored)
             .with_field_highlight(Some(crate::FieldHighlight::new([1, 2, 3, 4], [5, 6, 7, 8])))
+            .with_widget_state(pdfcer_core::annot::AppearanceKind::Down)
+            .with_appearance_states([(
+                pdfcer_core::object::ObjId::new(3, 0),
+                pdfcer_core::annot::AppearanceKind::Rollover,
+            )])
             .with_markup_without_ap(crate::MarkupWithoutAp::Blank)
             .with_free_text_c(crate::FreeTextC::Border)
             .with_preserve_calibrated_cmyk(true);
@@ -1942,6 +2020,13 @@ mod render_policy_tests {
                 need_appearances: crate::NeedAppearances::AsStored,
                 // NOT the default (`None`).
                 field_highlight: Some(crate::FieldHighlight::new([1, 2, 3, 4], [5, 6, 7, 8])),
+                // NOT the default (`Normal`).
+                widget_state: pdfcer_core::annot::AppearanceKind::Down,
+                // NOT the default (empty).
+                appearance_states: &[(
+                    pdfcer_core::object::ObjId::new(3, 0),
+                    pdfcer_core::annot::AppearanceKind::Rollover,
+                )],
                 // NOT the default (`FromGeometry`).
                 markup_without_ap: crate::MarkupWithoutAp::Blank,
                 // NOT the default (`Fill`).

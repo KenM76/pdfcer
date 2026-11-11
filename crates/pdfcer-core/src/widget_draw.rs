@@ -12,6 +12,7 @@
 use std::borrow::Cow;
 use std::collections::HashMap;
 
+use crate::annot::AppearanceKind;
 use crate::annot_author::{self, CheckStyle, WidgetChrome};
 use crate::edit::{EditSession, choice_display_text, decode_text_string};
 use crate::field_display::{self, DisplayNotes};
@@ -100,6 +101,21 @@ impl WidgetAppearances {
         view: &DocumentView<'_>,
         widget_id: ObjId,
     ) -> Option<SynthesizedAppearance> {
+        self.appearance_in(view, widget_id, AppearanceKind::Normal)
+    }
+
+    /// [`Self::appearance`] drawn as its `kind` appearance (§12.5.5 Table
+    /// 168). Only a push button differs by state: `Down` draws its `/MK /AC`
+    /// caption (else `/CA`) with the bevel inverted
+    /// ([`WidgetChrome::with_pressed`]), `Rollover` its `/MK /RC` caption
+    /// (else `/CA`). Every other widget draws its normal appearance.
+    #[must_use]
+    pub fn appearance_in(
+        &self,
+        view: &DocumentView<'_>,
+        widget_id: ObjId,
+        kind: AppearanceKind,
+    ) -> Option<SynthesizedAppearance> {
         let &(fi, wi) = self.index.get(&widget_id)?;
         let field = self.fields.get(fi)?;
         let widget = field.widgets.get(wi)?;
@@ -110,7 +126,7 @@ impl WidgetAppearances {
         } else {
             (rect.width(), rect.height())
         };
-        let mut out = self.draw(view, field, widget, w, h)?;
+        let mut out = self.draw(view, field, widget, (w, h), kind)?;
         EditSession::bind_dr_fonts_of(view, view, &mut out.ap_dict);
         if let Some(m) = EditSession::quarter_turn_matrix(quarter) {
             out.ap_dict.insert(
@@ -126,8 +142,8 @@ impl WidgetAppearances {
         view: &DocumentView<'_>,
         field: &Field,
         widget: &Widget,
-        w: f64,
-        h: f64,
+        (w, h): (f64, f64),
+        state: AppearanceKind,
     ) -> Option<SynthesizedAppearance> {
         let chrome = chrome_of(widget);
         let da = field
@@ -168,7 +184,7 @@ impl WidgetAppearances {
                 let value = choice_display_text(field).unwrap_or_default();
                 (SynthesizedKind::Choice, value, false)
             }
-            FieldType::Button => return self.button(field, widget, da, w, h, chrome),
+            FieldType::Button => return self.button(field, widget, da, (w, h), chrome, state),
             FieldType::Signature => return None,
         };
         let (shown, red) = field_display::shown_value(view, field, &stored, &mut notes);
@@ -217,15 +233,21 @@ impl WidgetAppearances {
         field: &Field,
         widget: &Widget,
         da: &[u8],
-        w: f64,
-        h: f64,
+        (w, h): (f64, f64),
         chrome: WidgetChrome,
+        state: AppearanceKind,
     ) -> Option<SynthesizedAppearance> {
         let kind = field.button_kind.unwrap_or(ButtonKind::Check);
         if kind == ButtonKind::Push {
-            let caption = widget
-                .caption
-                .as_deref()
+            let (caption, chrome) = match state {
+                AppearanceKind::Down => (&widget.alternate_caption, chrome.with_pressed(true)),
+                AppearanceKind::Rollover => (&widget.rollover_caption, chrome),
+                _ => (&None, chrome),
+            };
+            let caption = caption
+                .as_ref()
+                .or(widget.caption.as_ref())
+                .map(Vec::as_slice)
                 .map(|c| decode_text_string(c).text)
                 .unwrap_or_default();
             let ap =

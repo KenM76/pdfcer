@@ -594,6 +594,8 @@ fn renders_a_single_page_to_png_with_the_stable_stdout_line() {
             "content_truncated",
             // Appended: text/choice widgets drawn from /V (/NeedAppearances).
             "annots_need_appearances_redrawn",
+            // Appended: annotations asked for /R or /D and drawn from /N.
+            "annots_state_fallback",
         ],
         "metrics key order is part of the stable contract"
     );

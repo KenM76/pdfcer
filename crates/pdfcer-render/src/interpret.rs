@@ -1654,6 +1654,13 @@ pub struct Diagnostics {
     /// ([`crate::NeedAppearances::Honour`]). Not in `annotations_painted`.
     /// Nothing is written to the file.
     pub widgets_redrawn_for_need_appearances: usize,
+    /// Annotations asked to draw their rollover or down appearance
+    /// ([`crate::RenderOptions::widget_state`],
+    /// [`crate::RenderOptions::appearance_states`]) that have none, and were
+    /// drawn from `/N` instead (ISO 32000-1 §12.5.5 Table 168: "Default
+    /// value: the value of the N entry"). A push button with no `/AP` built
+    /// in the requested state is not counted. Each gets an annotation note.
+    pub annotations_state_fallback: usize,
     /// Markup annotations with no `/AP` that pdfcer drew at view time from
     /// their own geometry (`/InkList`, `/QuadPoints`, `/L`, `/Vertices`,
     /// `/Rect`) and colours, by `/Subtype`. Counted ALONGSIDE

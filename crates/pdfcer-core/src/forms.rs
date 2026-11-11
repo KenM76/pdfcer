@@ -519,6 +519,14 @@ pub struct Widget {
     /// any widget annotation, and a type-gated reader would mean the model
     /// silently disagreeing with the file for the non-button case.
     pub caption: Option<Vec<u8>>,
+    /// `/MK` `/AC` — a push button's alternate (down) caption, "displayed
+    /// when the mouse button is pressed within its active area" (§12.5.6.19
+    /// Table 189). `None` when absent or not a string.
+    pub alternate_caption: Option<Vec<u8>>,
+    /// `/MK` `/RC` — a push button's rollover caption, "displayed when the
+    /// user rolls the cursor into its active area" (Table 189). `None` when
+    /// absent or not a string.
+    pub rollover_caption: Option<Vec<u8>>,
     /// `/MK` `/BG` — the widget's **background colour** (Table 189), as the
     /// file states it, or `None` when `/MK` has no `/BG` (`pdfcer-gui` request
     /// 2026-09-04).
@@ -1691,6 +1699,12 @@ fn model_widget<G: ObjectGraph + ?Sized>(
         .as_ref()
         .and_then(|mk| mk.get(b"CA").map(|o| graph.resolve(o)))
         .and_then(string_bytes);
+    let mk_string = |key: &[u8]| {
+        mk.as_ref()
+            .and_then(|mk| mk.get(key).map(|o| graph.resolve(o)))
+            .and_then(string_bytes)
+    };
+    let (alternate_caption, rollover_caption) = (mk_string(b"AC"), mk_string(b"RC"));
     // `/MK` `/BG` (Table 189, `pdfcer-gui` request 2026-09-04). Read on every
     // widget; resolved through the graph like `/CA`. Absent -> None; empty
     // array -> Some(MkColor::None); 1/3/4 components -> the implied device
@@ -1748,6 +1762,8 @@ fn model_widget<G: ObjectGraph + ?Sized>(
         has_off_appearance,
         page,
         caption,
+        alternate_caption,
+        rollover_caption,
         background,
         border_color,
         rotation,

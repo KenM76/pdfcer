@@ -195,7 +195,8 @@
 //!               page_crop_box_clipped=<0|1> page_crop_box_unusable=<0|1> \
 //!               cmyk_spots_flattened=<n> annots_widget_drawn=<n> \
 //!               annots_geometry_drawn=<n> content_truncated=<n> \
-//!               annots_need_appearances_redrawn=<n>
+//!               annots_need_appearances_redrawn=<n> \
+//!               annots_state_fallback=<n>
 //! ```
 //!
 //! **`render-page` prints a SECOND line when `--probe-ink X,Y` is
@@ -344,6 +345,7 @@
 //! | `annots_geometry_drawn` | (sum of `annotations_geometry_drawn`) | "how many markup annotations with no `/AP` (Ink, the text-markup family, Square, Circle, Polygon, PolyLine, a plain Line, FreeText) did pdfcer draw from their own geometry and colours?" (ISO 32000-1 §12.5.2 lets the reader provide the appearance; drawn at view time and never written to the file. A SUM; the per-subtype breakdown is on stderr. Counted alongside `annots_no_ap`, never in `annots_painted`. A pdf dimension, a missing `/C` or malformed geometry is left blank and noted. `--markup-without-ap blank` turns it off) |
 //! | `content_truncated` | `content_truncated` | "how many nested content streams (forms, Type 3 glyphs, pattern cells, soft masks) were left out because the page's work budget was spent?" (DIVERGENCE: that content is missing from the raster. `pdfcer_render::page_budget::MAX_NESTED_PAINTS` bounds the streams run at nesting depth 2 or deeper; `MAX_PAGE_CONTENT` bounds the decoded content held at once. Non-zero on a hostile file is the bound working; the reason goes to stderr) |
 //! | `annots_need_appearances_redrawn` | `widgets_redrawn_for_need_appearances` | "how many text or choice widgets were drawn from their value instead of their stored `/AP`, because the form sets `/NeedAppearances true`?" (ISO 32000-1 §12.7.2 Table 218: the flag asks the reader to construct appearances for all fields; buttons and signatures keep their stored drawing. Drawn at view time and never written to the file; not counted in `annots_painted`. `--need-appearances as-stored` turns it off) |
+//! | `annots_state_fallback` | `annotations_state_fallback` | "how many annotations asked for a rollover or down drawing (`--widget-state rollover\|down`) have none, and were drawn from their normal one?" (ISO 32000-1 §12.5.5 Table 168: `/R` and `/D` default to `/N`. A push button with no `/AP` drawn pressed is not counted. Always `0` under the default `--widget-state normal`) |
 //! | `annots_hidden` | `annotations_hidden` | "how many annotations did the DOCUMENT suppress?" (§12.5.3 Table 165's Hidden and NoView flags — a census of pdfcer obeying the file, not a shortfall, honoured AND counted under R50 because content the operator cannot see is still disclosed) |
 //! | `annots_state_missing` | `annotations_appearance_state_missing` | "how many annotations carry a state subdictionary whose state could not be selected?" (§12.5.5 NOTE 3 — `/AS` absent against a multi-entry subdictionary, or naming a state that is not in it. Displayed as NOTHING, never guessed: a checkbox that should read "on" reads as blank, and this is the only thing that says why) |
 //! | `annots_widget` | `annotations_widget` | "how much of this page's annotation load is FORM FIELDS?" (§12.5.6.19 — census, a subset of `annots`. Widgets are ~88 % of organic annotations, so their share is what drives forms prioritisation rather than anything about this page's correctness) |
