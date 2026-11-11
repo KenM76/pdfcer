@@ -4,6 +4,19 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-11-11 (1528th filing) — `f512b50a` `Pass 700.11` SHIPPED: separation plates as vector EMF metafiles (`X072`); `996d5658` CI follow-up to `700.20`
+
+**Shipped (engineer-reported; no shell here, git/CI state not checked from here; docs only):**
+- `f512b50a36e9f12472554d72fb432976f46da9dd` on `main` (cherry-pick of worker `ba1f96009a5da4d916aa9f030473b5fcb9482b40`), not in a release. `pdfcer_render::emf::export_emf_plates` (+ `_view`, `_strict`) writes one EMF per ink: grey at tint, knockout paper white, overprint skipped, OPM honoured, knockout whites elided over unpainted plates; images, shadings, soft masks and transparency are counted `EMR_ALPHABLEND` patches. CLI `export-image --format emf --emf-plates[-strict]`. Detail and the five disclosed approximations are in the ROADMAP *Shipped* entry.
+- Tests: new `emf_plates.rs` (acceptance (a) to (d) plus composite/no-ink), CLI one-file-per-ink test, file-name unit test; each fix sabotaged and caught. Suites green (124, 1080, 576, 703, 40; engineer-reported).
+- FEATURES: *Planned* row removed, *Implemented* row added: core `[x]`, cli `[x]`, gui `[ ]`.
+- `996d5658ac22db560e7508bda3caf49af6b47db4` `fix(render): gate the EMF import in spot_overprint_routes to Windows (Pass 700.20)`: CI clippy on Linux failed on unused imports `EmfOptions` / `export_emf_view` after `b1b702e0`. One-line note added to the `700.20` *Shipped* entry.
+- **Lesson:** a `cfg(windows)` test with an ungated import is invisible to Windows-local clippy; the Linux cross-clippy cannot run locally (`ring`), so CI is the only Linux verifier of this class. Gate the import with the same `cfg` as its only users.
+
+**Still in flight:** `Pass 700.17` (crate split into `pdfcer-emf`) is being built by a worker. The `X072` SHIPPED reply is written by the operator.
+
+**For next session:** remaining order: `700.17`, then `700.13` / `700.14` / `700.15` (flattener), `700.18` (parity report), then the release.
+
 ## 2026-11-11 (1527th filing) — `08e039c5` `Pass 700.20` follow-up: spot-route probe output padding removed
 
 **Shipped (engineer-reported; no shell here, git/CI state not checked from here; docs only):**

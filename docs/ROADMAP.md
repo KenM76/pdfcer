@@ -123,6 +123,17 @@ Engineer-reported; no shell here, git, push and CI state not checked from here. 
 - **Gaps, disclosed:** the counter is per profile, not per paint; the plates route has no diagnostics carrier; the `Diagnostics::merge` line for the new counter is unexercised (no form-XObject fixture); additive pages with an ICC N4 colour and an output intent now render different pixels (no existing test moved).
 - **FEATURES:** the *Planned* row moved to *Implemented*, split into three: ICCBased CMYK on the screen route (core `[x]`, cli `[ ]`, gui `[ ]`); print disclosure (core `[x]`, cli `[x]`, gui `[ ]`); EMF colour fidelity (core `[x]`, cli `[ ]`, gui `[ ]`).
 
+### `f512b50a` `Pass 700.11`: separation plates as vector EMF metafiles (`X072`), 2026-11-11 (1528th filing)
+
+Engineer-reported; no shell here, git, push and CI state not checked from here. `f512b50a36e9f12472554d72fb432976f46da9dd` `feat(render,cli): separation plates as vector EMF metafiles (Pass 700.11)`, on `main`, a cherry-pick of worker `ba1f96009a5da4d916aa9f030473b5fcb9482b40`; NOT in a release. Reasoning is in the commit message. Authority ISO 32000-1 §8.6.7, §11.7.4. Second commit `996d5658` is the `700.20` CI follow-up (see that entry).
+- **New pub (`pdfcer_render::emf`):** `export_emf_plates`, `export_emf_plates_view`, `export_emf_plates_strict -> Result<EmfPlates, PlateMetafileError>`; `EmfPlates { Separated(Vec<EmfPlate>), Composite(Box<EmfExport>) }`; `EmfPlate { ink, emf, outcome }`; `EmfPlateOutcome { width_pt, height_pt, ops, knockouts, knockouts_elided, overprints_kept, patches }`; `PlatePatches { images, shadings, soft_masks, transparency, rasters }`; `PlateRaster`; `PlateMetafileError { Raster { ink, reason }, Export(RenderError) }`; `BrushSpec::overprint_process`.
+- **Per object and plate:** paints this ink: grey at its tint; knockout: paper white; overprint: skipped; OPM honoured for DeviceCMYK; a knockout white is elided while the plate beneath it is unpainted. Images, shadings, soft masks and transparency become counted `EMR_ALPHABLEND` patches. Strict refuses the plate, naming ink and cause.
+- **cli:** `pdfcer export-image --format emf --emf-plates` (and `--emf-plates-strict`) writes `<name>_<ink>.emf` per plate, prints a stdout line per plate with the outcome counts and a stderr note when patches were used; a page with no inks writes the composite metafile; both flags refused for non-EMF formats. **gui not delivered.**
+- **Disclosed approximations (also in `docs/core-api/03-capabilities.md`):** a patch's grey comes from the pixel plate (darkest channel of the ink's appearance), a path's grey is the exact tint; spots over the plane limit fall onto the process plates; an RGB paint uses a naive `rgb_to_cmyk` for its process tint; knockout elision uses bounding boxes, not exact paths; the files carry no ink label; the recording is forced into ink-mode compositing on any page that paints content.
+- **Tests (engineer-reported):** new `tests/emf_plates.rs` (request acceptance (a) to (d) plus a composite/no-ink case); CLI test for one metafile per ink and a file-name unit test. Each fix sabotaged and caught.
+- **Gates (engineer-reported, on main):** fmt, clippy `-D warnings`, `--no-default-features` check clean; render and cli suites 124, 1080 (2 ignored), 576, 703 (3 ignored) and 40 passed, 0 failed; code-structure, tests-harnessed, public-fns-documented, core-api-verbs, suite-name-absent, string-gaps clean.
+- **FEATURES:** the *Planned* row removed and an *Implemented* row added: core `[x]`, cli `[x]`, gui `[ ]`.
+
 ### `9dbb9f7a` `Pass 700.20`: spot overprint over process and DeviceN with more than four inks, on every route (`X075`), 2026-11-11 (1525th filing)
 
 Engineer-reported; no shell here, git, push and CI state not checked from here. `9dbb9f7ad025c97459f1f8923eff9e248979cda0` `fix(render): spot inks keep their own plane on every route (Pass 700.20)`, on `main`, a cherry-pick of worker `ede0cd26e815ed7b680f865b0b9524e1460a2437`; local, not pushed; NOT in a release. Reasoning is in the commit message; channel reply `reply_X075_spot_overprint_devicen_SHIPPED.md`. Authority ISO 32000-2 §8.6.6.5 Tables 71 and 72.
@@ -134,6 +145,7 @@ Engineer-reported; no shell here, git, push and CI state not checked from here. 
 - **Gates (engineer-reported, on main):** fmt and clippy clean; `pdfcer-render` and `pdfcer-cli` suites green (123, 1079 (2 ignored), 576, 686 (3 ignored) and 38 tests, 0 failed); code-structure, tests-harnessed, public-fns-documented clean.
 - **FEATURES:** the *Planned* row moved to *Implemented* (spot overprint and DeviceN plus diagnostics counters): core `[x]`, cli `[x]` (metrics line), gui `[ ]`.
 - **Follow-up `08e039c5`:** test probe output padding removed for check-string-gaps (test output only; no behaviour change).
+- **Follow-up `996d5658`:** CI clippy failed on Linux (unused imports `EmfOptions`, `export_emf_view` in `spot_overprint_routes.rs`; the EMF route tests are `cfg(windows)`, the import was not); import now `cfg(windows)`.
 
 ### `380cdc00` `Pass 700.10`: signature field appearances and an appearance builder (`X071` part 3, closes `X071`), 2026-11-11 (1523rd filing)
 
@@ -26860,16 +26872,7 @@ closes out the *prior* filing's business rather than opening this one's.
 >
 > **`Pass 700.10` SHIPPED in the 1523rd filing (`380cdc00`; see *Shipped*), removed from this list; `X071` is complete.** The `rich_unreadable` item owed to it above is closed; still open: a field's own `/DR` is not read, and view-time drawing uses the default precedence.
 
-> **1515th filing: `Pass 700.11` - `X072`: separation plates as vector EMF metafiles** (operator, crates consumer, 2026-11-11; `D:\Dev\FeatureRequests\pdfce_FeatureRequests\open\request_X072_separation_plates_as_vector_metafiles.md`; engine read v0.145.0, `92d8ba05`). OPEN, not started. `700.11` had zero hits across `docs/*.md` by grep (no shell; not run through `tools/check-ledger-numbers.py`). Accepted as asked, plus one engineer clarification.
-> - Today `pdfcer_render::plates::render_plates` returns pixmaps only. The composite page already has a vector route: `emf::export_emf_view` with `EmfOutcome`, and `emf::print::print_metafile` as its strict form.
-> - **New export:** one EMF per ink, from the same separation, ink list and order as `render_plates`. Each fill and stroke is drawn as the ink's tint in neutral grey (full tint = black). A page with no separable inks gets the equivalent of `Plates::Composite`.
-> - **Knockout and overprint** follow `render_plates` (ISO 32000-1 §8.6.7, §11.7.4; OPM for DeviceCMYK): an object painting this ink draws grey at its tint; under knockout an object not painting this ink draws paper white on that plate; under overprint it is skipped.
-> - **Engineer clarification:** a knockout white paint is skipped while nothing has yet been painted on the plate beneath it. This keeps "magenta and yellow hold none" true in acceptance (a); an optimisation with identical output.
-> - **Pixel patches (`EMR_ALPHABLEND`)** only where a plate's content cannot be solid vector tints: soft masks, shadings, images, transparency. Each is counted in a per-plate outcome shaped like `EmfOutcome` (rule 4: disclosed).
-> - **Strict variant** refuses a plate and states why, as `print_metafile` does for a composite page.
-> - **CLI** option ships in the same Pass (rule 11); the engineer picks the spelling, extending the existing plates/separations or EMF export command, not a new verb.
-> - Acceptance: (a) synthetic page with a DeviceCMYK square (C 0.5, K 1.0) and a Separation spot square gives 4 process plates + 1 spot plate; cyan holds one path at 50% grey, black one path at 100%, the spot plate one path, magenta and yellow none; no pixel patches; (b) overprint on: a K square over the spot square leaves the spot path whole on the spot plate; overprint off: the spot plate is knocked out under the K square; (c) an image gives one counted pixel patch per plate it inks; (d) the strict variant refuses the image page with a reason; (e) each test fails with its change reverted.
-> - Order: after `700.9` and `700.10` (`X071` in flight; disk and build-load limits keep workers sequential). FEATURES: one *Planned* row (unticked); no existing row covered vector plates (rows for `print --separations`, vector printing and `G242` plates API cover pixmaps and the composite route only).
+> **`Pass 700.11` (`X072`): SHIPPED 2026-11-11 (1528th filing), `f512b50a`; see its *Shipped* entry.**
 
 > **`Pass 700.12` (`X073`): SHIPPED 2026-11-11 as `cc74f730` (1522nd filing); see *Shipped*.**
 
@@ -26906,7 +26909,7 @@ closes out the *prior* filing's business rather than opening this one's.
 
 > **`Pass 700.20` (`X075`): SHIPPED 2026-11-11 (1525th filing), `9dbb9f7a`; see its *Shipped* entry.**
 
-> **Remaining order (1526th filing):** `700.11` (`X072`), `700.17` (crate split into `pdfcer-emf` and `pdfcer-flatten`, with a `pdfcraft` channel note), `700.13` / `700.14` / `700.15` (flattener), `700.18` (parity report), then the release.
+> **Remaining order (1526th filing; `700.11` shipped in the 1528th):** `700.17` (crate split into `pdfcer-emf` and `pdfcer-flatten`, with a `pdfcraft` channel note), `700.13` / `700.14` / `700.15` (flattener), `700.18` (parity report), then the release.
 
 > **1427th filing: `v0.129.0` PUBLISHED (see *Shipped*); the next release writes OneDrive `pdfcer2`. Four `pdfcer-gui` 3D requests filed (operator asks `O392`/`O393`, 2026-11-05, engine pin `56ee4f85`): `Pass 667.0` and `668.0` IN FLIGHT, `669.0` and `670.0` queued behind them (same GPU files). Numbers by grep of the repo (`Pass 667`-`670`: zero hits), not `tools/check-ledger-numbers.py` (no shell); last used was `666.0`.**
 
