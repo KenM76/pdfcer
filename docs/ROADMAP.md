@@ -122,6 +122,7 @@ Engineer-reported; no shell here, git, push and CI state not checked from here. 
 - **Not run:** the lenses are covered by the `FrameBounce` identity test only; they were NOT rendered under SwiftShader. No real GPU measured.
 - **Open:** the GUI (separate `pdfcer-gui` project) must pass `FrameBounce` to its draw; until it does the GPU picture shows no bounce. `705.4` next.
 - **FEATURES:** bounced-light row text updated; core already ticked, cli unchanged, gui NOT ticked; kept in *Planned* (`705.4`, gui).
+- **CI doc-link fix `b41663ca`** (1506th filing): `b41663cab24a28fe7a4af3074dfdbe3199989993`, doc-only. The `RenderOptions::indirect` doc in `crates/pdfcer-3d/src/render.rs` linked `IndirectOptions` without a path, which went red on the CI job "cargo doc, broken intra-doc links denied" at `ca66590f` (defect from `339d1127`, `705.2b`). Now `crate::IndirectOptions`; the stale "GPU path does not draw it yet" sentence now says the GPU path draws it from `crate::FrameBounce`. Engineer ran `cargo doc -p pdfcer-3d -p pdfcer-3d-nav` with `-D rustdoc::broken_intra_doc_links` locally. No behaviour or FEATURES change.
 
 ### `339d1127` `Pass 705.2b`: bounce light on by default in every CPU render, with CLI flags (decision 224; with `705.2a` completes `705.2`, CPU path), 2026-11-11 (1504th filing)
 

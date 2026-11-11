@@ -4,6 +4,15 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-11-11 (1506th filing) — `b41663ca` doc-link fix: `IndirectOptions` link failed CI `cargo doc`
+
+**Shipped (engineer-reported; no shell here, git/CI state not checked from here):**
+- `b41663cab24a28fe7a4af3074dfdbe3199989993`, `fix(3d): resolve the IndirectOptions doc link that failed CI cargo doc`. Doc-only, `crates/pdfcer-3d/src/render.rs`: `[`IndirectOptions`]` became `[`crate::IndirectOptions`]` and the stale "GPU path does not draw it yet" now reads "draws it from `crate::FrameBounce`". Red CI job was "cargo doc, broken intra-doc links denied" on `ca66590f`; defect came from `339d1127`. Engineer verified locally with `-D rustdoc::broken_intra_doc_links`.
+
+**Decisions / FEATURES:** none. ROADMAP note added under `705.3`.
+
+**For next session:** `705.4`; confirm CI is green again (not checked from here).
+
 ## 2026-11-11 (1505th filing) — `cea1b8cc` `Pass 705.3` SHIPPED: bounce light in the WebGL 2 shader, `FrameBounce`
 
 **Shipped (engineer-reported; no shell here, git/CI state not checked from here):**
