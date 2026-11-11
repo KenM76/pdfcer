@@ -27,7 +27,7 @@ pub fn run(
     let opts = RenderOptions::default();
     let mut all_exact = true;
     println!();
-    println!("scale    MP  record ms  replay ms  png ms  list MB  | bands: wall ms (speed-up)");
+    println!("scale    MP  record ms  replay ms  png ms  list MB  | bands: wall ms (speed-up)"); // string-gap-exempt: column-aligned table header
     for &scale in scales {
         let Some((list, record)) =
             best_of(repeat, || record_page(view, page, scale, 1, &opts).ok())
