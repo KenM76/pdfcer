@@ -112,6 +112,19 @@ wherever it appears.*
 
 ## Shipped
 
+### `d3db449a` `Pass 700.8`: draw a widget's `/D` and `/R` appearance on request (`X071` part 1), 2026-11-11 (1514th filing)
+
+Engineer-reported; no shell here, git, push and CI state not checked from here. `d3db449ab2174503e5b24d222a3860de1a67b1ad` `feat(render,core,cli): draw /D and /R widget appearance states on request (X071 part 1)`, on `main`, NOT in a release. Reasoning is in the commit message. Origin: `request_X071_down_rollover_rich_text_and_signature_appearances.md` Part 1; **`X071` stays open for Parts 2 (`700.9`) and 3 (`700.10`)**. ISO 32000-1 §12.5.5 Table 168, Table 189 `/MK`, Table 166 `/S B,I`. **Closes the `Pass 131.0` `/D` remainder** (the pressed appearance); its `/MK` icon/label half shipped earlier (`Pass 443.0`).
+- **core:** `annot::AppearanceKind {Normal, Rollover, Down}` + `ap_key()`; `annot::select_appearance` -> `SelectedAppearance {appearance, fell_back_to_normal, highlight_overrides_down}`; `forms::Widget::{alternate_caption (/MK /AC), rollover_caption (/MK /RC)}`; `annot_author::WidgetChrome::{pressed, with_pressed}` (bevel and inset bands swap); `widget_draw::WidgetAppearances::appearance_in(view, id, kind)`. A push button with no `/AP` is built pressed: `/AC` (else `/CA`) for Down, `/RC` (else `/CA`) for Rollover.
+- **render:** `RenderOptions::{widget_state, appearance_states, with_widget_state, with_appearance_states}` (every widget / per annotation overriding), `RenderPolicy::{widget_state, appearance_states}`, `Diagnostics::annotations_state_fallback`. A missing state falls back to `/N`, **counted and noted** (rule 4). A `/NeedAppearances` redraw replaces `/N` only.
+- **cli:** `--widget-state normal|rollover|down` on `render-page` and `export-image`; the stable line gains `annots_state_fallback=` as its LAST key, plus a stderr note when non-zero.
+- **Divergence, recorded in `docs/core-api` 03-capabilities:** Table 188 says `/H` other than `P` overrides `/D`; pdfcer draws `/D` when asked and notes it when `/H` is not `P` or `T`.
+- **Tests (engineer-reported, worker's run):** render 5 (`tests/widget_appearance_states.rs`), core 2 unit, CLI 2 (`tests/render_widget_state.rs`); each sabotage-checked three ways (state ignored, bevel swap removed, Down caption reverted). **One test (rollover with no `/RC` equals normal) is a guard only: it passes either way.** Totals: core lib 2363 / all 3230; render lib 567 / all 667; CLI all 1077; zero failures.
+- **Gates (engineer-reported):** fmt, clippy (core, render, cli, and cli `--no-default-features`), `cargo doc` deny-broken-links, code-structure, tests-harnessed, public-fns-documented, core-api-verbs, suite-name-absent all green. No `Cargo.toml` change; `cargo tree` unaffected. **gui not delivered.**
+- **FEATURES:** the `Pass 131.0` "looks pressed while held" row moved from *Planned* to *Implemented* (Forms): core `[x]`, cli `[x]`, gui `[ ]`.
+- **Sweep (hard rule 11):** the FEATURES row and the `Pass 131.0` Backlog entry said pdfcer "does not draw `/D` and `/R`"; amended/annotated here. **Engineer's sweep done, one survivor fixed in follow-up `48e5d4fe` (`docs(core): annot module note now says /R and /D are selectable on request`):** the `crates/pdfcer-core/src/annot.rs` module header said `/R` and `/D` are "never selected"; it now points at `select_appearance` / `AppearanceKind`. Nothing else stale in `crates/*/src` or `docs/core-api` (engineer grepped "only /N", "/D not drawn", "rollover not supported"). Engineer-reported verification on `main` after cherry-pick: fmt, clippy `-D warnings` (render, cli, all targets), render `widget_appearance` 5/5, cli `render_widget_state` 2/2, cli `render_page` 30/30, core-api-verbs, tests-harnessed all green.
+- **Process gotchas:** `cargo fmt --all` fails inside an agent worktree because the vendored `ocrcer-core` manifest believes it is in the parent workspace; use `cargo fmt -p <crate>`. `check-core-api-verbs.py --fix` rewrote `docs/core-api/index.md` with CRLF; converted back to LF.
+
 ### `9077e43a` `v0.145.0` PUBLISHED, 2026-11-11 (1513th filing)
 
 Engineer-reported; no shell here, nothing checked from here.
@@ -26741,11 +26754,7 @@ closes out the *prior* filing's business rather than opening this one's.
 
 > **1512th filing: `X071` (operator, crates consumer; `D:\Dev\FeatureRequests\pdfce_FeatureRequests\open\request_X071_down_rollover_rich_text_and_signature_appearances.md`) filed as three Passes, all OPEN, none started. The request asked to start only after the release carrying `X069`/`X070`; `v0.145.0` was tagged at `9077e43aafd40cd07effef67dd0031f9bd36ab52` on 2026-11-11 (operator-reported; not checked from here, no shell), so `X071` is active. `700.8`, `700.9`, `700.10` had zero hits across `docs/*.md` by grep (no shell; not run through `tools/check-ledger-numbers.py`). Engine read named in the request: v0.144.0 (`5eb04866`). The three Parts are independent; each acceptance test must fail with its change reverted.**
 >
-> **`Pass 700.8` - `X071` Part 1: render a widget in a chosen appearance state (Normal / Down / Rollover).** ISO 32000-1 §12.5.5. Today only `/AP /N` is painted; `/D` and `/R` are recognised, never drawn. **Closes the `Pass 131.0` `/D` remainder** (the "looks pressed while held" row in FEATURES *Planned*; merged into one row, not duplicated; dated amendment 2026-11-11).
-> - A way to render one widget in a chosen state (a per-annotation override in `RenderOptions`, or a function rendering one widget's appearance in a given state to a raster or display list). Core + render API, plus a CLI flag; gui column not applicable to this Pass.
-> - `/AS` selects the sub-appearance inside `/D` and `/R` exactly as inside `/N`. A missing `/D` or `/R` falls back to `/N`, and the fallback is **reported**.
-> - Push button with no `/D` stream but with `/MK`: a built pressed look (border style inverted for beveled/inset, as conforming viewers do), using `/MK /AC` (down caption) when present.
-> - Acceptance: (a) synthetic push button with distinct `/N`, `/D`, `/R` streams (three different fill colours): each state renders its own colour; (b) a button with only `/N`: `Down` renders `/N` and reports the fallback; (c) a beveled button with `/MK /CA (Go)` and `/MK /AC (Going)`, no `/AP`: `Down` shows `Going` with the bevel reversed; (d) each test fails with the change reverted.
+> **`Pass 700.8` SHIPPED in the 1514th filing (`d3db449a`; see *Shipped*), removed from this list.**
 >
 > **`Pass 700.9` - `X071` Part 2: rich-text field appearances from `/RV` + `/DS`.** ISO 32000-1 §12.7.3.4. Today `/RV` is parsed (`richtext.rs`) but appearances are built from plain `/V`, and filling a rich field needs an explicit downgrade.
 > - A text field with the RichText flag (`/Ff` bit 26) and an `/RV` builds its appearance from the rich text: bold, italic, font family and size, colour, underline, line-through, paragraph alignment; `/DS` is the default style. Fonts come from `/DR` or the standard 14; a run whose font cannot be resolved uses the `/DS` font and is **reported**.
@@ -26761,7 +26770,7 @@ closes out the *prior* filing's business rather than opening this one's.
 > - None of this changes an existing `/AP`.
 > - Acceptance: (a) unsigned field, no `/AP`, `/MK /BC [0 0 1]`: a blue border and the unsigned marker are drawn; (b) signed field with `/Name (A. Tester)` and `/M (D:20261111120000Z)`: the name text and the date are drawn, no other words appear; (c) the build API with name, date and a 2x2 synthetic image returns an appearance whose content uses the image and the text, inside the rectangle; a rectangle too small for the text yields auto size down to a floor and a report, not overflow; (d) a signature field with an existing `/AP` renders unchanged; (e) each test fails with the change reverted.
 >
-> Order: `700.8`, `700.9`, `700.10` as listed (a judgement call; the Parts are independent). FEATURES rows: two new in *Planned* (`700.9`, `700.10`, unticked); `700.8` folded into the existing `Pass 131.0` `/D` row.
+> Order: `700.9`, `700.10` as listed (a judgement call; the Parts are independent). FEATURES rows: two in *Planned* (`700.9`, `700.10`, unticked); the `700.8` row is now in *Implemented*.
 
 > **1427th filing: `v0.129.0` PUBLISHED (see *Shipped*); the next release writes OneDrive `pdfcer2`. Four `pdfcer-gui` 3D requests filed (operator asks `O392`/`O393`, 2026-11-05, engine pin `56ee4f85`): `Pass 667.0` and `668.0` IN FLIGHT, `669.0` and `670.0` queued behind them (same GPU files). Numbers by grep of the repo (`Pass 667`-`670`: zero hits), not `tools/check-ledger-numbers.py` (no shell); last used was `666.0`.**
 
@@ -41677,6 +41686,8 @@ not rediscovered per-Pass:**
 ---
 
 #### `Pass 131.0` — ★★★ **SUBSTANTIALLY DELIVERED 2026-08-30 by `Pass 182.0` (`bc49a8e`) and `Pass 183.0` (`cff102a`). NARROWED HERE TO THE TWO ITEMS THAT ARE GENUINELY UNBUILT — the pressed appearance and the `/MK` icon/label layout.**
+
+*Amendment 2026-11-11 (1514th filing): the pressed (`/D`) appearance, and `/R`, are now drawn on request by `Pass 700.8` (`d3db449a`); the `/MK` icon/label layout shipped earlier (`Pass 443.0`). Nothing in this entry remains unbuilt on the engine side; the gui driving it from pointer state is the GUI project's.*
 
 ★★ **NARROWED 2026-08-30 (343rd filing), and the narrowing is the whole
 point of this edit: `Pass 183.0`'s Shipped entry and this Backlog entry

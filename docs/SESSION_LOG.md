@@ -4,6 +4,18 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-11-11 (1514th filing) — `d3db449a` `Pass 700.8` SHIPPED: widget `/D` and `/R` appearance states (`X071` part 1)
+
+**Shipped (engineer-reported; no shell here, git/CI state not checked from here; docs only):**
+- `Pass 700.8`, `d3db449ab2174503e5b24d222a3860de1a67b1ad` on `main`, not in a release. `AppearanceKind {Normal, Rollover, Down}`, `select_appearance` with reported fallback to `/N`, built pressed look for a push button with no `/AP` (`/MK /AC` / `/RC` captions, bevel/inset swap), `RenderOptions::with_widget_state` / `with_appearance_states`, CLI `--widget-state` on `render-page` and `export-image`, stable line gains `annots_state_fallback=` (last key). Detail and tests in the ROADMAP *Shipped* entry and the commit message.
+- **Decision:** `/D` is drawn when asked even when `/H` is not `P`, with a note (Table 188 says `/H` should override); recorded in `docs/core-api` 03-capabilities.
+- **Test honesty:** one test (rollover with no `/RC` equals normal) is a guard only; passes either way.
+- **Gotchas:** `cargo fmt --all` fails in an agent worktree (vendored `ocrcer-core` manifest thinks it is in the parent workspace); use `cargo fmt -p <crate>`. `check-core-api-verbs.py --fix` rewrote `docs/core-api/index.md` with CRLF; converted back to LF.
+- FEATURES: the `Pass 131.0` "looks pressed while held" row moved *Planned* -> *Implemented* (core `[x]`, cli `[x]`, gui `[ ]`); grep for pressed/rollover/hover/down-appearance found no duplicate row. ROADMAP: `Pass 131.0` Backlog entry gets a dated amendment; `700.8` block removed from *Next up*.
+- **Hard rule 11 sweep, DONE by the engineer (addendum, same filing):** one survivor, the `crates/pdfcer-core/src/annot.rs` module header ("never selected" for `/R` and `/D`), fixed in follow-up `48e5d4fe` (`docs(core): annot module note now says /R and /D are selectable on request`). No other stale wording in `crates/*/src` or `docs/core-api` (grep "only /N", "/D not drawn", "rollover not supported"). Verification on `main` after cherry-pick (engineer-reported): fmt, clippy `-D warnings`, render `widget_appearance` 5/5, cli `render_widget_state` 2/2, `render_page` 30/30, core-api-verbs, tests-harnessed all clean.
+
+**For next session:** `700.9` (rich-text `/RV` appearances), then `700.10`; spec-RAG check for §12.7.3.4 and §12.7.4.5 first. `X071` stays open.
+
 ## 2026-11-11 (1513th filing) — `v0.145.0` PUBLISHED (`9077e43a`)
 
 **Filed (engineer-reported; no shell here, nothing checked from here; docs only):**
