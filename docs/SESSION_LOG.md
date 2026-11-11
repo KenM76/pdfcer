@@ -4,6 +4,16 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-11-11 (1521st filing) — `587ed549` `Pass 700.16` SHIPPED: PDF sent straight to installed printers that read it
+
+**Shipped (engineer-reported; no shell here, git/CI state not checked from here; docs only):**
+- `587ed549` on `main` (cherry-pick of worker `a20cfb3b2ad1687b6e7b4304fc32decc4e8a97d5`), not in a release. `pdfcer print --pdf-direct off|auto|on`: port to IPP URI, `application/pdf` check, Print-Job; n-up, booklet, poster and frame composed into a PDF instead of refused. Detail in the ROADMAP *Shipped* entry.
+- FEATURES row moved Planned to Implemented: core `[x]`, cli `[x]`, gui `[ ]`. Next-up banner for `700.16` replaced by a shipped pointer.
+- **Honest coverage:** mock IPP server only; not tried on real hardware.
+- **Open:** nine recorded divergences (crop vs media box, mixed rotations, no paper request, direct `ipp://` URI still refuses layout options, double compose notes on fallback, and others); see the entry.
+
+**For next session:** `700.12`, then `700.19`/`700.20`, then `700.17`. Engineer to sweep `--help`/ipp docs for "refused on the direct route" wording.
+
 ## 2026-11-11 (1520th filing) — `Pass 700.19` and `700.20` filed: ICCBased CMYK lut source profile (`X074`), spot overprint and multi-ink DeviceN (`X075`)
 
 **Filed (docs only; no shell here, git/CI state not checked from here; nothing built, no code commits; HEAD per dispatch `f0380396`):**
