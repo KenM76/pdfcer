@@ -52,7 +52,11 @@ Device-pixel thresholds keep meaning one OUTPUT pixel through
 (`stroke_params`, `k / scale`) and `SUBPIXEL_CULL_PX`. The ink probe is
 asked at its block's centre sample and answered in output pixels; the pixel
 tallies in `Diagnostics` are divided by 16. A fine raster past
-`MAX_PIXMAP_EDGE` is refused (`BadRasterSize`), never silently reduced.
+`MAX_PIXMAP_EDGE` is drawn in tiles (`supersample::tile_plan`, fine edge
+`min(4096, √colorant cap)`), each through the band path and box-filtered
+into place; hard-edged samples tile exactly, so joins leave no seam, and
+`Diagnostics::supersample_tiles` gives the count. Only an output raster
+itself past the cap is refused (`BadRasterSize`), never silently reduced.
 
 Cost: 16× the pixels and the time. Measured on the eight patches of request
 X068 at 108 dpi: every seam "X" is gone and text stays smooth.
