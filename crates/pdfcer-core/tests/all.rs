@@ -312,6 +312,7 @@ mod widget_appearance_replace;
 mod widget_border_dash;
 mod widget_colour_appearance;
 mod widget_colour_at_creation;
+mod widget_display_x069;
 mod widget_resize_appearance;
 mod widget_turn;
 mod writer_roundtrip;

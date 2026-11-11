@@ -94,6 +94,10 @@ use pdfcer_model::writer::content::{ContentBuilder, Paint};
 
 mod layout;
 pub use layout::{CharSpan, LineLayout, TextLayout, layout_comb_text, layout_variable_text};
+mod list_box;
+pub use list_box::{
+    LIST_BOX_HIGHLIGHT_RGB, ListBoxAppearance, build_list_box_text, list_box_first_row,
+};
 
 /// A text fill colour parsed from — or authored into — a `/DA` string
 /// (§12.7.3.3 Table 222). The array length selects the device colour
@@ -938,19 +942,8 @@ pub fn build_variable_text(
     resources: &[FontResource],
 ) -> Result<VarTextAppearance, VarTextError> {
     let parsed = parse_default_appearance(da)?;
-    let face = resources
-        .iter()
-        .find(|r| r.name == parsed.font_name)
-        .map(Face::of)
-        .ok_or_else(|| {
-            VarTextError::FontUnresolved(String::from_utf8_lossy(&parsed.font_name).into_owned())
-        })?;
+    let face = da_face(&parsed, resources)?;
     let font = face.font;
-    if matches!(font, Std14::Symbol | Std14::ZapfDingbats) {
-        return Err(VarTextError::SymbolicFont(
-            String::from_utf8_lossy(&parsed.font_name).into_owned(),
-        ));
-    }
 
     let w = bbox.width();
     let h = bbox.height();
@@ -1082,17 +1075,9 @@ pub fn build_variable_text(
     b.restore_state();
     b.end_marked_content();
 
-    let mut fonts = Dict::new();
-    fonts.insert(
-        Name(parsed.font_name.clone()),
-        Object::Dict(standard14_font_dict(font)),
-    );
-    let mut res = Dict::new();
-    res.insert(Name::from(b"Font"), Object::Dict(fonts));
-
     Ok(VarTextAppearance {
         content: b.into_bytes(),
-        resources: res,
+        resources: font_resources(&parsed.font_name, font),
         applied_autosize,
         applied_autosize_bound,
         da_colour_unmodelled: parsed.color_unmodelled,
@@ -1128,19 +1113,8 @@ pub fn build_comb_text(
     resources: &[FontResource],
 ) -> Result<VarTextAppearance, VarTextError> {
     let parsed = parse_default_appearance(da)?;
-    let face = resources
-        .iter()
-        .find(|r| r.name == parsed.font_name)
-        .map(Face::of)
-        .ok_or_else(|| {
-            VarTextError::FontUnresolved(String::from_utf8_lossy(&parsed.font_name).into_owned())
-        })?;
+    let face = da_face(&parsed, resources)?;
     let font = face.font;
-    if matches!(font, Std14::Symbol | Std14::ZapfDingbats) {
-        return Err(VarTextError::SymbolicFont(
-            String::from_utf8_lossy(&parsed.font_name).into_owned(),
-        ));
-    }
     let cells = cells.max(1);
     let w = bbox.width();
     let h = bbox.height();
@@ -1191,17 +1165,9 @@ pub fn build_comb_text(
     b.restore_state();
     b.end_marked_content();
 
-    let mut fonts = Dict::new();
-    fonts.insert(
-        Name(parsed.font_name.clone()),
-        Object::Dict(standard14_font_dict(font)),
-    );
-    let mut res = Dict::new();
-    res.insert(Name::from(b"Font"), Object::Dict(fonts));
-
     Ok(VarTextAppearance {
         content: b.into_bytes(),
-        resources: res,
+        resources: font_resources(&parsed.font_name, font),
         applied_autosize,
         applied_autosize_bound,
         da_colour_unmodelled: parsed.color_unmodelled,
@@ -1209,6 +1175,36 @@ pub fn build_comb_text(
         used_font: font,
         used_size: size,
     })
+}
+
+/// The face `parsed`'s `Tf` names, refusing one absent from `resources` or
+/// symbolic.
+fn da_face<'r>(
+    parsed: &DefaultAppearance,
+    resources: &'r [FontResource],
+) -> Result<Face<'r>, VarTextError> {
+    let name = || String::from_utf8_lossy(&parsed.font_name).into_owned();
+    let face = resources
+        .iter()
+        .find(|r| r.name == parsed.font_name)
+        .map(Face::of)
+        .ok_or_else(|| VarTextError::FontUnresolved(name()))?;
+    if matches!(face.font, Std14::Symbol | Std14::ZapfDingbats) {
+        return Err(VarTextError::SymbolicFont(name()));
+    }
+    Ok(face)
+}
+
+/// `<< /Font << /name <standard-14 dict> >> >>`.
+fn font_resources(name: &[u8], font: Std14) -> Dict {
+    let mut fonts = Dict::new();
+    fonts.insert(
+        Name(name.to_vec()),
+        Object::Dict(standard14_font_dict(font)),
+    );
+    let mut res = Dict::new();
+    res.insert(Name::from(b"Font"), Object::Dict(fonts));
+    res
 }
 
 /// The x origin of a line of width `line_width` in a box of width `w`

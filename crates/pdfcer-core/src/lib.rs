@@ -70,6 +70,7 @@ pub mod emf_import;
 mod encryption_gate;
 pub mod export;
 pub mod fdf;
+pub mod field_display;
 pub mod font_embed_missing;
 pub mod font_unembed;
 pub mod form_script;

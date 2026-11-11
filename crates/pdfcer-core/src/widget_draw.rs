@@ -14,6 +14,7 @@ use std::collections::HashMap;
 
 use crate::annot_author::{self, CheckStyle, WidgetChrome};
 use crate::edit::{EditSession, choice_display_text, decode_text_string};
+use crate::field_display::{self, DisplayNotes};
 use crate::forms::{self, ButtonKind, Field, FieldFlags, FieldType, FieldValue, Widget};
 use crate::object::{Dict, Name, ObjId, Object};
 use crate::vartext::FontResource;
@@ -53,6 +54,8 @@ pub struct SynthesizedAppearance {
     pub content: Vec<u8>,
     /// What was drawn.
     pub kind: SynthesizedKind,
+    /// What was formatted, declined or ignored in drawing it.
+    pub notes: DisplayNotes,
 }
 
 /// A document's form, parsed once, from which per-widget appearances are
@@ -107,7 +110,7 @@ impl WidgetAppearances {
         } else {
             (rect.width(), rect.height())
         };
-        let mut out = self.draw(field, widget, w, h)?;
+        let mut out = self.draw(view, field, widget, w, h)?;
         EditSession::bind_dr_fonts_of(view, view, &mut out.ap_dict);
         if let Some(m) = EditSession::quarter_turn_matrix(quarter) {
             out.ap_dict.insert(
@@ -120,6 +123,7 @@ impl WidgetAppearances {
 
     fn draw(
         &self,
+        view: &DocumentView<'_>,
         field: &Field,
         widget: &Widget,
         w: f64,
@@ -130,33 +134,55 @@ impl WidgetAppearances {
             .default_appearance
             .as_deref()
             .unwrap_or(&self.default_da);
-        let (kind, ap) = match field.field_type? {
+        let mut notes = DisplayNotes::default();
+        let (kind, stored, multiline) = match field.field_type? {
             FieldType::Text => {
                 let value = match &field.value {
                     FieldValue::Text(b) => decode_text_string(b).text,
                     _ => String::new(),
                 };
                 let multiline = field.flags.has(FieldFlags::MULTILINE);
-                (
-                    SynthesizedKind::Text,
-                    self.text(field, &value, da, multiline, w, h, chrome)?,
+                (SynthesizedKind::Text, value, multiline)
+            }
+            FieldType::Choice if field_display::is_list_box(field) => {
+                let ti = field_display::raw_top_index(view, field);
+                let rows = field_display::list_rows(field, None, ti, &mut notes);
+                let ap = annot_author::build_list_box_appearance(
+                    w,
+                    h,
+                    &rows,
+                    da,
+                    field.quadding,
+                    &self.fonts,
+                    chrome,
                 )
+                .ok()?;
+                return Some(SynthesizedAppearance {
+                    ap_dict: ap.ap_dict,
+                    content: ap.content,
+                    kind: SynthesizedKind::Choice,
+                    notes,
+                });
             }
             FieldType::Choice => {
                 let value = choice_display_text(field).unwrap_or_default();
-                let multiline = !field.flags.has(FieldFlags::COMBO);
-                (
-                    SynthesizedKind::Choice,
-                    self.text(field, &value, da, multiline, w, h, chrome)?,
-                )
+                (SynthesizedKind::Choice, value, false)
             }
             FieldType::Button => return self.button(field, widget, da, w, h, chrome),
             FieldType::Signature => return None,
         };
+        let (shown, red) = field_display::shown_value(view, field, &stored, &mut notes);
+        let da = if red {
+            Cow::Owned(field_display::red_da(da))
+        } else {
+            Cow::Borrowed(da)
+        };
+        let ap = self.text(field, &shown, &da, multiline, w, h, chrome)?;
         Some(SynthesizedAppearance {
             ap_dict: ap.ap_dict,
             content: ap.content,
             kind,
+            notes,
         })
     }
 
@@ -209,6 +235,7 @@ impl WidgetAppearances {
                 ap_dict: ap.ap_dict,
                 content: ap.content,
                 kind: SynthesizedKind::PushButton,
+                notes: DisplayNotes::default(),
             });
         }
         let caption_style = widget
@@ -234,6 +261,7 @@ impl WidgetAppearances {
             ap_dict: state.ap_dict,
             content: state.content,
             kind,
+            notes: DisplayNotes::default(),
         })
     }
 }

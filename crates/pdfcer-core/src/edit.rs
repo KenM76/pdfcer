@@ -21383,6 +21383,9 @@ pub struct RegenOutcome {
     pub da_colour_unmodelled: bool,
     /// Characters that had no `WinAnsi` code (disclosure).
     pub unencodable_chars: usize,
+    /// Fields drawn formatted, left unformatted, and list-box indices
+    /// ignored (§12.6.3, §12.7.4.4).
+    pub display: crate::field_display::DisplayCounts,
 }
 
 /// What a text or choice appearance redrawn as a SIDE EFFECT decided on the
@@ -21407,6 +21410,9 @@ pub struct LayoutDisclosure {
     /// field, characters past `/MaxLen`, which are not drawn. The stored
     /// value keeps them all.
     pub unencodable_chars: usize,
+    /// Fields drawn formatted, left unformatted, and list-box indices
+    /// ignored (§12.6.3, §12.7.4.4).
+    pub display: crate::field_display::DisplayCounts,
 }
 
 /// What a property-change redraw did.
@@ -22488,6 +22494,9 @@ struct PendingWidgetEdit {
     /// A push button's icon as this command leaves it; `Some(None)` = no
     /// icon. `None` = not touched, and the redraw reads the widget's own.
     icon: Option<Option<(annot_author::ButtonIcon, ObjId)>>,
+    /// A list box's selection and `/TI` as this command writes them. FIELD
+    /// level, so not scoped by `id`. `None` = read from the field.
+    list_selection: Option<crate::field_display::ListSelection>,
 }
 
 impl PendingWidgetEdit {
@@ -27177,7 +27186,7 @@ struct PageFlatten {
 /// value first then display value (§12.7.4.4). Returns the option index and a
 /// reference to it. Comparison is on the §7.9.2-decoded text so a UTF-16
 /// option matches a decoded selection string.
-fn match_option<'a>(
+pub(crate) fn match_option<'a>(
     options: &'a [forms::ChoiceOption],
     sel: &str,
 ) -> Option<(usize, &'a forms::ChoiceOption)> {
@@ -29791,6 +29800,7 @@ impl EditSession {
             &mut layout.da_colour_unmodelled,
             &mut layout.unencodable_chars,
             pending,
+            &mut layout.display,
         )?;
         // Shape A: the field dict IS the widget, so its `/AP` `/N` is folded
         // into the dictionary write the caller is already making — found by
@@ -30372,6 +30382,7 @@ impl EditSession {
             chrome: Some(chrome_after),
             replace_foreign: edit.replaces_foreign(),
             icon: staged_icon,
+            list_selection: None,
         };
 
         // THREE THINGS INVALIDATE THE BAKED APPEARANCE, and the third was
@@ -42440,6 +42451,7 @@ impl EditSession {
                 // Not a rotation call: each widget's own `/MK /R` is read
                 // inside the loop, so a rotated field stays rotated.
                 &PendingWidgetEdit::default(),
+                &mut crate::field_display::DisplayCounts::default(),
             )?;
             widgets_updated += field.widgets.len();
 
@@ -44485,6 +44497,16 @@ impl EditSession {
                         Some(_) => list_box,
                         None => field.flags.has(forms::FieldFlags::MULTILINE),
                     };
+                    // The list box draws the selection and `/TI` written below.
+                    let pending = PendingWidgetEdit {
+                        list_selection: choice.as_ref().filter(|_| list_box).map(|sel| {
+                            crate::field_display::ListSelection {
+                                indices: sel.indices.clone(),
+                                top_index: self.derive_top_index(field, &sel.indices, &default_da),
+                            }
+                        }),
+                        ..PendingWidgetEdit::default()
+                    };
                     let merged_ap = self.regen_field_appearance(
                         field,
                         &text,
@@ -44497,7 +44519,8 @@ impl EditSession {
                         &mut out.layout.da_colour_unmodelled,
                         &mut out.layout.unencodable_chars,
                         // Not a rotation call -- see the sibling above.
-                        &PendingWidgetEdit::default(),
+                        &pending,
+                        &mut out.layout.display,
                     )?;
                     out.widgets_updated += field.widgets.len();
                     if let Some(ap_id) = merged_ap {
@@ -44657,6 +44680,7 @@ impl EditSession {
                 &mut out.layout.da_colour_unmodelled,
                 &mut out.layout.unencodable_chars,
                 &PendingWidgetEdit::default(),
+                &mut out.layout.display,
             )?;
             if let Some(ap_id) = merged_ap {
                 let mut ap = Dict::new();
@@ -45190,13 +45214,27 @@ impl EditSession {
         da_colour_unmodelled: &mut bool,
         unencodable: &mut usize,
         pending: &PendingWidgetEdit,
+        counts: &mut crate::field_display::DisplayCounts,
     ) -> Result<Option<ObjId>, EditError> {
-        let text = crate::widget_draw::displayed_text(field, text);
+        use crate::field_display as fd;
+        let mut notes = fd::DisplayNotes::default();
+        let view = self.view();
+        let list_rows = fd::is_list_box(field).then(|| {
+            let ti = fd::raw_top_index(&view, field);
+            fd::list_rows(field, pending.list_selection.as_ref(), ti, &mut notes)
+        });
+        let (shown, red) = match list_rows {
+            Some(_) => (String::new(), false),
+            None => fd::shown_value(&view, field, text, &mut notes),
+        };
+        counts.add(&notes);
+        let text = crate::widget_draw::displayed_text(field, &shown);
         let text = text.as_ref();
         let da = field
             .default_appearance
             .clone()
             .unwrap_or_else(|| default_da.to_vec());
+        let da = if red { fd::red_da(&da) } else { da };
         let quad = field.quadding;
         let comb = crate::widget_draw::comb_cells(field, multiline);
         let mut merged_ap: Option<ObjId> = None;
@@ -45280,9 +45318,14 @@ impl EditSession {
             let chrome = pending
                 .chrome_for(widget.id)
                 .unwrap_or_else(|| self.widget_chrome(widget));
-            let appearance = annot_author::build_field_text_appearance(
-                w, h, text, &da, quad, multiline, comb, fonts, chrome,
-            )?;
+            let appearance = match &list_rows {
+                Some(rows) => {
+                    annot_author::build_list_box_appearance(w, h, rows, &da, quad, fonts, chrome)?
+                }
+                None => annot_author::build_field_text_appearance(
+                    w, h, text, &da, quad, multiline, comb, fonts, chrome,
+                )?,
+            };
             if appearance.applied_autosize.is_some() {
                 *applied_autosize = appearance.applied_autosize;
                 *applied_autosize_bound = appearance.applied_autosize_bound;
@@ -46337,7 +46380,14 @@ impl EditSession {
                 &mut unencodable_chars,
                 // Not a rotation call: each widget's own `/MK /R` is read
                 // inside the loop, so a rotated field stays rotated.
-                &PendingWidgetEdit::default(),
+                &PendingWidgetEdit {
+                    list_selection: list_box.then(|| crate::field_display::ListSelection {
+                        indices: indices.clone(),
+                        top_index,
+                    }),
+                    ..PendingWidgetEdit::default()
+                },
+                &mut crate::field_display::DisplayCounts::default(),
             )?;
             widgets_updated += field.widgets.len().max(objects.len() - before_len);
 
@@ -47040,6 +47090,7 @@ impl EditSession {
         let mut applied_autosize_bound = None;
         let mut da_colour_unmodelled = false;
         let mut unencodable = 0usize;
+        let mut display_counts = crate::field_display::DisplayCounts::default();
 
         for field in &form.fields {
             if field.widgets.is_empty() {
@@ -47058,8 +47109,10 @@ impl EditSession {
                     ),
                     _ => continue,
                 },
+                // A list box draws its options even with nothing selected.
                 Some(FieldType::Choice) => match choice_display_text(field) {
                     Some(t) => (t, !field.flags.has(forms::FieldFlags::COMBO)),
+                    None if crate::field_display::is_list_box(field) => (String::new(), true),
                     None => continue,
                 },
                 _ => continue,
@@ -47077,6 +47130,7 @@ impl EditSession {
                 &mut unencodable,
                 // Not a rotation call -- see the sibling above.
                 &PendingWidgetEdit::default(),
+                &mut display_counts,
             )?;
             regenerated += 1;
             // Shape A: fold the new /AP /N into the field dictionary.
@@ -47108,6 +47162,7 @@ impl EditSession {
                 applied_autosize_bound,
                 da_colour_unmodelled,
                 unencodable_chars: unencodable,
+                display: display_counts,
             });
         }
         self.commit(Command {
@@ -47123,6 +47178,7 @@ impl EditSession {
             applied_autosize_bound,
             da_colour_unmodelled,
             unencodable_chars: unencodable,
+            display: display_counts,
         })
     }
 

@@ -441,7 +441,6 @@ fn pdfcer-core/src/vector/edit.rs::plan_move_text_run
 fn pdfcer-core/src/vector/edit.rs::plan_set_layer
 fn pdfcer-core/src/vector/snap.rs::collect_subpath_targets
 fn pdfcer-fonts/src/fontinfo.rs::model
-fn pdfcer-fonts/src/vartext.rs::build_comb_text
 fn pdfcer-fonts/src/vartext.rs::build_variable_text
 fn pdfcer-function/src/function.rs::apply
 fn pdfcer-function/src/function.rs::load_at_depth

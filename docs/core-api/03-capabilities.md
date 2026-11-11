@@ -1341,10 +1341,15 @@ stays `false`, `widget_rects` / `parse_acroform` / hit-testing are unchanged.
 | `Diagnostics::annotations_widget_synthesized: usize` | widgets drawn this way on the page; a diagnostic note names each one. CLI `render-page` metrics key `annots_widget_drawn=`. |
 | `pdfcer_core::widget_draw::WidgetAppearances::read(view) -> Option<Self>` | reads the AcroForm and `/DR` fonts once per page; `None` = no `/AcroForm`. |
 | `WidgetAppearances::appearance(&self, view, widget_id) -> Option<SynthesizedAppearance>` | the `/AP /N` form a regenerate would build, never inserted. `None` for a signature field or a widget not in the form. |
-| `SynthesizedAppearance { ap_dict, content, kind }` | `#[non_exhaustive]`; `kind: SynthesizedKind` = `Text`, `Choice`, `CheckBox`, `RadioButton`, `PushButton`. |
+| `SynthesizedAppearance { ap_dict, content, kind, notes }` | `#[non_exhaustive]`; `kind: SynthesizedKind` = `Text`, `Choice`, `CheckBox`, `RadioButton`, `PushButton`. `notes: field_display::DisplayNotes`. |
+| `pdfcer_core::field_display::DisplayNotes` | `#[non_exhaustive]`. `formatted: bool`, `unformatted: Option<String>` (the plain-words reason `/V` was drawn unformatted), `ignored_top_index: Option<i64>`, `ignored_selected: Vec<i64>`; `is_empty()`, `ignored_list_indices()`. Show a non-empty note off-canvas (rule 4). |
 
 What is drawn: text value in the `/DA` font, size (`0 Tf` auto-fits) and
-colour, `/Q`, comb, multiline, password mask; choice's selected value;
+colour, `/Q`, comb, multiline, password mask, and a text or editable-combo
+field's recognised `AF*_Format` output (red when its negative style says so;
+`/V` unchanged); a combo's selected value; a list box's `/Opt` rows from `/TI`
+(else the first window holding the first selection) with a band behind each
+selected row (`/V`, else `/I`);
 check/radio on or off from `/AS` (else `/V`), glyph from `/MK /CA`;
 push-button caption; `/MK /BC` / `/BG` with `/BS` width and dash; `/MK /R`.
 Same builders as `regenerate_appearances`, so a later regenerate draws the

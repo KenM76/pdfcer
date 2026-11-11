@@ -3317,9 +3317,11 @@ pub(crate) use button_icon::{ButtonIcon, push_button_with_icon};
 pub use button_icon::{CaptionPosition, IconFit, IconScaleWhen, IconScaling};
 
 mod derived;
+mod list_box;
 pub use derived::{
     DERIVED_SUBTYPES, DerivedAppearance, FreeTextC, NotDerived, PlacedAppearance, derive_appearance,
 };
+pub(crate) use list_box::build_list_box_appearance;
 
 /// The resource name pdfcer authors its standard-14 font under, inside a
 /// text appearance's own `/Resources` `/Font` (FreeText has no `/DR`, so
@@ -5193,24 +5195,7 @@ pub fn build_field_text_appearance(
     // inside that clip or malformed. Prepending is the only correct order
     // and it is also the visually correct one — the box is behind the
     // letters.
-    let mut content = Vec::new();
-    let bg = chrome.fill(None);
-    let has_border = chrome.border_color.is_some_and(|c| c != MkColor::None);
-    if bg.is_some() || has_border {
-        let mut box_art = ContentBuilder::new();
-        if let Some(bg) = bg {
-            set_fill(&mut box_art, bg);
-            box_art.rect(0.0, 0.0, bbox.urx, bbox.ury);
-            box_art.paint(Paint::Fill);
-        }
-        if has_border {
-            stroke_frame(&mut box_art, &chrome, bbox.urx, bbox.ury);
-            if let Some(cells) = comb.filter(|&c| c > 1) {
-                comb_dividers(&mut box_art, &chrome, bbox.urx, bbox.ury, cells);
-            }
-        }
-        content.extend_from_slice(&box_art.into_bytes());
-    }
+    let mut content = field_box_art(&chrome, bbox.urx, bbox.ury, comb);
     content.extend_from_slice(&va.content);
 
     Ok(FieldAppearance {
@@ -5221,6 +5206,34 @@ pub fn build_field_text_appearance(
         da_colour_unmodelled: va.da_colour_unmodelled,
         unencodable_chars: va.unencodable_chars,
     })
+}
+
+/// A text or choice widget's `/MK /BG` fill and `/BC` frame (plus a comb's
+/// dividers), drawn before its text; empty when it states neither.
+fn field_box_art(chrome: &WidgetChrome, w: f64, h: f64, comb: Option<usize>) -> Vec<u8> {
+    let bg = chrome.fill(None);
+    let has_border = field_has_border(chrome);
+    if bg.is_none() && !has_border {
+        return Vec::new();
+    }
+    let mut box_art = ContentBuilder::new();
+    if let Some(bg) = bg {
+        set_fill(&mut box_art, bg);
+        box_art.rect(0.0, 0.0, w, h);
+        box_art.paint(Paint::Fill);
+    }
+    if has_border {
+        stroke_frame(&mut box_art, chrome, w, h);
+        if let Some(cells) = comb.filter(|&c| c > 1) {
+            comb_dividers(&mut box_art, chrome, w, h, cells);
+        }
+    }
+    box_art.into_bytes()
+}
+
+/// Whether a text or choice widget draws a frame: it states a `/BC` colour.
+fn field_has_border(chrome: &WidgetChrome) -> bool {
+    chrome.border_color.is_some_and(|c| c != MkColor::None)
 }
 
 /// The `cells - 1` vertical dividers of a bordered comb field, in the

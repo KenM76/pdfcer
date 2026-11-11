@@ -223,6 +223,33 @@ pub fn inventory(view: &DocumentView<'_>) -> ScriptInventory {
     out
 }
 
+/// The classification of `field`'s `/AA` `/F` (format) JavaScript action,
+/// `None` when it has none. An unreadable `/JS` is [`ScriptClass::Custom`].
+pub(crate) fn format_class(view: &DocumentView<'_>, field: &forms::Field) -> Option<ScriptClass> {
+    if !field.has_additional_actions {
+        return None;
+    }
+    let aa = view
+        .resolved(field.id)
+        .as_dict()?
+        .get(b"AA")
+        .map(|o| view.resolve(o))?
+        .as_dict()?;
+    let action = view.resolve(aa.get(Trigger::Format.key())?).as_dict()?;
+    if action
+        .get(b"S")
+        .and_then(Object::as_name)
+        .map(|n| n.as_bytes())
+        != Some(b"JavaScript")
+    {
+        return None;
+    }
+    Some(match read_js(view, action.get(b"JS")).1 {
+        Some(js) => classify(&js, Trigger::Format),
+        None => ScriptClass::Custom,
+    })
+}
+
 /// Read a `/JS` entry's bytes, from either carrier (§12.6.4.16).
 ///
 /// Returns the carrier kind alongside the bytes so a caller can disclose

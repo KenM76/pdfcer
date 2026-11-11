@@ -441,12 +441,16 @@ pub(crate) fn cmd_regenerate_appearances(input: &Path, output: &Path, mode: Save
         Ok(o) => o,
         Err(code) => return code,
     };
+    print_display_counts("regenerate-appearances", &outcome.display);
     println!(
-        "regenerate-appearances {} regenerated={} need_appearances_cleared={} mode={} -> {}; \
-objects={} out_bytes={}",
+        "regenerate-appearances {} regenerated={} need_appearances_cleared={} formatted={} \
+unformatted={} list_indices_ignored={} mode={} -> {}; objects={} out_bytes={}",
         input.display(),
         outcome.regenerated,
         u32::from(outcome.need_appearances_cleared),
+        outcome.display.formatted,
+        outcome.display.unformatted,
+        outcome.display.list_indices_ignored,
         mode.name(),
         output.display(),
         saved.report.objects_written,
@@ -705,4 +709,23 @@ pub(crate) fn print_layout(subject: &str, l: &pdfcer_core::edit::LayoutDisclosur
         l.da_colour_unmodelled,
         l.unencodable_chars,
     );
+    print_display_counts(subject, &l.display);
+}
+
+/// Report the appearances drawn with `/V` unformatted, and the list-box
+/// `/TI`/`/I` indices ignored (rule 4: what pdfcer declined to infer).
+pub(crate) fn print_display_counts(subject: &str, d: &pdfcer_core::field_display::DisplayCounts) {
+    if d.unformatted > 0 {
+        eprintln!(
+            "pdfcer: {subject}: {} field(s) have a format action pdfcer does not reproduce; \
+their stored value is drawn unformatted",
+            d.unformatted
+        );
+    }
+    if d.list_indices_ignored > 0 {
+        eprintln!(
+            "pdfcer: {subject}: {} list-box /TI or /I index(es) named no option and were ignored",
+            d.list_indices_ignored
+        );
+    }
 }
