@@ -4,6 +4,17 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-11-11 (1518th filing) — `Pass 700.13`-`700.18` filed: vector print parity with professional RIPs (operator request in chat)
+
+**Filed (docs only; no shell here, git/CI state not checked from here; nothing built):**
+- `700.13` vector atomic-region flattener (new crate `pdfcer-flatten`), `700.14` smooth shadings as vector EMF, `700.15` vector soft masks, `700.16` send the PDF straight to PDF-reading printers (`--pdf-direct`), `700.17` print pipeline split (`pdfcer-emf`) for the `pdfcraft` port, `700.18` local parity check on the licensed print test file (local only, never committed). All OPEN, none started. Full text in the ROADMAP *Next up* banners.
+- **Baseline (engineer, v0.145.0 release binary):** 6 of 6 pages raster on `pdfcer print` dry run; EMF per-page raster counts and 243-388 overprint paints refused per page are in the ROADMAP banner.
+- **Parity target:** Adobe's flattener at High Resolution (full vector); acceptance to be refined from the parallel `pdfcer-acrobat-librarian` research.
+- **Cross-project:** `pdfcraft` (`D:\Dev\pdfcraft`) will port the print stack so all craft apps share print capability; `700.17` owes it a channel note.
+- FEATURES: six *Planned* rows; the *Implemented* "Blend flattening for EMF" row and the `Pass 627.0` Backlog entry now point at `700.13`.
+
+**For next session:** `700.12`, then `700.17`, then `700.13`; `700.16` is independent. Numbers `700.13`-`700.18` by grep, not `tools/check-ledger-numbers.py`.
+
 ## 2026-11-11 (1517th filing) — `abf5be35` `Pass 700.9` SHIPPED: rich-text field appearances from `/RV` + `/DS` (`X071` part 2)
 
 **Shipped (engineer-reported; no shell here, git/CI state not checked from here; docs only):**
