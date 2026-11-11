@@ -4,13 +4,14 @@
 //! reach before it paints. Once the ceiling is spent, everything left on
 //! the page is skipped and counted in `Diagnostics::content_truncated`.
 
-use tiny_skia::{Path, PathSegment, Rect, Transform};
+use pdfcer_core::content::Operation;
+use tiny_skia::{FillRule, Path, PathSegment, Rect, Transform};
 
 use super::Interpreter;
 use crate::canvas::Canvas;
-use crate::page_budget::{BLENDED_PAINT_WEIGHT, Refusal};
+use crate::page_budget::{BLENDED_PAINT_WEIGHT, MeshMeter, Refusal};
 
-impl Interpreter<'_> {
+impl<'a> Interpreter<'a> {
     /// Charge a paint whose device-space bounds are `bounds` (`None`: the
     /// whole clip) and whose painted area cannot exceed `cap` pixels.
     /// `fill` and `stroke` say which alphas apply; a fill-only paint (`sh`,
@@ -66,6 +67,46 @@ impl Interpreter<'_> {
             _ => None,
         };
         self.coverage_spent(bounds, cap, (fill, stroke), canvas)
+    }
+
+    /// The `sh` operator, with its mesh charged to the page's ceiling.
+    pub(super) fn shading_operator(&mut self, op: &Operation<'_>, canvas: &mut Canvas<'_>) {
+        let meter = self.mesh_meter(canvas);
+        let before = self.budget.mesh_cuts();
+        self.shading_operator_metered(op, canvas, meter);
+        self.note_mesh_cuts(before);
+    }
+
+    /// Fill or stroke `path` with the current pattern, with a shading
+    /// pattern's mesh charged to the page's ceiling. Returns whether the
+    /// pattern painted.
+    pub(super) fn paint_with_pattern(
+        &mut self,
+        path: &Path,
+        rule: FillRule,
+        ctm: Transform,
+        stroking: bool,
+        canvas: &mut Canvas<'_>,
+    ) -> bool {
+        let meter = self.mesh_meter(canvas);
+        let before = self.budget.mesh_cuts();
+        let painted = self.paint_with_pattern_metered((path, rule, ctm, stroking), canvas, meter);
+        self.note_mesh_cuts(before);
+        painted
+    }
+
+    fn mesh_meter(&self, canvas: &Canvas<'_>) -> MeshMeter<'a> {
+        let pixels = u64::from(canvas.width()) * u64::from(canvas.height());
+        MeshMeter::new(self.budget, pixels)
+    }
+
+    /// Count each mesh the meter stopped since `before` as truncated.
+    fn note_mesh_cuts(&mut self, before: usize) {
+        let cut = self.budget.mesh_cuts() - before;
+        if cut > 0 {
+            self.diag.content_truncated += cut;
+            self.diag.note(Refusal::Coverage.note());
+        }
     }
 
     /// [`BLENDED_PAINT_WEIGHT`] when the paint composites rather than

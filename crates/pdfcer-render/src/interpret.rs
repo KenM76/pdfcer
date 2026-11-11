@@ -5467,7 +5467,12 @@ impl<'a> Interpreter<'a> {
     /// and also that this route **ignores `/Background`**. The route is
     /// carried into the model as [`crate::shading::PaintRoute::ShOperator`]
     /// rather than assumed at the paint site.
-    fn shading_operator(&mut self, op: &Operation<'_>, canvas: &mut Canvas<'_>) {
+    fn shading_operator_metered(
+        &mut self,
+        op: &Operation<'_>,
+        canvas: &mut Canvas<'_>,
+        meter: crate::page_budget::MeshMeter<'_>,
+    ) {
         let doc = self.doc;
         let resources = self.resources;
 
@@ -5823,7 +5828,16 @@ impl<'a> Interpreter<'a> {
                     // with every counter reading green.
                     self.diag.overprint_shadings_unsupported += 1;
                 } else if shading
-                    .paint_cmyk(to_target, region, clip, alpha, rules, &spot_planes, buf)
+                    .paint_cmyk(
+                        to_target,
+                        region,
+                        clip,
+                        alpha,
+                        rules,
+                        &spot_planes,
+                        buf,
+                        meter,
+                    )
                     .is_some()
                 {
                     self.diag.shading.painted += 1;
@@ -5918,6 +5932,7 @@ impl<'a> Interpreter<'a> {
                         [crate::overprint::ComponentRule::Source; 4],
                         &spot_planes,
                         buf,
+                        meter,
                     )
                     .is_some()
             {
@@ -5927,7 +5942,7 @@ impl<'a> Interpreter<'a> {
 
             if !painted_natively
                 && shading
-                    .paint(to_target, region, clip, alpha, &mut scratch)
+                    .paint_metered(to_target, region, clip, alpha, &mut scratch, meter)
                     .is_some()
             {
                 // `Blend::Normal`, even when overprint is in force, on every
@@ -5958,7 +5973,7 @@ impl<'a> Interpreter<'a> {
         // it (`ExportTally::shadings_rasterised`).
         if let Some(scratch) = canvas.export_scratch(self.gs.current.clip_ref().id) {
             if shading
-                .paint(to_target, region, clip, alpha, scratch)
+                .paint_metered(to_target, region, clip, alpha, scratch, meter)
                 .is_some()
             {
                 self.diag.shading.painted += 1;
@@ -5971,7 +5986,7 @@ impl<'a> Interpreter<'a> {
             self.diag.shading.refused += 1;
             return;
         };
-        if let Some(pixels) = shading.paint(to_target, region, clip, alpha, dest) {
+        if let Some(pixels) = shading.paint_metered(to_target, region, clip, alpha, dest, meter) {
             // `painted` counts SHADINGS drawn, not pixels — the pixel
             // count is the return value and is used only to decide whether
             // anything landed. A shading that resolved and painted zero
@@ -7530,13 +7545,11 @@ impl<'a> Interpreter<'a> {
     ///
     /// `ctm` is the transform the path is painted through, which is not
     /// always `gs.current.ctm` (a precise path is origin-relative).
-    fn paint_with_pattern(
+    fn paint_with_pattern_metered(
         &mut self,
-        path: &Path,
-        rule: FillRule,
-        ctm: Transform,
-        stroking: bool,
+        (path, rule, ctm, stroking): (&Path, FillRule, Transform, bool),
         canvas: &mut Canvas<'_>,
+        meter: crate::page_budget::MeshMeter<'_>,
     ) -> bool {
         let Some(name) = self.color.pattern(stroking).map(<[u8]>::to_vec) else {
             return false;
@@ -7750,6 +7763,7 @@ impl<'a> Interpreter<'a> {
                             rules,
                             &spot_planes,
                             buf,
+                            meter,
                         )
                         .is_some()
                 {
@@ -7767,7 +7781,7 @@ impl<'a> Interpreter<'a> {
                 return false;
             };
             return if shading
-                .paint(to_target, region, Some(&mask), alpha, &mut scratch)
+                .paint_metered(to_target, region, Some(&mask), alpha, &mut scratch, meter)
                 .is_some()
             {
                 if op {
@@ -7792,7 +7806,7 @@ impl<'a> Interpreter<'a> {
         // the clip.
         if let Some(scratch) = canvas.export_scratch(self.gs.current.clip_ref().id) {
             return if shading
-                .paint(to_target, region, Some(&mask), alpha, scratch)
+                .paint_metered(to_target, region, Some(&mask), alpha, scratch, meter)
                 .is_some()
             {
                 self.diag.shading.painted += 1;
@@ -7807,7 +7821,7 @@ impl<'a> Interpreter<'a> {
             return false;
         };
         if shading
-            .paint(to_target, region, Some(&mask), alpha, dest)
+            .paint_metered(to_target, region, Some(&mask), alpha, dest, meter)
             .is_some()
         {
             self.diag.shading.painted += 1;

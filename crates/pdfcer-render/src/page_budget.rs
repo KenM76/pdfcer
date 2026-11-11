@@ -44,6 +44,19 @@ pub const MIN_COVERAGE: u64 = 1 << 33;
 /// the ceiling allowed about 40 seconds of them.
 pub const BLENDED_PAINT_WEIGHT: u64 = 16;
 
+/// How many pixels of the ceiling one pixel of mesh work costs (shading
+/// types 4 to 7). Each triangle is charged the pixels of its device
+/// bounds that land in the paint area, plus [`MESH_TRIANGLE_COST`]; each
+/// patch is charged its subdivision grid points before they are evaluated.
+/// Measured: a mesh triangle costs about 14 ns per pixel of its bounds,
+/// against about 0.3 ns for an opaque fill, so overlapping triangles spend
+/// the ceiling at the same rate in seconds as opaque fills do.
+pub const MESH_PIXEL_WEIGHT: u64 = 48;
+
+/// The pixels of mesh work one triangle costs before it reaches a pixel:
+/// its setup, and the whole cost of a triangle outside the paint area.
+pub const MESH_TRIANGLE_COST: u64 = 16;
+
 /// Why [`PageBudget::enter`] refused a stream.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum Refusal {
@@ -73,6 +86,38 @@ pub(crate) struct PageBudget {
     nested_paints: Cell<usize>,
     held: Cell<usize>,
     coverage: Cell<u64>,
+    mesh_cuts: Cell<usize>,
+}
+
+/// Charges one mesh paint's triangles and patches against a
+/// [`PageBudget`]'s coverage ceiling, weighted by [`MESH_PIXEL_WEIGHT`].
+#[derive(Debug, Clone, Copy)]
+pub(crate) struct MeshMeter<'a> {
+    budget: &'a PageBudget,
+    canvas_pixels: u64,
+}
+
+impl<'a> MeshMeter<'a> {
+    /// A meter for a paint onto a canvas of `canvas_pixels`.
+    pub(crate) const fn new(budget: &'a PageBudget, canvas_pixels: u64) -> Self {
+        Self {
+            budget,
+            canvas_pixels,
+        }
+    }
+
+    /// Charge `pixels` of mesh work. Returns `false` once the ceiling is
+    /// spent, and counts the paint in [`PageBudget::mesh_cuts`]; the caller
+    /// stops the mesh there.
+    pub(crate) fn charge(&self, pixels: u64) -> bool {
+        let weighted = pixels.saturating_mul(MESH_PIXEL_WEIGHT);
+        if self.budget.cover(weighted, self.canvas_pixels) {
+            return true;
+        }
+        let cuts = &self.budget.mesh_cuts;
+        cuts.set(cuts.get() + 1);
+        false
+    }
 }
 
 impl PageBudget {
@@ -137,6 +182,11 @@ impl PageBudget {
         }
         self.coverage.set(spent.saturating_add(pixels));
         true
+    }
+
+    /// How many mesh paints a [`MeshMeter`] has stopped part-way.
+    pub(crate) fn mesh_cuts(&self) -> usize {
+        self.mesh_cuts.get()
     }
 }
 

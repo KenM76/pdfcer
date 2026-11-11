@@ -509,10 +509,10 @@ fn pdfcer-render/src/interpret.rs::paint_glyph
 fn pdfcer-render/src/interpret.rs::paint_image_overprint
 fn pdfcer-render/src/interpret.rs::paint_nonseparable
 fn pdfcer-render/src/interpret.rs::paint_type3_glyph
-fn pdfcer-render/src/interpret.rs::paint_with_pattern
+fn pdfcer-render/src/interpret.rs::paint_with_pattern_metered
 fn pdfcer-render/src/interpret.rs::run_form_at_on
 fn pdfcer-render/src/interpret.rs::run_nested
-fn pdfcer-render/src/interpret.rs::shading_operator
+fn pdfcer-render/src/interpret.rs::shading_operator_metered
 fn pdfcer-render/src/interpret.rs::show_string
 fn pdfcer-render/src/interpret.rs::stroke_params
 fn pdfcer-render/src/interpret.rs::trace_paths

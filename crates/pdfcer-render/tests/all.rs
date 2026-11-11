@@ -68,6 +68,7 @@ mod overprint_uses_the_calibrated_pair;
 mod page_blend_space_source;
 mod page_budget_bounds_coverage;
 mod page_budget_bounds_fan_out;
+mod page_budget_bounds_mesh;
 mod page_content_draws_like_the_stamp;
 mod preview_equals_saved;
 mod print_ready_copy;

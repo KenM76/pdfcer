@@ -166,6 +166,7 @@ use pdfcer_core::settings::MeshPatchPadding;
 
 use crate::color::{ColorDiagnostics, ColorSpace};
 use crate::gstate::Rgb;
+use crate::page_budget::{MESH_TRIANGLE_COST, MeshMeter};
 use crate::shading::ColorRamp;
 
 /// Ceiling on records (vertices or patches) decoded from one mesh stream.
@@ -1646,6 +1647,7 @@ pub(crate) fn paint(
     clip: Option<&tiny_skia::Mask>,
     alpha: f32,
     pixmap: &mut tiny_skia::Pixmap,
+    meter: MeshMeter<'_>,
 ) -> Option<usize> {
     #[allow(clippy::cast_possible_wrap)]
     let (scratch, ox, oy) = rasterise(
@@ -1654,8 +1656,8 @@ pub(crate) fn paint(
         to_target,
         region,
         (pixmap.width() as i32, pixmap.height() as i32),
-        false,
-        false,
+        (false, false),
+        meter,
     )?;
     if scratch.empty {
         return Some(0);
@@ -1712,6 +1714,7 @@ pub(crate) fn paint_cmyk(
     rules: [crate::overprint::ComponentRule; 4],
     (spot_planes, spot_count): (&[usize], usize),
     buf: &mut crate::cmyk_buffer::CmykBuffer,
+    meter: MeshMeter<'_>,
 ) -> Option<usize> {
     // Deposit only when EVERY spot the shading names has a plane — the
     // all-or-nothing rule `overprint::resolve_spot_planes` states.
@@ -1733,8 +1736,8 @@ pub(crate) fn paint_cmyk(
         to_target,
         region,
         (buf.width() as i32, buf.height() as i32),
-        true,
-        deposit,
+        (true, deposit),
+        meter,
     )?;
     if scratch.empty {
         return Some(0);
@@ -1818,6 +1821,9 @@ pub(crate) fn paint_cmyk(
 /// area on the page) or the scratch could not be allocated. A zero-width
 /// scratch means the clipped region was empty, which is "painted nothing"
 /// rather than a failure and is reported as such by both callers.
+///
+/// Stops at the first triangle or patch `meter` refuses, leaving the rest of
+/// the mesh undrawn.
 #[allow(clippy::cast_possible_wrap, clippy::cast_sign_loss)]
 fn rasterise(
     mesh: &Mesh,
@@ -1825,8 +1831,8 @@ fn rasterise(
     to_target: tiny_skia::Transform,
     region: (i32, i32, i32, i32),
     dst: (i32, i32),
-    want_ink: bool,
-    want_spots: bool,
+    (want_ink, want_spots): (bool, bool),
+    meter: MeshMeter<'_>,
 ) -> Option<(Scratch, i32, i32)> {
     let to_device = to_target.invert()?;
 
@@ -1896,13 +1902,15 @@ fn rasterise(
                     map(to_device, tri.xy[1]),
                     map(to_device, tri.xy[2]),
                 ];
-                fill_triangle(&mut scratch, ox, oy, dev, tri.shade, ramp);
+                if !fill_triangle(&mut scratch, (ox, oy), dev, tri.shade, ramp, meter) {
+                    break;
+                }
             }
         }
         MeshData::Patches(patches) => {
             let mut grid_p: Vec<[f32; 2]> = Vec::new();
             let mut grid_s: Vec<Shade> = Vec::new();
-            for patch in patches {
+            'mesh: for patch in patches {
                 if budget == 0 {
                     break;
                 }
@@ -1917,6 +1925,9 @@ fn rasterise(
                     break;
                 }
                 budget -= cells;
+                if !meter.charge((side * side) as u64) {
+                    break;
+                }
 
                 grid_p.clear();
                 grid_s.clear();
@@ -1946,8 +1957,24 @@ fn rasterise(
                         else {
                             continue;
                         };
-                        fill_triangle(&mut scratch, ox, oy, [pa, pb_, pc], [sa, sb_, sc], ramp);
-                        fill_triangle(&mut scratch, ox, oy, [pb_, pc, pd], [sb_, sc, sd], ramp);
+                        let o = (ox, oy);
+                        if !fill_triangle(
+                            &mut scratch,
+                            o,
+                            [pa, pb_, pc],
+                            [sa, sb_, sc],
+                            ramp,
+                            meter,
+                        ) || !fill_triangle(
+                            &mut scratch,
+                            o,
+                            [pb_, pc, pd],
+                            [sb_, sc, sd],
+                            ramp,
+                            meter,
+                        ) {
+                            break 'mesh;
+                        }
                     }
                 }
             }
@@ -2002,14 +2029,15 @@ fn patch_device_extent(patch: &Patch, to_device: tiny_skia::Transform) -> f32 {
 /// would not be harmless writing into the destination, which is the other
 /// half of why [`paint`] uses a scratch.
 ///
+/// Returns `false` once `meter` is spent; the caller stops the mesh there.
 fn fill_triangle(
     scratch: &mut Scratch,
-    ox: i32,
-    oy: i32,
+    (ox, oy): (i32, i32),
     dev: [[f32; 2]; 3],
     shade: [Shade; 3],
     ramp: Option<&ColorRamp>,
-) {
+    meter: MeshMeter<'_>,
+) -> bool {
     let (x0, y0) = (dev[0][0], dev[0][1]);
     let (x1, y1) = (dev[1][0], dev[1][1]);
     let (x2, y2) = (dev[2][0], dev[2][1]);
@@ -2020,7 +2048,7 @@ fn fill_triangle(
         && x2.is_finite()
         && y2.is_finite())
     {
-        return;
+        return meter.charge(MESH_TRIANGLE_COST);
     }
     // Twice the signed area. Zero means a degenerate triangle, for which
     // MSH-N5 records that the standard is silent — a zero-area triangle
@@ -2028,7 +2056,7 @@ fn fill_triangle(
     // a choice so much as the arithmetic.
     let area = (x1 - x0).mul_add(y2 - y0, -((x2 - x0) * (y1 - y0)));
     if area.abs() < f32::EPSILON {
-        return;
+        return meter.charge(MESH_TRIANGLE_COST);
     }
     let inv_area = 1.0 / area;
 
@@ -2068,7 +2096,12 @@ fn fill_triangle(
     let lo_y = (min_y - oy).max(0);
     let hi_y = (max_y - oy + 1).min(h);
     if lo_x >= hi_x || lo_y >= hi_y {
-        return;
+        return meter.charge(MESH_TRIANGLE_COST);
+    }
+    #[allow(clippy::cast_sign_loss)]
+    let reach = ((hi_x - lo_x) as u64) * ((hi_y - lo_y) as u64);
+    if !meter.charge(MESH_TRIANGLE_COST + reach) {
+        return false;
     }
 
     for py in lo_y..hi_y {
@@ -2145,6 +2178,7 @@ fn fill_triangle(
             }
         }
     }
+    true
 }
 
 /// The two-plane rasterisation target.

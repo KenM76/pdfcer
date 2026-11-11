@@ -4511,10 +4511,14 @@ render, against `COVERAGE_PER_CANVAS` (256) canvases or `MIN_COVERAGE`
 (2^33 pixels), whichever is larger. A translucent or blended paint (a
 constant alpha below 1, or a blend mode other than `Normal`) is charged
 `BLENDED_PAINT_WEIGHT` (16) pixels per pixel, since compositing costs about
-14 times an opaque overwrite. A stroke is charged no more than its
-length times its width; a clip-only path (`n`) and hidden content are
-not charged. All four are constants, not `RenderOptions`
-settings. A non-zero value on a hostile file is the bound
+14 times an opaque overwrite. A mesh shading (types 4 to 7) is charged
+per triangle as it rasterises: `MESH_TRIANGLE_COST` (16) plus the pixels
+of the triangle's device bounds, each weighted `MESH_PIXEL_WEIGHT` (48),
+and a patch its subdivision grid points before evaluation. Past the
+ceiling the rest of that mesh is left undrawn and the mesh counts once. A
+stroke is charged no more than its length times its width; a clip-only
+path (`n`) and hidden content are not charged. All of these are
+constants, not `RenderOptions` settings. A non-zero value on a hostile file is the bound
 working; the raster is missing that content and should say so.
 
 ### 7.3b The ink probe — what is in the colorant buffer, before it stops existing

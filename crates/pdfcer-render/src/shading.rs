@@ -1951,13 +1951,29 @@ fn paint_region(
     let height = pixmap.height() as i32;
     let alpha = alpha.clamp(0.0, 1.0);
     let mut painted = 0usize;
+    // Each sample as an opaque pixel: the blend below at a = 1, computed
+    // once per sample rather than per pixel. Without FMA and SSE4.1 its
+    // `mul_add`s and `round`s are library calls, and they were most of a
+    // gradient's cost (`X067` F078).
+    #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+    let byte = |src: f32| (src * 255.0).round().clamp(0.0, 255.0) as u8;
+    let opaque: Vec<Option<tiny_skia::PremultipliedColorU8>> = ramp
+        .samples
+        .iter()
+        .map(|s| {
+            s.and_then(|c| {
+                tiny_skia::PremultipliedColorU8::from_rgba(byte(c.r), byte(c.g), byte(c.b), 255)
+            })
+        })
+        .collect();
 
     for py in y_lo.max(0)..y_hi.min(height) {
         for px in x_lo.max(0)..x_hi.min(width) {
             let Some((t, coverage)) = sample_at(shading, to_target, px, py, width, clip) else {
                 continue;
             };
-            let Some(rgb) = ramp.at(t) else {
+            let sample = ramp.index_of(t);
+            let Some(rgb) = ramp.samples.get(sample).copied().flatten() else {
                 continue;
             };
             let idx = (py as usize) * (width as usize) + (px as usize);
@@ -1979,6 +1995,15 @@ fn paint_region(
             // rejected: it needs a divide by the output alpha, which is a
             // second place for a 0/0 to appear on exactly the pixels where
             // nothing should be drawn anyway.
+            if a >= 1.0 {
+                if let Some(&Some(c)) = opaque.get(sample)
+                    && let Some(slot) = pixmap.pixels_mut().get_mut(idx)
+                {
+                    *slot = c;
+                    painted += 1;
+                }
+                continue;
+            }
             let Some(&dst) = pixmap.pixels().get(idx) else {
                 continue;
             };
@@ -2154,6 +2179,7 @@ impl Shading {
         rules: [crate::overprint::ComponentRule; 4],
         spot_planes: &[usize],
         buf: &mut crate::cmyk_buffer::CmykBuffer,
+        meter: crate::page_budget::MeshMeter<'_>,
     ) -> Option<usize> {
         if let Some(mesh) = self.mesh.as_ref() {
             return crate::mesh::paint_cmyk(
@@ -2167,6 +2193,7 @@ impl Shading {
                 rules,
                 (spot_planes, self.spot_colorants().len()),
                 buf,
+                meter,
             );
         }
         if !self.geometry.is_analytic() || matches!(self.geometry, Geometry::FunctionBased { .. }) {
@@ -2219,6 +2246,23 @@ impl Shading {
         alpha: f32,
         pixmap: &mut tiny_skia::Pixmap,
     ) -> Option<usize> {
+        let budget = crate::page_budget::PageBudget::default();
+        let canvas = u64::from(pixmap.width()) * u64::from(pixmap.height());
+        let meter = crate::page_budget::MeshMeter::new(&budget, canvas);
+        self.paint_metered(to_target, region, clip, alpha, pixmap, meter)
+    }
+
+    /// [`Self::paint`], charging a mesh's triangles to `meter`: the
+    /// interpreter's route, so a page's meshes share its coverage ceiling.
+    pub(crate) fn paint_metered(
+        &self,
+        to_target: tiny_skia::Transform,
+        region: (i32, i32, i32, i32),
+        clip: Option<&tiny_skia::Mask>,
+        alpha: f32,
+        pixmap: &mut tiny_skia::Pixmap,
+        meter: crate::page_budget::MeshMeter<'_>,
+    ) -> Option<usize> {
         // A mesh is FORWARD-rasterised and shares nothing below this line
         // but the arguments: no `Param`, no ramp lookup per pixel, no
         // inverse map except for `/BBox`. See `crate::mesh`'s module docs
@@ -2233,6 +2277,7 @@ impl Shading {
                 clip,
                 alpha,
                 pixmap,
+                meter,
             );
         }
         if !self.geometry.is_analytic() {
