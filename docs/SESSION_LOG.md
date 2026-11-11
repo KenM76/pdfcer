@@ -4,6 +4,14 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-11-11 (1527th filing) — `08e039c5` `Pass 700.20` follow-up: spot-route probe output padding removed
+
+**Shipped (engineer-reported; no shell here, git/CI state not checked from here; docs only):**
+- `08e039c538fe15144749fa52859bc29be40aa3a5` `test(render): drop column padding from the spot-route probe output (Pass 700.20)`. Test output only, in `crates/pdfcer-render/tests/spot_overprint_routes.rs`; `tools/check-string-gaps.sh` had flagged three column-aligned `println!` literals. No behaviour change; no FEATURES.md rows affected. One-line note added to the Pass 700.20 *Shipped* entry.
+- **Lesson:** the worker's gate list omitted the shell gate `check-string-gaps.sh`; it was caught only by the pre-push audits loop, not by the worker's own gates.
+
+**For next session:** as the 1526th entry.
+
 ## 2026-11-11 (1526th filing) — `b4b09e32` `Pass 700.19` SHIPPED: ICCBased CMYK source profile on the screen route (`X074`)
 
 **Shipped (engineer-reported; no shell here, git/CI state not checked from here; docs only; filed together with the 1525th):**

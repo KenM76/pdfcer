@@ -133,6 +133,7 @@ Engineer-reported; no shell here, git, push and CI state not checked from here. 
 - **Tests (engineer-reported):** new `tests/spot_overprint_routes.rs`, 21 synthetic cases across the composite, print, banded, plates and EMF routes, plus a per-reason diagnostics test; CLI `render_page` metrics key order and roster note. Each fix sabotaged and caught.
 - **Gates (engineer-reported, on main):** fmt and clippy clean; `pdfcer-render` and `pdfcer-cli` suites green (123, 1079 (2 ignored), 576, 686 (3 ignored) and 38 tests, 0 failed); code-structure, tests-harnessed, public-fns-documented clean.
 - **FEATURES:** the *Planned* row moved to *Implemented* (spot overprint and DeviceN plus diagnostics counters): core `[x]`, cli `[x]` (metrics line), gui `[ ]`.
+- **Follow-up `08e039c5`:** test probe output padding removed for check-string-gaps (test output only; no behaviour change).
 
 ### `380cdc00` `Pass 700.10`: signature field appearances and an appearance builder (`X071` part 3, closes `X071`), 2026-11-11 (1523rd filing)
 
