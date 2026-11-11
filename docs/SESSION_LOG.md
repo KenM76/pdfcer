@@ -4,6 +4,20 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-11-11 (1503rd filing) — `6a475cc6` `Pass 705.2a` SHIPPED: CPU probe-volume bounce engine (PARTIAL, `705.2` open)
+
+**Shipped (engineer-reported; no shell here, git/CI state not checked from here):**
+- `6a475cc6ec92348ff3da6fc58293d1df7bc55d7c`, `feat(3d): probe-volume bounce light from model lamps, CPU engine (Pass 705.2a)`. `pdfcer-3d` only, `pub(crate)`, new `indirect.rs` + `indirect/{grid,inside,octa,trace,tests}.rs`. Detail is in the ROADMAP `705.2` entry and the commit message.
+- Tests: 17 new; `pdfcer-3d` 500 lib + 32 + 5 doctest; workspace check, fmt, clippy, code-structure clean; 11 sabotages caught. No manifest change.
+
+**Decisions:** none new (decision 224). **FEATURES.md:** bounced-light row note only; no box ticked (engine has no caller).
+
+**Findings:** DDGI depth moments need a distance cap (1.5x cell diagonal) and cos^64 weighting or a lit exterior leaks into a sealed room. Filed: `D:\dev\rag\rust\ddgi_probe_depth_moments_cap_distance_and_sharpen_cosine_weight_or_lit_exterior_leaks_into_sealed_room.md` (index bullet added).
+
+**Still in flight:** `705.2b` renderer wiring; `705.0` Adreno timing (E065a reply owed).
+
+**For next session:** `705.2b`: `RenderOptions` indirect field, lamp classification, per-pixel irradiance in shade, CLI flags and disclosure, Off byte-identical, digests pinned.
+
 ## 2026-11-11 (1502nd filing) — `a8c3f267` `Pass 705.1` SHIPPED: `PickIndex` closest-hit and any-hit ray queries
 
 **Shipped (engineer-reported; no shell here, git/push/CI state not checked from here; docs only, engineer commits):**
