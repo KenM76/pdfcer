@@ -392,12 +392,12 @@ fn measure_every_route() {
         for (i, (k, s)) in c.ink.iter().enumerate() {
             println!("    ink[{i}] {k:?} {s:?}");
         }
-        println!("  print     rgb {:?}", p.rgb);
+        println!("  print rgb {:?}", p.rgb);
         let banded = composite(
             &bytes,
             &route_options(true).with_max_cmyk_buffer_bytes(Some(BANDED_CAP)),
         );
-        println!("  banded    rgb {:?}", banded.rgb);
+        println!("  banded rgb {:?}", banded.rgb);
         for (i, (k, s)) in banded.ink.iter().enumerate() {
             println!("    ink[{i}] {k:?} {s:?}");
         }
@@ -405,8 +405,8 @@ fn measure_every_route() {
             &bytes,
             &route_options(true).with_max_cmyk_buffer_bytes(Some(1)),
         );
-        println!("  refused   rgb {:?}", fb.rgb);
-        println!("  plates    {:?}", plates(&bytes));
+        println!("  refused rgb {:?}", fb.rgb);
+        println!("  plates {:?}", plates(&bytes));
         #[cfg(windows)]
         {
             println!("  emf       {:?}", emf(&bytes, false, "m0"));
