@@ -4,6 +4,18 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-11-11 (1512th filing) — `X071` filed as `Pass 700.8`, `700.9`, `700.10` (pressed/rollover states, rich-text field appearances, signature field appearances)
+
+**Filed (nothing shipped; no shell here, git/CI state not checked from here):**
+- `X071` (operator, crates consumer; `D:\Dev\FeatureRequests\pdfce_FeatureRequests\open\request_X071_down_rollover_rich_text_and_signature_appearances.md`) split by its three Parts: `Pass 700.8` (widget appearance state Normal/Down/Rollover, `/D` `/R` `/AS`, fallback to `/N` reported, built pressed look from `/MK`), `Pass 700.9` (`/RV` + `/DS` rich-text appearances, `/V` stays plain), `Pass 700.10` (unsigned placeholder, signed name+date look, signing-appearance build API; existing `/AP` untouched). Acceptance copied per Part into `ROADMAP.md` *Next up* as a banner block (no `###`, so the register-size gate is not tripped).
+- Ordering: the request wanted `X071` after the release carrying `X069`/`X070`; the operator states `v0.145.0` was tagged at `9077e43aafd40cd07effef67dd0031f9bd36ab52` today, so `X071` is active (not verified from here).
+- Amendment (same filing): the `700.8` FEATURES row duplicated the existing `Pass 131.0` "looks pressed while held" row (spelled "down appearance"); merged into that row, duplicate deleted. Re-sweep for rich-text (`/RV`) and signature-appearance rows found no duplicate: the `Fill fields` row only notes `/RV` is read and downgraded on replace, and the unsigned-`/Sig` row is a rebuild-after-edit capability, both distinct from `700.9`/`700.10`.
+- IDs `700.8`-`700.10` verified free by grep of `docs/*.md` (zero hits), not by `tools/check-ledger-numbers.py`.
+
+**FEATURES.md:** three rows added at the top of *Planned*, all unticked: `Draw a widget in its pressed or rollover look` (core `[ ]`, cli `[ ]`, gui `—`), `Rich-text fields draw their formatting`, `Signature fields without an appearance get a built look` (both all `[ ]`). Each under 1,200 characters (by eye, no shell).
+
+**For next session:** start `700.8`; spec-RAG check for §12.5.5, §12.7.3.4, §12.7.4.5 before coding.
+
 ## 2026-11-11 (1511th filing) — `e6d4b3e1` doc-link fix: bracketed spec quote failed CI-style `cargo doc` (`Pass 700.6` follow-up)
 
 **Shipped (engineer-reported; no shell here, git/CI state not checked from here):**
