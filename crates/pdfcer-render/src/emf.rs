@@ -84,14 +84,18 @@ use tiny_skia::{
 use crate::RenderError;
 use crate::canvas::{Brush, BrushSpec, LayerPaint};
 use crate::display_list::{
-    ClipDef, ClipId, DeviceBounds, ExportTally, MaskBuilder, Op, record_page_for_export, replay_ops,
+    ClipDef, ClipId, DeviceBounds, ExportRecording, ExportTally, MaskBuilder, Op,
+    record_page_for_export, replay_ops,
 };
 use crate::export::Rgb;
 use crate::font::RenderOptions;
 use crate::interpret::Diagnostics;
 
+mod bitmap;
+mod patch;
 mod print;
-pub use print::{PrintMetafileError, RasterReason, print_metafile};
+pub use patch::EmfPatches;
+pub use print::{PrintMetafileError, RasterReason, print_metafile, print_metafile_with};
 
 /// How an EMF is written.
 #[derive(Debug, Clone, PartialEq)]
@@ -113,6 +117,12 @@ pub struct EmfOptions {
     /// The rest become pixels. On by default; off writes every flattened
     /// blend as pixels.
     pub underlay_blends: bool,
+    /// Replace what the recording can only approximate (overprint, a
+    /// non-isolated group, a blend inside a group, compositing in a
+    /// subtractive page group) with the raster's true pixels over the
+    /// smallest box that holds it; everything else stays vector. Off by
+    /// default; see [`EmfPatches`].
+    pub patch_approximations: bool,
 }
 
 /// How an EMF writes text.
@@ -171,6 +181,7 @@ impl Default for EmfOptions {
             background: None,
             text: EmfText::Outlines,
             underlay_blends: true,
+            patch_approximations: false,
         }
     }
 }
@@ -202,6 +213,20 @@ impl EmfOptions {
     #[must_use]
     pub fn with_underlay_blends(mut self, underlay: bool) -> Self {
         self.underlay_blends = underlay;
+        self
+    }
+
+    /// Write approximated regions as true pixels; see
+    /// [`Self::patch_approximations`].
+    ///
+    /// ```
+    /// use pdfcer_render::emf::EmfOptions;
+    /// let options = EmfOptions::default().with_patch_approximations(true);
+    /// assert!(options.patch_approximations);
+    /// ```
+    #[must_use]
+    pub fn with_patch_approximations(mut self, patch: bool) -> Self {
+        self.patch_approximations = patch;
         self
     }
 }
@@ -246,8 +271,12 @@ pub struct EmfOutcome {
     pub nonzero_fills_multi_subpath: usize,
     /// What [`EmfText::KeepText`] did.
     pub text: EmfTextOutcome,
+    /// What [`EmfOptions::patch_approximations`] wrote as pixels.
+    pub patches: EmfPatches,
     /// The export recording's own tally (what was rasterised or
-    /// approximated BEFORE this writer saw it).
+    /// approximated BEFORE this writer saw it). With
+    /// [`EmfOptions::patch_approximations`] the approximations it patched
+    /// are zero here and counted in [`Self::patches`].
     pub tally: ExportTally,
     /// The interpreter's honesty report for the walk.
     pub diagnostics: Diagnostics,
@@ -297,13 +326,7 @@ pub fn export_emf_view(
     let keep_text = emf.text == EmfText::KeepText;
     let mut recording = record_page_for_export(view, page, scale, render, keep_text)?;
     let (w_px, h_px) = recording.page_size;
-    let flattened = crate::blend_flatten::flatten_blends(
-        &mut recording.ops,
-        &recording.clips,
-        w_px,
-        h_px,
-        emf.underlay_blends,
-    );
+    let (flattened, plan) = flatten_and_plan(&mut recording, view, page, render, emf, scale);
 
     // Device pixel -> 0.01 mm. A page is at most 14 400 pt = 5 080 mm =
     // 508 000 units; the guard is against a resolution that would overflow
@@ -318,44 +341,15 @@ pub fn export_emf_view(
         });
     }
 
-    let mut w = Writer {
-        out: Vec::with_capacity(64 * 1024),
-        records: 0,
-        max_handle: 0,
-        clips: &recording.clips,
-        current_clip: None,
-        clip_saved: false,
-        fill_mode: 0,
-        unit,
-        page_w: w_px,
-        page_h: h_px,
-        outcome: EmfOutcome {
-            width_pt: 0.0,
-            height_pt: 0.0,
-            ops: 0,
-            rasters_embedded: 0,
-            ops_rasterised_for_alpha: 0,
-            blend_modes_dropped: 0,
-            blends_flattened: flattened.total(),
-            blends_underlaid: flattened.underlaid,
-            gradients_rasterised: 0,
-            images_embedded: 0,
-            layers_rasterised: 0,
-            dashed_strokes_pre_applied: 0,
-            nonzero_fills_multi_subpath: 0,
-            text: EmfTextOutcome::default(),
-            tally: recording.tally,
-            diagnostics: recording.diagnostics.clone(),
-        },
-        raster_prologue_done: false,
-        text_align_set: false,
-        text_colour: None,
-    };
+    let mut outcome = EmfOutcome::empty(recording.tally, recording.diagnostics.clone());
+    outcome.blends_flattened = flattened.total();
+    outcome.blends_underlaid = flattened.underlaid;
     #[allow(clippy::cast_precision_loss)]
     {
-        w.outcome.width_pt = w_px as f32 / scale;
-        w.outcome.height_pt = h_px as f32 / scale;
+        outcome.width_pt = w_px as f32 / scale;
+        outcome.height_pt = h_px as f32 / scale;
     }
+    let mut w = Writer::new(&recording.clips, unit, (w_px, h_px), outcome);
 
     // Header placeholder (108 bytes), back-patched at the end.
     w.out.resize(108, 0);
@@ -364,62 +358,77 @@ pub fn export_emf_view(
     w.record(0x12, &u32le(1)); // SETBKMODE TRANSPARENT
 
     if let Some(bg) = emf.background {
-        let rect = tiny_skia::Rect::from_xywh(0.0, 0.0, w_px as f32, h_px as f32)
-            .map(tiny_skia::PathBuilder::from_rect);
-        if let Some(path) = rect {
-            w.fill_solid(
-                &path,
-                [bg.r, bg.g, bg.b, 255],
-                FillRule::Winding,
-                Transform::identity(),
-            );
-        }
+        w.background(bg);
+    }
+    if let Some(plan) = &plan {
+        w.patch_open(plan);
     }
     w.write_ops(&recording.ops);
     w.end_clip();
-    w.record(0x0E, &[u32le(0), u32le(16), u32le(20)].concat()); // EOF
-
-    // Header.
-    #[allow(clippy::cast_possible_truncation)]
-    let (wu, hu) = (w_u as i32, h_u as i32);
-    // Readers scale logical units by Millimeters / Device, and Millimeters
-    // is whole millimetres; so Device is Millimeters × 100, keeping the
-    // ratio exactly 0.01 mm per unit whatever the page size.
-    let mm = |u: i32| ((f64::from(u) / 100.0).round() as i32).max(1);
-    let mut hdr = Vec::with_capacity(108);
-    hdr.extend_from_slice(&u32le(1));
-    hdr.extend_from_slice(&u32le(108));
-    hdr.extend_from_slice(&rectl(0, 0, wu - 1, hu - 1)); // Bounds, logical
-    hdr.extend_from_slice(&rectl(0, 0, wu - 1, hu - 1)); // Frame, 0.01 mm
-    hdr.extend_from_slice(&u32le(0x464D_4520)); // " EMF"
-    hdr.extend_from_slice(&u32le(0x0001_0000)); // version
-    #[allow(clippy::cast_possible_truncation)]
-    hdr.extend_from_slice(&u32le(w.out.len() as u32)); // Bytes
-    hdr.extend_from_slice(&u32le(w.records)); // Records (header + body + EOF)
-    #[allow(clippy::cast_possible_truncation)]
-    hdr.extend_from_slice(&(w.max_handle as u16 + 1).to_le_bytes()); // Handles
-    hdr.extend_from_slice(&0u16.to_le_bytes()); // Reserved
-    hdr.extend_from_slice(&u32le(0)); // nDescription
-    hdr.extend_from_slice(&u32le(0)); // offDescription
-    hdr.extend_from_slice(&u32le(0)); // nPalEntries
-    hdr.extend_from_slice(&i32le(mm(wu) * 100)); // Device cx (a virtual 2540 dpi device)
-    hdr.extend_from_slice(&i32le(mm(hu) * 100)); // Device cy
-    hdr.extend_from_slice(&i32le(mm(wu))); // Millimeters cx
-    hdr.extend_from_slice(&i32le(mm(hu))); // Millimeters cy
-    hdr.extend_from_slice(&u32le(0)); // cbPixelFormat
-    hdr.extend_from_slice(&u32le(0)); // offPixelFormat
-    hdr.extend_from_slice(&u32le(0)); // bOpenGL
-    hdr.extend_from_slice(&i32le(mm(wu) * 1000)); // MicrometersX
-    hdr.extend_from_slice(&i32le(mm(hu) * 1000)); // MicrometersY
-    debug_assert_eq!(hdr.len(), 108);
-    if let Some(header) = w.out.get_mut(..108) {
-        header.copy_from_slice(&hdr);
+    if let Some(plan) = &plan {
+        w.patch_close(plan);
     }
+    w.record(0x0E, &[u32le(0), u32le(16), u32le(20)].concat()); // EOF
+    #[allow(clippy::cast_possible_truncation)]
+    w.write_header(w_u as i32, h_u as i32);
 
     Ok(EmfExport {
         emf: w.out,
         outcome: w.outcome,
     })
+}
+
+/// Flatten top-level blends and, with [`EmfOptions::patch_approximations`],
+/// plan the pixel patches. On a subtractive page the plan comes first:
+/// flattening composites in RGB, which is the approximation a patch there
+/// replaces. On an additive page flattening comes first, since a flattened
+/// highlight is exact and stays vector.
+fn flatten_and_plan(
+    rec: &mut ExportRecording,
+    view: &DocumentView<'_>,
+    page: &Page,
+    render: &RenderOptions,
+    emf: &EmfOptions,
+    scale: f32,
+) -> (crate::blend_flatten::Flattened, Option<patch::Plan>) {
+    let before = emf.patch_approximations && rec.subtractive_page;
+    let mut plan = if before {
+        patch::plan(rec, view, page, render, scale)
+    } else {
+        None
+    };
+    let (w, h) = rec.page_size;
+    let flattened =
+        crate::blend_flatten::flatten_blends(&mut rec.ops, &rec.clips, w, h, emf.underlay_blends);
+    if emf.patch_approximations && !before {
+        plan = patch::plan(rec, view, page, render, scale);
+    }
+    (flattened, plan)
+}
+
+impl EmfOutcome {
+    /// Every count zero.
+    fn empty(tally: ExportTally, diagnostics: Diagnostics) -> Self {
+        Self {
+            width_pt: 0.0,
+            height_pt: 0.0,
+            ops: 0,
+            rasters_embedded: 0,
+            ops_rasterised_for_alpha: 0,
+            blend_modes_dropped: 0,
+            blends_flattened: 0,
+            blends_underlaid: 0,
+            gradients_rasterised: 0,
+            images_embedded: 0,
+            layers_rasterised: 0,
+            dashed_strokes_pre_applied: 0,
+            nonzero_fills_multi_subpath: 0,
+            text: EmfTextOutcome::default(),
+            patches: EmfPatches::default(),
+            tally,
+            diagnostics,
+        }
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -460,7 +469,81 @@ const STOCK_BLACK_PEN: u32 = 0x8000_0007;
 const IH_FONT: u32 = 2;
 const STOCK_DEVICE_DEFAULT_FONT: u32 = 0x8000_000E;
 
+impl<'a> Writer<'a> {
+    fn new(clips: &'a [ClipDef], unit: f32, page: (u32, u32), outcome: EmfOutcome) -> Self {
+        Self {
+            out: Vec::with_capacity(64 * 1024),
+            records: 0,
+            max_handle: 0,
+            clips,
+            current_clip: None,
+            clip_saved: false,
+            fill_mode: 0,
+            unit,
+            page_w: page.0,
+            page_h: page.1,
+            outcome,
+            raster_prologue_done: false,
+            text_align_set: false,
+            text_colour: None,
+        }
+    }
+}
+
 impl Writer<'_> {
+    /// An opaque rectangle over the whole page.
+    fn background(&mut self, bg: Rgb) {
+        #[allow(clippy::cast_precision_loss)]
+        let rect = tiny_skia::Rect::from_xywh(0.0, 0.0, self.page_w as f32, self.page_h as f32)
+            .map(tiny_skia::PathBuilder::from_rect);
+        if let Some(path) = rect {
+            self.fill_solid(
+                &path,
+                [bg.r, bg.g, bg.b, 255],
+                FillRule::Winding,
+                Transform::identity(),
+            );
+        }
+    }
+
+    /// Back-patch the 108-byte `EMR_HEADER` for a `wu` x `hu` logical page.
+    fn write_header(&mut self, wu: i32, hu: i32) {
+        // Readers scale logical units by Millimeters / Device, and Millimeters
+        // is whole millimetres; so Device is Millimeters x 100, keeping the
+        // ratio exactly 0.01 mm per unit whatever the page size.
+        #[allow(clippy::cast_possible_truncation)]
+        let mm = |u: i32| ((f64::from(u) / 100.0).round() as i32).max(1);
+        let mut hdr = Vec::with_capacity(108);
+        hdr.extend_from_slice(&u32le(1));
+        hdr.extend_from_slice(&u32le(108));
+        hdr.extend_from_slice(&rectl(0, 0, wu - 1, hu - 1)); // Bounds, logical
+        hdr.extend_from_slice(&rectl(0, 0, wu - 1, hu - 1)); // Frame, 0.01 mm
+        hdr.extend_from_slice(&u32le(0x464D_4520)); // " EMF"
+        hdr.extend_from_slice(&u32le(0x0001_0000)); // version
+        #[allow(clippy::cast_possible_truncation)]
+        hdr.extend_from_slice(&u32le(self.out.len() as u32)); // Bytes
+        hdr.extend_from_slice(&u32le(self.records)); // Records (header + body + EOF)
+        #[allow(clippy::cast_possible_truncation)]
+        hdr.extend_from_slice(&(self.max_handle as u16 + 1).to_le_bytes()); // Handles
+        hdr.extend_from_slice(&0u16.to_le_bytes()); // Reserved
+        hdr.extend_from_slice(&u32le(0)); // nDescription
+        hdr.extend_from_slice(&u32le(0)); // offDescription
+        hdr.extend_from_slice(&u32le(0)); // nPalEntries
+        hdr.extend_from_slice(&i32le(mm(wu) * 100)); // Device cx (a virtual 2540 dpi device)
+        hdr.extend_from_slice(&i32le(mm(hu) * 100)); // Device cy
+        hdr.extend_from_slice(&i32le(mm(wu))); // Millimeters cx
+        hdr.extend_from_slice(&i32le(mm(hu))); // Millimeters cy
+        hdr.extend_from_slice(&u32le(0)); // cbPixelFormat
+        hdr.extend_from_slice(&u32le(0)); // offPixelFormat
+        hdr.extend_from_slice(&u32le(0)); // bOpenGL
+        hdr.extend_from_slice(&i32le(mm(wu) * 1000)); // MicrometersX
+        hdr.extend_from_slice(&i32le(mm(hu) * 1000)); // MicrometersY
+        debug_assert_eq!(hdr.len(), 108);
+        if let Some(header) = self.out.get_mut(..108) {
+            header.copy_from_slice(&hdr);
+        }
+    }
+
     /// Append one record: `Type, Size` (multiple of 4, including the 8-byte
     /// head), then `body` padded to a multiple of 4.
     fn record(&mut self, kind: u32, body: &[u8]) {
@@ -949,90 +1032,6 @@ impl Writer<'_> {
         }
         self.alpha_blend(&buf);
     }
-
-    /// Crop `scratch` to its painted box and write it as `EMR_ALPHABLEND`
-    /// (premultiplied BGRA, top-down, `AC_SRC_OVER | AC_SRC_ALPHA`).
-    fn alpha_blend(&mut self, scratch: &Pixmap) {
-        let w = scratch.width();
-        let (mut x0, mut y0, mut x1, mut y1) = (u32::MAX, u32::MAX, 0u32, 0u32);
-        for (i, px) in scratch.pixels().iter().enumerate() {
-            if px.alpha() == 0 {
-                continue;
-            }
-            #[allow(clippy::cast_possible_truncation)]
-            let (x, y) = ((i as u32) % w, (i as u32) / w);
-            x0 = x0.min(x);
-            y0 = y0.min(y);
-            x1 = x1.max(x);
-            y1 = y1.max(y);
-        }
-        if x0 == u32::MAX {
-            return;
-        }
-        let (bw, bh) = (x1 - x0 + 1, y1 - y0 + 1);
-        if !self.raster_prologue_done {
-            self.record(0x15, &u32le(4)); // SETSTRETCHBLTMODE HALFTONE
-            self.record(0x0D, &[i32le(0), i32le(0)].concat()); // SETBRUSHORGEX
-            self.raster_prologue_done = true;
-        }
-        self.outcome.rasters_embedded += 1;
-
-        let mut bits = Vec::with_capacity((bw * bh * 4) as usize);
-        let src = scratch.pixels();
-        for row in 0..bh {
-            let s0 = ((y0 + row) * w + x0) as usize;
-            for px in src.get(s0..s0 + bw as usize).unwrap_or_default() {
-                bits.extend_from_slice(&[px.blue(), px.green(), px.red(), px.alpha()]);
-            }
-        }
-        #[allow(clippy::cast_precision_loss)]
-        let (dx, dy, dw, dh) = (
-            self.lu(x0 as f32),
-            self.lu(y0 as f32),
-            self.lu(bw as f32).max(1),
-            self.lu(bh as f32).max(1),
-        );
-        let mut body = Vec::with_capacity(100 + 40 + bits.len());
-        body.extend_from_slice(&rectl(dx, dy, dx + dw - 1, dy + dh - 1)); // Bounds
-        body.extend_from_slice(&i32le(dx));
-        body.extend_from_slice(&i32le(dy));
-        body.extend_from_slice(&i32le(dw));
-        body.extend_from_slice(&i32le(dh));
-        body.extend_from_slice(&[0x00, 0x00, 0xFF, 0x01]); // BLENDFUNCTION: AC_SRC_OVER, 0, 255, AC_SRC_ALPHA
-        body.extend_from_slice(&i32le(0)); // xSrc
-        body.extend_from_slice(&i32le(0)); // ySrc
-        for f in [1.0f32, 0.0, 0.0, 1.0, 0.0, 0.0] {
-            body.extend_from_slice(&f.to_le_bytes()); // XformSrc identity
-        }
-        body.extend_from_slice(&u32le(0)); // BkColorSrc
-        body.extend_from_slice(&u32le(0)); // UsageSrc DIB_RGB_COLORS
-        body.extend_from_slice(&u32le(108)); // offBmiSrc
-        body.extend_from_slice(&u32le(40)); // cbBmiSrc
-        body.extend_from_slice(&u32le(148)); // offBitsSrc
-        #[allow(clippy::cast_possible_truncation)]
-        body.extend_from_slice(&u32le(bits.len() as u32)); // cbBitsSrc
-        #[allow(clippy::cast_possible_wrap)]
-        body.extend_from_slice(&i32le(bw as i32)); // cxSrc
-        #[allow(clippy::cast_possible_wrap)]
-        body.extend_from_slice(&i32le(bh as i32)); // cySrc
-        debug_assert_eq!(body.len(), 100);
-        // BitmapInfoHeader: 32 bpp BI_RGB, TOP-DOWN (negative height).
-        body.extend_from_slice(&u32le(40));
-        #[allow(clippy::cast_possible_wrap)]
-        body.extend_from_slice(&i32le(bw as i32));
-        #[allow(clippy::cast_possible_wrap)]
-        body.extend_from_slice(&i32le(-(bh as i32)));
-        body.extend_from_slice(&1u16.to_le_bytes());
-        body.extend_from_slice(&32u16.to_le_bytes());
-        body.extend_from_slice(&u32le(0)); // BI_RGB
-        body.extend_from_slice(&u32le(0)); // ImageSize
-        body.extend_from_slice(&i32le(0));
-        body.extend_from_slice(&i32le(0));
-        body.extend_from_slice(&u32le(0));
-        body.extend_from_slice(&u32le(0));
-        body.extend_from_slice(&bits);
-        self.record(0x72, &body);
-    }
 }
 
 /// `EMR_EXTCREATEFONTINDIRECTW` after the 8-byte head: `ihFonts`, then a
@@ -1185,39 +1184,9 @@ mod tests {
 
     #[test]
     fn a_record_is_padded_to_four_bytes_and_counted() {
-        let mut w = Writer {
-            out: Vec::new(),
-            records: 0,
-            max_handle: 0,
-            clips: &[],
-            current_clip: None,
-            clip_saved: false,
-            fill_mode: 0,
-            unit: 1.0,
-            page_w: 1,
-            page_h: 1,
-            outcome: EmfOutcome {
-                width_pt: 0.0,
-                height_pt: 0.0,
-                ops: 0,
-                rasters_embedded: 0,
-                ops_rasterised_for_alpha: 0,
-                blend_modes_dropped: 0,
-                blends_flattened: 0,
-                blends_underlaid: 0,
-                gradients_rasterised: 0,
-                images_embedded: 0,
-                layers_rasterised: 0,
-                dashed_strokes_pre_applied: 0,
-                nonzero_fills_multi_subpath: 0,
-                text: EmfTextOutcome::default(),
-                tally: ExportTally::default(),
-                diagnostics: Diagnostics::default(),
-            },
-            raster_prologue_done: false,
-            text_align_set: false,
-            text_colour: None,
-        };
+        let outcome = EmfOutcome::empty(ExportTally::default(), Diagnostics::default());
+        let mut w = Writer::new(&[], 1.0, (1, 1), outcome);
+        w.out = Vec::new();
         w.record(0x46, &[1, 2, 3]);
         assert_eq!(w.out.len(), 12);
         assert_eq!(&w.out[4..8], &12u32.to_le_bytes());

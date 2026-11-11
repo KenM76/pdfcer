@@ -27,7 +27,7 @@ use pdfcer_render::emf::{EmfOptions, export_emf, walk_records};
 use pdfcer_render::{PageBackdrop, RenderOptions, render_page_with};
 use tiny_skia::Pixmap;
 
-fn build(objects: &[(u32, String)]) -> Vec<u8> {
+pub(crate) fn build(objects: &[(u32, String)]) -> Vec<u8> {
     let mut buf = b"%PDF-1.7\n%\xE2\xE3\xCF\xD3\n".to_vec();
     let mut offsets: Vec<(u32, usize)> = Vec::new();
     for (num, body) in objects {
@@ -55,7 +55,7 @@ fn build(objects: &[(u32, String)]) -> Vec<u8> {
 }
 
 /// A 100 × 80 pt page with `resources` and `content`.
-fn page(resources: &str, content: &str) -> Vec<u8> {
+pub(crate) fn page(resources: &str, content: &str) -> Vec<u8> {
     let stream = format!("{content}\n");
     build(&[
         (1, "<< /Type /Catalog /Pages 2 0 R >>".into()),
@@ -73,7 +73,7 @@ fn page(resources: &str, content: &str) -> Vec<u8> {
     ])
 }
 
-const DPI: f32 = 144.0;
+pub(crate) const DPI: f32 = 144.0;
 
 fn export(bytes: Vec<u8>) -> (Pixmap, pdfcer_render::emf::EmfExport) {
     let doc = Document::from_bytes(bytes).expect("fixture parses");
@@ -95,12 +95,12 @@ fn export(bytes: Vec<u8>) -> (Pixmap, pdfcer_render::emf::EmfExport) {
     (reference.pixmap, emf)
 }
 
-fn u32_at(b: &[u8], off: usize) -> u32 {
+pub(crate) fn u32_at(b: &[u8], off: usize) -> u32 {
     u32::from_le_bytes(b[off..off + 4].try_into().unwrap())
 }
 
 /// The structural contract every export must satisfy.
-fn assert_well_formed(emf: &[u8]) {
+pub(crate) fn assert_well_formed(emf: &[u8]) {
     let records = walk_records(emf).expect("record sizes chain exactly to the end");
     assert_eq!(&emf[40..44], b" EMF", "signature");
     assert_eq!(u32_at(emf, 44), 0x0001_0000, "version");
@@ -135,7 +135,7 @@ fn assert_well_formed(emf: &[u8]) {
     assert_eq!((dx, dy), (mx * 100, my * 100), "Device / Millimeters");
 }
 
-fn record_offsets(records: &[(u32, u32)]) -> Vec<usize> {
+pub(crate) fn record_offsets(records: &[(u32, u32)]) -> Vec<usize> {
     let mut off = 0usize;
     records
         .iter()
@@ -147,7 +147,7 @@ fn record_offsets(records: &[(u32, u32)]) -> Vec<usize> {
         .collect()
 }
 
-fn count(records: &[(u32, u32)], kind: u32) -> usize {
+pub(crate) fn count(records: &[(u32, u32)], kind: u32) -> usize {
     records.iter().filter(|(t, _)| *t == kind).count()
 }
 
@@ -394,7 +394,7 @@ fn differing(a: &Pixmap, b: &Pixmap, tol: u8) -> (usize, u8) {
     (count, worst)
 }
 
-fn scratch_dir(tag: &str) -> std::path::PathBuf {
+pub(crate) fn scratch_dir(tag: &str) -> std::path::PathBuf {
     let d = std::env::temp_dir().join(format!("pdfcer-emf-oracle-{tag}-{}", std::process::id()));
     std::fs::create_dir_all(&d).unwrap();
     d
@@ -483,44 +483,57 @@ public static class Gdi {
 [System.IO.File]::WriteAllBytes($Out, [Gdi]::Play($Path, $W, $H))
 "#;
 
+/// Play `emf` through GDI onto a white `w` × `h` surface; the raw BGRA.
+#[cfg(windows)]
+pub(crate) fn play_with_gdi(
+    dir: &std::path::Path,
+    name: &str,
+    emf: &[u8],
+    w: u32,
+    h: u32,
+) -> Vec<u8> {
+    let script = dir.join("play.ps1");
+    std::fs::write(&script, GDI_PLAYER_PS1).unwrap();
+    let emf_path = dir.join(format!("{name}.emf"));
+    let raw_path = dir.join(format!("{name}.bgra"));
+    std::fs::write(&emf_path, emf).unwrap();
+    let out = std::process::Command::new("powershell")
+        .args([
+            "-NoProfile",
+            "-ExecutionPolicy",
+            "Bypass",
+            "-File",
+            script.to_str().unwrap(),
+            "-Path",
+            emf_path.to_str().unwrap(),
+            "-W",
+            &w.to_string(),
+            "-H",
+            &h.to_string(),
+            "-Out",
+            raw_path.to_str().unwrap(),
+        ])
+        .output()
+        .expect("powershell runs");
+    assert!(
+        out.status.success(),
+        "{name}: {}{}",
+        String::from_utf8_lossy(&out.stdout),
+        String::from_utf8_lossy(&out.stderr)
+    );
+    let raw = std::fs::read(&raw_path).expect("GDI wrote the pixels");
+    assert_eq!(raw.len(), (w * h * 4) as usize);
+    raw
+}
+
 #[cfg(windows)]
 #[test]
 fn gdi_renders_the_metafile_like_pdfcer() {
     let dir = scratch_dir("gdi");
-    let script = dir.join("play.ps1");
-    std::fs::write(&script, GDI_PLAYER_PS1).unwrap();
     for (name, resources, content, _) in oracle_fixtures() {
         let (reference, emf) = export(page(resources, content));
-        let emf_path = dir.join(format!("{name}.emf"));
-        let raw_path = dir.join(format!("{name}.bgra"));
-        std::fs::write(&emf_path, &emf.emf).unwrap();
         let (w, h) = (reference.width(), reference.height());
-        let out = std::process::Command::new("powershell")
-            .args([
-                "-NoProfile",
-                "-ExecutionPolicy",
-                "Bypass",
-                "-File",
-                script.to_str().unwrap(),
-                "-Path",
-                emf_path.to_str().unwrap(),
-                "-W",
-                &w.to_string(),
-                "-H",
-                &h.to_string(),
-                "-Out",
-                raw_path.to_str().unwrap(),
-            ])
-            .output()
-            .expect("powershell runs");
-        assert!(
-            out.status.success(),
-            "{name}: {}{}",
-            String::from_utf8_lossy(&out.stdout),
-            String::from_utf8_lossy(&out.stderr)
-        );
-        let raw = std::fs::read(&raw_path).expect("GDI wrote the pixels");
-        assert_eq!(raw.len(), (w * h * 4) as usize);
+        let raw = play_with_gdi(&dir, name, &emf.emf, w, h);
         let total = reference.pixels().len();
         let mut bad = 0usize;
         let mut worst = 0u8;

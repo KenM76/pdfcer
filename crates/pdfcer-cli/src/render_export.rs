@@ -1412,6 +1412,22 @@ shadings_as_gradients={} blends_flattened={} blends_underlaid={}",
     exit::SUCCESS
 }
 
+/// `--patch-approximations`' stable `emf-patches:` line and its note.
+fn print_emf_patches(o: &pdfcer_render::emf::EmfOutcome, page_number: usize) {
+    let p = &o.patches;
+    println!(
+        "emf-patches: rasters={} overprint={} non_isolated_groups={} blends={} blending_space={}",
+        p.rasters, p.overprint, p.non_isolated_groups, p.blends, p.blending_space
+    );
+    if p.rasters > 0 {
+        eprintln!(
+            "pdfcer: note: page {page_number}: {} region(s) the metafile could only approximate are written as the page raster's own pixels ({} bitmap(s)); the rest of the page stays vector",
+            p.cases(),
+            p.rasters
+        );
+    }
+}
+
 /// The `emf:` stable line and the per-page notes for a metafile export or
 /// copy (`Pass 248.4`) — one function, so `export-image` and `copy-page`
 /// disclose the same facts in the same words.
@@ -1523,6 +1539,8 @@ pub(crate) struct ExportImageArgs<'a> {
     pub(crate) flatten_blends: bool,
     /// `--raster-blends`: no vector underlays.
     pub(crate) raster_blends: bool,
+    /// `--patch-approximations` (EMF only).
+    pub(crate) patch_approximations: bool,
     /// Outlines or kept text (EMF only).
     pub(crate) emf_text: SvgTextArg,
     /// `--no-overprint-preview`, `--separation-preview`, `--hide-ink`.
@@ -1582,6 +1600,7 @@ pub(crate) fn cmd_export_image(args: ExportImageArgs<'_>) -> u8 {
         svg_text,
         flatten_blends,
         raster_blends,
+        patch_approximations,
         emf_text,
         preview,
     } = args;
@@ -1592,6 +1611,13 @@ pub(crate) fn cmd_export_image(args: ExportImageArgs<'_>) -> u8 {
         // accepting the flag would look like it did something.
         eprintln!(
             "pdfcer: {}: --svg-text keep applies to --format svg only",
+            input.display()
+        );
+        return exit::RUNTIME_ERROR;
+    }
+    if patch_approximations && format != ImageFormatArg::Emf {
+        eprintln!(
+            "pdfcer: {}: --patch-approximations applies to --format emf only",
             input.display()
         );
         return exit::RUNTIME_ERROR;
@@ -1758,7 +1784,8 @@ pub(crate) fn cmd_export_image(args: ExportImageArgs<'_>) -> u8 {
                 .with_raster_dpi(dpi)
                 .with_background(if transparent { None } else { background })
                 .with_text(emf_text.into())
-                .with_underlay_blends(!raster_blends);
+                .with_underlay_blends(!raster_blends)
+                .with_patch_approximations(patch_approximations);
             let export =
                 match pdfcer_render::emf::export_emf(&doc, page, &render_options, &emf_options) {
                     Ok(e) => e,
@@ -1787,6 +1814,9 @@ pub(crate) fn cmd_export_image(args: ExportImageArgs<'_>) -> u8 {
                 render_counters_line(&o.diagnostics, &doc, supplied_registered)
             );
             print_emf_disclosure(o, page_number, emf_text == SvgTextArg::Keep);
+            if patch_approximations {
+                print_emf_patches(o, page_number);
+            }
             report_diagnostics(
                 &o.diagnostics,
                 render_options.max_cmyk_buffer_bytes,

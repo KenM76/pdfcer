@@ -1456,6 +1456,7 @@ pub(crate) fn run() -> ExitCode {
             svg_text,
             flatten_blends,
             raster_blends,
+            patch_approximations,
             emf_text,
             no_overprint_preview,
             separation_preview,
@@ -1491,6 +1492,7 @@ pub(crate) fn run() -> ExitCode {
             svg_text,
             flatten_blends,
             raster_blends,
+            patch_approximations,
             emf_text,
             preview: ViewerPreview::from_flags(no_overprint_preview, separation_preview, hide_ink)
                 .with_no_ap(markup_without_ap, widgets_without_ap)

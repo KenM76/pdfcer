@@ -695,3 +695,85 @@ fn jxl_is_lossless_by_default_and_lossy_on_request() {
     assert_ne!(o.status.code(), Some(0));
     assert!(stderr(&o).contains("outside 0.1..=25"));
 }
+
+/// `--patch-approximations` (Pass 700.12) reaches the EMF writer: the
+/// overprint overlap becomes one bitmap, the `emf-patches:` line counts
+/// it, the default run writes neither, and a raster format refuses it.
+#[test]
+fn patch_approximations_reaches_the_emf_writer() {
+    let dir = TempDir::new("export-image-emf-patches");
+    let content = "1 0 0 0 k 10 10 50 40 re f /OP gs 0 1 0 0 k 40 20 40 40 re f";
+    let input = dir.write(
+        "op.pdf",
+        &build_pdf(&[
+            (1, "<< /Type /Catalog /Pages 2 0 R >>".into()),
+            (
+                2,
+                "<< /Type /Pages /Kids [3 0 R] /Count 1 /MediaBox [0 0 100 80] \
+                 /Resources << /ExtGState << /OP << /OP true /op true /OPM 1 >> >> >> >>"
+                    .into(),
+            ),
+            (3, "<< /Type /Page /Parent 2 0 R /Contents 4 0 R >>".into()),
+            (
+                4,
+                format!(
+                    "<< /Length {} >>\nstream\n{content}\nendstream",
+                    content.len() + 1
+                ),
+            ),
+        ]),
+    );
+    let out = dir.join("p.emf");
+    let export = |extra: &[&str]| -> Output {
+        let mut a = vec![
+            "export-image",
+            input.to_str().unwrap(),
+            "--format",
+            "emf",
+            "--dpi",
+            "144",
+            "-o",
+            out.to_str().unwrap(),
+        ];
+        a.extend_from_slice(extra);
+        run(&a)
+    };
+    let plain = export(&[]);
+    assert_eq!(plain.status.code(), Some(0), "stderr: {}", stderr(&plain));
+    assert!(
+        stdout(&plain).contains("emf: ops=2 rasters=0 "),
+        "{}",
+        stdout(&plain)
+    );
+    assert!(!stdout(&plain).contains("emf-patches:"));
+
+    let patched = export(&["--patch-approximations"]);
+    assert_eq!(
+        patched.status.code(),
+        Some(0),
+        "stderr: {}",
+        stderr(&patched)
+    );
+    assert!(
+        stdout(&patched).contains(
+            "emf-patches: rasters=1 overprint=1 non_isolated_groups=0 blends=0 blending_space=0"
+        ),
+        "{}",
+        stdout(&patched)
+    );
+    assert!(
+        stdout(&patched).contains("emf: ops=2 rasters=1 "),
+        "{}",
+        stdout(&patched)
+    );
+
+    let png = run(&[
+        "export-image",
+        input.to_str().unwrap(),
+        "--patch-approximations",
+        "-o",
+        dir.join("p.png").to_str().unwrap(),
+    ]);
+    assert_ne!(png.status.code(), Some(0));
+    assert!(stderr(&png).contains("--patch-approximations applies to --format emf only"));
+}

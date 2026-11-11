@@ -6038,6 +6038,13 @@ pub(crate) enum Command {
         /// coloured ink becomes pixels. Counted as `blends_underlaid=`.
         #[arg(long)]
         raster_blends: bool,
+        /// EMF only: write each region the metafile could only approximate
+        /// (an overprint over other ink, a non-isolated group, a blend
+        /// inside a group, blending in a CMYK page group) as the page
+        /// raster's own pixels over the smallest box that holds it.
+        /// Everything else stays vector. Counted on an `emf-patches:` line.
+        #[arg(long)]
+        patch_approximations: bool,
         /// EMF only: how text is written. `outlines` (default) draws every
         /// glyph as a path. `keep` writes each line it can as real text in
         /// the INSTALLED font of the same name, each character pinned to

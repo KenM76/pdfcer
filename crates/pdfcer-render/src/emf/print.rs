@@ -65,7 +65,9 @@ impl fmt::Display for RasterReason {
 
 impl EmfOutcome {
     /// Why this page must print as an image, or `None` when its metafile
-    /// is the whole page. The first reason found is returned.
+    /// is the whole page. The first reason found is returned. A region
+    /// [`EmfOptions::patch_approximations`] wrote as the raster's own pixels
+    /// is the page, so it is not a reason.
     #[must_use]
     pub fn print_fallback(&self) -> Option<RasterReason> {
         use RasterReason as R;
@@ -83,7 +85,7 @@ impl EmfOutcome {
             (t.tiling_patterns > 0, R::TilingPattern),
             (t.shadings_rasterised > 0, R::Shading),
             (
-                self.rasters_embedded > self.images_embedded,
+                self.rasters_embedded > self.images_embedded + self.patches.rasters,
                 R::ExtraRasters,
             ),
         ];
@@ -117,8 +119,29 @@ pub fn print_metafile(
     render: &RenderOptions,
     raster_dpi: f32,
 ) -> Result<Vec<u8>, PrintMetafileError> {
-    let emf = EmfOptions::default().with_raster_dpi(raster_dpi);
-    let export = export_emf_view(view, page, render, &emf)?;
+    print_metafile_with(
+        view,
+        page,
+        render,
+        &EmfOptions::default().with_raster_dpi(raster_dpi),
+    )
+}
+
+/// [`print_metafile`] with every [`EmfOptions`] field chosen by the caller
+/// — [`EmfOptions::with_patch_approximations`] lets a page whose overprint,
+/// group or blend the metafile would approximate print as a metafile with
+/// pixels only there.
+///
+/// # Errors
+///
+/// As [`print_metafile`].
+pub fn print_metafile_with(
+    view: &DocumentView<'_>,
+    page: &Page,
+    render: &RenderOptions,
+    emf: &EmfOptions,
+) -> Result<Vec<u8>, PrintMetafileError> {
+    let export = export_emf_view(view, page, render, emf)?;
     match export.outcome.print_fallback() {
         None => Ok(export.emf),
         Some(why) => Err(PrintMetafileError::Raster(why)),

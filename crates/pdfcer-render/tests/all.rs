@@ -28,6 +28,7 @@ mod embed_font_roundtrip;
 mod emf_import_roundtrip;
 mod export_emf;
 mod export_emf_keep_text;
+mod export_emf_patches;
 mod export_image;
 mod export_svg;
 mod export_svg_keep_text;

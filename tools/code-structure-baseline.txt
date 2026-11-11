@@ -479,8 +479,6 @@ fn pdfcer-render/src/color.rs::resolve_icc_based
 fn pdfcer-render/src/color.rs::to_rgb
 fn pdfcer-render/src/display_list.rs::record_impl
 fn pdfcer-render/src/display_list.rs::replay_ops
-fn pdfcer-render/src/emf.rs::alpha_blend
-fn pdfcer-render/src/emf.rs::export_emf_view
 fn pdfcer-render/src/emf.rs::write_ops
 fn pdfcer-render/src/font/select.rs::candidate_names
 fn pdfcer-render/src/font/webfont.rs::wrap_cff

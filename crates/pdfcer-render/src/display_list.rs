@@ -936,6 +936,10 @@ pub(crate) struct ExportRecording {
     pub page_size: (u32, u32),
     pub diagnostics: Diagnostics,
     pub tally: ExportTally,
+    /// Where each counted approximation was made.
+    pub sites: Vec<crate::export_sites::Site>,
+    /// The page group blends in a subtractive space (§11.7.2).
+    pub subtractive_page: bool,
 }
 
 /// Record a page in export mode (`Pass 248.1`).
@@ -961,6 +965,8 @@ pub(crate) fn record_page_for_export(
         page_size: recorded.page_size,
         diagnostics: recorded.diagnostics,
         tally: recorded.tally,
+        sites: recorded.sites.sites,
+        subtractive_page: recorded.sites.subtractive_page,
     })
 }
 
@@ -974,6 +980,7 @@ struct Recorded {
     diagnostics: Diagnostics,
     poison: Option<PoisonReason>,
     tally: ExportTally,
+    sites: crate::export_sites::SiteLog,
 }
 
 /// The one walk both [`record_page`] and [`record_page_for_export`]
@@ -1058,6 +1065,11 @@ fn record_impl(
     } else {
         crate::compositor::BlendSpace::Additive
     };
+    if page_space.is_subtractive()
+        && let Some(e) = recorder.export.as_mut()
+    {
+        e.sites.mark_subtractive_page();
+    }
     let diagnostics = {
         let mut canvas = Canvas::record(&mut recorder);
         // REFUSED BEFORE A SINGLE OPERATOR IS WALKED. A direct render of
@@ -1132,6 +1144,14 @@ fn record_impl(
     // unrecordable as one whose first is.
     let poison = recorder.poison_reason();
     let tally = recorder.export_tally();
+    let sites = recorder
+        .export
+        .as_mut()
+        .map(|e| {
+            e.sites.finish();
+            std::mem::take(&mut e.sites)
+        })
+        .unwrap_or_default();
     let bytes = recorder.approx_bytes;
     let (ops, clips) = recorder.finish();
     Ok(Recorded {
@@ -1143,6 +1163,7 @@ fn record_impl(
         diagnostics,
         poison,
         tally,
+        sites,
     })
 }
 
@@ -1515,6 +1536,8 @@ pub(crate) struct ExportState {
         Arc<crate::text::LoadedFont>,
         Option<Arc<pdfcer_core::text_extract::ExtractFont>>,
     )>,
+    /// Where the tallied approximations were made (`Pass 700.12`).
+    pub sites: crate::export_sites::SiteLog,
 }
 
 /// What an export recording could not express as geometry, counted
@@ -1591,6 +1614,7 @@ impl RecorderState {
             tally: ExportTally::default(),
             keep_text: false,
             text_fonts: Vec::new(),
+            sites: crate::export_sites::SiteLog::default(),
         });
         Some(state)
     }
@@ -1616,9 +1640,27 @@ impl RecorderState {
             self.poison(PoisonReason::TooLarge);
             return;
         }
+        self.note_pushed(&op);
         if let Some(frame) = self.frames.last_mut() {
             frame.push(op);
         }
+    }
+
+    /// Tell the export site log an op is about to be recorded.
+    fn note_pushed(&mut self, op: &Op) {
+        let depth = self.frames.len();
+        let Some(export) = self.export.as_mut() else {
+            return;
+        };
+        let leaf = match op {
+            Op::Fill { .. } | Op::Stroke { .. } => true,
+            // `push_masked`'s wrapper: its one op was never pushed alone.
+            Op::Layer { ops, mask, .. } => mask.is_some() && ops.len() == 1,
+            Op::Text { .. } => false,
+        };
+        export
+            .sites
+            .pushed(depth, crate::export_sites::op_box(op), leaf);
     }
 
     /// Record a clipping path and return its id, **reusing an existing
@@ -1690,7 +1732,14 @@ impl RecorderState {
         // disclosure, and the site that raised it either paints into the
         // scratch (`export_scratch`) or falls through to its ordinary
         // recordable approximation.
+        let depth = self.frames.len();
+        let last = self
+            .frames
+            .last()
+            .and_then(|f| f.last())
+            .map(crate::export_sites::op_box);
         if let Some(export) = self.export.as_mut() {
+            export.sites.poisoned(reason, depth, last);
             let t = &mut export.tally;
             match reason {
                 PoisonReason::Shading => t.shadings_rasterised += 1,
@@ -1804,6 +1853,7 @@ impl RecorderState {
         // Direct push: `push` would call `harvest` again (harmless — the
         // dirty flag is down — but the recursion reads badly).
         self.approx_bytes += op_bytes(&op);
+        self.note_pushed(&op);
         if let Some(frame) = self.frames.last_mut() {
             frame.push(op);
         }
