@@ -4,6 +4,21 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-11-11 (1504th filing) — `339d1127` `Pass 705.2b` SHIPPED: bounce light on by default in every CPU render, with CLI flags (`705.2` CPU path complete)
+
+**Shipped (engineer-reported; no shell here, git/CI state not checked from here):**
+- `339d1127965071ea80dbf43558ae4b0130de52cf`, `feat(3d): bounce light on by default in every CPU render, with CLI flags (Pass 705.2b)`. `RenderOptions.indirect` (`Bounce` Off/ModelLights default/EveryLight, strength 0..=4, `BounceSky`), read by every CPU route; `3d-render --bounce`, `--bounce-strength`, `--bounce-sky` plus a `note: lighting: bounce:` line. Detail is in the ROADMAP Shipped entry and the commit message.
+- Probe-gather leak fix: probes behind the surface plane no longer light a thin sheet's underside (0.0127 before, < 1e-6 pinned).
+- Tests: `pdfcer-3d` 546 pass (incl. 5 room tests, pinned digest `0x235c_b70c_fc21_c8dc`); `pdfcer-cli` bounce test passes; clippy, fmt, code-structure clean. No manifest change.
+
+**Decisions:** none new (decision 224). **FEATURES.md:** bounced-light row core and cli ticked, kept in *Planned*; gui not ticked.
+
+**Findings:** the GPU renderer does not draw bounce, so CPU and GPU differ on lamp-lit scenes until `705.3` (decision 223 parity gap), recorded openly in the row and the entry.
+
+**Still in flight:** `705.3` GPU bounce (next); `705.0` Adreno timing (E065a reply owed).
+
+**For next session:** `705.3`: `FrameBounce` atlas plus GLSL lookup, software formula then SwiftShader, ±1.
+
 ## 2026-11-11 (1503rd filing) — `6a475cc6` `Pass 705.2a` SHIPPED: CPU probe-volume bounce engine (PARTIAL, `705.2` open)
 
 **Shipped (engineer-reported; no shell here, git/CI state not checked from here):**
