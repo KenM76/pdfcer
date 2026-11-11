@@ -27,6 +27,8 @@ pub(crate) struct Paper {
 
 impl Paper {
     /// The paper as given, turned to portrait if it was reported landscape.
+    // Only the Windows driver-caps path and the tests construct one.
+    #[cfg_attr(not(windows), allow(dead_code))]
     pub(crate) fn portrait(
         physical: (f64, f64),
         printable: (f64, f64),
@@ -550,11 +552,7 @@ fn place_sheet(
             .map_err(|e| err(&e))?;
     }
     if let Some(svg) = strokes_svg(sheet, media) {
-        let imported = pdfcer_core::svg_import::import(svg.as_bytes()).map_err(|e| err(&e))?;
-        let whole = PdfRect::from_corners(0.0, 0.0, media.0, media.1);
-        target
-            .add_svg(index, whole, &imported)
-            .map_err(|e| err(&e))?;
+        place_strokes(target, index, &svg, media)?;
     }
     if let Some((r, text)) = &sheet.label {
         let mut req = pdfcer_core::text_edit::AddTextRequest::new(
@@ -566,6 +564,34 @@ fn place_sheet(
         target.add_text(&req).map_err(|e| err(&e))?;
     }
     Ok(())
+}
+
+/// Draw the marks-and-borders `svg` over the whole of page `index`.
+#[cfg(feature = "svg-import")]
+fn place_strokes(
+    target: &mut EditSession,
+    index: usize,
+    svg: &str,
+    media: (f64, f64),
+) -> Result<(), String> {
+    let imported = pdfcer_core::svg_import::import(svg.as_bytes()).map_err(|e| e.to_string())?;
+    let whole = PdfRect::from_corners(0.0, 0.0, media.0, media.1);
+    target
+        .add_svg(index, whole, &imported)
+        .map(|_| ())
+        .map_err(|e| e.to_string())
+}
+
+/// Without SVG import the marks cannot be placed, so the layout is refused
+/// rather than printed without the cut marks or borders it asked for.
+#[cfg(not(feature = "svg-import"))]
+fn place_strokes(
+    _target: &mut EditSession,
+    _index: usize,
+    _svg: &str,
+    _media: (f64, f64),
+) -> Result<(), String> {
+    Err("cut marks and borders need a build with the svg-import feature".into())
 }
 
 /// The sheet's cut marks and borders as one SVG over the whole media box,
