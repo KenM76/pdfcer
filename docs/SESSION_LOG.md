@@ -4,6 +4,20 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-11-11 (1499th filing) — `38f8855d` `Pass 704.0` follow-up: regions cut edges on the page raster's lattice
+
+**Shipped (engineer-reported; no shell here, git/push/CI state not checked from here; docs only, engineer commits):**
+- `38f8855d4f1bba869e0e75d339ea8d59bb2fbd47`, `fix(render): regions cut edges on the page raster's lattice, so poster tiles reassemble byte-identical again (Pass 704.0 follow-up)`. `pdfcer-render` only; no pub API change (`docs/core-api` unchanged), no manifest change.
+- **Why:** CI on `7b5cfe101012c7aaa029c32e84d07c1ce54acc7e` (the push carrying `0281cfdd`) failed `cargo test (windows-latest)`: `print::poster_tiling_tests::tiles_rendered_as_regions_match_the_whole_page_crop` in `pdfcer-cli`, 3 of 7,487,472 bytes differed at tile_scale 3, sheet 0. `0281cfdd` cut edges at rows k x 64 in the unbanded raster's space, which for a region is the region's own space.
+- **Fix:** `device_clip.rs` `with_lattice_anchor`/`lattice_anchor`; edges cut and rounded in the page raster's space, then whole-pixel anchor and band row origin subtracted (exact below 2^24). Set by `DisplayList::replay_region` and `render_page_region` (`region_lattice_anchor`); only when the offset is a whole pixel within 16384; deep-zoom regions keep their own space.
+- **Verified:** failing test passes; anchor forced to zero fails with the same 3 bytes (sabotage). `pdfcer-render` 564 + 641 + 33, `pdfcer-cli` 1075 + 105, `pdfcer-print` 167 + 10 pass; fmt, clippy, code-structure clean.
+
+**Decisions / findings:**
+- No new decision; decision 223 amendment has no consequences list, so unchanged. FEATURES unchanged ("Banded page replay" stays core `[x]`, cli `—`, gui `[ ]`; poster tiling row unchanged).
+- **Process gotcha:** before the `0281cfdd` push only `pdfcer-render`'s own tests ran. Change-scoped testing must include every workspace crate that DEPENDS on a changed crate (`pdfcer-render`'s dependents: `pdfcer-cli`, `pdfcer-print`); `pdfcer-cli` owns the poster-tiling whole-vs-region comparison.
+
+**For next session:** unchanged (`704.0` numbers to Ken, then `704.1`+; `703.1` F078 masks owed).
+
 ## 2026-11-10 (1498th filing) — `0281cfdd` `Pass 704.0` banded replay SHIPPED; decision 223 amended
 
 **Shipped (engineer-reported; no shell here, git/push/CI state not checked from here; docs only, engineer commits):**
