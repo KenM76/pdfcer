@@ -138,6 +138,15 @@ Engineer-reported; no shell here, git, push and CI state not checked from here. 
 - **Divergences / open:** fixture (b) paints the group at 70% (at full opacity a non-isolated group draws straight onto the page, already exact); a top-level highlight blend is still handled by the existing exact flattening, so it remains a blend-mode print reason off a CMYK page; on a CMYK page every compositing op is patched, opaque antialiased edges are not; the flag is not on `copy-page` or `print`. The `700.18` parity check should now be run with `--patch-approximations`.
 - **FEATURES:** the *Planned* row moved to *Implemented* (core `[x]`, cli `[x]`, gui `[ ]`); the "Blend flattening for EMF" row's pointer updated.
 
+### `962a200b` `Pass 700.16` follow-up: print compositor builds without `svg-import` and off Windows, 2026-11-11 (1524th filing)
+
+Engineer-reported; no shell here, git, push and CI state not checked from here. `962a200b7aea3508ec04302f3d2586c20f838ecc` `fix(cli): build the print compositor without svg-import and off Windows (Pass 700.16)`, on `main`; NOT in a release. Fixes the CI failure on `96241343` (clippy, test-ubuntu, test-windows). Reasoning is in the commit message.
+- **Cause 1:** `pdfcer-cli --no-default-features` did not compile: `print_compose.rs` called `pdfcer_core::svg_import` and `EditSession::add_svg` with no cfg, both behind the `svg-import` feature. Now a composed layout with cut marks or borders, in a build without the feature, is refused ("cut marks and borders need a build with the svg-import feature"); never printed silently without them. Default build unchanged.
+- **Cause 2:** on non-Windows targets clippy reported dead code: `Paper::portrait` is called only by the Windows driver-caps path and tests. Now `#[cfg_attr(not(windows), allow(dead_code))]` with a comment.
+- **Verified (engineer-reported):** Windows clippy `-D warnings` on pdfcer-cli `--all-targets`; `print_` bin tests 60 passed; `cargo check --no-default-features --bin pdfcer --tests` clean. **Linux not verified locally** (ring needs a C cross-compiler): CI on the next push is the verifier.
+- **Gotcha:** neither a feature-gated core module used from a CLI module without a cfg, nor a `cfg(windows)`-only caller, shows up in a default Windows build.
+- **FEATURES:** no box changes; the print-by-PDF row gained the `svg-import` requirement note.
+
 ### `587ed549` `Pass 700.16`: send the PDF straight to installed printers that read it, 2026-11-11 (1521st filing)
 
 Engineer-reported; no shell here, git, push and CI state not checked from here. `587ed549` `feat(print,cli): send the PDF straight to installed printers that read it (Pass 700.16)`, on `main`, a cherry-pick of worker commit `a20cfb3b2ad1687b6e7b4304fc32decc4e8a97d5`; NOT in a release. Ken's own request, no channel request. Reasoning is in the commit message.

@@ -4,6 +4,17 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-11-11 (1524th filing) — `962a200b` `Pass 700.16` follow-up: print compositor builds without `svg-import` and off Windows
+
+**Shipped (engineer-reported; no shell here, git/CI state not checked from here; docs only):**
+- `962a200b7aea3508ec04302f3d2586c20f838ecc` on `main`, not in a release; fixes CI on `96241343` (clippy, test-ubuntu, test-windows). Detail in the ROADMAP *Shipped* entry.
+- No-feature build: cut marks/borders in a composed layout are refused, not silently dropped. Non-Windows: `Paper::portrait` dead-code allow.
+- Verified on Windows only (clippy, 60 `print_` tests, no-default-features check); Linux left to CI on the next push.
+- **Gotcha:** a feature-gated core module used from a CLI module without a cfg, and a `cfg(windows)`-only caller, both pass a default Windows build and fail elsewhere.
+- FEATURES: no box changes; svg-import note added to the print-by-PDF row.
+
+**For next session:** read CI's colour on the next push.
+
 ## 2026-11-11 (1523rd filing) — `380cdc00` `Pass 700.10` SHIPPED: signature field appearances and an appearance builder (`X071` part 3; `X071` complete)
 
 **Shipped (engineer-reported; no shell here, git/CI state not checked from here; docs only):**
