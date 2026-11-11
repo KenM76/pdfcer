@@ -4,6 +4,24 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-11-11 (1500th filing) — `Pass 705.0` PARTIAL: corpus and ray-speed measurements decide both default flips
+
+**Shipped (engineer-reported; no shell here, git/push/CI state not checked from here; docs only, engineer commits):**
+- `8dbbcfc74847dd810a9e7b65fcd023cdf8763353`, `feat(tools): measure-3d counts lights, finishes and ray speed over the 3D corpus (Pass 705.0, partial)`. New detached tool `tools/3d-measure` (crate `measure-3d`, excluded from the root workspace, never shipped, no new dependencies outside `pdfcer-3d`). No engine code changed, so no digest can move (the 705.0 gate). Clippy `-D warnings` clean on native and wasm32-unknown-unknown; fmt and check-code-structure clean; no core or render manifest changed.
+- CI: per the engineer, `1cc9ffc03f270531b6baef9bf9bca65650e2b078`, and with it the fix `38f8855d4f1bba869e0e75d339ea8d59bb2fbd47` (region lattice anchor, 1499th filing), went GREEN. Not checked from here.
+
+**Measured (corpus: 35 models, 18 PRC / 13 U3D / 4 other = 4 `application/octet-stream` streams, format unidentified, not measured; 17 PRC assembled, the 18th has no triangle tessellation; 5 distinct assembled models: lit building-plan model in two variants, 388,156 and 394,224 triangles, 2 copies each, which are the 4 models with model-fixed lights; textured building-plan model, 109,358 triangles, 5 copies; untextured model, 7,048 triangles, 7 copies; one veraPDF fixture, 118,430 triangles):**
+- Reflections flip FIRES: 0 of 379 finished meshes have white specular >= 0.9 (0%, criterion under 25%); default `Finishes`, which reflects nothing on this corpus.
+- Bounce flip does NOT fire: wasm32 69,642-125,072 rays/s, so 7,000-12,500 rays in 100 ms = about 2-3 rays per probe over 4,096 probes; stays `ModelLights`. Native 90,592-179,718 rays/s. About 3.7 s per rebuild at 64 rays per probe on wasm32, so the incremental `step(budget)` build in `705.2` is required.
+- Model-fixed lights only in 4 PRC copies of one building model (2 ambient, 36 point, 73 spot); no view lights anywhere. 379 of 379 finished meshes have non-zero emissive carrying surface tones, so `705.2` gains the acceptance item "emissive does not inject bounce by default". `texture_mapping_attributes` all 0x1 on 60 definitions; no environment maps seen.
+- Acrobat: `D:\Dev\Rag-Specialized\Acrobat_Features\markup__3d_lighting_shadows_reflections_indirect_light.md` (no indirect light, GI, AO or shadows; reflections are an environment map with 0-1 strength). Bounce is a recorded divergence beyond parity, behind a flag.
+
+**Decisions / findings:** no new decision; outcomes recorded in `docs/decisions/224-indirect-light-and-reflections.md` ("Default flips") with an amendment line under the ARCHITECTURE §12 decision 224 entry. **FEATURES.md: no row change** (measurement tool, no core/cli/gui capability).
+
+**Still in flight:** `705.0` stays under Next up/Backlog, not Shipped. Open: (1) SwiftShader sampler and RGBA32F check; (2) Adreno 643 lookup timing, from the GUI project.
+
+**For next session:** close the two open `705.0` measurements, then `705.1`.
+
 ## 2026-11-11 (1499th filing) — `38f8855d` `Pass 704.0` follow-up: regions cut edges on the page raster's lattice
 
 **Shipped (engineer-reported; no shell here, git/push/CI state not checked from here; docs only, engineer commits):**

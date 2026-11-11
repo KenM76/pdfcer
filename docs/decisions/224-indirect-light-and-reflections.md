@@ -100,6 +100,19 @@ Other rules:
 - Bounce becomes `EveryLight` by default if a 4,096-probe rebuild takes
   100 ms or less on wasm32.
 
+**Outcomes (2026-11-11, `Pass 705.0` partial, `8dbbcfc74847dd810a9e7b65fcd023cdf8763353`, tool `tools/3d-measure`, crate `measure-3d`; two measurements still open, see the end of this section):**
+
+Corpus: 35 3D models extracted from local test PDFs (18 PRC, 13 U3D, 4 other). "Other" is 4 streams with subtype `application/octet-stream`, format unidentified, so not measured. 17 PRC assembled; the 18th PRC has no triangle tessellation; U3D is not measurable (no reader). The 17 assembled are 5 distinct models: a lit building-plan model in two variants (388,156 and 394,224 triangles, 2 copies each; these 4 are the models with model-fixed lights), a textured building-plan model (109,358 triangles, 5 copies), an untextured model (7,048 triangles, 7 copies), and one veraPDF fixture (118,430 triangles).
+
+- **Reflections flip FIRES.** 379 finished meshes, 0 with white specular >= 0.9 (0% against the 25% criterion); every one has specular 0. Reflections default to `Finishes`. On this corpus that reflects nothing, so the default is free; the look needs an environment map or an `EverySurface` choice.
+- **Bounce flip does NOT fire.** Closest-hit `PickIndex`, single thread, release build, 200,000 deterministic rays per model, identical hit fraction on both targets. Native 90,592-179,718 rays/s; wasm32 under node (`tools/3d-measure/wasm/time.mjs`) 69,642-125,072 rays/s. The 100 ms wasm32 budget is 7,000-12,500 rays = about 2-3 rays per probe over 4,096 probes (7,000 / 4,096 = 1.7; 12,500 / 4,096 = 3.1), against tens to hundreds a DDGI probe needs. Bounce stays `ModelLights`. At 64 rays per probe the lit building model rebuilds in about 3.7 s on wasm32 (4,096 x 64 = 262,144 rays), so `705.2`'s incremental `step(budget)` build is required, not optional.
+- **Model-fixed lights:** 4 of the 17 assembled PRC models, all copies of the one building model; its occurrence lights are 2 ambient, 36 point, 73 spot. No model in the corpus has view lights. Bounce therefore has exactly one real test case.
+- **Glow:** 379 of 379 finished meshes have a non-zero emissive term. On the building model the values are surface tones (for example 1.00/0.72/0.43 and 0.25/0.40/0.62), equal or close to the ambient tones. pdfcer's reader order matches WD 7.5.4 (ambient, diffuse, emissive, specular), so the producer really writes these values. **New `705.2` acceptance item: emissive does NOT inject bounce light by default**, because on the measured corpus it carries surface colour and injecting it would light every wall as a lamp. Whether to offer it as an opt-in is open.
+- **`texture_mapping_attributes`:** measured on the 3 distinct textured models (60 texture definitions): every one is 0x1 (diffuse), mapping type 1. No environment map was seen, so `producer_environment_maps` has no corpus file to test against yet.
+- **Acrobat (parity reference):** `D:\Dev\Rag-Specialized\Acrobat_Features\markup__3d_lighting_shadows_reflections_indirect_light.md`. Acrobat has no indirect light, global illumination, ambient occlusion or shadows; its reflections are an environment map with a 0-1 per-material strength; among the `/LS` schemes only Headlamp and CAD are camera-attached. pdfcer's bounce is a divergence beyond parity, behind a flag.
+
+**Still open in `705.0`:** (1) the SwiftShader sampler and RGBA32F check; (2) the Adreno 643 lookup timing, from the GUI project.
+
 ## Scope ("all things 3D")
 
 - **Live and saved pictures:** CPU render, GPU live view and saved pictures,
