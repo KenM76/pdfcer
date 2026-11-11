@@ -59,8 +59,13 @@ fn pdf(text: &str) -> Vec<u8> {
     buf
 }
 
-fn pair() -> (PathBuf, PathBuf) {
-    let (old, new) = (temp("old.pdf"), temp("new.pdf"));
+/// Fresh source files named for `test`: the tests run in parallel and
+/// [`temp`] deletes its path, so a shared name would race.
+fn pair(test: &str) -> (PathBuf, PathBuf) {
+    let (old, new) = (
+        temp(&format!("{test}-old.pdf")),
+        temp(&format!("{test}-new.pdf")),
+    );
     std::fs::write(&old, pdf("one two three four")).expect("old");
     std::fs::write(&new, pdf("one three FOUR five")).expect("new");
     (old, new)
@@ -68,7 +73,7 @@ fn pair() -> (PathBuf, PathBuf) {
 
 #[test]
 fn the_result_is_written_and_the_sources_are_untouched() {
-    let (old, new) = pair();
+    let (old, new) = pair("written");
     let before = (std::fs::read(&old).unwrap(), std::fs::read(&new).unwrap());
     let out = temp("result.pdf");
     let (code, stdout, stderr) = run(&["compare", s(&old), s(&new), "--output", s(&out)]);
@@ -94,7 +99,7 @@ fn the_result_is_written_and_the_sources_are_untouched() {
 
 #[test]
 fn no_summary_leaves_the_page_count_alone() {
-    let (old, new) = pair();
+    let (old, new) = pair("nosummary");
     let out = temp("nosummary.pdf");
     let (code, stdout, stderr) = run(&[
         "compare",
@@ -116,7 +121,7 @@ fn no_summary_leaves_the_page_count_alone() {
 
 #[test]
 fn an_output_naming_a_source_is_refused_before_anything_runs() {
-    let (old, new) = pair();
+    let (old, new) = pair("refused");
     let before = std::fs::read(&new).unwrap();
     let (code, stdout, stderr) = run(&["compare", s(&old), s(&new), "--output", s(&new)]);
     assert_eq!(code, 2, "{stdout}\n{stderr}");
