@@ -4,6 +4,15 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-11-11 (1508th filing) — `v0.144.0` PUBLISHED (`5eb04866`); open defect: Supersampled refuses large sheets
+
+**Filed (engineer-reported; no shell here, nothing checked from here; docs only, engineer commits):**
+- **`v0.144.0` PUBLISHED.** Tag on `5eb04866a21821dc8bccded19c30033c26529acf`, pushed, CI green; the tag is LIGHTWEIGHT (earlier ones annotated), left as is since replacing a pushed tag needs operator go-ahead. Carries `Pass 700.2` and `700.3` (filed 1507th; answers X068). Package `D:\builds\pdfcer-20261111-0631-5eb0486`, fresh-folder smoke OK (`--version` 0.144.0; `render-page` default and with `--edge-antialiasing on --preserve-calibrated-cmyk`). GitHub release 8 assets, gh-release PASS: `pdfcer-v0.144.0-windows-x64.zip` 31,838,975 bytes + `.sha256`, plus ocrcer/ocrs/tesseract add-on zips each with `.sha256`. OneDrive `pdfcer1` now 0.144.0, `pdfcer2` keeps 0.143.0 (next release writes `pdfcer2`). crates.io: all 14 crates at 0.144.0, published from a detached worktree at the tag, no 429s. `verify-release.py` all ok except "working tree clean" (expected). `check-commits-filed.py` flagged `5eb04866`; this entry files it.
+- **OPEN DEFECT, not fixed in this release:** pdfcer-gui (`request_supersampled_large_sheet.md`) found `Supersampled` refuses sheets whose 4x raster passes `MAX_PIXMAP_EDGE` (A1 above about 123 DPI), and the CLI `auto` default (seamless below 300 DPI) hits it. Tiling fix in progress, ships in the next release.
+- ROADMAP: new Shipped entry. FEATURES: no change.
+
+**For next session:** land the tiling fix for large-sheet `Supersampled` and release it; engineer's `--help`/rustdoc sweep from the 1507th; gui engine pin bump; `705.4`.
+
 ## 2026-11-11 (1507th filing) — `7897f7e2` + `66270eeb` `Pass 700.2` + `700.3` SHIPPED: seamless supersampled edges, preserve calibrated CMYK (X068)
 
 **Shipped (engineer-reported; no shell here, git/CI state not checked from here):**

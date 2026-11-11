@@ -112,6 +112,14 @@ wherever it appears.*
 
 ## Shipped
 
+### `5eb04866` `v0.144.0` PUBLISHED, 2026-11-11 (1508th filing)
+
+Engineer-reported; no shell here, nothing checked from here.
+- **Release:** tag `v0.144.0` on `5eb04866a21821dc8bccded19c30033c26529acf` (`chore(release): v0.144.0`), pushed, CI green. The tag is LIGHTWEIGHT (earlier releases were annotated); left as is, because replacing a pushed tag needs operator go-ahead. Package `D:\builds\pdfcer-20261111-0631-5eb0486`; fresh-folder smoke OK (`--version` 0.144.0; `render-page` default and with `--edge-antialiasing on --preserve-calibrated-cmyk`). GitHub release: 8 assets, gh-release PASS; `pdfcer-v0.144.0-windows-x64.zip` 31,838,975 bytes + `.sha256`, plus the ocrcer/ocrs/tesseract add-on zips each with `.sha256`. OneDrive `pdfcer1` now 0.144.0; `pdfcer2` keeps 0.143.0 (next release writes `pdfcer2`). crates.io: all 14 crates at 0.144.0 from a detached worktree at the tag, no 429s. `verify-release.py`: all ok except "working tree clean" (uncommitted agent-memory files and in-flight work; expected, built from the tag).
+- **Carries:** `Pass 700.2` (`7897f7e2`) and `Pass 700.3` (`66270eeb`), filed in `c9918eb6` (1507th). Answers X068. Everything the 1507th entry said was "NOT in a release" is now in `v0.144.0`.
+- **OPEN DEFECT (found post-release by pdfcer-gui, `request_supersampled_large_sheet.md`; NOT fixed in this release):** `Supersampled` refuses a sheet whose 4x raster passes `MAX_PIXMAP_EDGE` (A1 above about 123 DPI), and the CLI `auto` default selects it below 300 DPI, so `auto` hits the refusal on large sheets. Fix in progress (tiling), ships in the next release.
+- **FEATURES:** no change.
+
 ### `7897f7e2` + `66270eeb` `Pass 700.2` + `Pass 700.3`: seamless supersampled edges, CLI `auto` default; preserve calibrated CMYK option (request X068), 2026-11-11 (1507th filing)
 
 Engineer-reported; no shell here, git, push and CI state not checked from here. `7897f7e2121e0d89eeecf1f5dbfad20a6f607e50` `feat(render): seamless supersampled edge antialiasing (X068)` and `66270eebf421a426b59359d3cf860e01ccd47016` `feat(render,cli): seamless edges by default in the CLI; preserve calibrated CMYK option (X068)`. In `main`, NOT in a release. No `Cargo.toml` touched, so `cargo tree` is unaffected. Origin: X068, print test patches vs reference renders (the licensed print test file). Reasoning is in the commit messages and `docs/edge-antialiasing.md`. Channel reply: `D:\Dev\FeatureRequests\pdfce_FeatureRequests\open\reply_X068_print_test_patches_SHIPPED.md`. **gui not delivered** (engine pin bump).
