@@ -4,6 +4,15 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-11-11 (1520th filing) — `Pass 700.19` and `700.20` filed: ICCBased CMYK lut source profile (`X074`), spot overprint and multi-ink DeviceN (`X075`)
+
+**Filed (docs only; no shell here, git/CI state not checked from here; nothing built, no code commits; HEAD per dispatch `f0380396`):**
+- `700.19` (`X074`): honour a v2 mft1/mft2 `ICCBased` CMYK source profile on raster, print, EMF and plates; diagnose the `authored_cmyk` / image `Space` bridge branch first; unmodellable profiles counted; icccer gaps go to the icccer channel (decision 064).
+- `700.20` (`X075`): spot-over-process overprint, overprinting white, DeviceN with 5-6 colorants; a per-route defect hunt measured against the plates route (spot planes exist since `97.x`); unfittable spot channels counted. A fourth acceptance case (grey patches) added to the request's three.
+- Both OPEN, none started; order after `700.12` and `700.16`, before the `700.17` split. Next-up banners follow `700.18` in ROADMAP; two FEATURES *Planned* rows (unticked). Numbers by grep (`Pass 700.19`/`700.20`: zero hits across `docs/`), not `tools/check-ledger-numbers.py`.
+
+**For next session:** `700.12`, then `700.19`/`700.20`, then `700.17`.
+
 ## 2026-11-11 (1519th filing) — `dff079c5` `Pass 700.9` follow-up SHIPPED: `/DR` family fonts, stream `/RV`, `/DS`-vs-`/DA` setting (`X071` part 2)
 
 **Shipped (engineer-reported; no shell here, git/CI state not checked from here; docs only):**
