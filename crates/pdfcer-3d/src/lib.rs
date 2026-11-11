@@ -35,6 +35,10 @@ mod gltf;
 #[cfg(feature = "render")]
 mod gpu;
 #[cfg(feature = "render")]
+// The renderer starts reading it in Pass 705.2b; until then only its tests do.
+#[allow(dead_code)]
+mod indirect;
+#[cfg(feature = "render")]
 mod lighting;
 mod model;
 mod prc;
