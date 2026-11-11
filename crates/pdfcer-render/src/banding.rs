@@ -18,20 +18,41 @@ use pdfcer_core::page_tree::{Page, Rect};
 use pdfcer_core::view::DocumentView;
 use tiny_skia::{Pixmap, Transform};
 
-/// Rows `y0..y0 + rows` of the whole-page raster.
+/// Rows `y0..y0 + rows` and columns `x0..x0 + cols` of the whole-page
+/// raster. A row band spans every column; a supersampled tile does not.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) struct Band {
+    pub(crate) x0: u32,
     pub(crate) y0: u32,
+    pub(crate) cols: u32,
     pub(crate) rows: u32,
 }
 
 impl Band {
-    /// The raster's base CTM moved so this band's first row lands on device
-    /// row 0, as the narrowed and the wide copy the interpreter needs.
+    /// The raster's base CTM moved so this band's first pixel lands on
+    /// device `(0, 0)`, as the narrowed and the wide copy the interpreter
+    /// needs.
     pub(crate) fn ctm(self, base: gstate::Mat64) -> (Transform, gstate::Mat64) {
-        let dy = f64::from(self.y0);
-        let wide = base.post_concat(gstate::Mat64::from_row(1.0, 0.0, 0.0, 1.0, 0.0, -dy));
+        let (dx, dy) = (f64::from(self.x0), f64::from(self.y0));
+        let wide = base.post_concat(gstate::Mat64::from_row(1.0, 0.0, 0.0, 1.0, -dx, -dy));
         (wide.to_f32(), wide)
+    }
+}
+
+/// Fold one band's diagnostics into the running total: the first band's
+/// counters stand for all (each band interprets the same operators), pixel
+/// tallies are summed and a refusal in any band is kept.
+pub(crate) fn absorb(merged: &mut Option<crate::Diagnostics>, d: crate::Diagnostics) {
+    match merged.as_mut() {
+        None => *merged = Some(d),
+        Some(m) => {
+            m.nonseparable_pixels += d.nonseparable_pixels;
+            m.cmyk_bridged_pixels += d.cmyk_bridged_pixels;
+            m.cmyk_native_image_pixels += d.cmyk_native_image_pixels;
+            m.overprint_pixels += d.overprint_pixels;
+            m.cmyk_buffer_refused = m.cmyk_buffer_refused.max(d.cmyk_buffer_refused);
+            m.cmyk_buffer_engaged &= d.cmyk_buffer_engaged;
+        }
     }
 }
 
@@ -48,7 +69,9 @@ pub(crate) fn plan(width: u32, height: u32, options: &RenderOptions) -> Option<V
         (0..height)
             .step_by(rows as usize)
             .map(|y0| Band {
+                x0: 0,
                 y0,
+                cols: width,
                 rows: rows.min(height - y0),
             })
             .collect(),
@@ -97,17 +120,7 @@ pub(crate) fn render_bands(
             }
             probe = Some(p);
         }
-        match merged.as_mut() {
-            None => merged = Some(d),
-            Some(m) => {
-                m.nonseparable_pixels += d.nonseparable_pixels;
-                m.cmyk_bridged_pixels += d.cmyk_bridged_pixels;
-                m.cmyk_native_image_pixels += d.cmyk_native_image_pixels;
-                m.overprint_pixels += d.overprint_pixels;
-                m.cmyk_buffer_refused = m.cmyk_buffer_refused.max(d.cmyk_buffer_refused);
-                m.cmyk_buffer_engaged &= d.cmyk_buffer_engaged;
-            }
-        }
+        absorb(&mut merged, d);
     }
     let mut diagnostics = merged.unwrap_or_default();
     diagnostics.ink_probe = probe;
@@ -131,9 +144,24 @@ mod tests {
         assert_eq!(
             bands,
             [
-                Band { y0: 0, rows: 2 },
-                Band { y0: 2, rows: 2 },
-                Band { y0: 4, rows: 1 }
+                Band {
+                    x0: 0,
+                    y0: 0,
+                    cols: 1,
+                    rows: 2
+                },
+                Band {
+                    x0: 0,
+                    y0: 2,
+                    cols: 1,
+                    rows: 2
+                },
+                Band {
+                    x0: 0,
+                    y0: 4,
+                    cols: 1,
+                    rows: 1
+                }
             ]
         );
     }

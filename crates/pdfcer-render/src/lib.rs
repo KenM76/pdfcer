@@ -960,6 +960,12 @@ fn render_impl(
             let mut fine = options.clone();
             fine.ink_probe = options.ink_probe.map(|p| supersample::fine_probe(k, p));
             let f = f64::from(k);
+            let (w, h, ..) = raster_geometry(page, scale, region)?;
+            if let Some(tiles) = supersample::tile_plan(k, w, h, options) {
+                return device_clip::with_lattice_anchor((anchor.0 * f, anchor.1 * f), || {
+                    supersample::render_tiled(doc, page, scale, region, &fine, &tiles)
+                });
+            }
             let rendered = device_clip::with_lattice_anchor((anchor.0 * f, anchor.1 * f), || {
                 render_impl_rasterize(doc, page, scale, region, None, &fine)
             })?;
@@ -1007,8 +1013,44 @@ fn render_impl_rasterize(
     band: Option<banding::Band>,
     options: &RenderOptions,
 ) -> Result<RenderedPage, RenderError> {
-    let (page_w, page_h, page_ctm) = page_device_geometry(page, scale);
+    let (width, height, base_ctm, base_ctm64) = raster_geometry(page, scale, region)?;
+    // Supersampled: the whole fine raster, scaled before any band is cut
+    // from it, so band rows are fine rows (`supersample`).
+    let (width, height, base_ctm, base_ctm64) = if options.edge_antialiasing.pixel_factor() > 1 {
+        supersample::fine_geometry(
+            options.edge_antialiasing.pixel_factor(),
+            width,
+            height,
+            base_ctm64,
+        )?
+    } else {
+        (width, height, base_ctm, base_ctm64)
+    };
+    let (width, height, base_ctm, base_ctm64) = match band {
+        None => (width, height, base_ctm, base_ctm64),
+        Some(b) => {
+            let (ctm, ctm64) = b.ctm(base_ctm64);
+            (b.cols, b.rows, ctm, ctm64)
+        }
+    };
+    rasterize_at(
+        doc,
+        page,
+        scale,
+        region,
+        band,
+        options,
+        (width, height, base_ctm, base_ctm64),
+    )
+}
 
+/// The output raster's size and base CTM: the page, or `region` of it.
+pub(crate) fn raster_geometry(
+    page: &Page,
+    scale: f32,
+    region: Option<pdfcer_core::page_tree::Rect>,
+) -> Result<(u32, u32, Transform, gstate::Mat64), RenderError> {
+    let (page_w, page_h, page_ctm) = page_device_geometry(page, scale);
     // `base_ctm64` is the one the interpreter composes `cm` against;
     // `base_ctm` is the narrowed copy every `tiny_skia` call takes. They
     // are produced together and must not be derived from each other in
@@ -1033,76 +1075,96 @@ fn render_impl_rasterize(
             (g.width, g.height, g.ctm, g.ctm64)
         }
     };
-    // Supersampled: the whole fine raster, scaled before any band is cut
-    // from it, so band rows are fine rows (`supersample`).
-    let (width, height, base_ctm, base_ctm64) = if options.edge_antialiasing.pixel_factor() > 1 {
-        supersample::fine_geometry(
-            options.edge_antialiasing.pixel_factor(),
-            width,
-            height,
-            base_ctm64,
-        )?
-    } else {
-        (width, height, base_ctm, base_ctm64)
-    };
-    let (height, base_ctm, base_ctm64) = match band {
-        None => (height, base_ctm, base_ctm64),
-        Some(b) => {
-            let (ctm, ctm64) = b.ctm(base_ctm64);
-            (b.rows, ctm, ctm64)
+    Ok((width, height, base_ctm, base_ctm64))
+}
+
+/// Run the page's content streams onto `canvas`, or record that `scope`
+/// suppressed them.
+fn paint_page_content(
+    doc: &DocumentView<'_>,
+    page: &Page,
+    options: &RenderOptions,
+    scope: AnnotationScope,
+    base_ctm64: gstate::Mat64,
+    (page_space, page_space_from): (compositor::BlendSpace, interpret::BlendSpaceFrom),
+    canvas: &mut canvas::Canvas<'_>,
+) -> Result<Diagnostics, RenderError> {
+    Ok(if scope.paints_page_content() {
+        let mut content = pdfcer_core::content::ContentChunks::from_page(doc, page)?;
+        content.prime()?;
+        let initial = gstate::GraphicsState::default_with_ctm64(base_ctm64);
+        // §11.4.7 / §11.3.4 — THE PAGE'S BLENDING COLOUR SPACE, read
+        // before anything is painted, because every element on the page
+        // and every non-isolated group inside it composites in it.
+        //
+        // This is the number the suite transparency panels turn on:
+        // all of them declare `/Group /CS /DeviceCMYK` here, including
+        // the one whose own objects are `ICCBased` RGB, so §11.3.4's
+        // complement governs every blend on those pages and pdfcer
+        // performs none of them that way yet. Counted rather than
+        // silently ignored. `Pass 97.1e`'s colorant buffer IS that
+        // fix and it shipped; a subtractive page composites in ink.
+        let mut diagnostics = interpret::run_on(
+            doc,
+            content,
+            &page.resources,
+            &options.fonts,
+            initial,
+            canvas,
+            options.cancel.as_ref(),
+            options.policy(),
+            page_space,
+        );
+        if page_space.is_subtractive() {
+            diagnostics.blend_space_subtractive += 1;
         }
-    };
+        // Set unconditionally, including for an ordinary additive page.
+        // Reporting provenance only when it is interesting would make
+        // its ABSENCE ambiguous between "not inferred" and "not
+        // recorded", which is the shape that makes a disclosure
+        // unreadable.
+        diagnostics.blend_space_from = page_space_from.token();
+        diagnostics.blend_space_from_output_intent =
+            usize::from(page_space_from == interpret::BlendSpaceFrom::OutputIntent);
+        // Carry the page-level omission into the render diagnostics. The
+        // interpreter cannot observe it — the streams it never received
+        // leave no trace in the operator stream — so the count is copied
+        // from the page here, where the two facts meet. Without this the
+        // raster of a page with a dangling `/Contents` would be silently
+        // blank, which is exactly the "sneaky" outcome the project forbids.
+        diagnostics.contents_streams_unresolved = page.contents_unresolved;
+        diagnostics
+    } else {
+        // Content streams are not merely skipped at paint time — they are
+        // never decoded. Two consequences worth stating rather than
+        // discovering:
+        //
+        // - A page whose `/Contents` fails to decode still renders under
+        //   this scope, because nothing asked it to. That is correct for
+        //   the pre-printed-form workflow (the operator wants the field
+        //   values, not the page) and it is the reason this branch cannot
+        //   return `RenderError::Content`.
+        // - `contents_streams_unresolved` stays 0, because pdfcer did not
+        //   look. Reporting a page-level incompleteness it never measured
+        //   would be an invented fact; the honest disclosure is the
+        //   suppression flag itself.
+        Diagnostics {
+            page_content_suppressed: true,
+            ..Diagnostics::default()
+        }
+    })
+}
 
-    if width == 0 || height == 0 || width > MAX_PIXMAP_EDGE || height > MAX_PIXMAP_EDGE {
-        return Err(RenderError::BadRasterSize { width, height });
-    }
-    let Some(mut pixmap) = Pixmap::new(width, height) else {
-        return Err(RenderError::BadRasterSize { width, height });
-    };
-    // §11.4.7 THE PAGE GROUP. The buffer starts fully TRANSPARENT, not
-    // white, and the white paper is composited in ONCE at the end by
-    // `flatten_page_group_over_white` below.
-    //
-    // This is not a refinement — it is the difference between right and
-    // wrong for eleven of the fifteen blend modes, and pdfcer had it wrong
-    // until 2026-08-17. §11.4.7:
-    //
-    //   "All of the elements painted directly onto a page … shall be
-    //    treated as if they were contained in a transparency group P …
-    //    called the page group." "Ordinarily … the page group shall be
-    //    treated as an ISOLATED group, whose results shall then be
-    //    composited with a backdrop colour appropriate for the medium.
-    //    The backdrop is nominally white…"
-    //
-    //   ⟨Cg, fg, αg⟩ = Composite(U, 0, P)   then   C = (1 − αg)·W + αg·Cg
-    //
-    // An *isolated* group's initial backdrop is `U` — fully transparent —
-    // and §11.4.5 adds that blend modes inside a group "shall not be
-    // influenced by the group's backdrop". Compositing straight onto opaque
-    // white therefore hands every blend function a backdrop of 1.0, which
-    // is only harmless where `B(1.0, cs) = cs`: `Normal`, `Compatible`,
-    // `Multiply`, `Darken`. For the other eleven the first object painted
-    // at a given pixel comes out solid white or inverted — `Screen` of
-    // anything over white is white, `Difference` inverts, and so on.
-    //
-    // The correction is these two steps and it is EXACT, not an
-    // approximation: the pair of formulas above IS the standard's own
-    // definition of what a page is. For `Normal` the two models coincide
-    // algebraically, which is why almost nothing else in the test suite
-    // moves.
-    //
-    // (`Pixmap::new` already zeroes, so there is no fill to perform here.
-    // The line is kept as a comment rather than deleted because "the page
-    // starts white" is the intuition every reader arrives with, and the
-    // point is that the intuition is wrong.)
-
-    // The one scope decision that is not about annotations at all:
-    // `FormFieldsOnly` (Acrobat's "Form fields only") prints the widget
-    // appearances and NOT the page beneath them, because the sourced
-    // workflow is printing onto a pre-printed paper form where the page
-    // background already physically exists. See `AnnotationScope`.
-    let scope = options.effective_annotation_scope();
-
+/// The page group's blending space (§11.4.7, §11.7.2) and the buffer it
+/// composites in: a colorant buffer for a subtractive page, else sRGB.
+fn page_group(
+    doc: &DocumentView<'_>,
+    page: &Page,
+    options: &RenderOptions,
+    scope: AnnotationScope,
+    width: u32,
+    height: u32,
+) -> PageGroup {
     // §11.4.7 / §11.7.2 — THE PAGE'S BLENDING COLOUR SPACE, read BEFORE the
     // buffer is chosen, because it is what chooses the buffer.
     //
@@ -1155,7 +1217,7 @@ fn render_impl_rasterize(
     } else {
         page_space
     };
-    let mut cmyk = if page_space.is_subtractive() {
+    let cmyk = if page_space.is_subtractive() {
         cmyk_buffer::CmykBuffer::new(
             width,
             height,
@@ -1165,141 +1227,147 @@ fn render_impl_rasterize(
     } else {
         None
     };
-    // A page that asked for ink and could not have it. Recorded here, where
-    // both facts are in scope, and reported rather than failed.
-    let cmyk_refused = usize::from(page_space.is_subtractive() && cmyk.is_none());
-    // A raster too large for one colorant buffer is composited in row
-    // bands that each fit, rather than in sRGB (`banding`).
-    if cmyk_refused == 1
-        && band.is_none()
-        && let Some(bands) = banding::plan(width, height, options)
-    {
-        drop(cmyk);
-        return banding::render_bands(doc, page, scale, region, options, &bands, pixmap);
+    PageGroup {
+        space: page_space,
+        from: page_space_from,
+        inks_forced,
+        cmyk,
     }
-    // ONE canvas for the whole page — content first, then annotations over
-    // it. Scoped in a block so the mutable borrow of `pixmap` ends before
-    // the page-group flatten below, which needs the buffer back.
-    //
-    // Why a canvas rather than the pixmap itself: `Canvas` is the seam a
-    // display list replaces the pixmap at (Pass 75.0, `crate::canvas`). In
-    // paint mode it forwards everything, so this call chain is byte-for-byte
-    // what it was.
-    let diagnostics = {
-        let mut canvas = match cmyk.as_mut() {
-            Some(buffer) => canvas::Canvas::cmyk(buffer),
-            None => canvas::Canvas::paint(&mut pixmap),
-        };
-        let mut diagnostics = if scope.paints_page_content() {
-            let mut content = pdfcer_core::content::ContentChunks::from_page(doc, page)?;
-            content.prime()?;
-            let initial = gstate::GraphicsState::default_with_ctm64(base_ctm64);
-            // §11.4.7 / §11.3.4 — THE PAGE'S BLENDING COLOUR SPACE, read
-            // before anything is painted, because every element on the page
-            // and every non-isolated group inside it composites in it.
-            //
-            // This is the number the suite transparency panels turn on:
-            // all of them declare `/Group /CS /DeviceCMYK` here, including
-            // the one whose own objects are `ICCBased` RGB, so §11.3.4's
-            // complement governs every blend on those pages and pdfcer
-            // performs none of them that way yet. Counted rather than
-            // silently ignored. `Pass 97.1e`'s colorant buffer IS that
-            // fix and it shipped; a subtractive page composites in ink.
-            let mut diagnostics = interpret::run_on(
-                doc,
-                content,
-                &page.resources,
-                &options.fonts,
-                initial,
-                &mut canvas,
-                options.cancel.as_ref(),
-                options.policy(),
-                page_space,
-            );
-            if page_space.is_subtractive() {
-                diagnostics.blend_space_subtractive += 1;
-            }
-            // Set unconditionally, including for an ordinary additive page.
-            // Reporting provenance only when it is interesting would make
-            // its ABSENCE ambiguous between "not inferred" and "not
-            // recorded", which is the shape that makes a disclosure
-            // unreadable.
-            diagnostics.blend_space_from = page_space_from.token();
-            diagnostics.blend_space_from_output_intent =
-                usize::from(page_space_from == interpret::BlendSpaceFrom::OutputIntent);
-            // Carry the page-level omission into the render diagnostics. The
-            // interpreter cannot observe it — the streams it never received
-            // leave no trace in the operator stream — so the count is copied
-            // from the page here, where the two facts meet. Without this the
-            // raster of a page with a dangling `/Contents` would be silently
-            // blank, which is exactly the "sneaky" outcome the project forbids.
-            diagnostics.contents_streams_unresolved = page.contents_unresolved;
-            diagnostics
-        } else {
-            // Content streams are not merely skipped at paint time — they are
-            // never decoded. Two consequences worth stating rather than
-            // discovering:
-            //
-            // - A page whose `/Contents` fails to decode still renders under
-            //   this scope, because nothing asked it to. That is correct for
-            //   the pre-printed-form workflow (the operator wants the field
-            //   values, not the page) and it is the reason this branch cannot
-            //   return `RenderError::Content`.
-            // - `contents_streams_unresolved` stays 0, because pdfcer did not
-            //   look. Reporting a page-level incompleteness it never measured
-            //   would be an invented fact; the honest disclosure is the
-            //   suppression flag itself.
-            Diagnostics {
-                page_content_suppressed: true,
-                ..Diagnostics::default()
-            }
-        };
+}
 
-        // Set on BOTH branches, unlike `contents_streams_unresolved` above:
-        // the page-tree walk decides this whether or not page content is
-        // painted, so a scope that suppresses content has no excuse for
-        // dropping a fact it already holds.
-        diagnostics.page_resources_defaulted = page.resources_defaulted;
-        diagnostics.page_crop_box = page.crop_box_resolution;
+/// What [`page_group`] chose.
+struct PageGroup {
+    space: compositor::BlendSpace,
+    from: interpret::BlendSpaceFrom,
+    /// A separation preview forced an additive page into ink.
+    inks_forced: bool,
+    cmyk: Option<cmyk_buffer::CmykBuffer>,
+}
 
-        // Pass 6.0: survey the page's annotations (ISO 32000-1 §12.5;
-        // docs/decisions/008) and paint their appearances OVER the page content
-        // (their natural z-order). The survey always COUNTS; painting is gated
-        // by the effective scope, so `--no-annotations` still discloses how
-        // many annotations exist while reproducing the pre-6.0 content-only
-        // raster byte-for-byte — and a narrowed scope ("Document", "Document
-        // and Stamps") discloses how many annotations it withheld.
-        annot::survey_page_annotations(
-            doc,
-            page,
-            base_ctm,
-            &options.fonts,
-            scope,
-            &mut diagnostics,
-            &mut canvas,
-            options.cancel.as_ref(),
-            options.policy(),
-        );
-        diagnostics
+/// Paint the page content, then the annotations over it (§12.5), onto
+/// `canvas`.
+fn paint_onto(
+    doc: &DocumentView<'_>,
+    page: &Page,
+    options: &RenderOptions,
+    scope: AnnotationScope,
+    (base_ctm, base_ctm64): (Transform, gstate::Mat64),
+    group: (compositor::BlendSpace, interpret::BlendSpaceFrom),
+    canvas: &mut canvas::Canvas<'_>,
+) -> Result<Diagnostics, RenderError> {
+    let mut diagnostics = paint_page_content(doc, page, options, scope, base_ctm64, group, canvas)?;
+
+    // Set on BOTH branches, unlike `contents_streams_unresolved` above:
+    // the page-tree walk decides this whether or not page content is
+    // painted, so a scope that suppresses content has no excuse for
+    // dropping a fact it already holds.
+    diagnostics.page_resources_defaulted = page.resources_defaulted;
+    diagnostics.page_crop_box = page.crop_box_resolution;
+
+    // Pass 6.0: survey the page's annotations (ISO 32000-1 §12.5;
+    // docs/decisions/008) and paint their appearances OVER the page content
+    // (their natural z-order). The survey always COUNTS; painting is gated
+    // by the effective scope, so `--no-annotations` still discloses how
+    // many annotations exist while reproducing the pre-6.0 content-only
+    // raster byte-for-byte — and a narrowed scope ("Document", "Document
+    // and Stamps") discloses how many annotations it withheld.
+    annot::survey_page_annotations(
+        doc,
+        page,
+        base_ctm,
+        &options.fonts,
+        scope,
+        &mut diagnostics,
+        canvas,
+        options.cancel.as_ref(),
+        options.policy(),
+    );
+    Ok(diagnostics)
+}
+
+/// Convert a colorant buffer to sRGB (§11.4.7: convert first, then the
+/// white), sampling the ink probe and the separation preview before the
+/// colorant state is consumed.
+fn collapse_ink(
+    options: &RenderOptions,
+    mut buffer: cmyk_buffer::CmykBuffer,
+    pixmap: &mut Pixmap,
+    diagnostics: &mut Diagnostics,
+    (width, height): (u32, u32),
+) {
+    diagnostics.cmyk_buffer_engaged = true;
+    diagnostics.cmyk_bridged_pixels += buffer.bridged_pixels();
+    diagnostics.cmyk_native_image_pixels += buffer.native_image_pixels();
+    diagnostics.cmyk_groups_approximated += buffer.groups_approximated();
+    diagnostics.cmyk_unbridged_images += buffer.unbridged_images();
+    diagnostics.cmyk_spots_flattened += buffer.spots_flattened();
+    // The one failure mode here is an allocation the page has already
+    // proven possible, so falling back to the transparent pixmap would
+    // be a blank page. Keeping the (empty) pixmap and flattening it is
+    // the same outcome the additive path would produce for a page that
+    // painted nothing, which is at least a white sheet.
+    // SAMPLED BEFORE THE COLLAPSE, WHICH IS THE ENTIRE POINT.
+    // `to_srgb_over_white` consumes the colorant state into sRGB and
+    // the buffer is dropped immediately after; one line later there is
+    // nothing left to ask. A probe taken after the collapse could only
+    // report the same number a PNG already carries.
+    let probe_cmyk = options
+        .ink_probe
+        .map(|(px, py)| probe_ink_from_buffer(&buffer, px, py, width, height));
+    // After the probe, so it still reports every plate.
+    if let Some(preview) = &options.separation_preview {
+        diagnostics.inks = buffer.ink_names();
+        (diagnostics.inks_hidden, diagnostics.inks_unmatched) = buffer.hide_inks(&preview.hidden);
+    }
+    // §11.4.7's media composite, or — for an export that keeps the
+    // page's transparency (`Pass 248.0`) — the same conversion with the
+    // group's own alpha carried through instead of resolved against
+    // paper. Two sibling collapses rather than one with a flag, because
+    // the transparent one must never contain the `1 − a` term and a
+    // shared body with a branch inside its pixel loop is where that
+    // term would creep back in.
+    let collapsed = match options.effective_backdrop() {
+        PageBackdrop::White => buffer.to_srgb_over_white(),
+        PageBackdrop::Transparent => buffer.to_srgb_transparent(),
     };
-
-    // THE ONE PLACE A CANCELLED RENDER BECOMES AN ERROR.
-    //
-    // The interpreter stops early and returns its diagnostics; it never
-    // decides what that means. Here, at the only entry point that hands
-    // out a `RenderedPage`, a set flag becomes `Cancelled` instead — so
-    // no caller can be handed a half-painted pixmap and mistake it for
-    // the page. Checked AFTER the work rather than before, because a
-    // render cancelled on its last operator is still cancelled, and a
-    // partial raster is exactly what must not escape.
-    if options
-        .cancel
-        .as_ref()
-        .is_some_and(cancel::RenderCancel::is_cancelled)
-    {
-        return Err(RenderError::Cancelled);
+    if let Some(collapsed) = collapsed {
+        *pixmap = collapsed;
+    } else if options.effective_backdrop() == PageBackdrop::White {
+        flatten_page_group_over_white(pixmap);
     }
+    diagnostics.ink_probe = probe_cmyk;
+}
 
+/// Fill the probe's sRGB half from the finished raster, the number the
+/// operator's PNG carries.
+fn probe_srgb(diagnostics: &mut Diagnostics, pixmap: &Pixmap, width: u32) {
+    if let Some(probe) = diagnostics
+        .ink_probe
+        .as_mut()
+        .filter(|p| p.source != InkProbeSource::OutOfRange)
+    {
+        let idx = (probe.y as usize) * (width as usize) + (probe.x as usize);
+        if let Some(px) = pixmap.pixels().get(idx) {
+            // `demultiply` because the page is opaque here (alpha 255
+            // after the media composite), so the premultiplied bytes
+            // already are the colour -- but going through the accessor
+            // keeps this correct if that ever stops being true.
+            let c = px.demultiply();
+            probe.srgb = Some([c.red(), c.green(), c.blue()]);
+        }
+    }
+}
+
+/// §11.4.7's second formula: composite the isolated page group over the
+/// medium's white (or keep its alpha), sampling the ink probe first.
+fn finish_page_group(
+    options: &RenderOptions,
+    mut pixmap: Pixmap,
+    cmyk: Option<cmyk_buffer::CmykBuffer>,
+    mut diagnostics: Diagnostics,
+    (cmyk_refused, inks_forced): (usize, bool),
+    (width, height): (u32, u32),
+) -> RenderedPage {
     // §11.4.7's second formula: composite the isolated page group over the
     // medium's nominally-white backdrop.
     //
@@ -1318,52 +1386,16 @@ fn render_impl_rasterize(
     // CMYK white (no ink) and converting afterwards is the intuitive order
     // and is wrong; see `CmykBuffer::to_srgb_over_white`, which carries the
     // worked number.
-    let mut diagnostics = diagnostics;
     diagnostics.cmyk_buffer_refused += cmyk_refused;
     diagnostics.inks_forced_subtractive = usize::from(inks_forced);
-    if let Some(mut buffer) = cmyk {
-        diagnostics.cmyk_buffer_engaged = true;
-        diagnostics.cmyk_bridged_pixels += buffer.bridged_pixels();
-        diagnostics.cmyk_native_image_pixels += buffer.native_image_pixels();
-        diagnostics.cmyk_groups_approximated += buffer.groups_approximated();
-        diagnostics.cmyk_unbridged_images += buffer.unbridged_images();
-        diagnostics.cmyk_spots_flattened += buffer.spots_flattened();
-        // The one failure mode here is an allocation the page has already
-        // proven possible, so falling back to the transparent pixmap would
-        // be a blank page. Keeping the (empty) pixmap and flattening it is
-        // the same outcome the additive path would produce for a page that
-        // painted nothing, which is at least a white sheet.
-        // SAMPLED BEFORE THE COLLAPSE, WHICH IS THE ENTIRE POINT.
-        // `to_srgb_over_white` consumes the colorant state into sRGB and
-        // the buffer is dropped immediately after; one line later there is
-        // nothing left to ask. A probe taken after the collapse could only
-        // report the same number a PNG already carries.
-        let probe_cmyk = options
-            .ink_probe
-            .map(|(px, py)| probe_ink_from_buffer(&buffer, px, py, width, height));
-        // After the probe, so it still reports every plate.
-        if let Some(preview) = &options.separation_preview {
-            diagnostics.inks = buffer.ink_names();
-            (diagnostics.inks_hidden, diagnostics.inks_unmatched) =
-                buffer.hide_inks(&preview.hidden);
-        }
-        // §11.4.7's media composite, or — for an export that keeps the
-        // page's transparency (`Pass 248.0`) — the same conversion with the
-        // group's own alpha carried through instead of resolved against
-        // paper. Two sibling collapses rather than one with a flag, because
-        // the transparent one must never contain the `1 − a` term and a
-        // shared body with a branch inside its pixel loop is where that
-        // term would creep back in.
-        let collapsed = match options.effective_backdrop() {
-            PageBackdrop::White => buffer.to_srgb_over_white(),
-            PageBackdrop::Transparent => buffer.to_srgb_transparent(),
-        };
-        if let Some(collapsed) = collapsed {
-            pixmap = collapsed;
-        } else if options.effective_backdrop() == PageBackdrop::White {
-            flatten_page_group_over_white(&mut pixmap);
-        }
-        diagnostics.ink_probe = probe_cmyk;
+    if let Some(buffer) = cmyk {
+        collapse_ink(
+            options,
+            buffer,
+            &mut pixmap,
+            &mut diagnostics,
+            (width, height),
+        );
     } else {
         // `Transparent` is the ONE-LINE case on the additive path: the
         // group already holds `(Cg·αg, αg)`, so keeping the page's
@@ -1376,31 +1408,95 @@ fn render_impl_rasterize(
             .ink_probe
             .map(|(px, py)| probe_ink_screen(px, py, width, height));
     }
-    // The sRGB half is read from the finished raster in BOTH branches, so
-    // one probe line always states both ends of the conversion under test.
-    // Deliberately after the collapse: this is the number the operator's
-    // PNG carries, and reading it from anywhere else would let the probe
-    // and the file disagree.
-    if let Some(probe) = diagnostics
-        .ink_probe
-        .as_mut()
-        .filter(|p| p.source != InkProbeSource::OutOfRange)
-    {
-        let idx = (probe.y as usize) * (width as usize) + (probe.x as usize);
-        if let Some(px) = pixmap.pixels().get(idx) {
-            // `demultiply` because the page is opaque here (alpha 255
-            // after the media composite), so the premultiplied bytes
-            // already are the colour -- but going through the accessor
-            // keeps this correct if that ever stops being true.
-            let c = px.demultiply();
-            probe.srgb = Some([c.red(), c.green(), c.blue()]);
-        }
-    }
+    probe_srgb(&mut diagnostics, &pixmap, width);
 
-    Ok(RenderedPage {
+    RenderedPage {
         pixmap,
         diagnostics,
-    })
+    }
+}
+
+/// Rasterise into a `width × height` buffer under the resolved base CTM.
+///
+/// The buffer starts transparent and paper is composited once at the end:
+/// §11.4.7 makes the page an isolated group over a white backdrop, and
+/// painting straight onto white hands eleven of the fifteen blend modes a
+/// backdrop of 1.0 they must not see.
+fn rasterize_at(
+    doc: &DocumentView<'_>,
+    page: &Page,
+    scale: f32,
+    region: Option<pdfcer_core::page_tree::Rect>,
+    band: Option<banding::Band>,
+    options: &RenderOptions,
+    (width, height, base_ctm, base_ctm64): (u32, u32, Transform, gstate::Mat64),
+) -> Result<RenderedPage, RenderError> {
+    if width == 0 || height == 0 || width > MAX_PIXMAP_EDGE || height > MAX_PIXMAP_EDGE {
+        return Err(RenderError::BadRasterSize { width, height });
+    }
+    let Some(mut pixmap) = Pixmap::new(width, height) else {
+        return Err(RenderError::BadRasterSize { width, height });
+    };
+    // The one scope decision that is not about annotations at all:
+    // `FormFieldsOnly` (Acrobat's "Form fields only") prints the widget
+    // appearances and NOT the page beneath them, because the sourced
+    // workflow is printing onto a pre-printed paper form where the page
+    // background already physically exists. See `AnnotationScope`.
+    let scope = options.effective_annotation_scope();
+
+    let PageGroup {
+        space: page_space,
+        from: page_space_from,
+        inks_forced,
+        mut cmyk,
+    } = page_group(doc, page, options, scope, width, height);
+    // A page that asked for ink and could not have it. Recorded here, where
+    // both facts are in scope, and reported rather than failed.
+    let cmyk_refused = usize::from(page_space.is_subtractive() && cmyk.is_none());
+    // A raster too large for one colorant buffer is composited in row
+    // bands that each fit, rather than in sRGB (`banding`).
+    if cmyk_refused == 1
+        && band.is_none()
+        && let Some(bands) = banding::plan(width, height, options)
+    {
+        drop(cmyk);
+        return banding::render_bands(doc, page, scale, region, options, &bands, pixmap);
+    }
+    // One canvas for content then annotations; scoped so the borrow of
+    // `pixmap` ends before the page-group flatten needs it back.
+    let diagnostics = {
+        let mut canvas = match cmyk.as_mut() {
+            Some(buffer) => canvas::Canvas::cmyk(buffer),
+            None => canvas::Canvas::paint(&mut pixmap),
+        };
+        paint_onto(
+            doc,
+            page,
+            options,
+            scope,
+            (base_ctm, base_ctm64),
+            (page_space, page_space_from),
+            &mut canvas,
+        )?
+    };
+
+    // Cancelled work becomes an error here, so no half-painted raster escapes.
+    if options
+        .cancel
+        .as_ref()
+        .is_some_and(cancel::RenderCancel::is_cancelled)
+    {
+        return Err(RenderError::Cancelled);
+    }
+
+    Ok(finish_page_group(
+        options,
+        pixmap,
+        cmyk,
+        diagnostics,
+        (cmyk_refused, inks_forced),
+        (width, height),
+    ))
 }
 
 /// Composite an isolated page group over an opaque white backdrop —

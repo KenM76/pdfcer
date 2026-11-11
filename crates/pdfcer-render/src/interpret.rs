@@ -915,6 +915,13 @@ pub struct Diagnostics {
     /// and was rendered as `n` bands that each fit, so it still composited
     /// in ink. Costs one interpretation per band.
     pub cmyk_bands: usize,
+    /// How many tiles an
+    /// [`EdgeAntialiasing::Supersampled`](crate::EdgeAntialiasing::Supersampled)
+    /// render was drawn in: `0` for one pass, `n > 1` when the fine raster
+    /// would pass [`crate::MAX_PIXMAP_EDGE`] (or one colorant buffer) and
+    /// the sheet was drawn as `n` tiles that each fit. The output is the
+    /// same; the cost is one interpretation per tile.
+    pub supersample_tiles: usize,
     /// Pixels that entered the colorant buffer through the **sRGB bridge**
     /// rather than as authored ink.
     ///
@@ -1945,6 +1952,7 @@ polarity unverifiable (decision 006 R30)",
         self.cmyk_buffer_engaged |= other.cmyk_buffer_engaged;
         self.cmyk_buffer_refused += other.cmyk_buffer_refused;
         self.cmyk_bands = self.cmyk_bands.max(other.cmyk_bands);
+        self.supersample_tiles = self.supersample_tiles.max(other.supersample_tiles);
         self.cmyk_bridged_pixels += other.cmyk_bridged_pixels;
         self.cmyk_native_image_pixels += other.cmyk_native_image_pixels;
         self.cmyk_groups_approximated += other.cmyk_groups_approximated;

@@ -4357,8 +4357,10 @@ pixel half coverage, and `½ over ½` lets 25 % of the backdrop show. Use
 `auto` is `Supersampled` below 300 DPI and `Off` from 300 DPI. `Supersampled` is smooth AND seam-free: hard
 edges at `SUPERSAMPLE_FACTOR` (4)× the resolution, box-filtered down, at 16×
 the cost. The thinnest-stroke floor, sub-pixel culling and the ink probe
-stay in output pixels; a 4× raster past `MAX_PIXMAP_EDGE` is refused with
-`BadRasterSize`. `pixel_factor()` returns 1 or 4. It is a raster setting
+stay in output pixels. A sheet whose 4× raster would pass `MAX_PIXMAP_EDGE`
+(A1 above ~123 DPI) is drawn in tiles that each fit and assembled: the same
+pixels, one interpretation per tile, counted in `Diagnostics::supersample_tiles`
+(0 = one pass). Only an output raster past `MAX_PIXMAP_EDGE` is refused. `pixel_factor()` returns 1 or 4. It is a raster setting
 only; no export writes it. Detail: `docs/edge-antialiasing.md`.
 
 `preserve_calibrated_cmyk: bool` (`with_preserve_calibrated_cmyk`, default
@@ -4367,7 +4369,10 @@ composites in ink (a CMYK page group or output intent), instead of
 converting them from their own profile to the output intent
 (ISO 32000-2 §8.6.5.5). A print-shop "preserve CMYK numbers" policy: 100 %
 magenta stays 100 % magenta. Fills, strokes and images alike; other spaces
-and RGB compositing are unaffected.
+and RGB compositing are unaffected. Persisted as
+`Settings::preserve_calibrated_cmyk` (`settings.toml` key
+`preserve_calibrated_cmyk`, default `false`); the CLI flag turns it on for one
+run and never turns off a setting that asked for it.
 
 `AnnotationScope` (`annot.rs`) is the comments-and-forms filter:
 

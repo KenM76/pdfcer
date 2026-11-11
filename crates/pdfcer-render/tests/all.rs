@@ -93,6 +93,7 @@ mod subset_allocated_code;
 mod subset_augment;
 mod subset_post_names;
 mod subset_unused_glyph;
+mod supersampled_large_sheet_is_tiled;
 mod svg_import;
 mod symbolic_truetype_glyphs;
 mod synthetic_style_render;

@@ -12,6 +12,7 @@
 //! is post-scaled after the region geometry is resolved), so output pixel
 //! `(x, y)` is the mean of fine pixels `kx..kx+k × ky..ky+k`.
 
+use crate::banding::Band;
 use crate::{InkProbeSource, RenderError, RenderedPage, gstate};
 use tiny_skia::{Pixmap, Transform};
 
@@ -46,6 +47,128 @@ pub(crate) const fn fine_probe(k: u32, (x, y): (u32, u32)) -> (u32, u32) {
     )
 }
 
+/// Largest fine tile edge: one `MAX_PIXMAP_EDGE`-safe, colorant-buffer-safe
+/// square, so a subtractive page still composites in ink inside a tile.
+const FINE_TILE_EDGE: u32 = 4096;
+
+/// A supersampled sheet drawn in tiles, in output pixels.
+pub(crate) struct TilePlan {
+    pub(crate) k: u32,
+    pub(crate) width: u32,
+    pub(crate) height: u32,
+    pub(crate) tiles: Vec<Band>,
+    /// The caller's probe, in output pixels.
+    pub(crate) probe: Option<(u32, u32)>,
+}
+
+/// The tiles a `width × height` output raster is drawn in at `k`×, or `None`
+/// when the fine raster fits [`crate::MAX_PIXMAP_EDGE`] in one pass or the
+/// output itself does not (that refusal stays the render's).
+pub(crate) fn tile_plan(
+    k: u32,
+    width: u32,
+    height: u32,
+    options: &crate::RenderOptions,
+) -> Option<TilePlan> {
+    let edge = crate::MAX_PIXMAP_EDGE;
+    let fits = |n: u32| n.checked_mul(k).is_some_and(|f| f <= edge);
+    if k <= 1 || (fits(width) && fits(height)) || width > edge || height > edge {
+        return None;
+    }
+    let cap = crate::max_cmyk_composite_pixels(options.policy().max_cmyk_buffer_bytes);
+    // The square root of a u64 pixel count fits a u32 edge.
+    #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+    let cap_edge = (cap as f64).sqrt() as u32;
+    let t = (FINE_TILE_EDGE.min(cap_edge) / k).max(1);
+    let tiles = (0..height)
+        .step_by(t as usize)
+        .flat_map(|y0| {
+            (0..width).step_by(t as usize).map(move |x0| Band {
+                x0,
+                y0,
+                cols: t.min(width - x0),
+                rows: t.min(height - y0),
+            })
+        })
+        .collect();
+    Some(TilePlan {
+        k,
+        width,
+        height,
+        tiles,
+        probe: options.ink_probe,
+    })
+}
+
+/// Draw every tile of `plan` at `k`×, reduce each and assemble the output.
+/// `fine` carries the probe in fine whole-sheet pixels; the tile holding it
+/// answers (tile 0 answers one outside the sheet, as out of range).
+pub(crate) fn render_tiled(
+    doc: &pdfcer_core::view::DocumentView<'_>,
+    page: &pdfcer_core::page_tree::Page,
+    scale: f32,
+    region: Option<pdfcer_core::page_tree::Rect>,
+    fine: &crate::RenderOptions,
+    plan: &TilePlan,
+) -> Result<RenderedPage, RenderError> {
+    let k = plan.k;
+    let Some(mut out) = Pixmap::new(plan.width, plan.height) else {
+        return Err(RenderError::BadRasterSize {
+            width: plan.width,
+            height: plan.height,
+        });
+    };
+    let holder = plan.probe.map(|(x, y)| {
+        plan.tiles
+            .iter()
+            .position(|t| (t.x0..t.x0 + t.cols).contains(&x) && (t.y0..t.y0 + t.rows).contains(&y))
+            .unwrap_or(0)
+    });
+    let (mut merged, mut probe) = (None, None);
+    for (i, t) in plan.tiles.iter().enumerate() {
+        let band = Band {
+            x0: t.x0 * k,
+            y0: t.y0 * k,
+            cols: t.cols * k,
+            rows: t.rows * k,
+        };
+        let mut o = fine.clone();
+        o.ink_probe = fine
+            .ink_probe
+            .filter(|_| holder == Some(i))
+            .map(|(x, y)| (x.saturating_sub(band.x0), y.saturating_sub(band.y0)));
+        let r = crate::render_impl_rasterize(doc, page, scale, region, Some(band), &o)?;
+        blit(&mut out, &downsample(&r.pixmap, k)?, t);
+        let mut d = r.diagnostics;
+        if holder == Some(i) {
+            probe = d.ink_probe.take();
+        }
+        d.ink_probe = None;
+        crate::banding::absorb(&mut merged, d);
+    }
+    let mut diagnostics = merged.unwrap_or_default();
+    diagnostics.ink_probe = probe;
+    diagnostics.supersample_tiles = plan.tiles.len();
+    let mut page = RenderedPage {
+        pixmap: out,
+        diagnostics,
+    };
+    to_output_pixels(&mut page, k, plan.probe);
+    Ok(page)
+}
+
+/// Copy `tile` into `out` at the tile's origin.
+fn blit(out: &mut Pixmap, tile: &Pixmap, at: &Band) {
+    let (ow, tw) = (out.width() as usize * 4, tile.width() as usize * 4);
+    let x = at.x0 as usize * 4;
+    for (row, src) in tile.data().chunks_exact(tw).enumerate() {
+        let start = (at.y0 as usize + row) * ow + x;
+        if let Some(dst) = out.data_mut().get_mut(start..start + tw) {
+            dst.copy_from_slice(src);
+        }
+    }
+}
+
 /// Reduce a fine render to the requested size and put the probe and the
 /// pixel tallies back in output pixels.
 pub(crate) fn finish(
@@ -53,7 +176,14 @@ pub(crate) fn finish(
     k: u32,
     probe: Option<(u32, u32)>,
 ) -> Result<RenderedPage, RenderError> {
-    let pixmap = downsample(&fine.pixmap, k)?;
+    fine.pixmap = downsample(&fine.pixmap, k)?;
+    to_output_pixels(&mut fine, k, probe);
+    Ok(fine)
+}
+
+/// Put a reduced render's probe and pixel tallies back in output pixels.
+fn to_output_pixels(fine: &mut RenderedPage, k: u32, probe: Option<(u32, u32)>) {
+    let pixmap = &fine.pixmap;
     let d = &mut fine.diagnostics;
     let area = u64::from(k) * u64::from(k);
     for n in [
@@ -82,8 +212,6 @@ pub(crate) fn finish(
             }
         }
     }
-    fine.pixmap = pixmap;
-    Ok(fine)
 }
 
 /// The `k × k` box mean of a premultiplied raster whose sides are multiples

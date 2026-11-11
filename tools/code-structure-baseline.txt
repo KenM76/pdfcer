@@ -517,7 +517,6 @@ fn pdfcer-render/src/interpret.rs::show_string
 fn pdfcer-render/src/interpret.rs::stroke_params
 fn pdfcer-render/src/interpret.rs::trace_paths
 fn pdfcer-render/src/lib.rs::region_base_geometry_of
-fn pdfcer-render/src/lib.rs::render_impl_rasterize
 fn pdfcer-render/src/mask.rs::soft_mask_plane
 fn pdfcer-render/src/mesh.rs::parse
 fn pdfcer-render/src/mesh.rs::parse_patches
