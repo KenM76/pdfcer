@@ -3,7 +3,7 @@
 //! visit only the triangles whose boxes the ray crosses.
 
 use crate::TriangleMesh;
-use crate::camera::pick::{Hit, Ray, intersect};
+use crate::camera::pick::{Hit, Ray, intersect_weighted};
 use crate::render::corners;
 
 /// Triangles per leaf; more costs intersection tests, fewer costs nodes.
@@ -21,6 +21,14 @@ struct Prim {
 struct Bounds {
     lo: [f64; 3],
     hi: [f64; 3],
+}
+
+/// What [`PickIndex::walk`] does after a hit.
+enum Step {
+    Go,
+    /// Ignore hits farther than this from now on.
+    Shorten(f64),
+    Stop,
 }
 
 #[derive(Debug, Clone)]
@@ -102,9 +110,85 @@ impl PickIndex {
         &self,
         ray: &Ray,
         max_distance: f64,
-        mut include: impl FnMut(usize) -> bool,
+        include: impl FnMut(usize) -> bool,
+    ) -> Option<Hit> {
+        self.first_hit(ray, max_distance, include, |_, _| false)
+    }
+
+    /// The nearest hit no farther than `max_distance` that is not `clear`,
+    /// on a mesh `include` accepts: the closest-hit query of a ray that
+    /// passes through cut-out holes. `clear` is given the hit and its
+    /// barycentric weights on the triangle's corners (in
+    /// [`TriangleMesh::triangles`] order, summing to 1), so it can sample a
+    /// texture's alpha there; return `true` for a hole. Ties go to the
+    /// lower (mesh, triangle), as in [`Self::pick`].
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use pdfcer_3d::{PickIndex, Ray, TriangleMesh};
+    /// let mut mesh = TriangleMesh::default();
+    /// mesh.positions = vec![[0.0, 0.0, 1.0], [4.0, 0.0, 1.0], [0.0, 4.0, 1.0]];
+    /// mesh.triangles = vec![[0, 1, 2]];
+    /// let index = PickIndex::new(&[mesh]);
+    /// let ray = Ray { origin: [1.0, 1.0, 0.0], direction: [0.0, 0.0, 1.0], min_distance: 0.0 };
+    /// // A hole wherever the first corner's weight is under a half.
+    /// let hit = index.first_hit(&ray, f64::INFINITY, |_| true, |_, w| w[0] < 0.5);
+    /// assert_eq!(hit.map(|h| h.distance), Some(1.0));
+    /// ```
+    #[must_use]
+    pub fn first_hit(
+        &self,
+        ray: &Ray,
+        max_distance: f64,
+        include: impl FnMut(usize) -> bool,
+        mut clear: impl FnMut(&Hit, [f64; 3]) -> bool,
     ) -> Option<Hit> {
         let mut best: Option<Hit> = None;
+        self.walk(ray, max_distance, include, |hit, w| {
+            if best.is_some_and(|b| !nearer(&hit, &b)) || clear(&hit, w) {
+                return Step::Go;
+            }
+            best = Some(hit);
+            Step::Shorten(hit.distance)
+        });
+        best
+    }
+
+    /// The share of light (0 to 1) that gets along `ray` from
+    /// [`Ray::min_distance`] to `max_distance` past the meshes `include`
+    /// accepts: the any-hit query of a shadow or visibility ray. It is the
+    /// product of `share` over every triangle met in that range, each given
+    /// the hit and its barycentric weights as in [`Self::first_hit`];
+    /// return 0 for an opaque surface, `1 − alpha` for a see-through one,
+    /// 1 for a hole. A ray along a shared edge meets both triangles. Stops
+    /// at the first share of 0; a share outside 0 to 1 is clamped.
+    #[must_use]
+    pub fn transmittance(
+        &self,
+        ray: &Ray,
+        max_distance: f64,
+        include: impl FnMut(usize) -> bool,
+        mut share: impl FnMut(&Hit, [f64; 3]) -> f64,
+    ) -> f64 {
+        let mut through = 1.0;
+        self.walk(ray, max_distance, include, |hit, w| {
+            let s = share(&hit, w);
+            through *= if s.is_nan() { 0.0 } else { s.clamp(0.0, 1.0) };
+            if through == 0.0 { Step::Stop } else { Step::Go }
+        });
+        through
+    }
+
+    /// Calls `visit` with every hit on an included mesh no farther than the
+    /// current limit, which `visit` can shorten or end.
+    fn walk(
+        &self,
+        ray: &Ray,
+        max_distance: f64,
+        mut include: impl FnMut(usize) -> bool,
+        mut visit: impl FnMut(Hit, [f64; 3]) -> Step,
+    ) {
         let mut limit = max_distance;
         let mut stack = Vec::with_capacity(64);
         if !self.nodes.is_empty() {
@@ -133,7 +217,7 @@ impl PickIndex {
                         if !include(p.mesh) {
                             continue;
                         }
-                        let Some(hit) = intersect(&p.corners, ray) else {
+                        let Some((hit, w)) = intersect_weighted(&p.corners, ray) else {
                             continue;
                         };
                         if hit.distance > limit {
@@ -144,15 +228,15 @@ impl PickIndex {
                             triangle: p.triangle,
                             ..hit
                         };
-                        if best.is_none_or(|b| nearer(&hit, &b)) {
-                            limit = hit.distance;
-                            best = Some(hit);
+                        match visit(hit, w) {
+                            Step::Go => {}
+                            Step::Shorten(d) => limit = d,
+                            Step::Stop => return,
                         }
                     }
                 }
             }
         }
-        best
     }
 
     /// Builds the subtree over `prims[start..end]` and returns its node
@@ -273,6 +357,7 @@ fn axis_of(v: [f64; 3], axis: usize) -> f64 {
 mod tests {
     use super::*;
     use crate::camera::pick::pick;
+    use crate::render::corners;
 
     /// A deterministic scatter of `n` small triangles in a 10-unit cube.
     fn scatter(n: usize, seed: u64) -> TriangleMesh {
@@ -383,5 +468,153 @@ mod tests {
         let want = pick(&meshes, &ray);
         assert!(want.is_some(), "the ray must meet the triangle");
         assert_eq!(PickIndex::new(&meshes).pick(&ray), want);
+    }
+
+    /// Every (hit, weights) a linear scan of `meshes` finds for `ray`, in
+    /// (mesh, triangle) order.
+    fn brute(meshes: &[TriangleMesh], ray: &Ray, max: f64) -> Vec<(Hit, [f64; 3])> {
+        let mut out = Vec::new();
+        for (m, mesh) in meshes.iter().enumerate() {
+            for (t, tri) in mesh.triangles.iter().enumerate() {
+                let c = corners(mesh, tri);
+                if let Some((h, w)) = c.and_then(|c| intersect_weighted(&c, ray))
+                    && h.distance <= max
+                {
+                    out.push((
+                        Hit {
+                            mesh: m,
+                            triangle: t,
+                            ..h
+                        },
+                        w,
+                    ));
+                }
+            }
+        }
+        out
+    }
+
+    /// A share that is a power of two, so any product order is exact.
+    fn share(h: &Hit, w: [f64; 3]) -> f64 {
+        match (h.mesh * 7 + h.triangle) % 4 {
+            0 => 0.5,
+            1 => 0.25,
+            2 if w[0] < 0.4 => 1.0,
+            2 => 0.0,
+            _ => 1.0,
+        }
+    }
+
+    fn hole(h: &Hit, w: [f64; 3]) -> bool {
+        h.triangle.is_multiple_of(3) || w[1] > 0.6
+    }
+
+    #[test]
+    fn first_hit_matches_a_brute_force_scan_with_holes() {
+        let meshes = vec![scatter(300, 1), scatter(200, 2)];
+        let index = PickIndex::new(&meshes);
+        let (mut skipped, mut hits) = (0, 0);
+        for ray in rays() {
+            for max in [f64::INFINITY, 8.0] {
+                let all = brute(&meshes, &ray, max);
+                let want = all
+                    .iter()
+                    .filter(|(h, w)| h.mesh == 1 || !hole(h, *w))
+                    .map(|(h, _)| *h)
+                    .reduce(|a, b| if nearer(&b, &a) { b } else { a });
+                let nearest = all
+                    .iter()
+                    .map(|(h, _)| *h)
+                    .reduce(|a, b| if nearer(&b, &a) { b } else { a });
+                skipped += usize::from(want != nearest);
+                hits += usize::from(want.is_some());
+                let got = index.first_hit(&ray, max, |_| true, |h, w| h.mesh == 0 && hole(h, w));
+                assert_eq!(got, want, "{ray:?} {max}");
+            }
+        }
+        assert!(
+            hits > 50 && skipped > 10,
+            "holes must change answers ({hits}, {skipped})"
+        );
+    }
+
+    #[test]
+    fn transmittance_matches_a_brute_force_product() {
+        let meshes = vec![scatter(300, 1), scatter(200, 2)];
+        let index = PickIndex::new(&meshes);
+        let (mut partial, mut blocked) = (0, 0);
+        for ray in rays() {
+            for max in [f64::INFINITY, 8.0] {
+                let want: f64 = brute(&meshes, &ray, max)
+                    .iter()
+                    .filter(|(h, _)| h.mesh == 0)
+                    .map(|(h, w)| share(h, *w))
+                    .product();
+                partial += usize::from(want > 0.0 && want < 1.0);
+                blocked += usize::from(want == 0.0);
+                let got = index.transmittance(&ray, max, |m| m == 0, share);
+                assert_eq!(got.to_bits(), want.to_bits(), "{ray:?} {max}");
+            }
+        }
+        assert!(
+            partial > 10 && blocked > 10,
+            "both outcomes must occur ({partial}, {blocked})"
+        );
+    }
+
+    #[test]
+    fn transmittance_stops_at_the_first_opaque_surface() {
+        let meshes = vec![scatter(300, 1)];
+        let index = PickIndex::new(&meshes);
+        for ray in rays() {
+            let mut calls = 0;
+            let t = index.transmittance(
+                &ray,
+                f64::INFINITY,
+                |_| true,
+                |_, _| {
+                    calls += 1;
+                    0.0
+                },
+            );
+            assert!(calls <= 1, "{calls} calls after an opaque hit");
+            assert_eq!(t, if calls == 0 { 1.0 } else { 0.0 });
+        }
+    }
+
+    #[test]
+    fn a_share_outside_the_unit_range_is_clamped() {
+        let meshes = vec![scatter(300, 1)];
+        let index = PickIndex::new(&meshes);
+        for ray in rays() {
+            for (bad, want) in [(7.0, 1.0), (-2.0, 0.0), (f64::NAN, 0.0)] {
+                let hit = index.pick(&ray).is_some();
+                let t = index.transmittance(&ray, f64::INFINITY, |_| true, |_, _| bad);
+                assert_eq!(t, if hit { want } else { 1.0 });
+            }
+        }
+    }
+
+    #[test]
+    fn weights_reproduce_the_hit_point() {
+        let meshes = vec![scatter(300, 1)];
+        let index = PickIndex::new(&meshes);
+        for ray in rays() {
+            let _ = index.first_hit(
+                &ray,
+                f64::INFINITY,
+                |_| true,
+                |h, w| {
+                    let tri = meshes[0].triangles[h.triangle];
+                    let c = corners(&meshes[0], &tri).unwrap();
+                    for (axis, want) in h.point.iter().enumerate() {
+                        let p: f64 = w.iter().zip(&c).map(|(k, v)| k * v[axis]).sum();
+                        assert!((p - want).abs() < 1e-9, "{p} vs {:?}", h.point);
+                    }
+                    assert!((w.iter().sum::<f64>() - 1.0).abs() < 1e-12);
+                    false
+                },
+            );
+        }
     }
 }

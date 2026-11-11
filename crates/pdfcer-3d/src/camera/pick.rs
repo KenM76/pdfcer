@@ -225,6 +225,12 @@ pub fn pick(meshes: &[TriangleMesh], ray: &Ray) -> Option<Hit> {
 
 /// Möller–Trumbore ray–triangle intersection, two-sided.
 pub(crate) fn intersect(c: &[[f64; 3]; 3], ray: &Ray) -> Option<Hit> {
+    intersect_weighted(c, ray).map(|(hit, _)| hit)
+}
+
+/// [`intersect`], also giving the hit's barycentric weights on `c`'s corners
+/// in order (they sum to 1).
+pub(crate) fn intersect_weighted(c: &[[f64; 3]; 3], ray: &Ray) -> Option<(Hit, [f64; 3])> {
     let e1 = sub(c[1], c[0]);
     let e2 = sub(c[2], c[0]);
     let normal = unit_cross(e1, e2)?;
@@ -244,13 +250,16 @@ pub(crate) fn intersect(c: &[[f64; 3]; 3], ray: &Ray) -> Option<Hit> {
         && distance.is_finite()
         && distance >= ray.min_distance
         && point.iter().all(|c| c.is_finite()))
-    .then_some(Hit {
-        mesh: 0,
-        triangle: 0,
-        point,
-        normal,
-        distance,
-    })
+    .then_some((
+        Hit {
+            mesh: 0,
+            triangle: 0,
+            point,
+            normal,
+            distance,
+        },
+        [1.0 - u - v, u, v],
+    ))
 }
 
 /// The picture position of camera-space point `[x, y, z]` under a planar
