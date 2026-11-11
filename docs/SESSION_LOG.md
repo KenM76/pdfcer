@@ -4,6 +4,16 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-11-11 (1509th filing) — `dc178ee6` + `8bcc094f` `Pass 700.4` + `700.5` SHIPPED: tiled supersampled large sheets, `Settings::preserve_calibrated_cmyk`
+
+**Shipped (engineer-reported; no shell here, git/CI state not checked from here; in `main`, NOT in a release):**
+- `Pass 700.4` (`dc178ee6`): `Supersampled` now tiles a sheet past `MAX_PIXMAP_EDGE` instead of refusing it; no seam, tiled equals untiled; `Diagnostics::supersample_tiles`. **Closes the open defect noted in the 1508th entry**, which stays as written. `render_impl_rasterize` split, baseline 552.
+- `Pass 700.5` (`8bcc094f`): `Settings::preserve_calibrated_cmyk` persisted in `settings.toml`; CLI flag ORs with it, never turns it off.
+
+**Decisions / FEATURES:** none new in `ARCHITECTURE.md`. Two FEATURES rows amended; gui boxes not ticked. Pass IDs `700.4`/`700.5` verified free by grep of all `*.md` before filing. Detail in `ROADMAP.md` Shipped.
+
+**For next session:** release carrying both; engineer's rustdoc/`--help`/`docs/edge-antialiasing.md` sweep for "large sheet refused"; gui engine pin bump; `705.4`.
+
 ## 2026-11-11 (1508th filing) — `v0.144.0` PUBLISHED (`5eb04866`); open defect: Supersampled refuses large sheets
 
 **Filed (engineer-reported; no shell here, nothing checked from here; docs only, engineer commits):**

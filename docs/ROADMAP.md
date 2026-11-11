@@ -112,6 +112,15 @@ wherever it appears.*
 
 ## Shipped
 
+### `dc178ee6` + `8bcc094f` `Pass 700.4` + `Pass 700.5`: tile a supersampled large sheet; `Settings::preserve_calibrated_cmyk`, 2026-11-11 (1509th filing)
+
+Engineer-reported; no shell here, git, push and CI state not checked from here. `dc178ee677e591d8005d8298963344aeba7bf290` `fix(render): tile a supersampled sheet past MAX_PIXMAP_EDGE instead of refusing it` and `8bcc094f7f64724e6def62724056c450378cbbef` `feat(core,cli): Settings::preserve_calibrated_cmyk, persisted in settings.toml`. In `main`, NOT in a release (the next release carries them). Reasoning is in the commit messages. **gui not delivered** for either.
+- **`Pass 700.4` (`dc178ee6`).** Origin: pdfcer-gui `request_supersampled_large_sheet.md`. **Closes the OPEN DEFECT recorded in the 1508th entry (`v0.144.0` PUBLISHED, `d91bf3e6`); that entry is left as written.** `EdgeAntialiasing::Supersampled` refused any sheet over 4,096 output px (4x fine raster vs the 16,384 edge cap; A1 above about 123 DPI), and the CLI `auto` default selects it below 300 DPI, so `auto` hit the refusal. Now tiled: output tiles with fine edge min(4096, sqrt(colorant-buffer cap)); `banding::Band` is 2-D (`x0`/`cols` added); each tile goes through the band path, is downsampled and blitted. No seam; tiled pixels equal untiled; the ink probe is answered by its tile. New pub field `Diagnostics::supersample_tiles: usize` (0 = one pass); `docs/core-api/03-capabilities.md` updated, `check-core-api-verbs` PASS. The baselined over-long `render_impl_rasterize` was split by responsibility and its code-structure baseline line deleted (552 entries remain). Tests: new `tests/supersampled_large_sheet_is_tiled.rs` (4); `pdfcer-render --test all` 1074 pass / 2 ignored, render lib 567, CLI tests green. core + cli delivered (CLI `auto` now works on large sheets).
+- **`Pass 700.5` (`8bcc094f`).** Origin: `request_settings_preserve_calibrated_cmyk.md` (same folder). New pub field `Settings::preserve_calibrated_cmyk: bool` (default false), `settings.toml` key, `BadValue` on a non-bool, writer emits a commented line. CLI render options read it; `--preserve-calibrated-cmyk` ORs with it and never turns it off. Tests: settings 44 pass; new CLI unit test `the_flag_never_turns_off_a_setting_that_preserves_cmyk`. core + cli delivered.
+- **Invariants:** no `Cargo.toml` change; `cargo tree` unaffected.
+- **FEATURES:** the seamless-edges row and the preserve-calibrated-CMYK row amended in place (tiling; persisted setting); gui `[ ]` on both.
+- **Sweep (hard rule 11):** the `700.2` entry's clause "a fine raster past `MAX_PIXMAP_EDGE` is refused (`BadRasterSize`)" is now false for `Supersampled` (tiled); left as history, superseded here. Owed to the engineer: `crates/` rustdoc, `docs/edge-antialiasing.md` and `--help` text that still say a large sheet is refused.
+
 ### `5eb04866` `v0.144.0` PUBLISHED, 2026-11-11 (1508th filing)
 
 Engineer-reported; no shell here, nothing checked from here.
