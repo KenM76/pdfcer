@@ -5,7 +5,12 @@
 `--edge-antialiasing` (`print`, `render-page`, `export-image`). A raster
 setting only: no export writes it into a file.
 
-## `On` — the default for screen rasters (the Acrobat-matching output)
+CLI default: `auto` on all three commands — `Supersampled` below 300 DPI,
+`Off` at 300 DPI and above. The library default
+(`RenderOptions::default()`) stays `On`, because an interactive viewer
+repaints often and `Supersampled` costs 16x.
+
+## `On` — the Acrobat-matching option
 
 Every shape, clip, coverage mask, pattern mask and image edge is
 antialiased by `tiny_skia` at the requested resolution. The interpreter
@@ -20,9 +25,9 @@ each give that pixel half coverage, and `½ over ½` lets a quarter of the
 backdrop through: a faint seam the page does not contain. On the licensed
 print test file's overprint, knockout and isolated-group patches this
 draws the failure "X" at screen resolutions even though the overprint
-logic is correct. Acrobat draws the same seams at the same places, so this
-mode stays the screen default and reproduces today's output exactly:
-`pdfcer render-page FILE --edge-antialiasing on` (the default).
+logic is correct. Acrobat draws the same seams at the same places; this
+mode reproduces that output exactly:
+`pdfcer render-page FILE --edge-antialiasing on`.
 Pinned by `tests/edge_antialiasing_off_leaves_no_seam.rs::antialiased_edges_leave_a_seam_where_two_shapes_touch`.
 
 ## `Off` — hard edges
@@ -30,7 +35,7 @@ Pinned by `tests/edge_antialiasing_off_leaves_no_seam.rs::antialiased_edges_leav
 Each pixel whose centre the shape covers is painted (ISO 32000-1 §10.6.4's
 scan-conversion rule), so abutting shapes tile exactly and no seam can
 form. Text and diagonals stair-step, which is invisible at print
-resolution. `pdfcer print`'s default `auto` uses it at 300 DPI and above.
+resolution. The CLI's default `auto` uses it at 300 DPI and above.
 
 ## `Supersampled` — smooth and seam-free (`--edge-antialiasing seamless`)
 
@@ -63,7 +68,10 @@ because it is colour, not geometry:
 - 16.1 (ICCBased RGB): residuals ≤ 5 levels; the test's own legend says a
   faint X from colour-management differences is not a failure.
 
-Conversion belongs to iccce (decision 064). A pdfcer-side option to keep
-CMYK numbers for an `ICCBased` N = 4 paint inside a DeviceCMYK blending
-space would be a meaning-in-context policy, not colour tuning; it is not
-built.
+Conversion belongs to iccce (decision 064). For 16.4 pdfcer offers a
+policy instead, off by default: `RenderOptions::with_preserve_calibrated_cmyk`
+(CLI `--preserve-calibrated-cmyk` on `render-page` and `export-image`)
+keeps an `ICCBased` N = 4 colour's numbers as the ink when the page
+composites in ink, as a print shop's "preserve CMYK numbers" setting does.
+Measured on 16.4: the X lands 1 level from its square instead of 6.
+Pinned by `tests/preserve_calibrated_cmyk.rs`.

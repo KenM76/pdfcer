@@ -4370,10 +4370,12 @@ pub(crate) enum Command {
         /// The output bin, by the name `list-finishing` reports.
         #[arg(long, value_name = "NAME")]
         output_bin: Option<String>,
-        /// Smooth the edges of shapes and images. auto turns it off at 300
-        /// DPI and above, where smoothing leaves faint seams between shapes
-        /// that touch and the steps it hides are too small to see.
-        /// seamless keeps edges smooth with no seam (about 16x the work).
+        /// How shape, clip and image edges are smoothed. auto (the default)
+        /// is seamless below 300 DPI and hard edges at 300 DPI and above.
+        /// seamless keeps edges smooth with no seam where shapes touch
+        /// (about 16x the work); on smooths each shape separately, as
+        /// Acrobat does, and can leave faint seams; off draws hard edges.
+        /// The file is not changed.
         #[arg(long, value_enum, value_name = "WHEN", default_value_t = crate::print_output::EdgeAaArg::Auto)]
         edge_antialiasing: crate::print_output::EdgeAaArg,
         /// Which sheet to print on: a form ID or a form NAME, as
@@ -5830,13 +5832,20 @@ pub(crate) enum Command {
         /// out. The file is not changed.
         #[arg(long, value_enum, default_value_t)]
         widgets_without_ap: crate::viewer_preview::WidgetsWithoutApArg,
-        /// Smooth the edges of shapes, clips and images. off draws hard
-        /// edges, so shapes that touch leave no faint seam where they meet;
-        /// seamless keeps edges smooth with no seam (about 16x the work);
-        /// auto turns smoothing off at 300 DPI and above. The file is not
-        /// changed.
-        #[arg(long, value_enum, value_name = "WHEN", default_value_t = crate::print_output::EdgeAaArg::On)]
+        /// How shape, clip and image edges are smoothed. auto (the default)
+        /// is seamless below 300 DPI and hard edges at 300 DPI and above.
+        /// seamless keeps edges smooth with no seam where shapes touch
+        /// (about 16x the work); on smooths each shape separately, as
+        /// Acrobat does, and can leave faint seams; off draws hard edges.
+        /// The file is not changed.
+        #[arg(long, value_enum, value_name = "WHEN", default_value_t = crate::print_output::EdgeAaArg::Auto)]
         edge_antialiasing: crate::print_output::EdgeAaArg,
+        /// Keep the numbers of a calibrated (ICC-tagged) CMYK colour as the
+        /// ink when the page is composited in ink, instead of converting
+        /// them from their own profile to the output intent. A print-shop
+        /// policy: 100% magenta stays 100% magenta. Off by default.
+        #[arg(long)]
+        preserve_calibrated_cmyk: bool,
         /// What to draw for a dynamic XFA form, whose stored pages are a
         /// placeholder: layout draws the page pdfcer computes from the form's
         /// template and data, as XFA viewers do, and --page counts computed
@@ -6034,13 +6043,20 @@ pub(crate) enum Command {
         /// out. The file is not changed.
         #[arg(long, value_enum, default_value_t)]
         widgets_without_ap: crate::viewer_preview::WidgetsWithoutApArg,
-        /// Smooth the edges of shapes, clips and images. off draws hard
-        /// edges, so shapes that touch leave no faint seam where they meet;
-        /// seamless keeps edges smooth with no seam (about 16x the work);
-        /// auto turns smoothing off at 300 DPI and above. The file is not
-        /// changed.
-        #[arg(long, value_enum, value_name = "WHEN", default_value_t = crate::print_output::EdgeAaArg::On)]
+        /// How shape, clip and image edges are smoothed. auto (the default)
+        /// is seamless below 300 DPI and hard edges at 300 DPI and above.
+        /// seamless keeps edges smooth with no seam where shapes touch
+        /// (about 16x the work); on smooths each shape separately, as
+        /// Acrobat does, and can leave faint seams; off draws hard edges.
+        /// The file is not changed.
+        #[arg(long, value_enum, value_name = "WHEN", default_value_t = crate::print_output::EdgeAaArg::Auto)]
         edge_antialiasing: crate::print_output::EdgeAaArg,
+        /// Keep the numbers of a calibrated (ICC-tagged) CMYK colour as the
+        /// ink when the page is composited in ink, instead of converting
+        /// them from their own profile to the output intent. A print-shop
+        /// policy: 100% magenta stays 100% magenta. Off by default.
+        #[arg(long)]
+        preserve_calibrated_cmyk: bool,
     },
 
     /// Copy pages' text to the OS clipboard as FORMATTED paragraphs, so a

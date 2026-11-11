@@ -47,3 +47,13 @@ fn colour_keeps_the_bitmap_and_says_nothing() {
     let out = PrintOutput::default();
     assert!(out.recolor(&mut []).unwrap().is_empty());
 }
+
+#[test]
+fn auto_edges_are_seamless_below_300_dpi_and_hard_at_and_above() {
+    use pdfcer_render::EdgeAntialiasing as E;
+    assert_eq!(EdgeAaArg::default(), EdgeAaArg::Auto);
+    assert_eq!(EdgeAaArg::Auto.at_dpi(108), E::Supersampled);
+    assert_eq!(EdgeAaArg::Auto.at_dpi(299), E::Supersampled);
+    assert_eq!(EdgeAaArg::Auto.at_dpi(300), E::Off);
+    assert_eq!(EdgeAaArg::On.at_dpi(600), E::On);
+}

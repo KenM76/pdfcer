@@ -4353,13 +4353,21 @@ and `Fixed` into `strokes_width_fixed`. The enum is `#[non_exhaustive]`.
 (the default) or `Off`. `Off` draws shape, clip and image edges hard, so
 shapes that touch leave no seam: smoothed edges give each half of a shared
 pixel half coverage, and `½ over ½` lets 25 % of the backdrop show. Use
-`Off` for print rasters (`pdfcer print` turns it off at 300 DPI and above)
-and keep `On` for a screen. `Supersampled` is smooth AND seam-free: hard
+`Off` for print rasters and keep `On` for a screen; the CLI default
+`auto` is `Supersampled` below 300 DPI and `Off` from 300 DPI. `Supersampled` is smooth AND seam-free: hard
 edges at `SUPERSAMPLE_FACTOR` (4)× the resolution, box-filtered down, at 16×
 the cost. The thinnest-stroke floor, sub-pixel culling and the ink probe
 stay in output pixels; a 4× raster past `MAX_PIXMAP_EDGE` is refused with
 `BadRasterSize`. `pixel_factor()` returns 1 or 4. It is a raster setting
 only; no export writes it. Detail: `docs/edge-antialiasing.md`.
+
+`preserve_calibrated_cmyk: bool` (`with_preserve_calibrated_cmyk`, default
+`false`) keeps an `ICCBased` N = 4 colour's numbers as the ink when the page
+composites in ink (a CMYK page group or output intent), instead of
+converting them from their own profile to the output intent
+(ISO 32000-2 §8.6.5.5). A print-shop "preserve CMYK numbers" policy: 100 %
+magenta stays 100 % magenta. Fills, strokes and images alike; other spaces
+and RGB compositing are unaffected.
 
 `AnnotationScope` (`annot.rs`) is the comments-and-forms filter:
 

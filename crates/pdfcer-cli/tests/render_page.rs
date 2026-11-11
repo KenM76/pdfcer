@@ -713,6 +713,9 @@ fn the_cmyk_buffer_ceiling_is_settable_and_the_outcome_is_disclosed() {
     let banded = run(&[
         "render-page",
         &path,
+        // The band arithmetic is in output pixels at 1x.
+        "--edge-antialiasing",
+        "on",
         "--max-cmyk-buffer-bytes",
         "128kib",
         "-o",
@@ -732,6 +735,8 @@ fn the_cmyk_buffer_ceiling_is_settable_and_the_outcome_is_disclosed() {
     let low = run(&[
         "render-page",
         &path,
+        "--edge-antialiasing",
+        "on",
         "--max-cmyk-buffer-bytes",
         "2kib",
         "-o",
@@ -757,6 +762,8 @@ fn the_cmyk_buffer_ceiling_is_settable_and_the_outcome_is_disclosed() {
     let high = run(&[
         "render-page",
         &path,
+        "--edge-antialiasing",
+        "on",
         "--max-cmyk-buffer-bytes",
         "1mib",
         "-o",
@@ -775,6 +782,8 @@ fn the_cmyk_buffer_ceiling_is_settable_and_the_outcome_is_disclosed() {
     let bad = run(&[
         "render-page",
         &path,
+        "--edge-antialiasing",
+        "on",
         "--max-cmyk-buffer-bytes",
         "plenty",
         "-o",

@@ -495,11 +495,11 @@ pub(crate) fn cmd_print(
         eprintln!("pdfcer: every line prints {mm} mm wide ({device_px:.2} px at {dpi} dpi).");
     }
     if output.edge_antialiasing == crate::print_output::EdgeAaArg::Auto
-        && !print_options.edge_antialiasing.is_on()
+        && print_options.edge_antialiasing == pdfcer_render::EdgeAntialiasing::Off
     {
         eprintln!(
             "pdfcer: printing hard edges at {dpi} dpi, so shapes that touch leave no seam \
-             (--edge-antialiasing on to smooth them)."
+             (--edge-antialiasing seamless to smooth them)."
         );
     }
 

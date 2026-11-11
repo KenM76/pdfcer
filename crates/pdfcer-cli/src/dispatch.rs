@@ -1333,6 +1333,7 @@ pub(crate) fn run() -> ExitCode {
             free_text_c,
             widgets_without_ap,
             edge_antialiasing,
+            preserve_calibrated_cmyk,
             dynamic_xfa,
         } => cmd_render_page(
             &input,
@@ -1358,7 +1359,8 @@ pub(crate) fn run() -> ExitCode {
             ViewerPreview::from_flags(no_overprint_preview, separation_preview, hide_ink)
                 .with_no_ap(markup_without_ap, widgets_without_ap)
                 .with_free_text_c(free_text_c)
-                .with_edges(edge_antialiasing, 72.0 * scale),
+                .with_edges(edge_antialiasing, 72.0 * scale)
+                .with_preserve_cmyk(preserve_calibrated_cmyk),
             dynamic_xfa,
         ),
         Command::ExportImage {
@@ -1393,6 +1395,7 @@ pub(crate) fn run() -> ExitCode {
             free_text_c,
             widgets_without_ap,
             edge_antialiasing,
+            preserve_calibrated_cmyk,
         } => cmd_export_image(ExportImageArgs {
             input: &input,
             pages: &pages,
@@ -1421,7 +1424,8 @@ pub(crate) fn run() -> ExitCode {
             preview: ViewerPreview::from_flags(no_overprint_preview, separation_preview, hide_ink)
                 .with_no_ap(markup_without_ap, widgets_without_ap)
                 .with_free_text_c(free_text_c)
-                .with_edges(edge_antialiasing, dpi),
+                .with_edges(edge_antialiasing, dpi)
+                .with_preserve_cmyk(preserve_calibrated_cmyk),
         }),
         Command::CopyText {
             input,

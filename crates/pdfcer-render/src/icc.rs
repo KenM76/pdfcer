@@ -293,6 +293,10 @@ impl IccBridge {
 pub(crate) struct Conversion {
     pub(crate) intent: RenderingIntent,
     bpc: bool,
+    /// `RenderOptions::preserve_calibrated_cmyk`: a four-component source
+    /// gets no output-intent bridge, so its numbers reach the ink as
+    /// authored.
+    preserve_cmyk: bool,
 }
 
 impl Conversion {
@@ -302,7 +306,14 @@ impl Conversion {
         Self {
             intent,
             bpc: bpc && intent != RenderingIntent::AbsoluteColorimetric,
+            preserve_cmyk: false,
         }
+    }
+
+    /// This conversion with calibrated CMYK kept as authored when `on`.
+    pub(crate) const fn preserving_cmyk(mut self, on: bool) -> Self {
+        self.preserve_cmyk = on;
+        self
     }
 }
 
@@ -694,6 +705,9 @@ impl IccBridgeCache {
         conv: Conversion,
     ) -> Option<std::sync::Arc<IccBridge>> {
         let dest = self.dest.as_ref()?;
+        if conv.preserve_cmyk && src_components == 4 {
+            return None;
+        }
         if let Some(hit) = self.lookup(src, src_components, conv, BridgeDest::OutputIntent) {
             return hit;
         }

@@ -29,11 +29,12 @@ pub(crate) enum ColorArg {
 /// `--edge-antialiasing` on `print`, `render-page` and `export-image`.
 #[derive(Copy, Clone, Debug, Default, PartialEq, Eq, clap::ValueEnum)]
 pub(crate) enum EdgeAaArg {
-    /// Off at 300 DPI and above, on below. The default for print.
+    /// Seamless below 300 DPI, hard edges at 300 DPI and above. The
+    /// default.
     #[default]
     Auto,
-    /// Smooth every edge, as on screen. The default for render-page
-    /// and export-image.
+    /// Smooth every edge one shape at a time, as Acrobat does on screen.
+    /// Shapes that touch can leave a faint seam where they meet.
     On,
     /// Hard edges at every resolution.
     Off,
@@ -42,24 +43,20 @@ pub(crate) enum EdgeAaArg {
     Seamless,
 }
 
-/// The resolution from which `--edge-antialiasing auto` prints hard edges:
-/// at 300 DPI a stair-step is under a tenth of a millimetre, while the
-/// seam antialiasing leaves between abutting shapes stays visible.
+/// The resolution from which `--edge-antialiasing auto` draws hard edges
+/// instead of supersampling: at 300 DPI a stair-step is under a tenth of a
+/// millimetre, and supersampling would cost 16x for nothing visible.
 pub(crate) const EDGE_AA_AUTO_OFF_DPI: u32 = 300;
 
 impl EdgeAaArg {
     /// The render setting this choice means at `dpi`.
     pub(crate) fn at_dpi(self, dpi: u32) -> pdfcer_render::EdgeAntialiasing {
-        let on = match self {
-            Self::Auto => dpi < EDGE_AA_AUTO_OFF_DPI,
-            Self::On => true,
-            Self::Off => false,
-            Self::Seamless => return pdfcer_render::EdgeAntialiasing::Supersampled,
-        };
-        if on {
-            pdfcer_render::EdgeAntialiasing::On
-        } else {
-            pdfcer_render::EdgeAntialiasing::Off
+        use pdfcer_render::EdgeAntialiasing as E;
+        match self {
+            Self::Auto if dpi < EDGE_AA_AUTO_OFF_DPI => E::Supersampled,
+            Self::Auto | Self::Off => E::Off,
+            Self::On => E::On,
+            Self::Seamless => E::Supersampled,
         }
     }
 }

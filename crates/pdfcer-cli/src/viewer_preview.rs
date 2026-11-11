@@ -1,7 +1,7 @@
 //! The viewer-preview flags `render-page` and `export-image` share:
 //! `--no-overprint-preview`, `--separation-preview`, `--hide-ink`,
-//! `--markup-without-ap`, `--free-text-c`, `--widgets-without-ap` and
-//! `--edge-antialiasing`.
+//! `--markup-without-ap`, `--free-text-c`, `--widgets-without-ap`,
+//! `--edge-antialiasing` and `--preserve-calibrated-cmyk`.
 
 use pdfcer_render::{
     Diagnostics, EdgeAntialiasing, FreeTextC, MarkupWithoutAp, OverprintPreview, RenderOptions,
@@ -62,6 +62,7 @@ pub(crate) struct ViewerPreview {
     free_text_c: Option<FreeTextC>,
     widgets: WidgetsWithoutAp,
     edges: EdgeAntialiasing,
+    preserve_cmyk: bool,
 }
 
 impl ViewerPreview {
@@ -125,6 +126,12 @@ impl ViewerPreview {
         self
     }
 
+    /// This preview with `--preserve-calibrated-cmyk` applied.
+    pub(crate) const fn with_preserve_cmyk(mut self, on: bool) -> Self {
+        self.preserve_cmyk = on;
+        self
+    }
+
     /// `options` with this preview applied.
     pub(crate) fn apply(self, options: RenderOptions) -> RenderOptions {
         let options = options
@@ -132,7 +139,8 @@ impl ViewerPreview {
             .with_separation_preview(self.separation)
             .with_markup_without_ap(self.markup)
             .with_widgets_without_ap(self.widgets)
-            .with_edge_antialiasing(self.edges);
+            .with_edge_antialiasing(self.edges)
+            .with_preserve_calibrated_cmyk(self.preserve_cmyk);
         match self.free_text_c {
             Some(c) => options.with_free_text_c(c),
             None => options,

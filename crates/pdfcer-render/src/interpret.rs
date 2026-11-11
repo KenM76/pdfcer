@@ -6613,6 +6613,7 @@ impl<'a> Interpreter<'a> {
     fn conversion(&self, intent: pdfcer_core::color::RenderingIntent) -> crate::icc::Conversion {
         let bpc = self.gs.current.use_black_pt_comp;
         crate::icc::Conversion::new(intent, bpc.unwrap_or(self.policy.black_point_compensation))
+            .preserving_cmyk(self.policy.preserve_calibrated_cmyk)
     }
 
     fn authored_cmyk(&self, stroking: bool) -> Option<[f32; 4]> {
@@ -6709,6 +6710,12 @@ impl<'a> Interpreter<'a> {
         // The intent comes from the GRAPHICS STATE, not the profile
         // (§8.6.5.8): `ri` and `/RI` override the profile's default, and
         // reading the profile's would make the operator's `ri` a no-op.
+        if matches!(space, crate::color::ColorSpace::IccBased { n: 4, .. })
+            && self.policy.preserve_calibrated_cmyk
+        {
+            let c = |i: usize| comps.get(i).copied().unwrap_or(0.0).clamp(0.0, 1.0);
+            return Some([c(0), c(1), c(2), c(3)]);
+        }
         if let crate::color::ColorSpace::IccBased {
             n,
             profile: Some(src),

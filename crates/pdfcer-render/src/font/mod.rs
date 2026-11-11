@@ -679,6 +679,14 @@ pub struct RenderOptions {
     /// leaves it open. See
     /// [`pdfcer_core::settings::Settings::black_point_compensation`].
     pub black_point_compensation: bool,
+    /// Keep a four-component `ICCBased` colour's numbers as the ink when
+    /// compositing in ink, instead of converting them from the embedded
+    /// profile to the output intent. Off by default (the colorimetric
+    /// conversion ISO 32000-1 §8.6.5.5 describes). On is the print-shop
+    /// "preserve CMYK numbers" policy: a 100 % magenta tagged with a
+    /// slightly different press profile stays 100 % magenta rather than
+    /// landing a level or two off.
+    pub preserve_calibrated_cmyk: bool,
     /// Which colour spaces get `OPM 1`'s zero-tint rule under overprint —
     /// a **divergence from ISO 32000-1** toward Acrobat (`Pass 143.0`), and
     /// edition-gated: 32000-2 deletes two of the three provisions that
@@ -987,6 +995,8 @@ pub struct RenderPolicy<'a> {
     pub page_blend_space_source: pdfcer_core::settings::PageBlendSpaceSource,
     /// See [`RenderOptions::black_point_compensation`].
     pub black_point_compensation: bool,
+    /// See [`RenderOptions::preserve_calibrated_cmyk`].
+    pub preserve_calibrated_cmyk: bool,
     /// See [`RenderOptions::overprint_zero_tint_scope`].
     pub overprint_zero_tint_scope: pdfcer_core::settings::OverprintZeroTintScope,
     /// See [`RenderOptions::spot_colorant_device_model`].
@@ -1227,6 +1237,7 @@ impl Default for RenderOptions {
             // docs carry why this is a choice and not a right answer.
             page_blend_space_source: pdfcer_core::settings::PageBlendSpaceSource::default(),
             black_point_compensation: true,
+            preserve_calibrated_cmyk: false,
             // A DIVERGENCE from §8.6.7's literal reading, kept as the default
             // for the sequencing reason given at
             // `OverprintZeroTintScope::GreyAsKOnly` -- NOT because it is
@@ -1548,6 +1559,14 @@ impl RenderOptions {
         self
     }
 
+    /// Set [`Self::preserve_calibrated_cmyk`], returning `self` for
+    /// chaining.
+    #[must_use]
+    pub fn with_preserve_calibrated_cmyk(mut self, on: bool) -> Self {
+        self.preserve_calibrated_cmyk = on;
+        self
+    }
+
     /// Attach a cancellation flag, returning `self` for chaining.
     ///
     /// Same consuming-builder reason as [`Self::with_annotations`]:
@@ -1747,6 +1766,7 @@ impl RenderOptions {
             max_cmyk_buffer_bytes: self.max_cmyk_buffer_bytes,
             page_blend_space_source: self.page_blend_space_source,
             black_point_compensation: self.black_point_compensation,
+            preserve_calibrated_cmyk: self.preserve_calibrated_cmyk,
             overprint_zero_tint_scope: self.overprint_zero_tint_scope,
             spot_colorant_device_model: self.spot_colorant_device_model,
             mesh_patch_padding: self.mesh_patch_padding,
@@ -1833,7 +1853,8 @@ mod render_policy_tests {
             .with_overprint_preview(crate::OverprintPreview::Off)
             .with_widgets_without_ap(crate::WidgetsWithoutAp::Blank)
             .with_markup_without_ap(crate::MarkupWithoutAp::Blank)
-            .with_free_text_c(crate::FreeTextC::Border);
+            .with_free_text_c(crate::FreeTextC::Border)
+            .with_preserve_calibrated_cmyk(true);
         assert_eq!(
             options.policy(),
             RenderPolicy {
@@ -1874,6 +1895,8 @@ mod render_policy_tests {
                 stroke_display: crate::font::StrokeDisplay::Actual,
                 // Not set by any `with_*` above — same carried-field assertion.
                 edge_antialiasing: crate::font::EdgeAntialiasing::On,
+                // NOT the default (`false`).
+                preserve_calibrated_cmyk: true,
                 omit_annotations: &[],
                 invisible_text: Some(crate::InvisibleTextPaint::new([1, 2, 3]).with_only(true)),
                 // NOT the default (`Simulate`).
