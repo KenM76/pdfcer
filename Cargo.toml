@@ -91,6 +91,7 @@ exclude = [
     # must not appear in THIRD_PARTY_LICENSES.md.
     "tools/icc-census",
     "tools/render-profile",
+    "tools/3d-measure",
     "tools/unembed-sweep",
     "tools/embed-sweep",
     # Dev-time JPEG XL fixture encoder; never shipped.

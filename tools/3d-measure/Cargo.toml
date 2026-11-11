@@ -1,0 +1,21 @@
+# Pass 705.0 measurement harness for decision 224 (indirect light and
+# reflections). A DETACHED single-crate workspace, excluded from the root
+# workspace like every other `tools/` crate, so it never enters the
+# shipping dependency graph or `THIRD_PARTY_LICENSES.md`.
+[package]
+name = "measure-3d"
+version = "0.0.0"
+edition = "2024"
+publish = false
+
+[lib]
+path = "src/lib.rs"
+crate-type = ["cdylib", "rlib"]
+
+[workspace]
+
+[dependencies]
+pdfcer-3d = { path = "../../crates/pdfcer-3d" }
+
+[profile.release]
+opt-level = 3
