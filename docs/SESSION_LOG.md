@@ -4,6 +4,16 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-11-11 (1522nd filing) — `cc74f730` `Pass 700.12` SHIPPED: EMF pixel patches instead of approximations (`X073`)
+
+**Shipped (engineer-reported; no shell here, git/CI state not checked from here; docs only):**
+- `cc74f730` on `main` (cherry-pick of worker `c12897be2041a3f93fc2d79319d565ce48c54e2d`), not in a release. `EmfOptions::with_patch_approximations`, `EmfOutcome::patches`, `emf::print_metafile_with`, CLI `export-image --format emf --patch-approximations`. Detail in the ROADMAP *Shipped* entry.
+- Tests: render 574 lib / 674 integration (2 ignored) / 38 doc; CLI `export_image` 10/10; sabotage 11 of 11; no manifest changed; two code-structure baseline entries removed.
+- FEATURES row moved Planned to Implemented: core `[x]`, cli `[x]`, gui `[ ]`. Next-up banner replaced by a shipped pointer.
+- **Open:** flag not on `copy-page` or `print`; a top-level highlight blend is still a print reason off CMYK pages.
+
+**For next session:** run the `700.18` parity check with `--patch-approximations`; then `700.19`/`700.20`, `700.17`.
+
 ## 2026-11-11 (1521st filing) — `587ed549` `Pass 700.16` SHIPPED: PDF sent straight to installed printers that read it
 
 **Shipped (engineer-reported; no shell here, git/CI state not checked from here; docs only):**
