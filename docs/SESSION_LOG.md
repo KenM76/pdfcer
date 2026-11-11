@@ -4,6 +4,16 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-11-10 (1494th filing) — `f9dd61e9` blended-paint weight; `Pass 703.0` SHIPPED COMPLETE
+
+**Filed (engineer-reported; no shell here, git/push/CI state not checked from here; docs only, engineer commits):**
+- **`f9dd61e9bf557952c18e5be17cc6db148b2d9dd0`** `fix(render): charge translucent and blended paints more against the coverage ceiling (Pass 703.0, X067 F028)`. A paint with constant alpha below 1 or a non-Normal blend mode is charged `BLENDED_PAINT_WEIGHT` (16) pixels per pixel (new pub constant, `pdfcer_render::page_budget`); a half-alpha fill measured about 14x an opaque one. `F028/alpha.pdf` scale 1/3/10: 3.8 s / 31 s / timeout to 2.6 s / 2.3 s / 2.2 s. CLI `content_truncated` warning reworded (cli-visible). Tests: 2 new, sabotage at weight 1 fails one, 0/120 pixel differences; gates clean; no `cargo tree` change.
+- **`Pass 703.0` acceptance PASSED:** 641 X067 repros, `render-page` scale 1 and `extract-text`, 30 s / 2 GB = 1,282 runs; F028/F054/F055 also at scale 10 (worst `F055/self_form_256m` 774 MB, `F028/doubling_16` 3.8 s); F152 via the `#[ignore]` release test. `703.0` closed SHIPPED across `v0.143.0`, `99f42fe0`, `d316a4c8`, `6bb035ad`+`74a01c9b`, `f9dd61e9`; all after `v0.143.0` unreleased.
+- **19 failing runs remain, all in `703.1` (1), `703.2` (12), `703.3` (6):** filed as their starting baselines in the Backlog rows. Harness was scale 1 only; `F079` scale 25 uncovered.
+- ROADMAP: new Shipped entry, Next-up banner, Backlog rows 703.0-703.3. FEATURES: hostile-input row text, boxes unticked. `docs/NEXT_SESSION.md` untouched (engineer-owned).
+
+**For next session:** `Pass 703.1` (mesh and shading budgets, F079/F080/F078); run `F079` at scale 25. Release when ready (unreleased work since `v0.143.0`).
+
 ## 2026-11-10 (1493rd filing) — `74a01c9b` doc comments on the streamed filter constructors (`Pass 703.0` F152 follow-up); stays PARTIAL
 
 **Filed (engineer-reported; no shell here, git/push/CI state not checked from here; docs only, engineer commits):**
