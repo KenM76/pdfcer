@@ -48,8 +48,7 @@ pub(crate) fn cmd_fill_field(
     output: &Path,
     mode: SaveMode,
     verify_undo: bool,
-    downgrade_rich_text: bool,
-    store_password_values: bool,
+    policy: TextFillPolicy,
 ) -> u8 {
     let (source, mut session) = match open_for_edit(input) {
         Ok(pair) => pair,
@@ -67,10 +66,6 @@ pub(crate) fn cmd_fill_field(
         return exit::EDIT_REFUSED;
     };
 
-    let policy = TextFillPolicy {
-        downgrade_rich_text,
-        store_password_values,
-    };
     let mut withheld_password_fields: Vec<String> = Vec::new();
     for set in sets {
         let Some((name, value)) = set.split_once('=') else {
@@ -102,11 +97,14 @@ pub(crate) fn cmd_fill_field(
     finish_edit(input, &outcome)
 }
 
-/// How `fill-field` writes a text value; both default to the refusing path.
+/// How `fill-field` writes a text value; each defaults to the refusing path.
 #[derive(Clone, Copy)]
-struct TextFillPolicy {
-    downgrade_rich_text: bool,
-    store_password_values: bool,
+pub(crate) struct TextFillPolicy {
+    pub(crate) downgrade_rich_text: bool,
+    /// `--rich-text`: a rich-text field's VALUE is `/RV`, and `/V` is its
+    /// plain text joined this way.
+    pub(crate) rich_text: Option<pdfcer_core::richtext::FlatText>,
+    pub(crate) store_password_values: bool,
 }
 
 /// Applies one `NAME=VALUE`, choosing the fill path from the field's type.
@@ -155,6 +153,15 @@ fn fill_one(
             disclose_fill(name, &out);
             Ok(false)
         }
+        _ if policy.rich_text.is_some()
+            && field.is_some_and(pdfcer_core::forms::Field::is_rich_text) =>
+        {
+            let flat = policy.rich_text.unwrap_or_default();
+            let out = session.fill_rich_text_field(name, value, flat)?;
+            disclose_fill(name, &out.fill);
+            disclose_rich_notes(name, &out.notes);
+            Ok(false)
+        }
         _ if policy.store_password_values => {
             let out = session.fill_text_field_storing_password(name, value)?;
             disclose_fill(name, &out);
@@ -165,6 +172,23 @@ fn fill_one(
             disclose_fill(name, &out);
             Ok(out.password_value_withheld)
         }
+    }
+}
+
+/// Names, per field, the rich-text markup not drawn and the fonts
+/// substituted (rule 4: the CLI prints what it inferred).
+fn disclose_rich_notes(name: &str, notes: &pdfcer_core::field_display::DisplayNotes) {
+    if !notes.rich_ignored.is_empty() {
+        eprintln!(
+            "pdfcer: {name}: rich-text markup ignored (its text is drawn in the surrounding style): {}",
+            notes.rich_ignored.join(", ")
+        );
+    }
+    if !notes.rich_fonts.is_empty() {
+        eprintln!(
+            "pdfcer: {name}: rich-text font(s) substituted: {}",
+            notes.rich_fonts.join(", ")
+        );
     }
 }
 

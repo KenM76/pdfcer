@@ -2802,6 +2802,8 @@ pub(crate) fn run() -> ExitCode {
             mode,
             verify_undo,
             downgrade_rich_text,
+            rich_text,
+            rich_plain_concatenated,
             store_password_values,
         } => cmd_fill_field(
             &input,
@@ -2809,8 +2811,15 @@ pub(crate) fn run() -> ExitCode {
             &output,
             mode,
             verify_undo,
-            downgrade_rich_text,
-            store_password_values,
+            TextFillPolicy {
+                downgrade_rich_text,
+                rich_text: rich_text.then_some(if rich_plain_concatenated {
+                    pdfcer_core::richtext::FlatText::Concatenated
+                } else {
+                    pdfcer_core::richtext::FlatText::ParagraphLines
+                }),
+                store_password_values,
+            },
         ),
         Command::RegenerateAppearances {
             input,

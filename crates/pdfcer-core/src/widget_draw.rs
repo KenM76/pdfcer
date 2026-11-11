@@ -187,6 +187,19 @@ impl WidgetAppearances {
             FieldType::Button => return self.button(field, widget, da, (w, h), chrome, state),
             FieldType::Signature => return None,
         };
+        let rich = (kind == SynthesizedKind::Text)
+            .then(|| crate::richtext::draw::plan(field, None, da, &self.fonts, &mut notes))
+            .flatten();
+        if let Some(plan) = rich {
+            let ap =
+                annot_author::build_field_rich_appearance(w, h, &plan, multiline, chrome).ok()?;
+            return Some(SynthesizedAppearance {
+                ap_dict: ap.ap_dict,
+                content: ap.content,
+                kind,
+                notes,
+            });
+        }
         let (shown, red) = field_display::shown_value(view, field, &stored, &mut notes);
         let da = if red {
             Cow::Owned(field_display::red_da(da))

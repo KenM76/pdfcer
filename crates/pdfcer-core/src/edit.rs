@@ -9512,13 +9512,32 @@ pub enum EditError {
     /// DELETE `/RV`, write `/V`, regenerate a plain appearance. That is fully
     /// conformant (the field simply stops being a rich-text field), needs no
     /// XHTML engine, and is a deliberate act the operator asks for rather than
-    /// something that happens to their document silently.
+    /// something that happens to their document silently. Or
+    /// [`EditSession::fill_rich_text_field`], which writes `/RV` and `/V`
+    /// together.
     #[error(
-        "field {name:?} holds rich (formatted) text; writing plain text into it would leave its stored formatting in charge of what readers display — use the explicit convert-to-plain-text fill instead"
+        "field {name:?} holds rich (formatted) text; writing plain text into it would leave its stored formatting in charge of what readers display — use the explicit convert-to-plain-text fill or a rich-text fill instead"
     )]
     FieldIsRichText {
         /// The fully-qualified name that was requested.
         name: String,
+    },
+    /// [`EditSession::fill_rich_text_field`] named a field without `/Ff`
+    /// bit 26 (`RichText`). The fill does not convert a plain field.
+    #[error("field {name:?} is not a rich-text field, so it cannot hold formatted text")]
+    FieldNotRichText {
+        /// The fully-qualified name that was requested.
+        name: String,
+    },
+    /// [`EditSession::fill_rich_text_field`] was given a value that is not
+    /// readable rich text (§12.7.3.4 Table 223).
+    #[error("the rich text for field {name:?} could not be read: {source}")]
+    InvalidRichText {
+        /// The fully-qualified name that was requested.
+        name: String,
+        /// Why it could not be read.
+        #[source]
+        source: crate::richtext::RichTextError,
     },
     /// A `/FreeText` restyle was refused because the appearance on disk is
     /// not one pdfcer can reproduce, so its wrapping cannot be recovered and
@@ -21248,6 +21267,30 @@ pub enum PaintRefusalReason {
     NotAPath,
 }
 
+/// What [`EditSession::fill_rich_text_field`] did and owes the operator.
+#[derive(Debug, Clone, PartialEq)]
+#[non_exhaustive]
+pub struct RichFillOutcome {
+    /// The fill's outcome, as for a plain fill.
+    pub fill: FillOutcome,
+    /// What drawing the rich text reported: markup not drawn
+    /// ([`DisplayNotes::rich_ignored`](crate::field_display::DisplayNotes::rich_ignored))
+    /// and fonts substituted
+    /// ([`DisplayNotes::rich_fonts`](crate::field_display::DisplayNotes::rich_fonts)).
+    pub notes: crate::field_display::DisplayNotes,
+}
+
+/// What a text fill does about a rich-text field.
+#[derive(Debug, Clone, Copy)]
+enum RichFill<'a> {
+    /// Refuse it ([`EditError::FieldIsRichText`]).
+    Refuse,
+    /// Convert it to a plain field.
+    Downgrade,
+    /// Write this `/RV` (the fill's text is its plain form).
+    Set(&'a str),
+}
+
 /// The disclosures a fuzzy-never-sneaky fill owes the operator: how many
 /// widgets it repainted, and the two variable-text caveats the §12.7.3.3
 /// generator surfaces (an applied auto-size, and any characters it could not
@@ -22497,6 +22540,9 @@ struct PendingWidgetEdit {
     /// A list box's selection and `/TI` as this command writes them. FIELD
     /// level, so not scoped by `id`. `None` = read from the field.
     list_selection: Option<crate::field_display::ListSelection>,
+    /// The `/RV` this command writes; `Some(None)` = it removes `/RV`.
+    /// FIELD level. `None` = read from the field.
+    rich_value: Option<Option<Vec<u8>>>,
 }
 
 impl PendingWidgetEdit {
@@ -30383,6 +30429,7 @@ impl EditSession {
             replace_foreign: edit.replaces_foreign(),
             icon: staged_icon,
             list_selection: None,
+            rich_value: None,
         };
 
         // THREE THINGS INVALIDATE THE BAKED APPEARANCE, and the third was
@@ -42279,7 +42326,7 @@ impl EditSession {
     /// character, and its value is **not** stored in `/V` (see
     /// [`FillOutcome::password_value_withheld`]).
     pub fn fill_text_field(&mut self, fqn: &str, text: &str) -> Result<FillOutcome, EditError> {
-        self.fill_text_field_inner(fqn, text, false, false)
+        self.fill_text_field_inner(fqn, text, RichFill::Refuse, false)
     }
 
     /// [`Self::fill_text_field`], except a `Password` field's value **is**
@@ -42298,7 +42345,7 @@ impl EditSession {
         fqn: &str,
         text: &str,
     ) -> Result<FillOutcome, EditError> {
-        self.fill_text_field_inner(fqn, text, false, true)
+        self.fill_text_field_inner(fqn, text, RichFill::Refuse, true)
     }
 
     /// **Fill a rich-text field with plain text, converting it to a plain
@@ -42346,16 +42393,68 @@ impl EditSession {
         fqn: &str,
         text: &str,
     ) -> Result<FillOutcome, EditError> {
-        self.fill_text_field_inner(fqn, text, true, false)
+        self.fill_text_field_inner(fqn, text, RichFill::Downgrade, false)
     }
 
-    /// The shared body of the two fills above; `downgrade_rich_text` decides
-    /// whether a rich-text field is refused or converted.
+    /// **Fill a rich-text field with formatted text** (§12.7.3.4): write
+    /// `rv` as `/RV`, its plain text as `/V` (joined as `flat` says), and
+    /// regenerate the appearance from the rich text. `/DS` and `/Ff` are
+    /// left as they are.
+    ///
+    /// `rv` is an XHTML rich text string (Table 223), e.g.
+    /// `<body><p>plain <b>bold</b></p></body>`. Markup outside Tables
+    /// 223/225 is kept in `/RV` and not drawn; fonts drawn with another font
+    /// are substituted. Both are listed in [`RichFillOutcome::notes`].
+    ///
+    /// # Errors
+    ///
+    /// - [`EditError::InvalidRichText`] — `rv` is not readable rich text.
+    /// - [`EditError::FieldNotRichText`] — the field lacks `/Ff` bit 26.
+    /// - Otherwise as [`Self::fill_text_field`].
+    pub fn fill_rich_text_field(
+        &mut self,
+        fqn: &str,
+        rv: &str,
+        flat: crate::richtext::FlatText,
+    ) -> Result<RichFillOutcome, EditError> {
+        let runs =
+            crate::richtext::parse(rv, None).map_err(|source| EditError::InvalidRichText {
+                name: fqn.to_owned(),
+                source,
+            })?;
+        let text = crate::richtext::flat_text(&runs, flat);
+        let fill = self.fill_text_field_inner(fqn, &text, RichFill::Set(rv), false)?;
+        let notes = self.rich_notes(fill.field_id);
+        Ok(RichFillOutcome { fill, notes })
+    }
+
+    /// What drawing field `id`'s rich value reported, read from the
+    /// session as it now stands.
+    fn rich_notes(&self, id: ObjId) -> crate::field_display::DisplayNotes {
+        let mut notes = crate::field_display::DisplayNotes::default();
+        let Some(form) = forms::parse_acroform(&self.graph()) else {
+            return notes;
+        };
+        let Some(field) = form.fields.iter().find(|f| f.id == id) else {
+            return notes;
+        };
+        let da = field
+            .default_appearance
+            .as_deref()
+            .or(form.default_appearance.as_deref())
+            .unwrap_or(b"/Helv 0 Tf 0 g");
+        let fonts = self.resolve_dr_fonts();
+        let _ = crate::richtext::draw::plan(field, None, da, &fonts, &mut notes);
+        notes
+    }
+
+    /// The shared body of the text fills; `rich` decides whether a
+    /// rich-text field is refused, converted or given a new `/RV`.
     fn fill_text_field_inner(
         &mut self,
         fqn: &str,
         text: &str,
-        downgrade_rich_text: bool,
+        rich: RichFill<'_>,
         store_password: bool,
     ) -> Result<FillOutcome, EditError> {
         self.fill_guards()?;
@@ -42390,11 +42489,27 @@ impl EditSession {
         // the whole `/Ff` family (`RadiosInUnison` on a button), so the bare
         // test would misfire. The predicate resolves `/FT` first.
         let is_rich = primary.is_rich_text();
-        if is_rich && !downgrade_rich_text {
-            return Err(EditError::FieldIsRichText {
-                name: fqn.to_owned(),
-            });
+        match rich {
+            RichFill::Refuse if is_rich => {
+                return Err(EditError::FieldIsRichText {
+                    name: fqn.to_owned(),
+                });
+            }
+            RichFill::Set(_) if !is_rich => {
+                return Err(EditError::FieldNotRichText {
+                    name: fqn.to_owned(),
+                });
+            }
+            _ => {}
         }
+        let rv_string = match rich {
+            RichFill::Set(rv) => Some(encode_text_string(rv)),
+            _ => None,
+        };
+        let pending = PendingWidgetEdit {
+            rich_value: is_rich.then(|| rv_string.clone()),
+            ..PendingWidgetEdit::default()
+        };
         let primary_id = primary.id;
         let withhold = !store_password && primary.flags.has(forms::FieldFlags::PASSWORD);
         let exceeds_max_len = primary
@@ -42449,8 +42564,9 @@ impl EditSession {
                 &mut da_colour_unmodelled,
                 &mut unencodable_chars,
                 // Not a rotation call: each widget's own `/MK /R` is read
-                // inside the loop, so a rotated field stays rotated.
-                &PendingWidgetEdit::default(),
+                // inside the loop, so a rotated field stays rotated. Only the
+                // rich value this fill writes is staged.
+                &pending,
                 &mut crate::field_display::DisplayCounts::default(),
             )?;
             widgets_updated += field.widgets.len();
@@ -42469,7 +42585,14 @@ impl EditSession {
             } else {
                 updated.insert(Name::from(b"V"), v_string.clone());
             }
-            if is_rich {
+            if let Some(rv) = &rv_string {
+                // A withheld password is withheld from `/RV` too.
+                if withhold {
+                    updated.remove(b"RV");
+                } else {
+                    updated.insert(Name::from(b"RV"), Object::String(rv.clone()));
+                }
+            } else if is_rich {
                 // THE DOWNGRADE, and both halves are load-bearing.
                 //
                 // Removing `/RV` alone would leave bit 26 set on a field with
@@ -45223,17 +45346,22 @@ impl EditSession {
             let ti = fd::raw_top_index(&view, field);
             fd::list_rows(field, pending.list_selection.as_ref(), ti, &mut notes)
         });
-        let (shown, red) = match list_rows {
-            Some(_) => (String::new(), false),
-            None => fd::shown_value(&view, field, text, &mut notes),
-        };
-        counts.add(&notes);
-        let text = crate::widget_draw::displayed_text(field, &shown);
-        let text = text.as_ref();
         let da = field
             .default_appearance
             .clone()
             .unwrap_or_else(|| default_da.to_vec());
+        let rich_rv = pending.rich_value.as_ref().map(Option::as_deref);
+        let rich = list_rows
+            .is_none()
+            .then(|| crate::richtext::draw::plan(field, rich_rv, &da, fonts, &mut notes))
+            .flatten();
+        let (shown, red) = match (&list_rows, &rich) {
+            (Some(_), _) | (_, Some(_)) => (String::new(), false),
+            (None, None) => fd::shown_value(&view, field, text, &mut notes),
+        };
+        counts.add(&notes);
+        let text = crate::widget_draw::displayed_text(field, &shown);
+        let text = text.as_ref();
         let da = if red { fd::red_da(&da) } else { da };
         let quad = field.quadding;
         let comb = crate::widget_draw::comb_cells(field, multiline);
@@ -45318,11 +45446,14 @@ impl EditSession {
             let chrome = pending
                 .chrome_for(widget.id)
                 .unwrap_or_else(|| self.widget_chrome(widget));
-            let appearance = match &list_rows {
-                Some(rows) => {
+            let appearance = match (&list_rows, &rich) {
+                (Some(rows), _) => {
                     annot_author::build_list_box_appearance(w, h, rows, &da, quad, fonts, chrome)?
                 }
-                None => annot_author::build_field_text_appearance(
+                (None, Some(plan)) => {
+                    annot_author::build_field_rich_appearance(w, h, plan, multiline, chrome)?
+                }
+                (None, None) => annot_author::build_field_text_appearance(
                     w, h, text, &da, quad, multiline, comb, fonts, chrome,
                 )?,
             };

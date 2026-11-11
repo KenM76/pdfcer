@@ -10058,8 +10058,26 @@ pub(crate) enum Command {
         /// span property in the stored rich text is gone. Every converted
         /// field is named individually on stderr — a count would not tell
         /// the operator WHICH field lost its formatting.
-        #[arg(long)]
+        #[arg(long, conflicts_with = "rich_text")]
         downgrade_rich_text: bool,
+        /// Read each VALUE for a RICH-TEXT field as formatted text: an
+        /// XHTML rich text string such as
+        /// `<body><p>plain <b>bold</b></p></body>` (ISO 32000 §12.7.3.4).
+        ///
+        /// The value is written to /RV, its plain text to /V, and the
+        /// appearance is drawn from the formatting: bold, italic, font
+        /// family and size, colour, underline, line-through and paragraph
+        /// alignment. Markup outside the PDF rich-text grammar is ignored
+        /// (its text is still drawn, in the surrounding style), and a font
+        /// pdfcer cannot use is drawn with a substitute; both are listed on
+        /// stderr. Fields that are not rich
+        /// text are filled as usual.
+        #[arg(long)]
+        rich_text: bool,
+        /// With --rich-text, join paragraphs in /V with nothing between
+        /// them, as XFA forms derive it, instead of a line break.
+        #[arg(long, requires = "rich_text")]
+        rich_plain_concatenated: bool,
         /// Store a PASSWORD field's value in the saved file, in plain text.
         ///
         /// By default a password field is drawn as asterisks and its value

@@ -98,6 +98,8 @@ mod list_box;
 pub use list_box::{
     LIST_BOX_HIGHLIGHT_RGB, ListBoxAppearance, build_list_box_text, list_box_first_row,
 };
+mod rich;
+pub use rich::{RichSpan, build_rich_text};
 
 /// A text fill colour parsed from — or authored into — a `/DA` string
 /// (§12.7.3.3 Table 222). The array length selects the device colour

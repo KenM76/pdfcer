@@ -1342,7 +1342,7 @@ stays `false`, `widget_rects` / `parse_acroform` / hit-testing are unchanged.
 | `pdfcer_core::widget_draw::WidgetAppearances::read(view) -> Option<Self>` | reads the AcroForm and `/DR` fonts once per page; `None` = no `/AcroForm`. |
 | `WidgetAppearances::appearance(&self, view, widget_id) -> Option<SynthesizedAppearance>` | the `/AP /N` form a regenerate would build, never inserted. `None` for a signature field or a widget not in the form. |
 | `SynthesizedAppearance { ap_dict, content, kind, notes }` | `#[non_exhaustive]`; `kind: SynthesizedKind` = `Text`, `Choice`, `CheckBox`, `RadioButton`, `PushButton`. `notes: field_display::DisplayNotes`. |
-| `pdfcer_core::field_display::DisplayNotes` | `#[non_exhaustive]`. `formatted: bool`, `unformatted: Option<String>` (the plain-words reason `/V` was drawn unformatted), `ignored_top_index: Option<i64>`, `ignored_selected: Vec<i64>`; `is_empty()`, `ignored_list_indices()`. Show a non-empty note off-canvas (rule 4). |
+| `pdfcer_core::field_display::DisplayNotes` | `#[non_exhaustive]`. `formatted: bool`, `unformatted: Option<String>` (the plain-words reason `/V` was drawn unformatted), `ignored_top_index: Option<i64>`, `ignored_selected: Vec<i64>`, `rich_text: bool` (drawn from `/RV`), `rich_ignored: Vec<String>` (unsupported tags as `<u>`, CSS as property names), `rich_fonts: Vec<String>` (`"from -> to"`), `rich_unreadable: Option<String>` (why a stored `/RV` was drawn plain); `is_empty()`, `ignored_list_indices()`. Show a non-empty note off-canvas (rule 4). |
 
 What is drawn: text value in the `/DA` font, size (`0 Tf` auto-fits) and
 colour, `/Q`, comb, multiline, password mask, and a text or editable-combo
@@ -1558,6 +1558,7 @@ Guards: `MAX_FORM_FIELDS = 500_000` `forms.rs`,
 |---|---|
 | `fill_text_field(fqn, text) -> Result<FillOutcome, EditError>` | `12340` |
 | `fill_text_field_downgrading_rich_text(fqn, text) -> Result<FillOutcome, EditError>` | `12384` |
+| `fill_rich_text_field(fqn, rv, FlatText) -> Result<RichFillOutcome, EditError>` | — |
 | `fill_text_field_storing_password(fqn, text) -> Result<FillOutcome, EditError>` | — |
 | `set_button_state(fqn, on_state) -> Result<(), EditError>` | `12570` |
 | `set_choice_value(fqn, &[&str]) -> Result<FillOutcome, EditError>` | `13138` |
@@ -1705,8 +1706,9 @@ not to be logged.
 
 **On rich text.** `fill_text_field` **refuses** a rich-text field outright
 rather than writing half the `/DS` + `/RV` pair (`forms.rs`). The
-only way through is `fill_text_field_downgrading_rich_text`, and the shell
-must present it *as a downgrade*: it clears `/Ff` bit 26, **deletes** `/RV`
+ways through are `fill_rich_text_field` (writes `/RV` and its plain `/V`;
+show its `notes`) and `fill_text_field_downgrading_rich_text`, which the shell
+must present *as a downgrade*: it clears `/Ff` bit 26, **deletes** `/RV`
 (not empties it — §12.7.3.4 gives an empty one no meaning), and regenerates a
 plain appearance (`edit.rs`). Formatting is lost. Also:
 `import_form_data` **skips and counts** rich-text targets rather than failing
@@ -1894,8 +1896,12 @@ count by exactly that many.
   its text: *"a missed style is a cosmetic difference the operator can see; a
   dropped run is text that vanishes"* (`richtext.rs`). CSS `justify` is
   **not** an accepted `Align` (`richtext.rs`). `/DA` vs `/DS`
-  precedence is **undefined by the standard** and is a setting, resolved
-  elsewhere — this module never reads `/DA` (`richtext.rs`).
+  precedence is **undefined by the standard**; the appearance builder
+  (`richtext/draw.rs`) lets the run and `/DS` win and takes from `/DA` only
+  what they leave unset. Parsing never reads `/DA` (`richtext.rs`).
+  `richtext::{parse_noting, RichText, flat_text, FlatText, MAX_RICH_DEPTH,
+  MAX_RICH_BYTES}` and `vartext::{RichSpan, build_rich_text}` are the
+  building blocks; `parse_noting` returns the ignored markup with the runs.
 - **No font substitution in variable text.** `VarTextError::FontUnresolved`
   refuses rather than substituting, *"because a substituted font changes glyph
   advances, so the operator would see different metrics than every other

@@ -114,6 +114,7 @@ mod format_decoration_form;
 mod format_decoration_metrics;
 mod format_decoration_tagged;
 mod format_occurrence;
+mod forms_rich_appearance;
 mod forms_richtext;
 mod free_text_frame_style;
 mod free_text_note_rebake;

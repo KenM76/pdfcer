@@ -28,6 +28,17 @@ pub struct DisplayNotes {
     /// A list box's `/I` entries that named no option and were ignored, in
     /// file order.
     pub ignored_selected: Vec<i64>,
+    /// The appearance was drawn from the field's rich value `/RV`
+    /// (§12.7.3.4).
+    pub rich_text: bool,
+    /// Rich-text markup that was not drawn, once each: `<name>` for an
+    /// element outside Table 223, a style property by name, or
+    /// `name: value` for a value outside Table 225.
+    pub rich_ignored: Vec<String>,
+    /// Rich-text fonts drawn with another font, as `requested -> used`.
+    pub rich_fonts: Vec<String>,
+    /// The `/RV` would not parse, so `/V` was drawn as plain text; why.
+    pub rich_unreadable: Option<String>,
 }
 
 impl DisplayNotes {
@@ -55,6 +66,15 @@ pub struct DisplayCounts {
     pub unformatted: usize,
     /// List-box `/TI` and `/I` entries that named no option and were ignored.
     pub list_indices_ignored: usize,
+    /// Fields drawn from their rich value `/RV`.
+    pub rich_text: usize,
+    /// Rich-text markup items not drawn ([`DisplayNotes::rich_ignored`]).
+    pub rich_markup_ignored: usize,
+    /// Rich-text fonts drawn with another font
+    /// ([`DisplayNotes::rich_fonts`]).
+    pub rich_fonts_substituted: usize,
+    /// Rich-text fields whose `/RV` would not parse, drawn as plain text.
+    pub rich_unreadable: usize,
 }
 
 impl DisplayCounts {
@@ -63,6 +83,10 @@ impl DisplayCounts {
         self.formatted += usize::from(notes.formatted);
         self.unformatted += usize::from(notes.unformatted.is_some());
         self.list_indices_ignored += notes.ignored_list_indices();
+        self.rich_text += usize::from(notes.rich_text);
+        self.rich_markup_ignored += notes.rich_ignored.len();
+        self.rich_fonts_substituted += notes.rich_fonts.len();
+        self.rich_unreadable += usize::from(notes.rich_unreadable.is_some());
     }
 }
 

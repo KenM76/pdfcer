@@ -5215,17 +5215,45 @@ pub fn build_field_text_appearance(
     // inside that clip or malformed. Prepending is the only correct order
     // and it is also the visually correct one — the box is behind the
     // letters.
-    let mut content = field_box_art(&chrome, bbox.urx, bbox.ury, comb);
-    content.extend_from_slice(&va.content);
+    Ok(text_field_appearance(bbox, va, &chrome, comb))
+}
 
-    Ok(FieldAppearance {
+/// `va` behind `chrome`'s box art, as a text widget's appearance.
+fn text_field_appearance(
+    bbox: Rect,
+    va: vartext::VarTextAppearance,
+    chrome: &WidgetChrome,
+    comb: Option<usize>,
+) -> FieldAppearance {
+    let mut content = field_box_art(chrome, bbox.urx, bbox.ury, comb);
+    content.extend_from_slice(&va.content);
+    FieldAppearance {
         ap_dict: text_form_dict(bbox, va.resources),
         content,
         applied_autosize: va.applied_autosize,
         applied_autosize_bound: va.applied_autosize_bound,
         da_colour_unmodelled: va.da_colour_unmodelled,
         unencodable_chars: va.unencodable_chars,
-    })
+    }
+}
+
+/// [`build_field_text_appearance`] for a rich-text field: `plan`'s styled
+/// spans in place of one `/DA`-styled string (§12.7.3.4).
+pub(crate) fn build_field_rich_appearance(
+    width: f64,
+    height: f64,
+    plan: &crate::richtext::draw::RichPlan,
+    multiline: bool,
+    chrome: WidgetChrome,
+) -> Result<FieldAppearance, VarTextError> {
+    let bbox = Rect {
+        llx: 0.0,
+        lly: 0.0,
+        urx: width.max(1.0),
+        ury: height.max(1.0),
+    };
+    let va = vartext::build_rich_text(bbox, &plan.spans, &plan.aligns, multiline, &plan.fonts)?;
+    Ok(text_field_appearance(bbox, va, &chrome, None))
 }
 
 /// A text or choice widget's `/MK /BG` fill and `/BC` frame (plus a comb's

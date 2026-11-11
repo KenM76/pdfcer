@@ -109,6 +109,16 @@
 
 use crate::fdf::{XmlElement, XmlNode};
 
+pub(crate) mod draw;
+
+/// The deepest element nesting under `<body>` a rich text value may have
+/// (ARCHITECTURE §10). Table 223's grammar needs four (`body > p > b > i`
+/// plus a `span`); 32 leaves room for producers that wrap generously.
+pub const MAX_RICH_DEPTH: usize = 32;
+
+/// The largest `/RV` accepted, in bytes (ARCHITECTURE §10).
+pub const MAX_RICH_BYTES: usize = 1 << 20;
+
 /// Horizontal alignment — Table 225 `text-align`.
 ///
 /// Exactly three values. CSS's `justify` is **not** in Table 225 and is
@@ -273,6 +283,73 @@ pub enum RichTextError {
         /// The element name actually found at the root.
         found: String,
     },
+    /// Elements nest deeper than [`MAX_RICH_DEPTH`].
+    #[error("the rich text value nests elements deeper than {limit} levels")]
+    TooDeep {
+        /// The bound that was exceeded.
+        limit: usize,
+    },
+    /// The value is longer than [`MAX_RICH_BYTES`].
+    #[error("the rich text value is {len} bytes, over the {limit}-byte limit")]
+    TooLarge {
+        /// The value's length in bytes.
+        len: usize,
+        /// The bound that was exceeded.
+        limit: usize,
+    },
+}
+
+/// A parsed rich text value and the markup it ignored.
+#[derive(Debug, Clone, PartialEq, Default)]
+#[non_exhaustive]
+pub struct RichText {
+    /// The styled runs, as [`parse`] returns them.
+    pub runs: Vec<Run>,
+    /// Markup that contributed nothing, once each in document order: an
+    /// unknown element as `<name>`, an unknown style property by name, and
+    /// a known property whose value is outside Table 225 as `name: value`.
+    pub ignored: Vec<String>,
+}
+
+/// How [`flat_text`] joins paragraphs.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+#[non_exhaustive]
+pub enum FlatText {
+    /// A line feed between paragraphs, so a reader that shows `/V` keeps
+    /// the line structure. The default.
+    #[default]
+    ParagraphLines,
+    /// The character data concatenated with nothing added — XFA 3.x's
+    /// derivation of the plain value from rich text.
+    Concatenated,
+}
+
+/// The plain text of `runs`: their text in order, paragraphs joined as
+/// `mode` says. Used for the `/V` that accompanies an `/RV` (§12.7.3.4:
+/// `/V` holds the field's text without markup).
+///
+/// # Examples
+///
+/// ```
+/// use pdfcer_core::richtext::{self, FlatText};
+///
+/// let runs = richtext::parse("<body><p>a <b>b</b></p><p>c</p></body>", None)?;
+/// assert_eq!(richtext::flat_text(&runs, FlatText::ParagraphLines), "a b\nc");
+/// assert_eq!(richtext::flat_text(&runs, FlatText::Concatenated), "a bc");
+/// # Ok::<(), richtext::RichTextError>(())
+/// ```
+#[must_use]
+pub fn flat_text(runs: &[Run], mode: FlatText) -> String {
+    let mut out = String::new();
+    let mut last = runs.first().map(|r| r.paragraph);
+    for run in runs {
+        if mode == FlatText::ParagraphLines && Some(run.paragraph) != last {
+            out.push('\n');
+        }
+        last = Some(run.paragraph);
+        out.push_str(&run.text);
+    }
+    out
 }
 
 /// Parse a rich text value and its default style string into styled runs.
@@ -286,7 +363,9 @@ pub enum RichTextError {
 /// # Errors
 ///
 /// [`RichTextError::MalformedXml`] if `/RV` will not parse;
-/// [`RichTextError::RootNotBody`] if its root element is not `<body>`.
+/// [`RichTextError::RootNotBody`] if its root element is not `<body>`;
+/// [`RichTextError::TooDeep`] or [`RichTextError::TooLarge`] past the
+/// bounds.
 ///
 /// Note that neither unknown elements nor unknown style properties are
 /// errors — see the module docs on why that asymmetry is deliberate.
@@ -313,6 +392,32 @@ pub enum RichTextError {
 /// assert_eq!(rt[1].style.align, Some(Align::Center));
 /// ```
 pub fn parse(rv: &str, ds: Option<&str>) -> Result<Vec<Run>, RichTextError> {
+    parse_noting(rv, ds).map(|rt| rt.runs)
+}
+
+/// [`parse`], also returning the markup it ignored.
+///
+/// # Errors
+///
+/// As [`parse`].
+///
+/// # Examples
+///
+/// ```
+/// let rt = pdfcer_core::richtext::parse_noting(
+///     "<body><p>a<u>b</u></p></body>",
+///     Some("letter-spacing: 1pt"),
+/// )?;
+/// assert_eq!(rt.ignored, ["letter-spacing", "<u>"]);
+/// # Ok::<(), pdfcer_core::richtext::RichTextError>(())
+/// ```
+pub fn parse_noting(rv: &str, ds: Option<&str>) -> Result<RichText, RichTextError> {
+    if rv.len() > MAX_RICH_BYTES {
+        return Err(RichTextError::TooLarge {
+            len: rv.len(),
+            limit: MAX_RICH_BYTES,
+        });
+    }
     let root = crate::fdf::parse_xml_document(rv).map_err(RichTextError::MalformedXml)?;
 
     // Table 223: `<body>` is THE root. A namespace prefix is stripped
@@ -325,68 +430,109 @@ pub fn parse(rv: &str, ds: Option<&str>) -> Result<Vec<Run>, RichTextError> {
     }
 
     // RT-M6: `/DS` is the base every run cascades over.
-    let base = ds.map(parse_declarations).unwrap_or_default();
+    let mut ignored = Vec::new();
+    let base = ds
+        .map(|d| parse_declarations(d, &mut ignored))
+        .unwrap_or_default();
 
-    let mut runs: Vec<Run> = Vec::new();
-    let mut paragraph = 0usize;
-    walk(&root, &base, &mut paragraph, &mut runs);
+    let mut w = Walk {
+        paragraph: 0,
+        runs: Vec::new(),
+        ignored,
+    };
+    w.walk(&root, &base, 0)?;
 
     // Empty runs carry no text and no information; a `<span>` with only
     // attributes is a style declaration, not content.
-    runs.retain(|r| !r.text.is_empty());
-    Ok(runs)
+    w.runs.retain(|r| !r.text.is_empty());
+    Ok(RichText {
+        runs: w.runs,
+        ignored: w.ignored,
+    })
 }
 
-/// Walk one element's content in document order, emitting runs.
-///
-/// `inherited` is the style in force at this element — `/DS` at the root,
-/// then each nested element's contribution overlaid. `paragraph` is
-/// threaded by `&mut` rather than returned because `<p>` may appear at
-/// any depth and the counter has to advance across the whole walk, not
-/// per branch.
-fn walk(el: &XmlElement, inherited: &Style, paragraph: &mut usize, out: &mut Vec<Run>) {
-    for node in &el.nodes {
-        match node {
-            XmlNode::Text(t) => out.push(Run {
-                text: t.clone(),
-                style: inherited.clone(),
-                paragraph: *paragraph,
-            }),
-            XmlNode::Child(i) => {
-                let Some(child) = el.children.get(*i) else {
-                    // Unreachable for a parser-produced tree; skipping
-                    // rather than panicking because a malformed index
-                    // must not take down a document open.
-                    continue;
-                };
-                let name = local_name(&child.name);
+/// A `/DS` string's style on its own, discarding what it ignored.
+fn parse_style(ds: &str) -> Style {
+    parse_declarations(ds, &mut Vec::new())
+}
 
-                // A `<p>` after any content starts a new paragraph. The
-                // "after any content" guard is what stops the FIRST
-                // paragraph counting as a break and offsetting every
-                // index by one.
-                if name == "p" && !out.is_empty() {
-                    *paragraph += 1;
-                }
+/// Record `what` once.
+fn note(ignored: &mut Vec<String>, what: String) {
+    if !ignored.contains(&what) {
+        ignored.push(what);
+    }
+}
 
-                let mut style = inherited.clone();
-                // Element-contributed style first, then the `style`
-                // attribute, so `<b style="font-weight:normal">` obeys the
-                // explicit attribute. Nearer the text wins.
-                match name {
-                    // Table 223: `<b>` is bold, `<i>` is italic. Expressed
-                    // as their Table 225 numeric/boolean equivalents so a
-                    // consumer never has to ask "element or attribute?".
-                    "b" => style.weight = Some(700),
-                    "i" => style.italic = Some(true),
-                    _ => {}
+/// The walk's output and the paragraph counter it threads.
+struct Walk {
+    paragraph: usize,
+    runs: Vec<Run>,
+    ignored: Vec<String>,
+}
+
+impl Walk {
+    /// Walk one element's content in document order, emitting runs.
+    ///
+    /// `inherited` is the style in force at this element — `/DS` at the root,
+    /// then each nested element's contribution overlaid. The paragraph counter
+    /// lives on `self` because `<p>` may appear at any depth and the counter
+    /// has to advance across the whole walk, not per branch.
+    fn walk(
+        &mut self,
+        el: &XmlElement,
+        inherited: &Style,
+        depth: usize,
+    ) -> Result<(), RichTextError> {
+        if depth > MAX_RICH_DEPTH {
+            return Err(RichTextError::TooDeep {
+                limit: MAX_RICH_DEPTH,
+            });
+        }
+        for node in &el.nodes {
+            match node {
+                XmlNode::Text(t) => self.runs.push(Run {
+                    text: t.clone(),
+                    style: inherited.clone(),
+                    paragraph: self.paragraph,
+                }),
+                XmlNode::Child(i) => {
+                    let Some(child) = el.children.get(*i) else {
+                        // Unreachable for a parser-produced tree; skipping
+                        // rather than panicking because a malformed index
+                        // must not take down a document open.
+                        continue;
+                    };
+                    let name = local_name(&child.name);
+
+                    // A `<p>` after any content starts a new paragraph. The
+                    // "after any content" guard is what stops the FIRST
+                    // paragraph counting as a break and offsetting every
+                    // index by one.
+                    if name == "p" && !self.runs.is_empty() {
+                        self.paragraph += 1;
+                    }
+
+                    let mut style = inherited.clone();
+                    // Element-contributed style first, then the `style`
+                    // attribute, so `<b style="font-weight:normal">` obeys the
+                    // explicit attribute. Nearer the text wins.
+                    match name {
+                        // Table 223: `<b>` is bold, `<i>` is italic. Expressed
+                        // as their Table 225 numeric/boolean equivalents so a
+                        // consumer never has to ask "element or attribute?".
+                        "b" => style.weight = Some(700),
+                        "i" => style.italic = Some(true),
+                        "body" | "p" | "span" => {}
+                        other => note(&mut self.ignored, format!("<{other}>")),
+                    }
+                    if let Some(decl) = child.attr("style") {
+                        style.overlay(&parse_declarations(decl, &mut self.ignored));
+                    }
+                    self.walk(child, &style, depth + 1)?;
                 }
-                if let Some(decl) = child.attr("style") {
-                    style.overlay(&parse_declarations(decl));
-                }
-                walk(child, &style, paragraph, out);
             }
         }
+        Ok(())
     }
 }
 
@@ -405,9 +551,9 @@ fn local_name(name: &str) -> &str {
 ///
 /// Used for BOTH `/DS` (which is a bare declaration list with no element
 /// around it) and a `style=` attribute, because they are the same
-/// grammar. Unknown properties are skipped, not rejected; see the module
-/// docs.
-fn parse_declarations(s: &str) -> Style {
+/// grammar. Unknown properties and out-of-grammar values are skipped, not
+/// rejected (see the module docs), and recorded in `ignored`.
+fn parse_declarations(s: &str, ignored: &mut Vec<String>) -> Style {
     let mut style = Style::default();
     for decl in s.split(';') {
         let Some((name, value)) = decl.split_once(':') else {
@@ -418,23 +564,42 @@ fn parse_declarations(s: &str) -> Style {
         if value.is_empty() {
             continue;
         }
-        match name.as_str() {
-            "text-align" => style.align = parse_align(value),
-            "vertical-align" => style.baseline_shift_pt = parse_pt(value),
-            "font-size" => style.size_pt = parse_pt(value),
-            "font-style" => style.italic = parse_italic(value),
-            "font-weight" => style.weight = parse_weight(value),
-            "font-family" => style.family = parse_family(value),
-            "font" => apply_font_shorthand(value, &mut style),
-            "color" => style.color = parse_color(value),
+        let read = match name.as_str() {
+            "text-align" => set(&mut style.align, parse_align(value)),
+            "vertical-align" => set(&mut style.baseline_shift_pt, parse_pt(value)),
+            "font-size" => set(&mut style.size_pt, parse_pt(value)),
+            "font-style" => set(&mut style.italic, parse_italic(value)),
+            "font-weight" => set(&mut style.weight, parse_weight(value)),
+            "font-family" => {
+                style.family = parse_family(value);
+                true
+            }
+            "font" => {
+                apply_font_shorthand(value, &mut style);
+                true
+            }
+            "color" => set(&mut style.color, parse_color(value)),
             "text-decoration" => apply_text_decoration(value, &mut style),
-            "font-stretch" => style.stretch = parse_stretch(value),
+            "font-stretch" => set(&mut style.stretch, parse_stretch(value)),
             // Not an error. A PDF 1.7 file may legally carry XFA-2.4
             // attributes this module does not model.
-            _ => {}
+            _ => {
+                note(ignored, name);
+                continue;
+            }
+        };
+        if !read {
+            note(ignored, format!("{name}: {value}"));
         }
     }
     style
+}
+
+/// Store a parsed value; `false` when it did not parse.
+fn set<T>(slot: &mut Option<T>, value: Option<T>) -> bool {
+    let read = value.is_some();
+    *slot = value;
+    read
 }
 
 /// Table 225 `text-align`: `left`, `right`, `center`. Nothing else.
@@ -538,7 +703,10 @@ fn apply_font_shorthand(v: &str, style: &mut Style) {
 /// rather than `false`, because "this declaration did not mention
 /// underline" and "this declaration turned underline off" are different
 /// and only the former is expressible in Table 225's vocabulary.
-fn apply_text_decoration(v: &str, style: &mut Style) {
+///
+/// `false` when a keyword is outside that vocabulary.
+fn apply_text_decoration(v: &str, style: &mut Style) -> bool {
+    let mut all_read = true;
     for tok in v.split_whitespace() {
         match tok.to_ascii_lowercase().as_str() {
             "underline" => style.underline = Some(true),
@@ -547,9 +715,10 @@ fn apply_text_decoration(v: &str, style: &mut Style) {
                 style.underline = Some(false);
                 style.strikethrough = Some(false);
             }
-            _ => {}
+            _ => all_read = false,
         }
     }
+    all_read
 }
 
 /// Table 225 `font-stretch`: the nine-step scale.

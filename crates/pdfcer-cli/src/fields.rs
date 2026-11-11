@@ -728,4 +728,24 @@ their stored value is drawn unformatted",
             d.list_indices_ignored
         );
     }
+    if d.rich_markup_ignored > 0 {
+        eprintln!(
+            "pdfcer: {subject}: {} rich-text markup item(s) are outside the PDF rich-text \
+grammar and were not drawn",
+            d.rich_markup_ignored
+        );
+    }
+    if d.rich_fonts_substituted > 0 {
+        eprintln!(
+            "pdfcer: {subject}: {} rich-text font(s) were drawn with a substitute font",
+            d.rich_fonts_substituted
+        );
+    }
+    if d.rich_unreadable > 0 {
+        eprintln!(
+            "pdfcer: {subject}: {} rich-text field(s) hold rich text pdfcer could not read; \
+their plain value is drawn instead",
+            d.rich_unreadable
+        );
+    }
 }
