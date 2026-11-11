@@ -137,9 +137,10 @@ pub struct RenderOptions {
     /// [`MIN_LIGHT_GAIN`](crate::MIN_LIGHT_GAIN)–[`MAX_LIGHT_GAIN`](crate::MAX_LIGHT_GAIN)
     /// or not finite: [`RenderError::LightGain`].
     pub light_gain: f64,
-    /// Light bounced between surfaces ([`IndirectOptions`]): on for the
-    /// lights fixed in the model by default, so a model lit only from the
-    /// camera draws as before. The GPU path does not draw it yet.
+    /// Light bounced between surfaces ([`crate::IndirectOptions`]): on for
+    /// the lights fixed in the model by default, so a model lit only from
+    /// the camera draws as before. The GPU path draws it from
+    /// [`crate::FrameBounce`].
     pub indirect: crate::IndirectOptions,
 }
 
