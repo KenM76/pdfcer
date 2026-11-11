@@ -2557,9 +2557,10 @@ fn read_rect<G: ObjectGraph + ?Sized>(graph: &G, obj: &Object) -> Option<Rect> {
 /// pick appearances for them (fuzzy-never-sneaky). Regeneration is a
 /// Pass 7 operator-requested action.
 ///
-/// A widget whose `/AP` `/N` is present is still painted from it at
-/// display time regardless of `/NeedAppearances`; this flag only governs
-/// the stale-appearance *disclosure*, not per-widget painting.
+/// At display time `pdfcer-render` honours it by default: a text or choice
+/// widget is drawn from its value instead of its stored `/AP /N`, buttons and
+/// signatures keep theirs, and nothing is written (`NeedAppearances` in
+/// `pdfcer-render`).
 #[must_use]
 pub fn need_appearances<G: ObjectGraph + ?Sized>(graph: &G) -> bool {
     let Some(catalog) = graph.catalog_dict() else {

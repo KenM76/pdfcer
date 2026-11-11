@@ -126,6 +126,7 @@ mod reflow;
 mod refusal_names_a_font;
 mod region_ops;
 mod remove_metadata_cli;
+mod render_need_appearances;
 mod render_page;
 mod reset_form_cli;
 mod resize_annotation;

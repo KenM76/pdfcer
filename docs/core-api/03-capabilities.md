@@ -1355,6 +1355,58 @@ Also in this Pass: a **single-line** (and comb) text field's value is now
 vertically centred in its box (it sat at the top of a tall box), in both this
 drawing and `regenerate_appearances`. Multiline layout is unchanged.
 
+#### `/NeedAppearances`, the field highlight and field-text geometry (`X070`)
+
+**`/NeedAppearances` is honoured at display time.** §12.7.2 Table 218: the
+flag asks the reader to construct appearance streams for all fields. With it
+set, `pdfcer-render` draws each **text and choice** widget from `/V` with the
+same builder as the no-`/AP` case above, over the stored `/AP /N`; **buttons
+and signatures keep their stored appearance** (their `/AP` *is* their state).
+Nothing is written: a save stays byte-identical. A redrawn widget is counted
+in its own counter, not `annotations_painted`.
+
+| item | contract |
+|---|---|
+| `pdfcer_render::NeedAppearances` | `#[non_exhaustive]` enum: `Honour` (default) or `AsStored` (always paint the stored `/AP`). |
+| `RenderOptions::with_need_appearances(mode)` | `const fn`, carried into `RenderPolicy::need_appearances`. |
+| `Diagnostics::widgets_redrawn_for_need_appearances: usize` | widgets drawn from `/V` instead of their stored `/AP`. CLI `render-page` key `annots_need_appearances_redrawn=` (last key), stderr note when non-zero; flag `--need-appearances honour\|as-stored` on `render-page` and `export-image`. |
+
+**★ UI must disclose:** when the count is non-zero, say off-canvas that the
+form's stored appearances may be stale and fields are shown from their values.
+
+**The field highlight is editor chrome** (rule 4's R167 allowance: it marks
+editability, not uncertainty), off by default and never drawn when
+`print_intent` is set.
+
+| item | contract |
+|---|---|
+| `pdfcer_render::FieldHighlight { fill: [u8; 4], required_border: [u8; 4] }` | `#[non_exhaustive]`, `Copy`; straight RGBA. `FieldHighlight::new(fill, required_border)` (`const fn`); `Default` = fill `[204, 215, 255, 160]`, border `[255, 0, 0, 255]`. |
+| `RenderOptions::with_field_highlight(Option<FieldHighlight>)` | `const fn`; `None` (default) renders exactly as without it. |
+
+The fill goes **behind** the widget's appearance on its `/Rect` (so glyphs
+keep their colour) for every visible, non-read-only (Table 221 bit 1) text,
+choice, check box, radio and signature widget in the AcroForm. Push buttons
+and read-only fields get none. A required field (bit 2) also gets a 1 pt
+border in `required_border`, drawn **after** the appearance so an opaque
+`/BG` cannot hide it.
+
+**Field-text geometry**, for an editor's caret: the text laid out exactly as
+the appearance draws it — `/DA` font and size (auto size included), `/Q`,
+Multiline wrap, Comb with `/MaxLen`, Password masking, `/MK /R`.
+
+| item | contract |
+|---|---|
+| `WidgetAppearances::field(&self, widget_id) -> Option<&Field>` | the parsed field a widget belongs to. |
+| `WidgetAppearances::text_geometry(&self, widget_id, text: &str) -> Option<FieldTextGeometry>` | `text` is any string (what the operator is typing), not necessarily `/V`. `None` for a button or signature field, an unknown widget, no `/Rect`, or a `/DA` the layout refuses. An unencodable character is measured as `?`, as drawn; never panics. |
+| `FieldTextGeometry { font_size, lines: Vec<FieldTextLine>, chars: Vec<FieldTextChar> }` | `#[non_exhaustive]`; page space (`PagePoint = [f64; 2]`). |
+| `FieldTextLine { corners: [PagePoint; 4], start, end }` | line box `ll, lr, ur, ul`; `start..end` byte offsets into `text`. |
+| `FieldTextChar { offset, end, line, start: PagePoint, stop: PagePoint }` | one per `char`; byte offsets; `start`/`stop` on the baseline. Collapsed spaces, line breaks and characters past a comb's cells are zero width. |
+| `FieldTextGeometry::carets(&self) -> Vec<FieldCaret>` | before each character and after each line's last; an offset at a soft wrap appears twice. An empty string gives one caret at the text start. |
+| `FieldTextGeometry::caret_segment(&self, offset) -> Option<[PagePoint; 2]>` | bottom, top. An offset at a soft wrap resolves to the start of the next line. `None` past the end or inside a multi-byte character. |
+| `FieldTextGeometry::caret_at_point(&self, x, y) -> usize` | nearest line band, then nearest caret. |
+| `FieldCaret { offset, line, bottom: PagePoint, top: PagePoint }` | `#[non_exhaustive]`, `Copy`; rotated with `/MK /R`. |
+| `pdfcer_core::vartext::{layout_variable_text, layout_comb_text}` | the form-space layout under it: `TextLayout { font_size, ascent, descent, lines: Vec<LineLayout>, unencodable_chars }`, `LineLayout { start, end, baseline, x0, x1, chars: Vec<CharSpan> }`, `CharSpan { offset, end, x0, x1 }` (`CharSpan::new`). |
+
 #### Markup annotations with no `/AP` — drawn from their own geometry (`Pass 646.20`–`646.22`, `G236`, decision 203)
 
 §12.5.2 lets a reader provide its own appearance. `pdfcer-render` draws an

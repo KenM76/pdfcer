@@ -288,7 +288,10 @@ pub use pdfcer_core;
 // `RenderOptions`' public surface, so they are re-exported at the crate
 // root alongside it — a shell should not have to know they live in
 // `annot` to write `pdfcer_render::AnnotationScope::Document`.
-pub use annot::{AnnotationClass, AnnotationScope, FreeTextC, MarkupWithoutAp, WidgetsWithoutAp};
+pub use annot::{
+    AnnotationClass, AnnotationScope, FieldHighlight, FreeTextC, MarkupWithoutAp, NeedAppearances,
+    WidgetsWithoutAp,
+};
 // The §8.6 colour-space model and its disclosures. `ColorDiagnostics` is a
 // field of `Diagnostics`, which is already re-exported here, so a shell
 // reading `diagnostics.color.tint_transform_not_applied` must be able to

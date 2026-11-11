@@ -693,7 +693,8 @@ cmyk_groups_approximated={} cmyk_unbridged_images={} cmyk_native_image_pixels={}
 icc_managed_paints={} icc_unmanaged_paints={} \
 overprint_process_images_unsupported={} annots_icon_painted={} page_resources_defaulted={} \
 page_crop_box_clipped={} page_crop_box_unusable={} cmyk_spots_flattened={} \
-annots_widget_drawn={} annots_geometry_drawn={} content_truncated={}",
+annots_widget_drawn={} annots_geometry_drawn={} content_truncated={} \
+annots_need_appearances_redrawn={}",
         d.glyphs_substituted,
         d.glyphs_notdef,
         d.fonts_unsupported,
@@ -1090,6 +1091,8 @@ annots_widget_drawn={} annots_geometry_drawn={} content_truncated={}",
         d.annotations_geometry_drawn.values().sum::<usize>(),
         // Appended: nested streams left out by the page budget.
         d.content_truncated,
+        // Appended: text/choice widgets drawn from /V under /NeedAppearances.
+        d.widgets_redrawn_for_need_appearances,
     )
 }
 
@@ -2503,6 +2506,12 @@ cyclic; their content is missing from the raster",
                 d.annotations_widget_synthesized,
                 d.annotations_geometry_drawn.values().sum()
             )
+        );
+    }
+    if d.widgets_redrawn_for_need_appearances > 0 {
+        eprintln!(
+            "pdfcer: note: {} form field(s) drawn from their value: the form sets /NeedAppearances, so their stored appearances may be stale; nothing was written (--need-appearances as-stored shows the stored drawing)",
+            d.widgets_redrawn_for_need_appearances
         );
     }
     if d.annotations_appearance_state_missing > 0 {

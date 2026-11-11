@@ -1648,6 +1648,12 @@ pub struct Diagnostics {
     /// `annotations_without_ap` for the same reason as
     /// [`Self::annotations_icon_painted`]. Nothing is written to the file.
     pub annotations_widget_synthesized: usize,
+    /// Text and choice widgets that HAVE an `/AP` but were drawn from their
+    /// value at view time instead, because the form sets `/NeedAppearances`
+    /// true (ISO 32000-1 §12.7.2 Table 218) and the render honours it
+    /// ([`crate::NeedAppearances::Honour`]). Not in `annotations_painted`.
+    /// Nothing is written to the file.
+    pub widgets_redrawn_for_need_appearances: usize,
     /// Markup annotations with no `/AP` that pdfcer drew at view time from
     /// their own geometry (`/InkList`, `/QuadPoints`, `/L`, `/Vertices`,
     /// `/Rect`) and colours, by `/Subtype`. Counted ALONGSIDE

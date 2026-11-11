@@ -83,6 +83,7 @@ mod field_creation_appearance;
 mod field_properties;
 mod field_script_authoring;
 mod field_set_clipboard;
+mod field_text_geometry;
 mod file_attachment_annotation;
 mod flatten_annotations;
 mod font_preflight;

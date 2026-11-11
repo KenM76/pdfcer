@@ -92,6 +92,9 @@ use pdfcer_model::object::{Dict, Name, Object};
 use pdfcer_model::page_tree::Rect;
 use pdfcer_model::writer::content::{ContentBuilder, Paint};
 
+mod layout;
+pub use layout::{CharSpan, LineLayout, TextLayout, layout_comb_text, layout_variable_text};
+
 /// A text fill colour parsed from — or authored into — a `/DA` string
 /// (§12.7.3.3 Table 222). The array length selects the device colour
 /// space exactly as §8.6 does (1 → Gray, 3 → RGB, 4 → CMYK).

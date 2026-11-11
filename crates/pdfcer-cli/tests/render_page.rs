@@ -592,6 +592,8 @@ fn renders_a_single_page_to_png_with_the_stable_stdout_line() {
             "annots_geometry_drawn",
             // Appended: nested streams left out by the page budget.
             "content_truncated",
+            // Appended: text/choice widgets drawn from /V (/NeedAppearances).
+            "annots_need_appearances_redrawn",
         ],
         "metrics key order is part of the stable contract"
     );

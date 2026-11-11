@@ -5832,6 +5832,13 @@ pub(crate) enum Command {
         /// out. The file is not changed.
         #[arg(long, value_enum, default_value_t)]
         widgets_without_ap: crate::viewer_preview::WidgetsWithoutApArg,
+        /// What to show for a text or choice field when the form says its
+        /// stored appearances may be stale (`/NeedAppearances true`):
+        /// `honour` draws the field from its value, as a viewer does;
+        /// `as-stored` shows the stored drawing. Buttons and signatures keep
+        /// their stored drawing either way. The file is not changed.
+        #[arg(long, value_enum, default_value_t)]
+        need_appearances: crate::viewer_preview::NeedAppearancesArg,
         /// How shape, clip and image edges are smoothed. auto (the default)
         /// is seamless below 300 DPI and hard edges at 300 DPI and above.
         /// seamless keeps edges smooth with no seam where shapes touch
@@ -6043,6 +6050,13 @@ pub(crate) enum Command {
         /// out. The file is not changed.
         #[arg(long, value_enum, default_value_t)]
         widgets_without_ap: crate::viewer_preview::WidgetsWithoutApArg,
+        /// What to show for a text or choice field when the form says its
+        /// stored appearances may be stale (`/NeedAppearances true`):
+        /// `honour` draws the field from its value, as a viewer does;
+        /// `as-stored` shows the stored drawing. Buttons and signatures keep
+        /// their stored drawing either way. The file is not changed.
+        #[arg(long, value_enum, default_value_t)]
+        need_appearances: crate::viewer_preview::NeedAppearancesArg,
         /// How shape, clip and image edges are smoothed. auto (the default)
         /// is seamless below 300 DPI and hard edges at 300 DPI and above.
         /// seamless keeps edges smooth with no seam where shapes touch

@@ -19,6 +19,9 @@ use crate::object::{Dict, Name, ObjId, Object};
 use crate::vartext::FontResource;
 use crate::view::DocumentView;
 
+mod geometry;
+pub use geometry::{FieldCaret, FieldTextChar, FieldTextGeometry, FieldTextLine, PagePoint};
+
 /// The `/DA` used when neither the field nor the form states one.
 const FALLBACK_DA: &[u8] = b"/Helv 0 Tf 0 g";
 

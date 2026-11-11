@@ -827,6 +827,15 @@ pub struct RenderOptions {
     /// field data at view time (§12.7.3.3), or left blank. Default
     /// [`crate::WidgetsWithoutAp::Draw`]; never writes the document.
     pub widgets_without_ap: crate::WidgetsWithoutAp,
+    /// Whether a text or choice widget is drawn from its value at view time
+    /// when the form sets `/NeedAppearances` true (ISO 32000-1 §12.7.2 Table
+    /// 218), or from its stored `/AP`. Default
+    /// [`crate::NeedAppearances::Honour`]; never writes the document.
+    pub need_appearances: crate::NeedAppearances,
+    /// A tint behind fillable widgets, as an editor shows them, or `None`
+    /// (the default) for none. Never drawn on a print render. See
+    /// [`crate::FieldHighlight`].
+    pub field_highlight: Option<crate::FieldHighlight>,
     /// What to paint for a markup annotation with no `/AP`: drawn from its
     /// own geometry at view time (decision 203), or left blank. Default
     /// [`crate::MarkupWithoutAp::FromGeometry`]; never writes the document.
@@ -1046,6 +1055,10 @@ pub struct RenderPolicy<'a> {
     pub overprint_preview: crate::OverprintPreview,
     /// See [`RenderOptions::widgets_without_ap`].
     pub widgets_without_ap: crate::WidgetsWithoutAp,
+    /// See [`RenderOptions::need_appearances`].
+    pub need_appearances: crate::NeedAppearances,
+    /// See [`RenderOptions::field_highlight`].
+    pub field_highlight: Option<crate::FieldHighlight>,
     /// See [`RenderOptions::markup_without_ap`].
     pub markup_without_ap: crate::MarkupWithoutAp,
     /// See [`RenderOptions::free_text_c`].
@@ -1296,6 +1309,8 @@ impl Default for RenderOptions {
             backdrop: PageBackdrop::default(),
             invisible_text: None,
             widgets_without_ap: crate::WidgetsWithoutAp::Draw,
+            need_appearances: crate::NeedAppearances::Honour,
+            field_highlight: None,
             markup_without_ap: crate::MarkupWithoutAp::FromGeometry,
             free_text_c: crate::FreeTextC::Fill,
             overprint_preview: crate::OverprintPreview::Simulate,
@@ -1722,6 +1737,22 @@ impl RenderOptions {
         self
     }
 
+    /// Set whether `/NeedAppearances` redraws text and choice widgets,
+    /// returning `self` for chaining. See [`RenderOptions::need_appearances`].
+    #[must_use]
+    pub const fn with_need_appearances(mut self, mode: crate::NeedAppearances) -> Self {
+        self.need_appearances = mode;
+        self
+    }
+
+    /// Set the fillable-field highlight, returning `self` for chaining. See
+    /// [`RenderOptions::field_highlight`].
+    #[must_use]
+    pub const fn with_field_highlight(mut self, highlight: Option<crate::FieldHighlight>) -> Self {
+        self.field_highlight = highlight;
+        self
+    }
+
     /// Set how a markup annotation with no `/AP` is painted, returning
     /// `self` for chaining. See [`RenderOptions::markup_without_ap`].
     #[must_use]
@@ -1785,6 +1816,8 @@ impl RenderOptions {
             invisible_text: self.invisible_text,
             overprint_preview: self.overprint_preview,
             widgets_without_ap: self.widgets_without_ap,
+            need_appearances: self.need_appearances,
+            field_highlight: self.field_highlight,
             markup_without_ap: self.markup_without_ap,
             free_text_c: self.free_text_c,
         }
@@ -1852,6 +1885,8 @@ mod render_policy_tests {
             ))
             .with_overprint_preview(crate::OverprintPreview::Off)
             .with_widgets_without_ap(crate::WidgetsWithoutAp::Blank)
+            .with_need_appearances(crate::NeedAppearances::AsStored)
+            .with_field_highlight(Some(crate::FieldHighlight::new([1, 2, 3, 4], [5, 6, 7, 8])))
             .with_markup_without_ap(crate::MarkupWithoutAp::Blank)
             .with_free_text_c(crate::FreeTextC::Border)
             .with_preserve_calibrated_cmyk(true);
@@ -1903,6 +1938,10 @@ mod render_policy_tests {
                 overprint_preview: crate::OverprintPreview::Off,
                 // NOT the default (`Draw`).
                 widgets_without_ap: crate::WidgetsWithoutAp::Blank,
+                // NOT the default (`Honour`).
+                need_appearances: crate::NeedAppearances::AsStored,
+                // NOT the default (`None`).
+                field_highlight: Some(crate::FieldHighlight::new([1, 2, 3, 4], [5, 6, 7, 8])),
                 // NOT the default (`FromGeometry`).
                 markup_without_ap: crate::MarkupWithoutAp::Blank,
                 // NOT the default (`Fill`).

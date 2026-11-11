@@ -1,11 +1,11 @@
 //! The viewer-preview flags `render-page` and `export-image` share:
 //! `--no-overprint-preview`, `--separation-preview`, `--hide-ink`,
 //! `--markup-without-ap`, `--free-text-c`, `--widgets-without-ap`,
-//! `--edge-antialiasing` and `--preserve-calibrated-cmyk`.
+//! `--need-appearances`, `--edge-antialiasing` and `--preserve-calibrated-cmyk`.
 
 use pdfcer_render::{
-    Diagnostics, EdgeAntialiasing, FreeTextC, MarkupWithoutAp, OverprintPreview, RenderOptions,
-    SeparationPreview, WidgetsWithoutAp,
+    Diagnostics, EdgeAntialiasing, FreeTextC, MarkupWithoutAp, NeedAppearances, OverprintPreview,
+    RenderOptions, SeparationPreview, WidgetsWithoutAp,
 };
 
 /// `--markup-without-ap`: what to show for a markup annotation (Ink,
@@ -52,6 +52,18 @@ pub(crate) enum WidgetsWithoutApArg {
     Blank,
 }
 
+/// `--need-appearances`: what to show for a text or choice field when the
+/// form sets `/NeedAppearances true` (its stored appearances may be stale).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, clap::ValueEnum)]
+pub(crate) enum NeedAppearancesArg {
+    /// Draw the field from its value; buttons and signatures keep their
+    /// stored drawing. Nothing is written to the file.
+    #[default]
+    Honour,
+    /// Show the stored drawing, as the file has it.
+    AsStored,
+}
+
 /// The preview a render was asked for, resolved from its flags.
 #[derive(Debug, Clone, Default)]
 pub(crate) struct ViewerPreview {
@@ -61,6 +73,7 @@ pub(crate) struct ViewerPreview {
     /// `None`: the settings file's `free_text_c`, already on the options.
     free_text_c: Option<FreeTextC>,
     widgets: WidgetsWithoutAp,
+    need_appearances: NeedAppearances,
     edges: EdgeAntialiasing,
     preserve_cmyk: bool,
 }
@@ -111,6 +124,15 @@ impl ViewerPreview {
         self
     }
 
+    /// This preview with `--need-appearances` applied.
+    pub(crate) const fn with_need_appearances(mut self, arg: NeedAppearancesArg) -> Self {
+        self.need_appearances = match arg {
+            NeedAppearancesArg::Honour => NeedAppearances::Honour,
+            NeedAppearancesArg::AsStored => NeedAppearances::AsStored,
+        };
+        self
+    }
+
     /// This preview with `--free-text-c` applied, when it was given.
     pub(crate) fn with_free_text_c(mut self, arg: Option<FreeTextCArg>) -> Self {
         self.free_text_c = arg.map(Into::into);
@@ -142,6 +164,7 @@ impl ViewerPreview {
             .with_separation_preview(self.separation)
             .with_markup_without_ap(self.markup)
             .with_widgets_without_ap(self.widgets)
+            .with_need_appearances(self.need_appearances)
             .with_edge_antialiasing(self.edges)
             .with_preserve_calibrated_cmyk(preserve);
         match self.free_text_c {

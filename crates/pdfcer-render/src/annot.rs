@@ -74,7 +74,7 @@ use crate::interpret::{self, Diagnostics};
 mod markup;
 mod widget;
 pub use markup::{FreeTextC, MarkupWithoutAp};
-pub use widget::WidgetsWithoutAp;
+pub use widget::{FieldHighlight, NeedAppearances, WidgetsWithoutAp};
 
 /// A transformed appearance box that is thinner than this on either axis
 /// is treated as degenerate: the §12.5.5 step-b fit matrix would divide
@@ -606,13 +606,26 @@ pub(crate) fn survey_page_annotations(
             continue;
         }
 
+        // Editor chrome behind the widget; `None` off, on print, or for a
+        // field that takes no input.
+        let owed_border = if in_scope {
+            widget::paint_highlight_fill(doc, base_ctm, annot, &mut form, canvas, policy)
+        } else {
+            None
+        };
         match &annot.appearance {
             Appearance::Normal { stream_id } => {
                 // `annotations_painted` and the placement counters only
                 // mean something when painting is enabled; when suppressed
                 // the annotation is disclosed by `annotations_total` and
                 // `annotations_out_of_scope` alone.
-                if in_scope {
+                if in_scope
+                    && widget::paint_for_need_appearances(
+                        doc, base_ctm, fonts, annot, &mut form, diag, canvas, cancel, policy,
+                    )
+                {
+                    diag.widgets_redrawn_for_need_appearances += 1;
+                } else if in_scope {
                     paint_appearance(
                         doc, page, base_ctm, fonts, annot, *stream_id, diag, canvas, cancel, policy,
                     );
@@ -658,6 +671,9 @@ pub(crate) fn survey_page_annotations(
             Appearance::StateUnresolved => {
                 diag.annotations_appearance_state_missing += 1;
             }
+        }
+        if let Some(colour) = owed_border {
+            widget::paint_highlight_border(annot, base_ctm, colour, canvas);
         }
     }
 }
