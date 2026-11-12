@@ -92,3 +92,102 @@ fn extract_tags_json_carries_the_raw_and_mapped_types() {
     assert!(stdout.contains("\"text\": \"Title\""), "{stdout}");
     assert!(stdout.contains("\"mcid\": 7, \"page\": 1, \"form\": null, \"declared\": false"));
 }
+
+/// A cell with a fill and text, an empty cell with only a fill, and a
+/// cell whose MCID no `BDC` declares (Pass 706.0).
+fn table_input(name: &str) -> PathBuf {
+    let dir = std::env::temp_dir().join(format!("pdfcer-extract-tags-{name}"));
+    std::fs::create_dir_all(&dir).unwrap();
+    let path = dir.join("in.pdf");
+    std::fs::write(
+        &path,
+        build_pdf(&[
+            "<< /Type /Catalog /Pages 2 0 R /StructTreeRoot 6 0 R >>",
+            "<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
+            "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 4 0 R \
+             /Resources << /Font << /F1 5 0 R >> >> >>",
+            "STREAM:/TD <</MCID 0>> BDC 0.9 g 100 600 100 50 re f 0 g \
+             BT /F1 12 Tf 110 620 Td (A) Tj ET EMC\n\
+             /TD <</MCID 1>> BDC 200 600 100 50 re f EMC",
+            "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>",
+            "<< /Type /StructTreeRoot /K 7 0 R >>",
+            "<< /S /Table /P 6 0 R /K [8 0 R 9 0 R 10 0 R] >>",
+            "<< /S /TD /P 7 0 R /Pg 3 0 R /K 0 >>",
+            "<< /S /TD /P 7 0 R /Pg 3 0 R /K 1 >>",
+            "<< /S /TD /P 7 0 R /Pg 3 0 R /K 9 >>",
+        ]),
+    )
+    .unwrap();
+    path
+}
+
+fn run(args: &[&str]) -> (String, String) {
+    let o = Command::new(BIN).args(args).output().unwrap();
+    assert!(o.status.success(), "{}", String::from_utf8_lossy(&o.stderr));
+    (
+        String::from_utf8_lossy(&o.stdout).into_owned(),
+        String::from_utf8_lossy(&o.stderr).into_owned(),
+    )
+}
+
+#[test]
+fn painted_bounds_add_cell_rects_and_name_the_unbounded() {
+    let path = table_input("painted-text");
+    let path = path.to_str().unwrap();
+    let (stdout, stderr) = run(&["extract-tags", path, "--painted-bounds"]);
+    assert!(
+        stdout.contains("\n  TD p1 \"A\" painted=p1:[100.00,600.00,200.00,650.00]\n"),
+        "{stdout}"
+    );
+    assert!(
+        stdout.contains("\n  TD p1 painted=p1:[200.00,600.00,300.00,650.00]\n"),
+        "{stdout}"
+    );
+    assert!(
+        stdout.contains("\n  TD p1 painted=none:mcid_not_found\n"),
+        "{stdout}"
+    );
+    assert!(
+        stdout.starts_with("Table \"A\" painted=p1:[100.00,600.00,300.00,650.00]\n"),
+        "{stdout}"
+    );
+    assert!(
+        stderr.contains("element 3 (TD): no painted bounds: MCID not found"),
+        "{stderr}"
+    );
+    let last = stdout.lines().last().unwrap();
+    assert!(
+        last.ends_with(
+            " painted_unbounded=1 painted_pages_unreadable=0 painted_pages_truncated=0 \
+             painted_form_cycles=0 painted_form_depth_overflows=0"
+        ),
+        "{last}"
+    );
+}
+
+#[test]
+fn painted_bounds_in_json_and_absent_without_the_flag() {
+    let path = table_input("painted-json");
+    let path = path.to_str().unwrap();
+    let (json, _) = run(&["extract-tags", path, "--json", "--painted-bounds"]);
+    assert!(
+        json.contains(
+            "\"boxes\": [], \"painted_boxes\": [{\"page\": 1, \"rect\": [200.00, 600.00, 300.00, 650.00]}]"
+        ),
+        "{json}"
+    );
+    assert!(
+        json.contains("\"unbounded\": [{\"element\": 3, \"reason\": \"mcid_not_found\"}]"),
+        "{json}"
+    );
+    let (plain_json, _) = run(&["extract-tags", path, "--json"]);
+    let (plain_text, plain_err) = run(&["extract-tags", path]);
+    for out in [&plain_json, &plain_text, &plain_err] {
+        assert!(
+            !out.contains("painted_")
+                && !out.contains("painted=")
+                && !out.contains("painted bounds"),
+            "{out}"
+        );
+    }
+}

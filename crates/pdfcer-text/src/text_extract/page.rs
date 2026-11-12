@@ -1614,7 +1614,7 @@ impl Walk<'_> {
 // ---------------------------------------------------------------------------
 
 /// The object carried by a content token, if it is an operand.
-fn operand_object(token: &pdfcer_model::content::ContentToken) -> Option<&Object> {
+pub(crate) fn operand_object(token: &pdfcer_model::content::ContentToken) -> Option<&Object> {
     match &token.kind {
         ContentTokenKind::Operand(o) => Some(o),
         _ => None,

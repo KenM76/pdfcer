@@ -4807,6 +4807,15 @@ pub(crate) enum Command {
         /// annotation references).
         #[arg(long)]
         json: bool,
+        /// Also report each element's painted bounds, one box per page:
+        /// everything its content paints (text, filled and stroked paths,
+        /// images, shadings), cut to the clip. A table cell with no text
+        /// still gets its rectangle. Elements with none are named on stderr
+        /// with a reason (`page_unresolved`, `mcid_not_found`,
+        /// `nothing_painted`, `no_content`) and counted by `painted_*` keys
+        /// on the result line.
+        #[arg(long)]
+        painted_bounds: bool,
     },
 
     /// Infer an untagged page's layout: blocks in reading order, each

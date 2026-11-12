@@ -132,7 +132,7 @@ pub mod cmap;
 pub mod font;
 mod layout;
 mod ocr_layer;
-mod page;
+pub(crate) mod page;
 mod word_gap;
 
 use std::fmt;

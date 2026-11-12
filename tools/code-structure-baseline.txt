@@ -131,7 +131,6 @@ fn pdfcer-cli/src/extract.rs::cmd_export_docx
 fn pdfcer-cli/src/extract.rs::cmd_extract_text
 fn pdfcer-cli/src/extract.rs::cmd_inspect_reflow_preview
 fn pdfcer-cli/src/extract.rs::extraction_json
-fn pdfcer-cli/src/extract.rs::tags_json
 fn pdfcer-cli/src/field_edit.rs::cmd_add_check_box
 fn pdfcer-cli/src/field_edit.rs::cmd_add_choice_field
 fn pdfcer-cli/src/field_edit.rs::cmd_add_push_button

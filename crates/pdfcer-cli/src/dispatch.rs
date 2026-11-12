@@ -1259,7 +1259,8 @@ pub(crate) fn run() -> ExitCode {
             input,
             output,
             json,
-        } => cmd_extract_tags(&input, output.as_deref(), json),
+            painted_bounds,
+        } => cmd_extract_tags(&input, output.as_deref(), json, painted_bounds),
         Command::ExtractLayout {
             input,
             output,

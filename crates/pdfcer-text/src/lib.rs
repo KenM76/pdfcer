@@ -18,6 +18,7 @@
 )]
 
 pub mod block_layout;
+pub mod structure_bounds;
 pub mod structure_tree;
 pub mod tagged_layout;
 pub mod text_extract;

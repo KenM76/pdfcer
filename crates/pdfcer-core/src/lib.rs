@@ -149,4 +149,6 @@ pub use pdfcer_model::{
 };
 use pdfcer_pkix::{asn1, cms};
 pub use pdfcer_pkix::{trust_chain, trust_store};
-pub use pdfcer_text::{block_layout, structure_tree, tagged_layout, text_extract, text_state};
+pub use pdfcer_text::{
+    block_layout, structure_bounds, structure_tree, tagged_layout, text_extract, text_state,
+};

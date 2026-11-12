@@ -1385,7 +1385,61 @@ for (i, e) in tree.elements.iter().enumerate() {   // pre-order = logical readin
   `diagnostics.content_on_other_pages`, not in `named_not_declared`,
   `claimed_twice` or `declared_unclaimed`. `tree.text.pages` follows
   `indices`.
-- CLI: `pdfcer extract-tags in.pdf [--json] [-o out]`.
+- CLI: `pdfcer extract-tags in.pdf [--json] [--painted-bounds] [-o out]`.
+
+#### 8.4.2a Painted bounds — what an element actually paints (`Pass 706.0`)
+
+`element_bbox` is the glyph hull: a table cell with no text has none, and
+a cell's fill or rule is ignored. `structure_bounds` walks the same pages'
+content once more and records, per `(page, stream, MCID)`, the box of
+everything the sequence paints.
+
+```rust
+use pdfcer_core::structure_bounds::{self, NoBoundsReason};
+
+let painted = structure_bounds::read_painted_bounds(&view, &tree)?; // walks tree.text.pages
+let rects = tree.element_painted_bounds(i, &painted); // Vec<(page_index, Rect)>, one per page
+for u in tree.elements_without_painted_bounds(&painted) {
+    // u.element, u.reason: PageUnresolved | McidNotFound | NothingPainted | NoContent
+}
+```
+
+- What counts as painted, all in default user space and intersected with
+  the clip in force: text (the extraction runs' boxes, clipped by the
+  clip at show time); filled paths; stroked paths widened by half the
+  line width under the CTM; images and inline images (the unit square
+  under the CTM); `sh` (the clip, or the crop box when there is none). A
+  form XObject's `/BBox` clips its content; a form with no MCIDs of its
+  own paints into the enclosing sequence (ISO 32000-2 §14.7.5).
+- Nested `BDC`: the innermost MCID owns the paint; `BMC` and property
+  lists without an MCID inherit the outer one (ISO 32000-1 §14.7.4).
+  MCIDs are per stream: a `/Stm` form's MCID 0 is a different sequence
+  from the page's MCID 0.
+- `/OBJR` to an annotation gives its `/Rect`; to an XObject, its placed
+  bounds on its `/Pg` page (the image's unit square or the form's `/BBox`
+  under the CTM, clipped), unioned over every placement on that page.
+- `PaintedBounds::sequence(page, stream, mcid)` and `placement(page,
+  ObjId)` expose the raw maps (non-text paint only for `sequence`).
+- Reasons, in precedence when an element's content disagrees:
+  `PageUnresolved` (no `/Pg` reached), `McidNotFound` (no `BDC` declares
+  it), `NothingPainted` (declared, or an `/OBJR` placed nowhere, but no
+  paint survives the clip), `NoContent` (no content kids at all). An
+  element whose only content is on a page this read did not walk (a
+  `read_structure_tree_in_pages` tree) is not listed. `#[non_exhaustive]`.
+- `painted.diagnostics`: `pages_walked`, `pages_unreadable`,
+  `pages_truncated` (a 4,000,000-operation budget per page, counting form
+  content per invocation), `form_cycles`, `form_depth_overflows`
+  (`MAX_FORM_DEPTH`). A truncated page's bounds cover what was walked.
+- `element_bbox` is unchanged.
+- CLI: `extract-tags --painted-bounds` appends ` painted=p<page>:[llx,lly,urx,ury]`
+  per page (or ` painted=none:<reason>`) to each text line, adds
+  `"painted_boxes"` per element and a top-level `"unbounded": [{"element",
+  "reason"}]` to `--json`, names each unbounded element on stderr and
+  appends `painted_unbounded`, `painted_pages_unreadable`,
+  `painted_pages_truncated`, `painted_form_cycles` and
+  `painted_form_depth_overflows` to the result line. Reason codes:
+  `page_unresolved`, `mcid_not_found`, `nothing_painted`, `no_content`.
+  Without the flag the output is unchanged.
 
 ### 8.4.3 Untagged block layout — headings, paragraphs, lists, running text (`Pass 373.0`)
 
