@@ -4,6 +4,19 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-11-11 (1531st filing) — `f37875fc` `Pass 700.13` SHIPPED: vector flattener, new crate `pdfcer-flatten`
+
+**Shipped (engineer-reported; no shell here, git/CI/crates.io state not checked from here; docs only):**
+- `f37875fc` on `main` (cherry-pick of worker `a1c33112`), not in a release. New crate `pdfcer-flatten` (dependency `i_overlay` 9.1, MIT OR Apache-2.0; already in `PRIOR_ART.md`); `--vector-transparency` on `export-image --format emf` and `print`'s EMF route; `emf-vector:` disclosure line. Detail in the ROADMAP *Shipped* entry.
+- Acceptance (b) on the licensed print test file (local only): pixel patches 226 to 116 over 6 pages (49% fewer); 0/6 pages fully vector. Remaining patches are images/gradients (`700.14`, `700.15`) and unrecorded per-paint non-separable blends.
+- FEATURES: *Planned* row removed, *Implemented* row added: core `[x]`, cli `[x]`, gui `[ ]`.
+
+**Decisions made this session:** none new; `pdfcer-flatten` must publish before `pdfcer-emf` (16 crates now).
+
+**Still in flight:** `706.0` (`X076`) starting now.
+
+**For next session:** `706.0`, `700.14`, `700.15`, `700.18`, then the release. Engineer updates `docs/NEXT_SESSION.md` with the publish order.
+
 ## 2026-11-11 (1530th filing) — `Pass 706.0` (`X076`) filed: painted bounds for structure elements
 
 **Filed (docs only; no shell, git state not checked from here):**
