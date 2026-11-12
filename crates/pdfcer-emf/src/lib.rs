@@ -116,6 +116,7 @@ use pdfcer_render::writer_seam::{
 
 mod bitmap;
 mod gradient;
+mod painted;
 mod patch;
 mod plates;
 mod print;
@@ -179,6 +180,16 @@ pub struct EmfOptions {
     /// are not painted by the raster either. Independent of
     /// [`Self::vector_transparency`]. Off by default; see [`EmfShadings`].
     pub vector_shadings: bool,
+    /// Size a soft-masked layer's patch by where its mask is nonzero
+    /// (outside its group's `/BBox` the mask is the backdrop value,
+    /// ISO 32000-2 §11.6.5.2) instead of by its whole box, and write an op
+    /// stacked over such a layer or an image (§11.7.4) as vector regions
+    /// outside what that paints, counted in [`EmfVectorised::split`]. Smaller bitmaps, but text freed
+    /// from a patch is drawn by the consumer, and GDI does not antialias
+    /// it: at the raster's resolution it can look rougher than the pixels
+    /// it replaces. Acts with [`Self::patch_approximations`] or
+    /// [`Self::vector_transparency`]. Off by default.
+    pub tight_mask_patches: bool,
 }
 
 /// How an EMF writes text.
@@ -240,6 +251,7 @@ impl Default for EmfOptions {
             patch_approximations: false,
             vector_transparency: false,
             vector_shadings: false,
+            tight_mask_patches: false,
         }
     }
 }
@@ -321,6 +333,20 @@ impl EmfOptions {
     #[must_use]
     pub fn with_vector_shadings(mut self, vector: bool) -> Self {
         self.vector_shadings = vector;
+        self
+    }
+
+    /// Patch soft-masked layers only where their mask paints; see
+    /// [`Self::tight_mask_patches`].
+    ///
+    /// ```
+    /// use pdfcer_emf::EmfOptions;
+    /// let options = EmfOptions::default().with_tight_mask_patches(true);
+    /// assert!(options.tight_mask_patches);
+    /// ```
+    #[must_use]
+    pub fn with_tight_mask_patches(mut self, tight: bool) -> Self {
+        self.tight_mask_patches = tight;
         self
     }
 }
@@ -486,14 +512,15 @@ fn flatten_and_plan(
     EmfVectorised,
 ) {
     let (vectorised, left) = if emf.vector_transparency {
-        vector::vectorise(rec, render, emf.background)
+        vector::vectorise(rec, render, emf.background, emf.tight_mask_patches)
     } else {
         (EmfVectorised::default(), Vec::new())
     };
     let patching = emf.patch_approximations || emf.vector_transparency;
     let before = patching && rec.subtractive_page;
+    let tight = emf.tight_mask_patches;
     let mut plan = if before {
-        patch::plan(rec, view, page, render, scale, &left)
+        patch::plan(rec, view, page, render, scale, &left, tight)
     } else {
         None
     };
@@ -506,7 +533,7 @@ fn flatten_and_plan(
         emf.underlay_blends,
     );
     if patching && !before {
-        plan = patch::plan(rec, view, page, render, scale, &left);
+        plan = patch::plan(rec, view, page, render, scale, &left, tight);
     }
     (flattened, plan, vectorised)
 }

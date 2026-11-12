@@ -92,8 +92,10 @@ impl Plan {
 
 /// Plan the patches for `rec` (after [`pdfcer_render::writer_seam::flatten_blends`]) and drop the
 /// top-level ops lying wholly inside one. `extra` are boxes patched besides
-/// the recording's own sites. `None` when there is nothing to patch or the
-/// raster could not be made; then nothing is changed.
+/// the recording's own sites. With `tight`, an op lies inside by what it
+/// paints ([`crate::EmfOptions::tight_mask_patches`]). `None` when there is
+/// nothing to patch or the raster could not be made; then nothing is
+/// changed.
 pub(super) fn plan(
     rec: &mut ExportRecording,
     view: &DocumentView<'_>,
@@ -101,9 +103,10 @@ pub(super) fn plan(
     render: &RenderOptions,
     scale: f32,
     extra: &[DeviceBounds],
+    tight: bool,
 ) -> Option<Plan> {
     let (w, h) = rec.page_size;
-    let sites = sites(rec);
+    let sites = sites(rec, tight);
     let rects = merge(
         sites
             .iter()
@@ -123,7 +126,7 @@ pub(super) fn plan(
             return None;
         }
         let covered = |op: &Op| {
-            op_box(op)
+            reach(op, (w, h), tight)
                 .and_then(|b| px_rect(b, w, h))
                 .is_some_and(|r| rects.iter().any(|c| contains(*c, r)))
         };
@@ -154,10 +157,10 @@ pub(super) fn plan(
 
 /// Every approximated region: the recorder's, plus what only the finished
 /// op list shows.
-fn sites(rec: &ExportRecording) -> Vec<Site> {
+fn sites(rec: &ExportRecording, tight: bool) -> Vec<Site> {
     let mut out = rec.sites.clone();
     for op in &rec.ops {
-        let Some(bounds) = op_box(op) else {
+        let Some(bounds) = reach(op, rec.page_size, tight) else {
             continue;
         };
         if rec.subtractive_page && composites(op) {
@@ -174,6 +177,16 @@ fn sites(rec: &ExportRecording) -> Vec<Site> {
         }
     }
     out
+}
+
+/// Where `op` can change the page: its box, or with `tight` what it paints
+/// ([`crate::EmfOptions::tight_mask_patches`]), so a soft-masked layer is
+/// patched, and dropped inside a patch, by its mask's nonzero pixels.
+fn reach(op: &Op, page: (u32, u32), tight: bool) -> Option<DeviceBounds> {
+    tight
+        .then(|| crate::painted::painted(op, page))
+        .flatten()
+        .or_else(|| op_box(op))
 }
 
 /// Shadings in `op` the recorder harvested as image ops (each counted in

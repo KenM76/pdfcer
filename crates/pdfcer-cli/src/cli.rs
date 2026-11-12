@@ -6099,6 +6099,17 @@ pub(crate) enum Command {
         /// `--vector-transparency`. Counted on an `emf-shadings:` line.
         #[arg(long)]
         vector_shadings: bool,
+        /// EMF only, with `--patch-approximations` or
+        /// `--vector-transparency`: make a soft-masked layer (a drop
+        /// shadow) pixels only where its mask shows, not over its whole
+        /// box, and paint over it or over an image pixels only where the
+        /// two overlap
+        /// (`split=` on the `emf-vector:` line). Smaller bitmaps, but text
+        /// that leaves a bitmap is drawn by the program opening the EMF,
+        /// which may not smooth its edges, so at the same resolution it
+        /// can look rougher than the pixels did.
+        #[arg(long)]
+        tight_mask_patches: bool,
         /// EMF only: how text is written. `outlines` (default) draws every
         /// glyph as a path. `keep` writes each line it can as real text in
         /// the INSTALLED font of the same name, each character pinned to

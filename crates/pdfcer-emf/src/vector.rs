@@ -13,7 +13,9 @@
 //! spot ink on an additive page or past the planes, a blend the recording
 //! did not keep)
 //! or that passes the flattener's ceiling is returned as a box for the
-//! pixel patch.
+//! pixel patch. With `tight_mask_patches`, when that content is in an op
+//! beneath and paints only part of the op's box, only that part is patched
+//! (`crate::painted`).
 
 use std::sync::Arc;
 
@@ -28,6 +30,7 @@ use pdfcer_render::writer_seam::{Brush, BrushSpec, LayerPaint, SpotInk};
 use pdfcer_render::writer_seam::{DeviceBounds, ExportRecording, Op, SiteCause, UNKNOWN, op_box};
 use tiny_skia::{BlendMode, FillRule, Transform};
 
+use crate::painted;
 use crate::patch::within;
 use crate::vector_census::{Cause, EmfNotFlat};
 use crate::vector_geom::{self, Clips};
@@ -68,6 +71,12 @@ pub struct EmfVectorised {
     pub patched_unrecorded: usize,
     /// [`Self::patched_not_flat`] broken down by cause.
     pub not_flat: EmfNotFlat,
+    /// Of [`Self::patched_not_flat`], with
+    /// [`crate::EmfOptions::tight_mask_patches`]: ops patched only where an op beneath
+    /// that is not flat paints (a soft-masked drop shadow under overprinted
+    /// text, say), and written as opaque regions everywhere else. Their
+    /// fills count in [`Self::regions`].
+    pub split: usize,
 }
 
 impl EmfVectorised {
@@ -169,6 +178,11 @@ struct Model<'a> {
     memo: Vec<Option<Result<Vec<Element>, Cause>>>,
     /// Per entry of `rec.masks`, its pieces once built.
     masks: Vec<Option<Result<mask::Pieces, Cause>>>,
+    /// Per top-level op, the box of what it can paint once found.
+    painted: Vec<Option<Option<DeviceBounds>>>,
+    /// [`crate::EmfOptions::tight_mask_patches`]: cut ops beneath rather
+    /// than patch the op over them whole.
+    tight: bool,
 }
 
 impl Model<'_> {
@@ -185,6 +199,18 @@ impl Model<'_> {
             .get(i)
             .and_then(Option::clone)
             .ok_or(Cause::Geometry)?
+    }
+
+    /// [`painted::painted`] for top-level op `j`, found once.
+    fn painted(&mut self, j: usize, op: &Op) -> Option<DeviceBounds> {
+        if let Some(Some(got)) = self.painted.get(j) {
+            return *got;
+        }
+        let got = painted::painted(op, self.rec.page_size);
+        if let Some(slot) = self.painted.get_mut(j) {
+            *slot = Some(got);
+        }
+        got
     }
 
     fn element(&mut self, op: &Op, out: &mut Vec<Element>) -> Result<(), Cause> {
@@ -414,27 +440,61 @@ fn region_op(
     })
 }
 
-/// The scene under and including op `i`, and how many of its paints lie
-/// beneath `i`.
+/// Op `i`'s scene: what lies under it and the op itself.
+struct Scene {
+    group: Group,
+    /// How many of the group's paints lie beneath `i`.
+    beneath: usize,
+    /// Where an op beneath that is not flat paints within `i`'s box on the
+    /// page. Left out of the scene and to the patch.
+    cuts: Vec<DeviceBounds>,
+    /// The first such op's cause.
+    cause: Option<Cause>,
+}
+
+/// The scene under and including op `i`. An op beneath that is not flat
+/// patches `i` whole, unless [`Model::tight`]: then it is left out, and
+/// where it paints within `i` is returned as a cut; when that covers all
+/// of `i` on the page, `i` is patched whole. The scene is
+/// exact outside the cuts. Inside them it is not, and the patch, which is
+/// excluded from all vector content, writes the raster's pixels instead:
+/// if the raster cannot be made, `i` there shows as if over the rest.
 fn stack(
     model: &mut Model<'_>,
     ops: &[Op],
     boxes: &[DeviceBounds],
     i: usize,
-) -> Result<(Group, usize), Why> {
+) -> Result<Scene, Why> {
     let lost = Why::NotFlat(Cause::Geometry, false);
     let bx = *boxes.get(i).ok_or(lost)?;
+    let frame = painted::intersect(bx, painted::page_box(model.rec.page_size));
     let mut elements = Vec::new();
+    let (mut cuts, mut cause) = (Vec::new(), None);
     for (j, (op, b)) in ops.iter().zip(boxes).enumerate().take(i) {
-        if overlaps(*b, bx) {
-            elements.extend(model.top(j, op).map_err(|c| Why::NotFlat(c, true))?);
+        if !overlaps(*b, bx) {
+            continue;
+        }
+        match model.top(j, op) {
+            Ok(e) => elements.extend(e),
+            Err(c) => {
+                let whole = Why::NotFlat(c, true);
+                let f = frame.filter(|_| model.tight).ok_or(whole)?;
+                let Some(cut) = model.painted(j, op).and_then(|p| painted::intersect(p, f)) else {
+                    continue;
+                };
+                if within(f, cut) {
+                    return Err(whole);
+                }
+                cuts.push(cut);
+                cause.get_or_insert(c);
+            }
         }
     }
     let beneath = count_paints(&elements);
     let own = ops.get(i).ok_or(lost)?;
     elements.extend(model.top(i, own).map_err(|c| Why::NotFlat(c, false))?);
-    Ok((
-        Group {
+    Ok(Scene {
+        group: Group {
             elements,
             isolated: true,
             knockout: false,
@@ -442,10 +502,20 @@ fn stack(
             blend: Blend::Normal,
         },
         beneath,
-    ))
+        cuts,
+        cause,
+    })
 }
 
-/// Op `i` as opaque fills.
+/// Op `i` as opaque fills, with the boxes cut out of it for the patch and
+/// the cause of the first.
+struct Resolved {
+    fills: Vec<Op>,
+    cuts: Vec<DeviceBounds>,
+    cause: Option<Cause>,
+}
+
+/// Op `i` as opaque fills, except where it is cut.
 fn resolve(
     model: &mut Model<'_>,
     rec: &ExportRecording,
@@ -453,7 +523,7 @@ fn resolve(
     i: usize,
     intent: CmykIntent,
     paper: [f32; 3],
-) -> Result<Vec<Op>, Why> {
+) -> Result<Resolved, Why> {
     let bx = *boxes.get(i).ok_or(Why::NotFlat(Cause::Geometry, false))?;
     let unrecorded = rec.sites.iter().any(|s| {
         matches!(s.cause, SiteCause::Blend | SiteCause::BlendingSpace) && overlaps(s.bounds, bx)
@@ -461,17 +531,32 @@ fn resolve(
     if unrecorded {
         return Err(Why::Unrecorded);
     }
-    let (scene, beneath) = stack(model, &rec.ops, boxes, i)?;
-    let regions = match flatten(&scene, model.space, &PageInks(intent), &Limits::default()) {
-        Ok(r) => r,
-        Err(FlattenError::TooComplex(_)) => return Err(Why::TooComplex),
-        Err(_) => return Err(Why::NotFlat(Cause::Knockout, false)),
+    let scene = stack(model, &rec.ops, boxes, i)?;
+    let flat = flatten(
+        &scene.group,
+        model.space,
+        &PageInks(intent),
+        &Limits::default(),
+    );
+    let regions = match (flat, scene.cause) {
+        (Ok(r), _) => r,
+        // A cut scene that will not resolve is patched whole, as it was
+        // before the cut.
+        (Err(_), Some(c)) => return Err(Why::NotFlat(c, true)),
+        (Err(FlattenError::TooComplex(_)), None) => return Err(Why::TooComplex),
+        (Err(_), None) => return Err(Why::NotFlat(Cause::Knockout, false)),
     };
-    Ok(regions
+    let beneath = scene.beneath;
+    let fills = regions
         .iter()
         .filter(|r| r.paints.iter().any(|&p| p >= beneath) && r.alpha > 0.0)
         .filter_map(|r| region_op(r, model.space, model.roster.inks(), intent, paper))
-        .collect())
+        .collect();
+    Ok(Resolved {
+        fills,
+        cuts: scene.cuts,
+        cause: scene.cause,
+    })
 }
 
 /// Replace every op the writer would draw inexactly with opaque regions
@@ -481,6 +566,7 @@ pub(super) fn vectorise(
     rec: &mut ExportRecording,
     render: &RenderOptions,
     background: Option<Rgb>,
+    tight: bool,
 ) -> (EmfVectorised, Vec<DeviceBounds>) {
     let mut out = EmfVectorised::default();
     let boxes: Vec<DeviceBounds> = rec
@@ -505,6 +591,8 @@ pub(super) fn vectorise(
         rec,
         memo: vec![None; rec.ops.len()],
         masks: vec![None; rec.masks.len()],
+        painted: vec![None; rec.ops.len()],
+        tight,
     };
     let mut replaced: Vec<Option<Vec<Op>>> = vec![None; rec.ops.len()];
     let mut left = Vec::new();
@@ -516,15 +604,22 @@ pub(super) fn vectorise(
             continue;
         };
         match resolve(&mut model, rec, &boxes, i, render.cmyk_intent, paper) {
-            Ok(fills) => {
-                out.count(n, fills.len());
+            Ok(r) => {
+                match r.cause {
+                    None => out.count(n, r.fills.len()),
+                    Some(c) => out.count_split(c, r.fills.len()),
+                }
+                left.extend(r.cuts);
                 if let Some(slot) = replaced.get_mut(i) {
-                    *slot = Some(fills);
+                    *slot = Some(r.fills);
                 }
             }
             Err(why) => {
                 out.count_patched(why);
-                left.push(bx);
+                // Where it paints nothing the page is exact without it, and
+                // `patch::plan` drops it by the same box.
+                let op = rec.ops.get(i).filter(|_| model.tight);
+                left.push(op.and_then(|o| model.painted(i, o)).unwrap_or(bx));
             }
         }
     }
@@ -576,6 +671,12 @@ impl EmfVectorised {
         self.groups += usize::from(n.group);
         self.overprint += usize::from(n.overprint);
         self.blends += usize::from(n.blend);
+    }
+
+    fn count_split(&mut self, cause: Cause, regions: usize) {
+        self.regions += regions;
+        self.split += 1;
+        self.count_patched(Why::NotFlat(cause, true));
     }
 
     fn count_patched(&mut self, why: Why) {

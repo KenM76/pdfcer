@@ -783,7 +783,7 @@ fn patch_approximations_reaches_the_emf_writer() {
     let text = stdout(&vector);
     assert!(
         text.contains(
-            "emf-vector: ops=1 regions=2 alpha=0 groups=0 overprint=1 blends=0 patched_not_flat=0 patched_too_complex=0 patched_unrecorded=0"
+            "emf-vector: ops=1 regions=2 alpha=0 groups=0 overprint=1 blends=0 patched_not_flat=0 patched_too_complex=0 patched_unrecorded=0 split=0"
         ),
         "{text}"
     );
@@ -809,6 +809,86 @@ fn patch_approximations_reaches_the_emf_writer() {
     ]);
     assert_ne!(png.status.code(), Some(0));
     assert!(stderr(&png).contains("--vector-transparency applies to --format emf only"));
+}
+
+/// `--tight-mask-patches` (Pass 700.24): half-transparent paint over a
+/// soft-masked drop shadow is cut to the shadow (`split=1`); without it the
+/// paint is patched whole (`split=0`); alone it is refused.
+#[test]
+fn tight_mask_patches_reaches_the_emf_writer() {
+    let dir = TempDir::new("export-image-emf-tight");
+    let mask = "q 60 0 0 40 20 15 cm BI /W 2 /H 1 /CS /G /BPC 8 /F /AHx ID 40C0> EI Q";
+    let content = "0 0.6 1 rg 10 10 80 60 re f q /S gs 0 g 5 5 90 70 re f Q \
+                   /O gs 0 1 0 rg 15 10 70 55 re f";
+    let input = dir.write(
+        "shadow.pdf",
+        &build_pdf(&[
+            (1, "<< /Type /Catalog /Pages 2 0 R >>".into()),
+            (
+                2,
+                "<< /Type /Pages /Kids [3 0 R] /Count 1 /MediaBox [0 0 100 80] \
+                 /Resources << /ExtGState << /S << /SMask << /S /Luminosity /G 5 0 R >> >> \
+                 /O << /ca 0.5 >> >> >> >>"
+                    .into(),
+            ),
+            (3, "<< /Type /Page /Parent 2 0 R /Contents 4 0 R >>".into()),
+            (
+                4,
+                format!(
+                    "<< /Length {} >>\nstream\n{content}\nendstream",
+                    content.len() + 1
+                ),
+            ),
+            (
+                5,
+                format!(
+                    "<< /Type /XObject /Subtype /Form /BBox [20 15 40 30] \
+                     /Group << /S /Transparency /CS /DeviceGray >> /Length {} >>\n\
+                     stream\n{mask}\nendstream",
+                    mask.len() + 1
+                ),
+            ),
+        ]),
+    );
+    let out = dir.join("s.emf");
+    let export = |extra: &[&str]| -> Output {
+        let mut a = vec![
+            "export-image",
+            input.to_str().unwrap(),
+            "--format",
+            "emf",
+            "--dpi",
+            "144",
+            "--vector-transparency",
+            "-o",
+            out.to_str().unwrap(),
+        ];
+        a.extend_from_slice(extra);
+        run(&a)
+    };
+    let whole = export(&[]);
+    assert_eq!(whole.status.code(), Some(0), "stderr: {}", stderr(&whole));
+    assert!(stdout(&whole).contains(" split=0"), "{}", stdout(&whole));
+    let tight = export(&["--tight-mask-patches"]);
+    assert_eq!(tight.status.code(), Some(0), "stderr: {}", stderr(&tight));
+    assert!(stdout(&tight).contains(" split=1"), "{}", stdout(&tight));
+
+    let alone = run(&[
+        "export-image",
+        input.to_str().unwrap(),
+        "--format",
+        "emf",
+        "--tight-mask-patches",
+        "-o",
+        out.to_str().unwrap(),
+    ]);
+    assert_ne!(alone.status.code(), Some(0));
+    assert!(
+        stderr(&alone)
+            .contains("--tight-mask-patches needs --patch-approximations or --vector-transparency"),
+        "{}",
+        stderr(&alone)
+    );
 }
 
 /// `--vector-shadings` (Pass 700.14) writes an axial shading as triangles

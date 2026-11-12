@@ -196,10 +196,11 @@ def classify(lines: dict) -> dict:
             "beneath": nf.get("beneath", 0)}
 
 
-def export_page(exe: str, pdf: str, page: int, dpi: int, out: Path) -> dict:
+def export_page(exe: str, pdf: str, page: int, dpi: int, out: Path,
+                extra: list[str]) -> dict:
     emf_path, png_path = out / f"p{page}.emf", out / f"p{page}.png"
     common = [exe, "export-image", pdf, "--pages", str(page), "--dpi", str(dpi)]
-    lines = stable_lines(run(common + ["--format", "emf", *FLAGS, "-o",
+    lines = stable_lines(run(common + ["--format", "emf", *FLAGS, *extra, "-o",
                                        str(emf_path)]).stdout)
     run(common + ["-o", str(png_path)])
     raster = np.asarray(Image.open(png_path).convert("RGB")).astype(np.int16)
@@ -274,6 +275,9 @@ def parse_args() -> argparse.Namespace:
     ap.add_argument("--printer", help="printer for the route dry run")
     ap.add_argument("--no-route", action="store_true",
                     help="skip the print dry run (needs --pages)")
+    ap.add_argument("--emf-flag", action="append", default=[], metavar="FLAG",
+                    help="another export-image EMF flag (repeatable), e.g. "
+                         "--emf-flag=--tight-mask-patches")
     return ap.parse_args()
 
 
@@ -288,7 +292,7 @@ def main() -> int:
         sys.exit("--pages is required with --no-route")
     pages = []
     for n in page_list(a.pages, max(route, default=0)):
-        page = export_page(a.pdfcer, a.pdf, n, a.dpi, out)
+        page = export_page(a.pdfcer, a.pdf, n, a.dpi, out, a.emf_flag)
         page["route"] = route.get(n, "not measured")
         pages.append(page)
         print(f"page {n}: {verdict(page)}", file=sys.stderr)

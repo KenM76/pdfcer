@@ -1440,7 +1440,7 @@ fn print_emf_patches(o: &pdfcer_emf::EmfOutcome, page_number: usize) {
 /// `export-image`'s `emf-vector:` and `print`'s per-page report.
 pub(crate) fn emf_vector_fields(v: &pdfcer_emf::EmfVectorised) -> String {
     format!(
-        "ops={} regions={} alpha={} groups={} overprint={} blends={} patched_not_flat={} patched_too_complex={} patched_unrecorded={}",
+        "ops={} regions={} alpha={} groups={} overprint={} blends={} patched_not_flat={} patched_too_complex={} patched_unrecorded={} split={}",
         v.ops,
         v.regions,
         v.alpha,
@@ -1449,7 +1449,8 @@ pub(crate) fn emf_vector_fields(v: &pdfcer_emf::EmfVectorised) -> String {
         v.blends,
         v.patched_not_flat,
         v.patched_too_complex,
-        v.patched_unrecorded
+        v.patched_unrecorded,
+        v.split
     )
 }
 
@@ -1647,6 +1648,8 @@ pub(crate) struct ExportImageArgs<'a> {
     pub(crate) vector_transparency: bool,
     /// `--vector-shadings` (EMF only).
     pub(crate) vector_shadings: bool,
+    /// `--tight-mask-patches` (EMF only, with a patching flag).
+    pub(crate) tight_mask_patches: bool,
     /// Outlines or kept text (EMF only).
     pub(crate) emf_text: SvgTextArg,
     /// `--emf-plates` or `--emf-plates-strict` (EMF only).
@@ -1713,6 +1716,7 @@ pub(crate) fn cmd_export_image(args: ExportImageArgs<'_>) -> u8 {
         patch_approximations,
         vector_transparency,
         vector_shadings,
+        tight_mask_patches,
         emf_text,
         emf_plates,
         emf_plates_strict,
@@ -1746,6 +1750,13 @@ pub(crate) fn cmd_export_image(args: ExportImageArgs<'_>) -> u8 {
     if vector_shadings && (format != ImageFormatArg::Emf || emf_plates) {
         eprintln!(
             "pdfcer: {}: --vector-shadings applies to --format emf only, without --emf-plates",
+            input.display()
+        );
+        return exit::RUNTIME_ERROR;
+    }
+    if tight_mask_patches && !(patch_approximations || vector_transparency) {
+        eprintln!(
+            "pdfcer: {}: --tight-mask-patches needs --patch-approximations or --vector-transparency",
             input.display()
         );
         return exit::RUNTIME_ERROR;
@@ -1922,7 +1933,8 @@ pub(crate) fn cmd_export_image(args: ExportImageArgs<'_>) -> u8 {
                 .with_underlay_blends(!raster_blends)
                 .with_patch_approximations(patch_approximations)
                 .with_vector_transparency(vector_transparency)
-                .with_vector_shadings(vector_shadings);
+                .with_vector_shadings(vector_shadings)
+                .with_tight_mask_patches(tight_mask_patches);
             if emf_plates {
                 let req = crate::export_emf_plates::PlatesPage {
                     input,
