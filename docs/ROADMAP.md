@@ -112,6 +112,21 @@ wherever it appears.*
 
 ## Shipped
 
+### `a0205bb0` `Pass 700.24` (SHIPPED as an OPT-IN option; default off): patch a soft-masked layer only where its mask shows, 2026-11-12 (1542nd filing)
+
+Engineer-reported; no shell here, git, push and CI state not checked from here. `a0205bb0` `feat(emf,cli,tools): patch a soft-masked layer only where its mask shows, opt-in (Pass 700.24)`, on `main`. Reasoning is in the commit message.
+- **Shipped.** New `EmfOptions` field `tight_mask_patches` and CLI flag `export-image --tight-mask-patches`, default off. With it off the EMFs are byte-identical to v0.146.0.
+- **With it on.** A soft-masked op's painted box is the mask's nonzero-pixel support intersected with the op box (ISO 32000-2 §11.6.5.2), computed in new `crates/pdfcer-emf/src/painted.rs` (depth-capped at 64). Each op in the flat scene stacked above an image soft mask is cut by that box (§11.7.4: the backdrop dependence holds only inside it); the cut goes to the raster patch list and the op stays vector outside it. An op is still patched whole if the cut covers its whole frame or the cut scene fails to flatten. `patch::reach` sizes covered ops and Blend/BlendingSpace sites by the painted box. `tools/print-parity-report.py` gains `--emf-flag`; `docs/core-api/03-capabilities.md` updated.
+- **Files.** emf: `src/painted.rs` (new), `src/vector.rs`, `src/patch.rs`, `src/lib.rs`, `tests/export_emf_mask_split.rs` (new), `tests/all.rs`. cli: `src/cli.rs`, `src/dispatch.rs`, `src/render_export.rs`, `tests/export_image.rs`.
+- **Measured on the licensed print test file at 150 dpi, option off to on, per page 1..6.** Bitmap area %: 9.633 to 9.207, 65.696 to 65.271, 13.005 to 10.383, 11.539 to 10.900, 29.976 to 29.522, 26.220 to 25.766. Overprint patch sites: 24 to 7, 442 to 425, 38 to 0, 17 to 0, 558 to 541, 17 to 0. Parity means: 8.492 to 8.538, 1.424 to 1.469, 7.696 to 8.395, 8.222 to 8.292, 5.628 to 5.674, 5.743 to 5.789.
+- **Reading, as the engineer stated it.** Area shrinks, but GDI-vs-raster parity gets worse on every page; the freed area is now GDI vector text, which GDI does not antialias at 150 dpi (page 3: 12,957 px, in the heading and the font-test rows). A fidelity-versus-size trade-off, so it ships opt-in with the safe default. The acceptance line "parity means do not get worse" is therefore NOT met with the option on; that is why it is not the default.
+- **Tests (engineer-reported):** emf, flatten, render and cli 2,617 passed, 0 failed, 5 ignored. New: 4 emf tests (including a Windows GDI-playback fixture for over-the-shadow and over-an-image, option on and off) and 1 CLI test. Both sabotages caught: dropping the cuts, and disabling `reach`. Gates green per the engineer: clippy, no-default-features, rustdoc, structure, public-fns-documented, tests-harnessed, core-api verbs, suite-name; `cargo tree` for render and emf clean.
+- **OPEN ITEMS on 700.24 (neither reading asserted).**
+  1. The `print` route is not wired to the option.
+  2. Possible measurement artefact: the parity instrument compares at 150 dpi against an antialiased raster, while a printer RIPs vector text at device resolution, so "worse at 150 dpi" may not mean worse on paper. Before the option could become the default: measure at print resolution (e.g. 600 dpi) or with the antialiasing difference excluded; or patch text inside the freed area.
+- **Order:** `700.23` next, then the `700.22` gradient-band remainder.
+- **FEATURES:** new *Implemented* row core `[x]`, cli `[x]` (`export-image` only; `print` not wired), gui `[ ]`; the `700.24` *Planned* row removed.
+
 ### `fd4f4010` `Pass 700.22` (PARTIAL, remainder open): image soft masks counted apart from gradient masks in the EMF census, 2026-11-12 (1541st filing)
 
 Engineer-reported; no shell here, git, push and CI state not checked from here. `fd4f4010` `feat(emf,cli,tools): count image soft masks apart from gradient masks (Pass 700.22)`, on `main`. Also filed here: `c846a58c` (docs only), below. Reasoning is in the commit message.
@@ -27036,11 +27051,9 @@ closes out the *prior* filing's business rather than opening this one's.
 > - (b) Investigate a suspected export drop: a function-based (type 1) shading, with patching off, was counted as rasterised but left no image in the EMF recording. Candidate defect, NOT confirmed; confirm, then fix if real.
 > - FEATURES: *Planned*, unticked.
 
-> **`Pass 700.24`: overprint above an image soft mask stays vector outside the mask (filed 1541st).** Today the 17 overprint ops per page above the title's drop shadow on the licensed print test file are patched whole, because their stack contains the image mask. Their overlap with the shadow genuinely needs raster (overprint colour depends on the shadow's pixels), but a RIP's rule is "shadow raster, text vector": the part of each op outside the shadow's painted bounds should be emitted as vector and only the overlap patched.
-> - **Acceptance:** on the licensed file the patch area per page shrinks (the patch count may stay the same); the parity-report means do not get worse (baseline 8.492/1.424/7.696/8.222/5.628/5.743); a synthetic fixture shows GDI playback matching the raster.
-> - FEATURES: *Planned* row, unticked.
+> **`Pass 700.24`: SHIPPED as an opt-in option (1542nd filing), `a0205bb0`; see its *Shipped* entry.** Open items (the `print` route not wired; parity worse at 150 dpi, possibly a measurement artefact) are recorded there.
 
-> **Remaining order (1541st filing; `700.22` partial shipped):** `700.24`, then `700.23`; the `700.22` gradient-mask remainder waits for a fixture. Next release deploys to OneDrive `pdfcer2`.
+> **Remaining order (1542nd filing; `700.24` shipped opt-in):** `700.23` next, then the `700.22` gradient-mask remainder (waits for a fixture). Next release deploys to OneDrive `pdfcer2`.
 
 > **`Pass 706.0` (`X076`): SHIPPED 2026-11-11 (1533rd filing), `06516ff6`; see its *Shipped* entry.**
 

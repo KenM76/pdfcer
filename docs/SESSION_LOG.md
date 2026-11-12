@@ -4,6 +4,16 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-11-12 (1542nd filing) — `a0205bb0` `Pass 700.24` SHIPPED opt-in: tight mask patches
+
+**Filed (engineer-reported; no shell here, nothing checked from here):**
+- `a0205bb0` `Pass 700.24`: `EmfOptions::tight_mask_patches` and `export-image --tight-mask-patches`, default off (option off: EMFs byte-identical to v0.146.0). Ops above an image soft mask are cut by the mask's painted box and stay vector outside it. New `crates/pdfcer-emf/src/painted.rs`.
+- Measured on the licensed print test file at 150 dpi: bitmap area shrinks on all six pages (e.g. p3 13.005 to 10.383 %), overprint patch sites fall (p3 38 to 0), but parity means rise on every page (p3 7.696 to 8.395), i.e. worse, because the freed area is GDI vector text, unantialiased at 150 dpi. Hence opt-in.
+- Tests 2,617 passed, 0 failed, 5 ignored (emf, flatten, render, cli); 5 new; both sabotages caught; gates green per the engineer.
+
+**Open (neither reading asserted):** `print` route not wired to the option; the parity instrument may overstate the loss (150 dpi vs antialiased raster; a printer RIPs text at device resolution). Before any default change: measure at 600 dpi or exclude the antialiasing difference, or patch text in the freed area.
+**For next session:** `700.23`, then the `700.22` gradient-mask remainder. No decision, no rule. Sweep (docs only): FEATURES `700.24` Planned row replaced; no other survivor found.
+
 ## 2026-11-12 (1541st filing) — `fd4f4010` `Pass 700.22` PARTIAL: image soft masks counted apart; `700.24` filed
 
 **Filed (engineer-reported; no shell here, nothing checked from here):**
