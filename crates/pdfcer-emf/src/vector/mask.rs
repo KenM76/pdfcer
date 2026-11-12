@@ -6,7 +6,9 @@
 //! Exact, because compositing is pointwise and the mask is constant inside
 //! a region. A mask with an image, a gradient or a varying nested mask in
 //! its group stays a patch, as does a luminosity mask whose subtractive
-//! group composites anything translucent.
+//! group composites anything translucent. An image in the group is counted
+//! apart from a gradient: a print flattener rasterises a drop shadow or a
+//! feather too, while a gradient mask is a vector gap.
 
 use std::collections::BTreeMap;
 use std::sync::Arc;
@@ -92,7 +94,8 @@ impl Model<'_> {
             .try_for_each(|op| self.element(op, &mut content));
         self.space = space;
         built.map_err(|c| match c {
-            Cause::Image | Cause::Shading | Cause::MaskVarying => Cause::MaskVarying,
+            Cause::Image | Cause::MaskImage => Cause::MaskImage,
+            Cause::Shading | Cause::MaskVarying => Cause::MaskVarying,
             Cause::MaskUnrecorded => Cause::MaskUnrecorded,
             _ => Cause::MaskFlat,
         })?;

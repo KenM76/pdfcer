@@ -1457,9 +1457,10 @@ pub(crate) fn emf_vector_fields(v: &pdfcer_emf::EmfVectorised) -> String {
 /// why each `patched_not_flat` op was not flat.
 pub(crate) fn emf_not_flat_fields(n: &pdfcer_emf::EmfNotFlat) -> String {
     format!(
-        "soft_mask_flat={} soft_mask_varying={} soft_mask_unrecorded={} image={} shading={} spot={} spot_roster={} spot_all_group={} cmyk={} blend={} knockout={} geometry={} beneath={}",
+        "soft_mask_flat={} soft_mask_varying={} soft_mask_image={} soft_mask_unrecorded={} image={} shading={} spot={} spot_roster={} spot_all_group={} cmyk={} blend={} knockout={} geometry={} beneath={}",
         n.soft_mask_flat,
         n.soft_mask_varying,
+        n.soft_mask_image,
         n.soft_mask_unrecorded,
         n.image,
         n.shading,

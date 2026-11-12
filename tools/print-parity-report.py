@@ -25,11 +25,12 @@ Pixels inside a bitmap the metafile embeds are reported apart from the rest.
 
 Each patched op's cause is classified:
 
-  * genuinely raster: `image`. Professional flatteners rasterise these too.
+  * genuinely raster: `image` and `soft_mask_image` (a mask whose group
+    holds an image: a drop shadow or feather). Professional flatteners
+    rasterise these too.
   * vector gap: every other cause, `patched_too_complex` and
-    `patched_unrecorded`. `soft_mask_varying` counts a mask holding an image
-    OR a gradient and the counter does not split them, so it is counted as a
-    gap until it does.
+    `patched_unrecorded`, including `soft_mask_varying` (a gradient or
+    shading mask that could not be cut into constant bands).
 
 A page meets the close condition when its route is `vector` and it has no
 vector-gap patches.
@@ -59,9 +60,10 @@ from PIL import Image
 REPO = Path(__file__).resolve().parents[1]
 PLAYER = REPO / "crates" / "pdfcer-emf" / "tests" / "gdi_player.ps1"
 FLAGS = ["--patch-approximations", "--vector-transparency", "--vector-shadings"]
-GENUINE = {"image"}
+GENUINE = {"image", "soft_mask_image"}
 NOT_FLAT = [
-    "soft_mask_flat", "soft_mask_varying", "soft_mask_unrecorded", "image",
+    "soft_mask_flat", "soft_mask_varying", "soft_mask_image",
+    "soft_mask_unrecorded", "image",
     "shading", "spot", "spot_roster", "spot_all_group", "cmyk", "blend",
     "knockout", "geometry",
 ]

@@ -176,6 +176,31 @@ fn a_gradient_mask_stays_a_patch_and_is_counted() {
     assert!(on.outcome.patches.cases() > 0, "{:?}", on.outcome.patches);
 }
 
+/// Mask content painted by a 2×1 grey image, as a drop shadow's blur is.
+const IMAGE: &str = "q 60 0 0 40 20 15 cm BI /W 2 /H 1 /CS /G /BPC 8 /F /AHx ID 40C0> EI Q";
+
+/// An image in a mask group is raster by design (a print flattener
+/// rasterises a drop shadow too), so it is counted apart from a gradient
+/// mask, which is a vector gap.
+#[test]
+fn an_image_mask_is_counted_apart_from_a_gradient_mask() {
+    let (_, on) = export(&masked("/S /Luminosity", PAGE, IMAGE, false), true);
+    let v = on.outcome.vectorised;
+    assert_eq!(v.patched_not_flat, 1, "{v:?}");
+    assert_eq!(v.not_flat.soft_mask_image, 1, "{v:?}");
+    assert_eq!(v.not_flat.soft_mask_varying, 0, "{v:?}");
+    assert!(on.outcome.patches.cases() > 0, "{:?}", on.outcome.patches);
+}
+
+#[cfg(windows)]
+#[test]
+fn an_image_mask_patch_plays_back_like_the_raster() {
+    let bytes = masked("/S /Luminosity", PAGE, IMAGE, false);
+    let (reference, emf) = export(&bytes, true);
+    let (bad, worst) = playback_against_raster("mask-image", &reference, &emf.emf, ROUNDING);
+    assert_eq!(bad, 0, "worst {worst}");
+}
+
 /// With the switch off a masked op is written from the recording's own
 /// mask raster, which must honour the mask group's `/BBox` and `/TR`.
 /// That route already differs from the raster along the masked edges, so

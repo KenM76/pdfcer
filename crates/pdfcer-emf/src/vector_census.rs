@@ -15,9 +15,14 @@ pub struct EmfNotFlat {
     /// not be resolved (its regions passed the ceiling, or its group
     /// composites in a way the mask scene does not model).
     pub soft_mask_flat: usize,
-    /// A soft mask whose content holds an image, a gradient or other
-    /// non-flat paint, so its alpha varies continuously.
+    /// A soft mask whose content holds a gradient, a smooth shading or a
+    /// varying nested mask that could not be cut into constant-value
+    /// bands, so its alpha varies continuously. A vector gap.
     pub soft_mask_varying: usize,
+    /// A soft mask whose content holds an image (a drop shadow, a feather,
+    /// a scanned vignette). Genuinely raster: a print flattener rasterises
+    /// these too.
+    pub soft_mask_image: usize,
     /// A soft mask the recording kept no vector source for.
     pub soft_mask_unrecorded: usize,
     /// An image.
@@ -51,6 +56,7 @@ pub struct EmfNotFlat {
 pub(crate) enum Cause {
     MaskFlat,
     MaskVarying,
+    MaskImage,
     MaskUnrecorded,
     Image,
     Shading,
@@ -71,6 +77,7 @@ impl EmfNotFlat {
         let slot = match cause {
             Cause::MaskFlat => &mut self.soft_mask_flat,
             Cause::MaskVarying => &mut self.soft_mask_varying,
+            Cause::MaskImage => &mut self.soft_mask_image,
             Cause::MaskUnrecorded => &mut self.soft_mask_unrecorded,
             Cause::Image => &mut self.image,
             Cause::Shading => &mut self.shading,
