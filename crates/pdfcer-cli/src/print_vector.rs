@@ -14,17 +14,19 @@ use pdfcer_render::{DocumentView, RenderOptions};
 
 /// The page as a printable metafile at `scale` device pixels per point, or
 /// `Err` with the reason it prints as an image. `vector_transparency` is
-/// `--vector-transparency`.
+/// `--vector-transparency`, `vector_shadings` `--vector-shadings`.
 pub(crate) fn vector_page(
     view: &DocumentView<'_>,
     page: &Page,
     scale: f32,
     options: &RenderOptions,
     vector_transparency: bool,
+    vector_shadings: bool,
 ) -> Result<EmfExport, String> {
     let emf = EmfOptions::default()
         .with_raster_dpi(scale * 72.0)
-        .with_vector_transparency(vector_transparency);
+        .with_vector_transparency(vector_transparency)
+        .with_vector_shadings(vector_shadings);
     print_export_with(view, page, options, &emf).map_err(|e| match e {
         PrintMetafileError::Raster(why) => why.as_str().to_owned(),
         other => other.to_string(),
@@ -32,11 +34,13 @@ pub(crate) fn vector_page(
 }
 
 /// Say how page `index` (0-based) printed: `vector`, or `raster (why)`;
-/// with `vector_transparency`, what it wrote as regions and as pixels.
+/// with `vector_transparency`, what it wrote as regions and as pixels; with
+/// `vector_shadings`, what it wrote as triangles.
 pub(crate) fn report_route(
     index: usize,
     route: &Result<EmfExport, String>,
     vector_transparency: bool,
+    vector_shadings: bool,
 ) {
     match route {
         Ok(export) => {
@@ -50,6 +54,17 @@ pub(crate) fn report_route(
                     o.patches.rasters
                 );
                 if let Some(note) = crate::render_export::vector_note(&o.vectorised) {
+                    eprintln!("pdfcer: note: page {}: {note}", index + 1);
+                }
+            }
+            if vector_shadings {
+                let s = &export.outcome.shadings;
+                eprintln!(
+                    "pdfcer: page {}: vector-shadings {}",
+                    index + 1,
+                    crate::render_export::emf_shading_fields(s)
+                );
+                if let Some(note) = crate::render_export::shading_note(s) {
                     eprintln!("pdfcer: note: page {}: {note}", index + 1);
                 }
             }
@@ -136,13 +151,20 @@ mod tests {
     }
 
     fn route(doc: &Document) -> Result<Vec<u8>, String> {
-        route_with(doc, false).map(|e| e.emf)
+        route_with(doc, false, false).map(|e| e.emf)
     }
 
-    fn route_with(doc: &Document, vector: bool) -> Result<EmfExport, String> {
+    fn route_with(doc: &Document, vector: bool, shadings: bool) -> Result<EmfExport, String> {
         let page = pdfcer_core::page_tree::pages(doc).expect("pages").remove(0);
         let view = DocumentView::new(doc, doc.bytes(), doc.version());
-        vector_page(&view, &page, 2.0, &RenderOptions::default(), vector)
+        vector_page(
+            &view,
+            &page,
+            2.0,
+            &RenderOptions::default(),
+            vector,
+            shadings,
+        )
     }
 
     #[test]
@@ -180,9 +202,24 @@ mod tests {
             "0 0 1 rg 0 0 60 60 re f /G0 gs 1 0 0 rg 30 30 60 60 re f",
             "<< /ExtGState << /G0 << /BM /Multiply /ca 0.5 >> >> >>",
         );
-        let export = route_with(&doc, true).expect("vector");
+        let export = route_with(&doc, true, false).expect("vector");
         let v = export.outcome.vectorised;
         assert_eq!((v.ops, v.blends, v.alpha, v.patched()), (1, 1, 1, 0));
         assert_eq!(export.outcome.patches.rasters, 0);
+    }
+
+    #[test]
+    fn with_vector_shadings_a_shaded_page_prints_as_vector() {
+        let doc = one_page(
+            "/Sh0 sh",
+            "<< /Shading << /Sh0 << /ShadingType 2 /ColorSpace /DeviceRGB \
+             /Coords [0 0 100 0] /Extend [true true] /Function << /FunctionType 2 \
+             /Domain [0 1] /C0 [1 0 0] /C1 [0 0 1] /N 1 >> >> >> >>",
+        );
+        assert_eq!(route(&doc), Err("shading".to_owned()));
+        let export = route_with(&doc, false, true).expect("vector");
+        let s = export.outcome.shadings;
+        assert_eq!((s.vector, s.declined()), (1, 0));
+        assert!(s.triangles > 0);
     }
 }

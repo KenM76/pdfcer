@@ -950,8 +950,14 @@ untiled; {tiled_pages} page(s) were tiled."
                     render_scale as f32,
                     &print_options,
                     output.vector_transparency,
+                    output.vector_shadings,
                 );
-                crate::print_vector::report_route(plan.index, &route, output.vector_transparency);
+                crate::print_vector::report_route(
+                    plan.index,
+                    &route,
+                    output.vector_transparency,
+                    output.vector_shadings,
+                );
                 if let Ok(export) = route {
                     vectors.insert(bitmaps.len(), export.emf);
                     bitmaps.push(pdfcer_print::PageBitmap {

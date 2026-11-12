@@ -805,6 +805,77 @@ fn patch_approximations_reaches_the_emf_writer() {
     assert!(stderr(&png).contains("--vector-transparency applies to --format emf only"));
 }
 
+/// `--vector-shadings` (Pass 700.14) writes an axial shading as triangles
+/// and counts it on the `emf-shadings:` line; the default run writes a
+/// bitmap and no such line; a raster format refuses the flag.
+#[test]
+fn vector_shadings_reaches_the_emf_writer() {
+    let dir = TempDir::new("export-image-emf-shadings");
+    let content = "/Sh0 sh";
+    let input = dir.write(
+        "sh.pdf",
+        &build_pdf(&[
+            (1, "<< /Type /Catalog /Pages 2 0 R >>".into()),
+            (
+                2,
+                "<< /Type /Pages /Kids [3 0 R] /Count 1 /MediaBox [0 0 100 80] \
+                 /Resources << /Shading << /Sh0 << /ShadingType 2 /ColorSpace /DeviceRGB \
+                 /Coords [20 0 80 0] /Extend [true true] /Function << /FunctionType 2 \
+                 /Domain [0 1] /C0 [1 0 0] /C1 [0 0 1] /N 1 >> >> >> >> >>"
+                    .into(),
+            ),
+            (3, "<< /Type /Page /Parent 2 0 R /Contents 4 0 R >>".into()),
+            (
+                4,
+                format!(
+                    "<< /Length {} >>\nstream\n{content}\nendstream",
+                    content.len() + 1
+                ),
+            ),
+        ]),
+    );
+    let i = input.to_str().unwrap();
+    let out = dir.join("p.emf");
+    let o = out.to_str().unwrap();
+    let export = |extra: &[&str]| -> Output {
+        let mut a = vec!["export-image", i, "--format", "emf", "-o", o];
+        a.extend_from_slice(extra);
+        run(&a)
+    };
+    let plain = export(&[]);
+    assert_eq!(plain.status.code(), Some(0), "stderr: {}", stderr(&plain));
+    assert!(
+        !stdout(&plain).contains("emf-shadings:"),
+        "{}",
+        stdout(&plain)
+    );
+    assert!(
+        !stdout(&plain).contains("emf: ops=1 rasters=0 "),
+        "{}",
+        stdout(&plain)
+    );
+
+    let vector = export(&["--vector-shadings"]);
+    assert_eq!(vector.status.code(), Some(0), "stderr: {}", stderr(&vector));
+    let text = stdout(&vector);
+    assert!(text.contains("emf-shadings: vector=1 triangles="), "{text}");
+    assert!(
+        text.contains("declined_translucent=0 declined_too_many=0 declined_other=0"),
+        "{text}"
+    );
+    assert!(text.contains(" rasters=0 "), "{text}");
+
+    let png = run(&[
+        "export-image",
+        i,
+        "--vector-shadings",
+        "-o",
+        dir.join("p.png").to_str().unwrap(),
+    ]);
+    assert_ne!(png.status.code(), Some(0));
+    assert!(stderr(&png).contains("--vector-shadings applies to --format emf only"));
+}
+
 fn one_page(dir: &TempDir, name: &str, content: &str) -> PathBuf {
     dir.write(
         name,

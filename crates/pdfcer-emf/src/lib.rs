@@ -30,6 +30,7 @@
 //! | solid stroke, alpha 255, `Normal` | `EXTCREATEPEN` (`PS_GEOMETRIC`, caps/joins) + bracket + `STROKEPATH`; dash **pre-applied** to the geometry (LibreOffice renders `PS_USERSTYLE` solid) | `ops`, `dashed_strokes_pre_applied` |
 //! | a top-level op or layer with a non-`Normal` blend | first composited against the ops under it and moved beneath the page as a source-over vector where that looks the same, otherwise replaced by the resulting pixels (`blend_flatten`), then written as below | `blends_flattened`, `blends_underlaid` |
 //! | a solid op with alpha < 255, or a non-`Normal` blend inside a group, or a `Gradient`/`Image` brush | the op is REPLAYED into a transparent scratch, cropped, and written as `EMR_ALPHABLEND` (premultiplied BGRA, the GDI contract) | `rasters_embedded` + one of `ops_rasterised_for_alpha` / `blend_modes_dropped` / `gradients_rasterised` / `images_embedded` |
+//! | with [`EmfOptions::vector_shadings`], an axial, radial or mesh shading (a `Gradient` brush, or a shading harvested as an `Image`), opaque, `Normal` | Gouraud triangles as `EMR_GRADIENTFILL` under the op's clip, the pattern's fill area and `/BBox` (see `gradient`); a declined one takes the row above | [`EmfShadings`] |
 //! | `Op::Layer` (group opacity, blend, soft mask) | the whole layer replayed, its mask and opacity applied, one `EMR_ALPHABLEND`; the layer's blend mode against the page is dropped to `Normal` | `layers_rasterised`, `blend_modes_dropped` |
 //! | a clip | `SAVEDC`, one path bracket + `SELECTCLIPPATH RGN_AND` per ancestor, `RESTOREDC` when the clip changes | — |
 //! | text, [`EmfText::Outlines`] (default) | glyph outlines, like every other fill | — |
@@ -114,12 +115,14 @@ use pdfcer_render::writer_seam::{
 };
 
 mod bitmap;
+mod gradient;
 mod patch;
 mod plates;
 mod print;
 mod text;
 mod vector;
 mod vector_geom;
+pub use gradient::EmfShadings;
 pub use patch::EmfPatches;
 pub use plates::{
     EmfPlate, EmfPlateOutcome, EmfPlates, PlateMetafileError, PlatePatches, PlateRaster,
@@ -166,6 +169,14 @@ pub struct EmfOptions {
     /// flattener's ceiling) is written by [`Self::patch_approximations`],
     /// which this turns on. Off by default; see [`EmfVectorised`].
     pub vector_transparency: bool,
+    /// Write axial, radial and mesh shadings as Gouraud triangles
+    /// (`EMR_GRADIENTFILL`) instead of bitmaps: within 1/255 per channel of
+    /// the raster's ramp and 0.25 device pixel of its circles. A shading
+    /// with a constant alpha below 1, a ramp with holes, or more than
+    /// 200 000 triangles stays a bitmap. Function-based (type 1) shadings
+    /// are not painted by the raster either. Independent of
+    /// [`Self::vector_transparency`]. Off by default; see [`EmfShadings`].
+    pub vector_shadings: bool,
 }
 
 /// How an EMF writes text.
@@ -226,6 +237,7 @@ impl Default for EmfOptions {
             underlay_blends: true,
             patch_approximations: false,
             vector_transparency: false,
+            vector_shadings: false,
         }
     }
 }
@@ -296,6 +308,19 @@ impl EmfOptions {
         self.vector_transparency = vector;
         self
     }
+
+    /// Write smooth shadings as triangles; see [`Self::vector_shadings`].
+    ///
+    /// ```
+    /// use pdfcer_emf::EmfOptions;
+    /// let options = EmfOptions::default().with_vector_shadings(true);
+    /// assert!(options.vector_shadings);
+    /// ```
+    #[must_use]
+    pub fn with_vector_shadings(mut self, vector: bool) -> Self {
+        self.vector_shadings = vector;
+        self
+    }
 }
 
 /// What an EMF export produced beside the bytes — the disclosure.
@@ -343,6 +368,11 @@ pub struct EmfOutcome {
     /// What [`EmfOptions::vector_transparency`] wrote as regions, and what
     /// it left to [`Self::patches`].
     pub vectorised: EmfVectorised,
+    /// What [`EmfOptions::vector_shadings`] wrote as triangles. A shading
+    /// written so is no longer counted in [`ExportTally::shadings_rasterised`]
+    /// below, nor in [`Self::gradients_rasterised`] or
+    /// [`Self::images_embedded`].
+    pub shadings: EmfShadings,
     /// The export recording's own tally (what was rasterised or
     /// approximated BEFORE this writer saw it). With
     /// [`EmfOptions::patch_approximations`] the approximations it patched
@@ -406,6 +436,9 @@ pub fn export_emf_view(
         outcome.height_pt = h_px as f32 / scale;
     }
     let mut w = Writer::new(&recording.clips, unit, (w_px, h_px), outcome);
+    if emf.vector_shadings {
+        w.shadings = Some(&recording.shadings);
+    }
     w.write_metafile(&recording.ops, plan.as_ref(), emf.background, size_u);
     Ok(EmfExport {
         emf: w.out,
@@ -496,6 +529,7 @@ impl EmfOutcome {
             text: EmfTextOutcome::default(),
             patches: EmfPatches::default(),
             vectorised: EmfVectorised::default(),
+            shadings: EmfShadings::default(),
             tally,
             diagnostics,
         }
@@ -525,6 +559,9 @@ struct Writer<'a> {
     text_align_set: bool,
     /// The text colour in force.
     text_colour: Option<[u8; 3]>,
+    /// With [`EmfOptions::vector_shadings`], the recording's harvested
+    /// shadings; `None` writes every shading as a bitmap.
+    shadings: Option<&'a [(Arc<Pixmap>, pdfcer_render::writer_seam::ShadingSource)]>,
 }
 
 const FILL_MODE_ALTERNATE: u32 = 1;
@@ -557,6 +594,7 @@ impl<'a> Writer<'a> {
             raster_prologue_done: false,
             text_align_set: false,
             text_colour: None,
+            shadings: None,
         }
     }
 }
@@ -859,6 +897,9 @@ impl Writer<'_> {
                     ..
                 } => {
                     let Brush::Solid { rgba } = &brush.brush else {
+                        if self.shadings.is_some() && self.vector_shading(op) {
+                            continue;
+                        }
                         match &brush.brush {
                             Brush::Gradient(_) => self.outcome.gradients_rasterised += 1,
                             Brush::Image { .. } => self.outcome.images_embedded += 1,

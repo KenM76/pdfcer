@@ -7,6 +7,7 @@ mod emf_plates;
 mod export_emf;
 mod export_emf_keep_text;
 mod export_emf_patches;
+mod export_emf_shading;
 mod export_emf_vector;
 mod external_tools;
 mod iccbased_cmyk_lut_source;

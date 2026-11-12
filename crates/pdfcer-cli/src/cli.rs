@@ -4367,6 +4367,14 @@ pub(crate) enum Command {
         /// box. stderr counts both per page.
         #[arg(long, conflicts_with = "print_as_image")]
         vector_transparency: bool,
+        /// Send smooth shadings (axial, radial, mesh) to the printer as
+        /// many small vector triangles, each blended between its corner
+        /// colours, instead of pixels, so such a page still prints as
+        /// vector graphics. Within 1/255 of the on-screen colours and a
+        /// quarter pixel of their edges; a see-through or very complex
+        /// shading stays pixels. stderr counts both per page.
+        #[arg(long, conflicts_with = "print_as_image")]
+        vector_shadings: bool,
         /// Staple the printed copy. Checked against what the printer
         /// offers (`list-finishing`); one it does not offer is refused, not
         /// dropped.
@@ -6079,6 +6087,14 @@ pub(crate) enum Command {
         /// does (implied). Counted on an `emf-vector:` line.
         #[arg(long)]
         vector_transparency: bool,
+        /// EMF only: write smooth shadings (axial, radial, mesh) as small
+        /// triangles each blended between its corner colours, instead of
+        /// bitmaps: within 1/255 of the page raster's colours and a quarter
+        /// pixel of its edges. A see-through shading, or one needing more
+        /// than 200 000 triangles, stays a bitmap. Independent of
+        /// `--vector-transparency`. Counted on an `emf-shadings:` line.
+        #[arg(long)]
+        vector_shadings: bool,
         /// EMF only: how text is written. `outlines` (default) draws every
         /// glyph as a path. `keep` writes each line it can as real text in
         /// the INSTALLED font of the same name, each character pinned to

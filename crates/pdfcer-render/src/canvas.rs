@@ -745,6 +745,19 @@ impl<'a> Canvas<'a> {
         }
     }
 
+    /// [`Self::export_scratch`] for a shading, remembered with the raster
+    /// it paints (`ExportRecording::shadings`).
+    pub(crate) fn export_shading_scratch(
+        &mut self,
+        clip: Option<ClipId>,
+        source: Option<crate::gouraud::ShadingSource>,
+    ) -> Option<&mut Pixmap> {
+        match self {
+            Self::Record(r) => r.export_scratch_for(clip, source),
+            _ => None,
+        }
+    }
+
     /// Record a clipping path, when recording.
     ///
     /// Returns the new clip id, or `None` in paint mode — where the caller

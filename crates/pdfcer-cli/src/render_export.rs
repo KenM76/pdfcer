@@ -1466,6 +1466,36 @@ pub(crate) fn vector_note(v: &pdfcer_emf::EmfVectorised) -> Option<String> {
     })
 }
 
+/// The fields of `--vector-shadings`' stable line, shared by
+/// `export-image`'s `emf-shadings:` and `print`'s per-page report.
+pub(crate) fn emf_shading_fields(s: &pdfcer_emf::EmfShadings) -> String {
+    format!(
+        "vector={} triangles={} declined_translucent={} declined_too_many={} declined_other={}",
+        s.vector, s.triangles, s.declined_translucent, s.declined_too_many, s.declined_other
+    )
+}
+
+/// `--vector-shadings`' note: the triangles approximate the raster's ramp
+/// (rule 4).
+pub(crate) fn shading_note(s: &pdfcer_emf::EmfShadings) -> Option<String> {
+    (s.vector + s.declined() > 0).then(|| {
+        format!(
+            "{} shading(s) written as {} triangle(s) within 1/255 of the raster's colours; {} left as bitmaps",
+            s.vector,
+            s.triangles,
+            s.declined()
+        )
+    })
+}
+
+/// `--vector-shadings`' stable `emf-shadings:` line and its note.
+fn print_emf_shadings(o: &pdfcer_emf::EmfOutcome, page_number: usize) {
+    println!("emf-shadings: {}", emf_shading_fields(&o.shadings));
+    if let Some(note) = shading_note(&o.shadings) {
+        eprintln!("pdfcer: note: page {page_number}: {note}");
+    }
+}
+
 /// `--vector-transparency`'s stable `emf-vector:` line and its note.
 fn print_emf_vector(o: &pdfcer_emf::EmfOutcome, page_number: usize) {
     println!("emf-vector: {}", emf_vector_fields(&o.vectorised));
@@ -1589,6 +1619,8 @@ pub(crate) struct ExportImageArgs<'a> {
     pub(crate) patch_approximations: bool,
     /// `--vector-transparency` (EMF only).
     pub(crate) vector_transparency: bool,
+    /// `--vector-shadings` (EMF only).
+    pub(crate) vector_shadings: bool,
     /// Outlines or kept text (EMF only).
     pub(crate) emf_text: SvgTextArg,
     /// `--emf-plates` or `--emf-plates-strict` (EMF only).
@@ -1654,6 +1686,7 @@ pub(crate) fn cmd_export_image(args: ExportImageArgs<'_>) -> u8 {
         raster_blends,
         patch_approximations,
         vector_transparency,
+        vector_shadings,
         emf_text,
         emf_plates,
         emf_plates_strict,
@@ -1680,6 +1713,13 @@ pub(crate) fn cmd_export_image(args: ExportImageArgs<'_>) -> u8 {
     if vector_transparency && (format != ImageFormatArg::Emf || emf_plates) {
         eprintln!(
             "pdfcer: {}: --vector-transparency applies to --format emf only, without --emf-plates",
+            input.display()
+        );
+        return exit::RUNTIME_ERROR;
+    }
+    if vector_shadings && (format != ImageFormatArg::Emf || emf_plates) {
+        eprintln!(
+            "pdfcer: {}: --vector-shadings applies to --format emf only, without --emf-plates",
             input.display()
         );
         return exit::RUNTIME_ERROR;
@@ -1855,7 +1895,8 @@ pub(crate) fn cmd_export_image(args: ExportImageArgs<'_>) -> u8 {
                 .with_text(emf_text.into())
                 .with_underlay_blends(!raster_blends)
                 .with_patch_approximations(patch_approximations)
-                .with_vector_transparency(vector_transparency);
+                .with_vector_transparency(vector_transparency)
+                .with_vector_shadings(vector_shadings);
             if emf_plates {
                 let req = crate::export_emf_plates::PlatesPage {
                     input,
@@ -1907,6 +1948,9 @@ pub(crate) fn cmd_export_image(args: ExportImageArgs<'_>) -> u8 {
             }
             if patch_approximations || vector_transparency {
                 print_emf_patches(o, page_number);
+            }
+            if vector_shadings {
+                print_emf_shadings(o, page_number);
             }
             report_diagnostics(
                 &o.diagnostics,

@@ -237,6 +237,7 @@ pub mod edit_preview;
 pub mod export;
 mod export_sites;
 pub mod font;
+mod gouraud;
 pub mod gstate;
 pub mod icc;
 pub mod image;

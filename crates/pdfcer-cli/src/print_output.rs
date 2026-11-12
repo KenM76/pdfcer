@@ -114,6 +114,9 @@ pub(crate) struct PrintOutput {
     /// `--vector-transparency`: flat transparency printed as vector regions.
     #[cfg_attr(not(windows), allow(dead_code))]
     pub vector_transparency: bool,
+    /// `--vector-shadings`: smooth shadings printed as vector triangles.
+    #[cfg_attr(not(windows), allow(dead_code))]
+    pub vector_shadings: bool,
     pub finishing: pdfcer_print::finishing::Finishing,
     // Read only by the `#[cfg(windows)]` print path.
     #[cfg_attr(not(windows), allow(dead_code))]

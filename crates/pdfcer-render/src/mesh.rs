@@ -366,7 +366,7 @@ fn bary_n<const N: usize>(w: [f32; 3], a: [f32; N], b: [f32; N], c: [f32; N]) ->
 impl Shade {
     /// Interpolate between two shades, `f` running 0 → `self`, 1 → `other`.
     #[must_use]
-    fn lerp(self, other: Self, f: f32) -> Self {
+    pub(crate) fn lerp(self, other: Self, f: f32) -> Self {
         match (self, other) {
             (Self::Rgb(a), Self::Rgb(b)) => Self::Rgb(Rgb {
                 r: f.mul_add(b.r - a.r, a.r),
@@ -430,7 +430,7 @@ impl Shade {
     /// at all. Both leave the pixel unpainted, which is the same treatment
     /// [`crate::shading`] gives a ramp hole in an analytic shading.
     #[must_use]
-    fn resolve(self, ramp: Option<&ColorRamp>) -> Option<Rgb> {
+    pub(crate) fn resolve(self, ramp: Option<&ColorRamp>) -> Option<Rgb> {
         match self {
             Self::Rgb(c) | Self::Ink { rgb: c, .. } | Self::Spot { rgb: c, .. } => Some(c),
             Self::Parametric(t) => ramp?.at(t),
@@ -1534,7 +1534,7 @@ impl Patch {
     /// `S(u, v) = Σᵢ Σⱼ pᵢⱼ · Bᵢ(u) · Bⱼ(v)`, with `i` the column (`u`)
     /// index and `j` the row (`v`) index.
     #[must_use]
-    fn at(&self, u: f32, v: f32) -> [f32; 2] {
+    pub(crate) fn at(&self, u: f32, v: f32) -> [f32; 2] {
         let bu = bernstein(u);
         let bv = bernstein(v);
         let mut out = [0.0f32; 2];
@@ -1558,7 +1558,7 @@ impl Patch {
     /// and then evaluating the function is exactly `MSH14`'s
     /// `f(lerp(t))`.
     #[must_use]
-    fn shade_at(&self, u: f32, v: f32) -> Shade {
+    pub(crate) fn shade_at(&self, u: f32, v: f32) -> Shade {
         // v edge at u = 0: c00 -> c03.  v edge at u = 1: c30 -> c33.
         let left = self.corner[0].lerp(self.corner[1], v);
         let right = self.corner[3].lerp(self.corner[2], v);
@@ -1579,7 +1579,7 @@ impl Patch {
 /// its `n`-segment polyline falls as `O(1/n²)`, so four pixels per cell
 /// puts the worst case comfortably below one pixel for any curvature a
 /// patch that size can carry.
-fn subdivision_for(extent: f32) -> u32 {
+pub(crate) fn subdivision_for(extent: f32) -> u32 {
     if !extent.is_finite() || extent <= 0.0 {
         return 1;
     }
@@ -1985,7 +1985,7 @@ fn rasterise(
 }
 
 /// Apply a transform to a bare `[x, y]`.
-fn map(t: tiny_skia::Transform, p: [f32; 2]) -> [f32; 2] {
+pub(crate) fn map(t: tiny_skia::Transform, p: [f32; 2]) -> [f32; 2] {
     let mut pt = tiny_skia::Point::from_xy(p[0], p[1]);
     t.map_point(&mut pt);
     [pt.x, pt.y]
@@ -1996,7 +1996,7 @@ fn map(t: tiny_skia::Transform, p: [f32; 2]) -> [f32; 2] {
 /// The **hull**, not the surface: a cubic Bézier lies inside the convex
 /// hull of its control points, so this bounds the patch without evaluating
 /// it, which is what makes it usable to *choose* the evaluation density.
-fn patch_device_extent(patch: &Patch, to_device: tiny_skia::Transform) -> f32 {
+pub(crate) fn patch_device_extent(patch: &Patch, to_device: tiny_skia::Transform) -> f32 {
     let mut lo = [f32::INFINITY; 2];
     let mut hi = [f32::NEG_INFINITY; 2];
     for col in &patch.p {

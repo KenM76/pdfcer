@@ -6044,7 +6044,11 @@ impl<'a> Interpreter<'a> {
         // recorder's scratch with the same evaluator and harvested as a
         // raster under the clip in force. `refuse` above already counted
         // it (`ExportTally::shadings_rasterised`).
-        if let Some(scratch) = canvas.export_scratch(self.gs.current.clip_ref().id) {
+        let source = canvas
+            .exporting()
+            .then(|| crate::gouraud::ShadingSource::new(&shading, to_target, region, None, alpha));
+        if let Some(scratch) = canvas.export_shading_scratch(self.gs.current.clip_ref().id, source)
+        {
             if shading
                 .paint_metered(to_target, region, clip, alpha, scratch, meter)
                 .is_some()
@@ -7949,8 +7953,14 @@ impl<'a> Interpreter<'a> {
         // EXPORT recording (`Pass 248.1`) -- see the `sh` operator's
         // twin. `mask` already carries the fill path's coverage, so the
         // harvested raster has the shape baked in; the clip id handles
-        // the clip.
-        if let Some(scratch) = canvas.export_scratch(self.gs.current.clip_ref().id) {
+        // the clip. A stroked pattern's area is its outline, which only the
+        // raster has, so it is not offered as geometry.
+        let source = (canvas.exporting() && !stroking).then(|| {
+            let area = path.clone().transform(ctm).map(|p| (Arc::new(p), rule));
+            crate::gouraud::ShadingSource::new(&shading, to_target, region, area, alpha)
+        });
+        if let Some(scratch) = canvas.export_shading_scratch(self.gs.current.clip_ref().id, source)
+        {
             return if shading
                 .paint_metered(to_target, region, Some(&mask), alpha, scratch, meter)
                 .is_some()

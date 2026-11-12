@@ -955,6 +955,9 @@ pub struct ExportRecording {
     pub sites: Vec<crate::export_sites::Site>,
     /// The page group blends in a subtractive space (§11.7.2).
     pub subtractive_page: bool,
+    /// Each shading harvested as an image op, keyed by that op's texels
+    /// (`Arc::ptr_eq`), with what a writer needs to draw it as geometry.
+    pub shadings: Vec<(Arc<Pixmap>, crate::gouraud::ShadingSource)>,
 }
 
 /// Record a page in export mode (`Pass 248.1`).
@@ -1002,6 +1005,7 @@ impl Recorded {
             tally: recorded.tally,
             sites: recorded.sites.sites,
             subtractive_page: recorded.sites.subtractive_page,
+            shadings: recorded.shadings,
         }
     }
 }
@@ -1017,6 +1021,7 @@ struct Recorded {
     poison: Option<PoisonReason>,
     tally: ExportTally,
     sites: crate::export_sites::SiteLog,
+    shadings: Vec<(Arc<Pixmap>, crate::gouraud::ShadingSource)>,
 }
 
 /// The one walk both [`record_page`] and [`record_page_for_export`]
@@ -1186,6 +1191,14 @@ fn record_impl(
     // unrecordable as one whose first is.
     let poison = recorder.poison_reason();
     let tally = recorder.export_tally();
+    // The page's last shading is still in the scratch; harvest it so its
+    // pairing is taken with the rest (`finish` would harvest it too late).
+    recorder.harvest();
+    let shadings = recorder
+        .export
+        .as_mut()
+        .map(|e| std::mem::take(&mut e.shadings))
+        .unwrap_or_default();
     let sites = recorder
         .export
         .as_mut()
@@ -1206,6 +1219,7 @@ fn record_impl(
         poison,
         tally,
         sites,
+        shadings,
     })
 }
 
@@ -1586,6 +1600,30 @@ pub(crate) struct ExportState {
     )>,
     /// Where the tallied approximations were made (`Pass 700.12`).
     pub sites: crate::export_sites::SiteLog,
+    /// The shading the scratch was last handed out for, if any.
+    pub pending_shading: Option<crate::gouraud::ShadingSource>,
+    /// Each harvested shading raster with the shading that painted it.
+    pub shadings: Vec<(Arc<Pixmap>, crate::gouraud::ShadingSource)>,
+}
+
+/// The inclusive pixel box of every pixel of `scratch` with coverage, or
+/// `None` when nothing was painted. A full scan of the page per harvest is
+/// the price of not threading a dirty rect through every fallback painter.
+fn painted_box(scratch: &Pixmap) -> Option<(u32, u32, u32, u32)> {
+    let w = scratch.width();
+    let (mut x0, mut y0, mut x1, mut y1) = (u32::MAX, u32::MAX, 0u32, 0u32);
+    for (i, px) in scratch.pixels().iter().enumerate() {
+        if px.alpha() == 0 {
+            continue;
+        }
+        #[allow(clippy::cast_possible_truncation)]
+        let (x, y) = ((i as u32) % w, (i as u32) / w);
+        x0 = x0.min(x);
+        y0 = y0.min(y);
+        x1 = x1.max(x);
+        y1 = y1.max(y);
+    }
+    (x0 != u32::MAX).then_some((x0, y0, x1, y1))
 }
 
 /// What an export recording could not express as geometry, counted
@@ -1663,6 +1701,8 @@ impl RecorderState {
             keep_text: false,
             text_fonts: Vec::new(),
             sites: crate::export_sites::SiteLog::default(),
+            pending_shading: None,
+            shadings: Vec::new(),
         });
         Some(state)
     }
@@ -1818,9 +1858,21 @@ impl RecorderState {
     /// fallback is harvested FIRST so two consecutive shadings each get
     /// their own image under their own clip.
     pub(crate) fn export_scratch(&mut self, clip: Option<ClipId>) -> Option<&mut Pixmap> {
+        self.export_scratch_for(clip, None)
+    }
+
+    /// [`Self::export_scratch`] for a shading: the harvested raster is
+    /// paired with `source` in [`ExportRecording::shadings`], so a writer
+    /// can draw the shading itself instead of its pixels.
+    pub(crate) fn export_scratch_for(
+        &mut self,
+        clip: Option<ClipId>,
+        source: Option<crate::gouraud::ShadingSource>,
+    ) -> Option<&mut Pixmap> {
         self.harvest();
         let export = self.export.as_mut()?;
         export.pending_clip = clip;
+        export.pending_shading = source;
         export.dirty = true;
         Some(&mut export.scratch)
     }
@@ -1838,26 +1890,11 @@ impl RecorderState {
         }
         export.dirty = false;
         let clip = export.pending_clip;
-        let (w, h) = (export.scratch.width(), export.scratch.height());
-        // Bounding box of every pixel with coverage. A full scan of the
-        // page per harvest is the price of not threading a dirty rect
-        // through every fallback painter; an export pays it a handful of
-        // times per page.
-        let (mut x0, mut y0, mut x1, mut y1) = (u32::MAX, u32::MAX, 0u32, 0u32);
-        for (i, px) in export.scratch.pixels().iter().enumerate() {
-            if px.alpha() == 0 {
-                continue;
-            }
-            #[allow(clippy::cast_possible_truncation)]
-            let (x, y) = ((i as u32) % w, (i as u32) / w);
-            x0 = x0.min(x);
-            y0 = y0.min(y);
-            x1 = x1.max(x);
-            y1 = y1.max(y);
-        }
-        if x0 == u32::MAX {
+        let source = export.pending_shading.take();
+        let w = export.scratch.width();
+        let Some((x0, y0, x1, y1)) = painted_box(&export.scratch) else {
             return;
-        }
+        };
         let (bw, bh) = (x1 - x0 + 1, y1 - y0 + 1);
         let Some(mut texels) = Pixmap::new(bw, bh) else {
             return;
@@ -1877,7 +1914,10 @@ impl RecorderState {
             }
         }
         export.scratch.fill(tiny_skia::Color::TRANSPARENT);
-        let _ = h;
+        let texels = Arc::new(texels);
+        if let Some(source) = source {
+            export.shadings.push((Arc::clone(&texels), source));
+        }
         #[allow(clippy::cast_precision_loss)]
         let (fx, fy, fw, fh) = (x0 as f32, y0 as f32, bw as f32, bh as f32);
         let Some(rect) = tiny_skia::Rect::from_xywh(fx, fy, fw, fh) else {
@@ -1892,7 +1932,7 @@ impl RecorderState {
                 bottom: fy + fh,
             }),
             path: Arc::new(path),
-            brush: BrushSpec::raster(Arc::new(texels), Transform::from_translate(fx, fy)),
+            brush: BrushSpec::raster(texels, Transform::from_translate(fx, fy)),
             rule: FillRule::Winding,
             // Already in device space: the scratch IS the page grid.
             ctm: Transform::identity(),
