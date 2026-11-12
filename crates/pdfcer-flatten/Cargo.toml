@@ -1,0 +1,32 @@
+[package]
+name = "pdfcer-flatten"
+description = "pdfcer transparency flattener: PDF transparency (constant alpha, blend modes, overprint, isolated and knockout groups) over flat colours, resolved into opaque vector regions. Pure Rust geometry and arithmetic; no GUI, platform or network dependencies, builds for wasm32."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+publish = true
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+readme = "README.md"
+keywords = ["pdf", "transparency", "flattening", "vector", "blend"]
+categories = ["graphics", "rendering"]
+# One integration-test binary per crate (tests/all.rs); see
+# tools/check-tests-harnessed.py.
+autotests = false
+
+[dependencies]
+# i_overlay: polygon booleans (intersection, difference, union, and
+# fill-rule normalisation) on float contours. MIT OR Apache-2.0; its own
+# dependencies are MIT (i_float, i_shape, i_tree, i_key_sort) and
+# MIT OR Apache-2.0 (libm). Default features
+# off: `allow_multithreading` pulls rayon, and this crate must stay
+# single-threaded for wasm32 (docs/PRIOR_ART.md).
+i_overlay = { version = "9.1", default-features = false }
+# thiserror: C-GOOD-ERR error derive. MIT OR Apache-2.0.
+thiserror = "2"
+
+[[test]]
+name = "all"
+path = "tests/all.rs"

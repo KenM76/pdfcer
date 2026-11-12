@@ -1424,8 +1424,8 @@ shadings_as_gradients={} blends_flattened={} blends_underlaid={}",
 fn print_emf_patches(o: &pdfcer_emf::EmfOutcome, page_number: usize) {
     let p = &o.patches;
     println!(
-        "emf-patches: rasters={} overprint={} non_isolated_groups={} blends={} blending_space={}",
-        p.rasters, p.overprint, p.non_isolated_groups, p.blends, p.blending_space
+        "emf-patches: rasters={} overprint={} non_isolated_groups={} blends={} blending_space={} transparency={}",
+        p.rasters, p.overprint, p.non_isolated_groups, p.blends, p.blending_space, p.transparency
     );
     if p.rasters > 0 {
         eprintln!(
@@ -1433,6 +1433,44 @@ fn print_emf_patches(o: &pdfcer_emf::EmfOutcome, page_number: usize) {
             p.cases(),
             p.rasters
         );
+    }
+}
+
+/// The fields of `--vector-transparency`'s stable line, shared by
+/// `export-image`'s `emf-vector:` and `print`'s per-page report.
+pub(crate) fn emf_vector_fields(v: &pdfcer_emf::EmfVectorised) -> String {
+    format!(
+        "ops={} regions={} alpha={} groups={} overprint={} blends={} patched_not_flat={} patched_too_complex={} patched_unrecorded={}",
+        v.ops,
+        v.regions,
+        v.alpha,
+        v.groups,
+        v.overprint,
+        v.blends,
+        v.patched_not_flat,
+        v.patched_too_complex,
+        v.patched_unrecorded
+    )
+}
+
+/// `--vector-transparency`'s note: what was computed rather than copied
+/// (rule 4).
+pub(crate) fn vector_note(v: &pdfcer_emf::EmfVectorised) -> Option<String> {
+    (v.ops + v.patched() > 0).then(|| {
+        format!(
+            "{} transparent object(s) written as {} opaque shape(s) in the colour the page shows over the paper; {} left as pixels",
+            v.ops,
+            v.regions,
+            v.patched()
+        )
+    })
+}
+
+/// `--vector-transparency`'s stable `emf-vector:` line and its note.
+fn print_emf_vector(o: &pdfcer_emf::EmfOutcome, page_number: usize) {
+    println!("emf-vector: {}", emf_vector_fields(&o.vectorised));
+    if let Some(note) = vector_note(&o.vectorised) {
+        eprintln!("pdfcer: note: page {page_number}: {note}");
     }
 }
 
@@ -1549,6 +1587,8 @@ pub(crate) struct ExportImageArgs<'a> {
     pub(crate) raster_blends: bool,
     /// `--patch-approximations` (EMF only).
     pub(crate) patch_approximations: bool,
+    /// `--vector-transparency` (EMF only).
+    pub(crate) vector_transparency: bool,
     /// Outlines or kept text (EMF only).
     pub(crate) emf_text: SvgTextArg,
     /// `--emf-plates` or `--emf-plates-strict` (EMF only).
@@ -1613,6 +1653,7 @@ pub(crate) fn cmd_export_image(args: ExportImageArgs<'_>) -> u8 {
         flatten_blends,
         raster_blends,
         patch_approximations,
+        vector_transparency,
         emf_text,
         emf_plates,
         emf_plates_strict,
@@ -1632,6 +1673,13 @@ pub(crate) fn cmd_export_image(args: ExportImageArgs<'_>) -> u8 {
     if patch_approximations && format != ImageFormatArg::Emf {
         eprintln!(
             "pdfcer: {}: --patch-approximations applies to --format emf only",
+            input.display()
+        );
+        return exit::RUNTIME_ERROR;
+    }
+    if vector_transparency && (format != ImageFormatArg::Emf || emf_plates) {
+        eprintln!(
+            "pdfcer: {}: --vector-transparency applies to --format emf only, without --emf-plates",
             input.display()
         );
         return exit::RUNTIME_ERROR;
@@ -1806,7 +1854,8 @@ pub(crate) fn cmd_export_image(args: ExportImageArgs<'_>) -> u8 {
                 .with_background(if transparent { None } else { background })
                 .with_text(emf_text.into())
                 .with_underlay_blends(!raster_blends)
-                .with_patch_approximations(patch_approximations);
+                .with_patch_approximations(patch_approximations)
+                .with_vector_transparency(vector_transparency);
             if emf_plates {
                 let req = crate::export_emf_plates::PlatesPage {
                     input,
@@ -1853,7 +1902,10 @@ pub(crate) fn cmd_export_image(args: ExportImageArgs<'_>) -> u8 {
                 render_counters_line(&o.diagnostics, &doc, supplied_registered)
             );
             print_emf_disclosure(o, page_number, emf_text == SvgTextArg::Keep);
-            if patch_approximations {
+            if vector_transparency {
+                print_emf_vector(o, page_number);
+            }
+            if patch_approximations || vector_transparency {
                 print_emf_patches(o, page_number);
             }
             report_diagnostics(

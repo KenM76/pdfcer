@@ -111,6 +111,8 @@ pub(crate) struct PrintOutput {
     pub marks: Vec<MarkArg>,
     pub separations: bool,
     pub print_as_image: bool,
+    /// `--vector-transparency`: flat transparency printed as vector regions.
+    pub vector_transparency: bool,
     pub finishing: pdfcer_print::finishing::Finishing,
     // Read only by the `#[cfg(windows)]` print path.
     #[cfg_attr(not(windows), allow(dead_code))]

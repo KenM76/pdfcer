@@ -187,7 +187,7 @@ LOCAL_VIA = {
     # runs locally if the target is installed. `rustup target add
     # wasm32-unknown-unknown` once, then this is a normal cargo check.
     "--target wasm32-unknown-unknown": (
-        "cargo check -p pdfcer-core -p pdfcer-render -p pdfcer-emf --target wasm32-unknown-unknown"
+        "cargo check -p pdfcer-core -p pdfcer-render -p pdfcer-emf -p pdfcer-flatten --target wasm32-unknown-unknown"
     ),
     # `cargo about` is installed on this machine (0.9.1). Regenerating and
     # diffing is what the audit does.
@@ -216,7 +216,7 @@ LOCAL_VIA = {
     # local stand-in that covers half of a two-crate invariant is a stand-in
     # that can be green while CI is red.
     "cargo tree": (
-        "! cargo tree -p pdfcer-core -p pdfcer-render -p pdfcer-emf 2>/dev/null "
+        "! cargo tree -p pdfcer-core -p pdfcer-render -p pdfcer-emf -p pdfcer-flatten 2>/dev/null "
         "| grep -Ei '(^|[[:space:]])(egui|eframe|winit|wgpu|reqwest|hyper)([[:space:]]|$)'"
     ),
 }

@@ -549,7 +549,9 @@ impl Writer<'_> {
                     clip,
                     ..
                 } => self.write_stroke(path, brush, stroke, *ctm, *clip, depth),
-                Op::Layer { paint, ops, mask } => {
+                Op::Layer {
+                    paint, ops, mask, ..
+                } => {
                     self.write_layer(*paint, ops, mask.as_ref(), depth);
                 }
                 Op::Text { ops, .. } => {

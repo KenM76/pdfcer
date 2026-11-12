@@ -756,7 +756,7 @@ fn patch_approximations_reaches_the_emf_writer() {
     );
     assert!(
         stdout(&patched).contains(
-            "emf-patches: rasters=1 overprint=1 non_isolated_groups=0 blends=0 blending_space=0"
+            "emf-patches: rasters=1 overprint=1 non_isolated_groups=0 blends=0 blending_space=0 transparency=0"
         ),
         "{}",
         stdout(&patched)
@@ -776,6 +776,33 @@ fn patch_approximations_reaches_the_emf_writer() {
     ]);
     assert_ne!(png.status.code(), Some(0));
     assert!(stderr(&png).contains("--patch-approximations applies to --format emf only"));
+
+    // --vector-transparency (Pass 700.13): the same overprint as regions.
+    let vector = export(&["--vector-transparency"]);
+    assert_eq!(vector.status.code(), Some(0), "stderr: {}", stderr(&vector));
+    let text = stdout(&vector);
+    assert!(
+        text.contains(
+            "emf-vector: ops=1 regions=2 alpha=0 groups=0 overprint=1 blends=0 patched_not_flat=0 patched_too_complex=0 patched_unrecorded=0"
+        ),
+        "{text}"
+    );
+    assert!(text.contains("emf-patches: rasters=0 "), "{text}");
+    assert!(text.contains("emf: ops=3 rasters=0 "), "{text}");
+    assert!(
+        stderr(&vector).contains("1 transparent object(s) written as 2 opaque shape(s)"),
+        "{}",
+        stderr(&vector)
+    );
+    let png = run(&[
+        "export-image",
+        input.to_str().unwrap(),
+        "--vector-transparency",
+        "-o",
+        dir.join("p.png").to_str().unwrap(),
+    ]);
+    assert_ne!(png.status.code(), Some(0));
+    assert!(stderr(&png).contains("--vector-transparency applies to --format emf only"));
 }
 
 fn one_page(dir: &TempDir, name: &str, content: &str) -> PathBuf {

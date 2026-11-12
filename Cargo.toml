@@ -46,6 +46,7 @@ members = [
     "crates/pdfcer-function",
     "crates/pdfcer-core",
     "crates/pdfcer-render",
+    "crates/pdfcer-flatten",
     "crates/pdfcer-emf",
     "crates/pdfcer-cli",
     "crates/pdfcer-print",
@@ -145,6 +146,7 @@ pdfcer-model = { path = "crates/pdfcer-model", version = "0.145.0" }
 pdfcer-core = { path = "crates/pdfcer-core", version = "0.145.0", default-features = false }
 pdfcer-render = { path = "crates/pdfcer-render", version = "0.145.0", default-features = false }
 pdfcer-emf = { path = "crates/pdfcer-emf", version = "0.145.0" }
+pdfcer-flatten = { path = "crates/pdfcer-flatten", version = "0.145.0" }
 pdfcer-print = { path = "crates/pdfcer-print" }
 # Published with versions beside their paths (decision 217); bump with
 # [workspace.package] version like pdfcer-model above.

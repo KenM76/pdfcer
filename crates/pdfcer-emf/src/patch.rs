@@ -43,6 +43,9 @@ pub struct EmfPatches {
     /// Compositing in a subtractive page group or colorant space, which the
     /// recording would have done in RGB (§11.7.2).
     pub blending_space: usize,
+    /// Ops [`crate::EmfOptions::vector_transparency`] could not write as
+    /// regions; why is in [`crate::EmfVectorised`].
+    pub transparency: usize,
     /// `EMR_ALPHABLEND` records the patches were written as.
     pub rasters: usize,
 }
@@ -51,7 +54,11 @@ impl EmfPatches {
     /// Regions patched, every cause summed.
     #[must_use]
     pub fn cases(&self) -> usize {
-        self.overprint + self.non_isolated_groups + self.blends + self.blending_space
+        self.overprint
+            + self.non_isolated_groups
+            + self.blends
+            + self.blending_space
+            + self.transparency
     }
 }
 
@@ -82,21 +89,25 @@ impl Plan {
 }
 
 /// Plan the patches for `rec` (after [`pdfcer_render::writer_seam::flatten_blends`]) and drop the
-/// top-level ops lying wholly inside one. `None` when there is nothing to
-/// patch or the raster could not be made; then nothing is changed.
+/// top-level ops lying wholly inside one. `extra` are boxes patched besides
+/// the recording's own sites. `None` when there is nothing to patch or the
+/// raster could not be made; then nothing is changed.
 pub(super) fn plan(
     rec: &mut ExportRecording,
     view: &DocumentView<'_>,
     page: &Page,
     render: &RenderOptions,
     scale: f32,
+    extra: &[DeviceBounds],
 ) -> Option<Plan> {
     let (w, h) = rec.page_size;
     let sites = sites(rec);
     let rects = merge(
         sites
             .iter()
-            .filter_map(|s| px_rect(s.bounds, w, h))
+            .map(|s| s.bounds)
+            .chain(extra.iter().copied())
+            .filter_map(|b| px_rect(b, w, h))
             .collect(),
     );
     if !rects.is_empty() {
@@ -115,7 +126,8 @@ pub(super) fn plan(
             };
             !rects.iter().any(|c| contains(*c, r))
         });
-        let patches = count(&sites, rects.len());
+        let mut patches = count(&sites, rects.len());
+        patches.transparency = extra.len();
         zero_tallies(rec);
         return Some(Plan {
             rects,
@@ -162,7 +174,7 @@ fn zero_tallies(rec: &mut ExportRecording) {
 }
 
 /// Whether `op`'s result depends on what lies beneath it.
-fn composites(op: &Op) -> bool {
+pub(super) fn composites(op: &Op) -> bool {
     match op {
         Op::Fill { brush, .. } | Op::Stroke { brush, .. } => match brush.brush {
             Brush::Solid { rgba } => {
@@ -259,11 +271,13 @@ fn count(sites: &[Site], rasters: usize) -> EmfPatches {
         non_isolated_groups: distinct(SiteCause::NonIsolatedGroup),
         blends: distinct(SiteCause::Blend),
         blending_space: distinct(SiteCause::BlendingSpace),
+        transparency: 0,
         rasters,
     }
 }
 
-fn within(inner: DeviceBounds, outer: DeviceBounds) -> bool {
+/// Whether `inner` lies entirely inside `outer`.
+pub(super) fn within(inner: DeviceBounds, outer: DeviceBounds) -> bool {
     outer.left <= inner.left
         && outer.top <= inner.top
         && inner.right <= outer.right

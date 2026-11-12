@@ -329,6 +329,15 @@ pub enum Op {
         /// consumed at exactly the recording scale, so there the mask is
         /// valid and is carried — as an SVG `<mask>` — rather than dropped.
         mask: Option<Arc<Mask>>,
+        /// §11.4.5: composited over a clear backdrop. Replay always
+        /// composites isolated; a non-isolated layer whose contents read
+        /// the backdrop poisons a cache recording and is logged as a
+        /// `SiteCause::NonIsolatedGroup` site in an export one.
+        isolated: bool,
+        /// §11.4.6: each member composites over the layer's initial
+        /// backdrop. Replay ignores it; carried for writers that
+        /// composite the layer themselves.
+        knockout: bool,
     },
     /// The paints one shown string produced, kept together with what the
     /// string SAID, so a writer can emit text instead of outlines (G033).
@@ -1288,7 +1297,9 @@ pub fn replay_ops(
                 );
             }
             Op::Text { ops, .. } => replay_ops(ops, pixmap, masks, region),
-            Op::Layer { paint, ops, mask } => {
+            Op::Layer {
+                paint, ops, mask, ..
+            } => {
                 // Same size as the destination and TRANSPARENT to start —
                 // §11.4.7's isolated backdrop, and the same buffer
                 // `Canvas::layer` allocates in paint mode.
@@ -1933,6 +1944,8 @@ impl RecorderState {
             },
             ops: vec![op],
             mask: Some(arc),
+            isolated: true,
+            knockout: false,
         });
     }
 
@@ -2120,6 +2133,8 @@ mod tests {
             },
             ops: Vec::new(),
             mask: None,
+            isolated: true,
+            knockout: false,
         });
         let loaded = op_bytes(&Op::Layer {
             paint: LayerPaint {
@@ -2129,6 +2144,8 @@ mod tests {
             },
             ops: vec![unit_fill(), unit_fill()],
             mask: None,
+            isolated: true,
+            knockout: false,
         });
         assert!(
             loaded > bare,

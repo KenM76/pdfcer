@@ -17,7 +17,7 @@ categories = ["graphics", "rendering", "encoding"]
 autotests = false
 
 [dependencies]
-# Every dependency below is already in the workspace graph through
+# Every dependency below but pdfcer-flatten is already in the workspace graph through
 # pdfcer-render, at the same version requirement, so this crate adds no
 # package and no licence (rule 13). None is a GUI, windowing or network crate.
 #
@@ -26,6 +26,10 @@ autotests = false
 # version, and a consumer takes both at that version.
 pdfcer-core.workspace = true
 pdfcer-render.workspace = true
+# pdfcer-flatten: flat transparency resolved into opaque regions
+# (`EmfOptions::vector_transparency`). Adds one package, i_overlay's polygon
+# booleans and their small dependency set (MIT OR Apache-2.0). MIT.
+pdfcer-flatten.workspace = true
 # tiny-skia: the paths, transforms and pixmaps the recording is made of.
 # BSD-3-Clause.
 tiny-skia = "0.11"

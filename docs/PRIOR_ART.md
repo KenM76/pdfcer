@@ -319,6 +319,12 @@ into a *document* only — NOT bundling with an application.
 |---|---|---|---|
 | `usvg` 0.45.1 | Apache-2.0 OR MIT | **adopt** (decision 186) | Parses SVG/SVGZ to a simplified tree: CSS resolved, `use` expanded, shapes as paths, units absolute. `default-features = false` drops `text` (fontdb/rustybuzz). Transitives all permissive (from `cargo metadata`): `roxmltree`, `svgtypes`, `simplecss`, `kurbo`, `data-url`, `siphasher`, `base64`, `flate2` (MIT OR Apache-2.0); `strict-num`, `float-cmp`, `imagesize`, `xmlwriter`, `pico-args` (MIT); `tiny-skia-path` (BSD-3-Clause). wasm32-clean, no network (an `<image href>` to a URL is skipped, never fetched). Same crate resvg renders from, so resvg is the parity oracle (render dev-dep). |
 
+### Polygon boolean operations (`pdfcer-flatten`)
+
+| Crate | License | Verdict | Why |
+|---|---|---|---|
+| `i_overlay` 9.1 | MIT OR Apache-2.0 | **adopt** (Pass 700.13) | Polygon union/intersection/difference with even-odd and non-zero fill rules, float contours snapped to an integer grid internally (exact predicates). Splits overlapping paints into atomic regions for transparency flattening. `default-features = false` (drops `rayon` threads, which would compile for wasm32 and fail at runtime). Transitives all permissive (crate `Cargo.toml` fields): `i_float`, `i_shape`, `i_tree`, `i_key_sort` (MIT), `libm` (MIT OR Apache-2.0). wasm32-clean, no I/O. |
+
 ### XFA packets (`pdfcer-core`, always on)
 
 | Crate | License | Verdict | Why |

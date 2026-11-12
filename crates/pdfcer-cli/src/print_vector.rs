@@ -13,25 +13,46 @@ use pdfcer_emf::{EmfExport, EmfOptions, PrintMetafileError, print_export_with};
 use pdfcer_render::{DocumentView, RenderOptions};
 
 /// The page as a printable metafile at `scale` device pixels per point, or
-/// `Err` with the reason it prints as an image.
+/// `Err` with the reason it prints as an image. `vector_transparency` is
+/// `--vector-transparency`.
 pub(crate) fn vector_page(
     view: &DocumentView<'_>,
     page: &Page,
     scale: f32,
     options: &RenderOptions,
+    vector_transparency: bool,
 ) -> Result<EmfExport, String> {
-    let emf = EmfOptions::default().with_raster_dpi(scale * 72.0);
+    let emf = EmfOptions::default()
+        .with_raster_dpi(scale * 72.0)
+        .with_vector_transparency(vector_transparency);
     print_export_with(view, page, options, &emf).map_err(|e| match e {
         PrintMetafileError::Raster(why) => why.as_str().to_owned(),
         other => other.to_string(),
     })
 }
 
-/// Say how page `index` (0-based) printed: `vector`, or `raster (why)`.
-pub(crate) fn report_route(index: usize, route: &Result<EmfExport, String>) {
+/// Say how page `index` (0-based) printed: `vector`, or `raster (why)`;
+/// with `vector_transparency`, what it wrote as regions and as pixels.
+pub(crate) fn report_route(
+    index: usize,
+    route: &Result<EmfExport, String>,
+    vector_transparency: bool,
+) {
     match route {
         Ok(export) => {
             eprintln!("pdfcer: page {}: vector", index + 1);
+            if vector_transparency {
+                let o = &export.outcome;
+                eprintln!(
+                    "pdfcer: page {}: vector-transparency {} pixel_patches={}",
+                    index + 1,
+                    crate::render_export::emf_vector_fields(&o.vectorised),
+                    o.patches.rasters
+                );
+                if let Some(note) = crate::render_export::vector_note(&o.vectorised) {
+                    eprintln!("pdfcer: note: page {}: {note}", index + 1);
+                }
+            }
             report_unmodelled(index, export.outcome.diagnostics.icc_profiles_unmodelled);
         }
         Err(why) => eprintln!("pdfcer: page {}: raster ({why})", index + 1),
@@ -115,9 +136,13 @@ mod tests {
     }
 
     fn route(doc: &Document) -> Result<Vec<u8>, String> {
+        route_with(doc, false).map(|e| e.emf)
+    }
+
+    fn route_with(doc: &Document, vector: bool) -> Result<EmfExport, String> {
         let page = pdfcer_core::page_tree::pages(doc).expect("pages").remove(0);
         let view = DocumentView::new(doc, doc.bytes(), doc.version());
-        vector_page(&view, &page, 2.0, &RenderOptions::default()).map(|e| e.emf)
+        vector_page(&view, &page, 2.0, &RenderOptions::default(), vector)
     }
 
     #[test]
@@ -147,5 +172,17 @@ mod tests {
             "<< /ExtGState << /G0 << /BM /Multiply >> >> >>",
         );
         assert_eq!(route(&doc), Err("blend mode".to_owned()));
+    }
+
+    #[test]
+    fn with_vector_transparency_a_flat_transparent_page_prints_as_vector() {
+        let doc = one_page(
+            "0 0 1 rg 0 0 60 60 re f /G0 gs 1 0 0 rg 30 30 60 60 re f",
+            "<< /ExtGState << /G0 << /BM /Multiply /ca 0.5 >> >> >>",
+        );
+        let export = route_with(&doc, true).expect("vector");
+        let v = export.outcome.vectorised;
+        assert_eq!((v.ops, v.blends, v.alpha, v.patched()), (1, 1, 1, 0));
+        assert_eq!(export.outcome.patches.rasters, 0);
     }
 }

@@ -5153,7 +5153,9 @@ module outside the semver surface; nothing else should use it.
 | know what became a bitmap | `EmfExport::outcome: EmfOutcome` — `ops`, `rasters_embedded`, `ops_rasterised_for_alpha`, `blend_modes_dropped`, `blends_flattened` (top-level blended ops — a highlight — taken out of the blend; always on, since EMF has no blend modes), `blends_underlaid` (of those, how many moved beneath the page as a source-over vector because that looks the same; the rest are written as pixels; `EmfOptions::with_underlay_blends(false)` forces pixels), `gradients_rasterised`, `images_embedded`, `layers_rasterised`, `dashed_strokes_pre_applied`, `nonzero_fills_multi_subpath`, plus the recording's `tally` and `diagnostics` |
 | decide vector-or-raster for printing | `pdfcer_emf::print_metafile(&view, &page, &RenderOptions, raster_dpi) -> Result<Vec<u8>, PrintMetafileError>` — the EMF when it is the whole page; `PrintMetafileError::Raster(RasterReason)` when the page must print as an image, `::Export(RenderError)` when export failed. The same rule `pdfcer print` applies |
 | write approximated regions as true pixels | `EmfOptions::default().with_patch_approximations(true)` (field `patch_approximations`, default `false`; off is byte-identical). Each region the recording can only approximate — an overprint over earlier ink (over paper it stays vector), a non-isolated group, a blend inside a group, compositing in a CMYK page group — becomes one `EMR_ALPHABLEND` of the page raster's own pixels over its box (grown 1 px, merged until disjoint); the vector page is clipped out of each box with `EMR_EXCLUDECLIPRECT`. The patched tallies (`overprint_approximated`, `non_isolated_groups_isolated`, `nonseparable_approximated`, `colorant_buffer_on_screen`) and `blend_modes_dropped` read 0, and `print_fallback()` no longer names them. A top-level blended highlight is still handled by `blends_flattened`, not by this switch. CLI `export-image --format emf --patch-approximations` |
-| know what was patched | `EmfOutcome::patches: EmfPatches` (`#[non_exhaustive]`, `Copy`) — `overprint`, `non_isolated_groups`, `blends`, `blending_space` (distinct regions per cause), `rasters` (bitmaps written after merging), `cases()` (the sum of the four causes) |
+| know what was patched | `EmfOutcome::patches: EmfPatches` (`#[non_exhaustive]`, `Copy`) — `overprint`, `non_isolated_groups`, `blends`, `blending_space` (distinct regions per cause), `rasters` (bitmaps written after merging), `transparency` (boxes `with_vector_transparency` could not resolve), `cases()` (the sum of the five) |
+| write flat transparency as vector shapes | `EmfOptions::default().with_vector_transparency(true)` (field `vector_transparency`, default `false`; off is byte-identical; implies `patch_approximations`). Each op with constant alpha, a blend mode, a transparency group (isolated, knockout or not), an overprint over earlier ink, or compositing in a CMYK page group, over flat colours only, is replaced with opaque `EvenOdd` fills: one per atomic region of it and the earlier paints it overlaps, each in the colour the page shows there over the paper (or `RenderOptions` background). Over an image, gradient or text, under a soft mask, with a spot or unconverted CMYK ink, a per-paint non-separable blend or a nested `/CS` group, or over `pdfcer_flatten::Limits`, the op's box is written as pixels instead (`EmfPatches::transparency`). Regions are opaque even when the export is transparent. CLI `export-image --format emf --vector-transparency`, `print --vector-transparency` |
+| know what was vectorised | `EmfOutcome::vectorised: EmfVectorised` (`#[non_exhaustive]`, `Copy`) — `ops` (replaced), `regions` (fills written), causes `alpha`, `groups`, `overprint`, `blends`, pixel fallbacks `patched_not_flat`, `patched_too_complex`, `patched_unrecorded`, and `patched()` (their sum) |
 | print with chosen options | `pdfcer_emf::print_metafile_with(&view, &page, &RenderOptions, &EmfOptions)` — `print_metafile` with every `EmfOptions` field the caller's; with patches on, a page whose only problem was an approximation prints as a metafile |
 | print, and keep the disclosure | `pdfcer_emf::print_export_with(&view, &page, &RenderOptions, &EmfOptions) -> Result<EmfExport, PrintMetafileError>` — `print_metafile_with` returning the whole `EmfExport`, so `outcome.diagnostics` (e.g. `icc_profiles_unmodelled`) reaches the print caller |
 | why a page prints as an image | `EmfOutcome::print_fallback() -> Option<RasterReason>` — first of `SemiTransparentPaint`, `TransparencyGroup`, `BlendMode`, `Shading`, `Overprint`, `BlendingColourSpace`, `TilingPattern`, `ExtraRasters` (`#[non_exhaustive]`); `as_str()` / `Display` give the CLI's wording |
@@ -5224,6 +5226,40 @@ plates).
 - **A transparent PNG and an opaque one are different pastes.** Office
   composites the alpha over the slide; a `--background` makes every payload
   opaque, deliberately.
+
+### 7.10a Flattening transparency over flat colours (`Pass 700.13`)
+
+Crate **`pdfcer-flatten`** (`pdfcer_flatten::…`): platform-free, wasm32-clean,
+no dependency on any other pdfcer crate. It turns a tree of flat-coloured
+polygons with constant alpha, blend modes, overprint and isolated / knockout
+groups into opaque atomic regions (ISO 32000-2 §11.4). `pdfcer-emf` uses it
+behind `EmfOptions::with_vector_transparency`; any vector writer with no alpha
+can.
+
+| You want | Call |
+|---|---|
+| the regions and their colours | `pdfcer_flatten::flatten(&Group, Space, &dyn Inks, &Limits) -> Result<Vec<Region>, FlattenError>` |
+| describe the scene | `Group { elements: Vec<Element>, isolated, knockout, alpha, blend }`; `Element::{Paint(Paint), Group(Group)}`; `Paint { shape: Shape, colour: Colour, alpha, blend: Blend, overprint: Option<Overprint> }`; `Shape { contours: Vec<Vec<Point>>, rule: FillRule }`, `Shape::intersection` for a clip |
+| the blending space | `Space::{Rgb, Cmyk}` — `components()`, `is_subtractive()`, `paper()` |
+| blend modes | `Blend` — the 16 of §11.3.5; `is_separable()` |
+| overprint | `Overprint { tints: [Option<f32>; 4], model }` — per CMYK component the tint, or `None` to keep the backdrop's (Table 149 and `OPM` already applied); `model` picks the caller's `Inks` pair for an additive backdrop |
+| RGB↔CMYK for additive overprint | `trait Inks { to_cmyk(model, rgb), to_rgb(model, cmyk) }`; `NaiveInks` is `k = 1 − max(r,g,b)` |
+| bound the work | `Limits { max_paints: 64, max_regions: 1024, max_vertices: 200_000, max_depth: 32 }` (`Default`) |
+| the result | `Region { contours (even-odd), colour, alpha, paints }` (`#[non_exhaustive]`) — `paints` are depth-first paint indices covering it; no region where nothing paints |
+| why it refused | `FlattenError::TooComplex(Ceiling::{Paints, Regions, Vertices, Depth})` (fall back to pixels), `::Unsupported(&str)` (overprint inside a knockout group) |
+
+The root group is the page group: its blend and isolation are ignored, its
+alpha scales the result, and the caller composites each region over its
+paper. Shape is 1 inside a polygon and 0 outside (no antialiasing, no soft
+mask). A non-isolated group is evaluated over a clear backdrop and over its
+backdrop, then §11.4.4's backdrop removal is applied; inside a knockout group
+a nested group's shape is taken as its alpha. Overprint follows
+`pdfcer-render`'s model (replace the named components, mix by alpha), which
+§11.4.8 does not define for an additive group.
+
+**What the UI must disclose:** that the colours are computed, not copied —
+`EmfVectorised` and the CLI's `emf-vector:` line count them — and what was
+left as pixels, by reason.
 
 ### 7.11 Exporting a page as DXF — versions and what each can carry (`Pass 376.0`, `Pass 377.0`)
 

@@ -275,5 +275,7 @@ fn empty_op() -> Op {
         },
         ops: Vec::new(),
         mask: None,
+        isolated: true,
+        knockout: false,
     }
 }

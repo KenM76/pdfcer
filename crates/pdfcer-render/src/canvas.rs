@@ -1490,6 +1490,8 @@ impl<'a> Canvas<'a> {
                     paint,
                     ops,
                     mask: None,
+                    isolated: true,
+                    knockout: false,
                 });
                 Some(result)
             }
@@ -1892,6 +1894,8 @@ impl<'a> Canvas<'a> {
                     paint,
                     ops,
                     mask: kept_mask,
+                    isolated,
+                    knockout,
                 });
                 // Cache mode only: export mode counted the mask at the `gs`
                 // site (`ExportTally::soft_masks_kept`), where every soft

@@ -118,6 +118,8 @@ mod patch;
 mod plates;
 mod print;
 mod text;
+mod vector;
+mod vector_geom;
 pub use patch::EmfPatches;
 pub use plates::{
     EmfPlate, EmfPlateOutcome, EmfPlates, PlateMetafileError, PlatePatches, PlateRaster,
@@ -126,6 +128,7 @@ pub use plates::{
 pub use print::{
     PrintMetafileError, RasterReason, print_export_with, print_metafile, print_metafile_with,
 };
+pub use vector::EmfVectorised;
 
 /// How an EMF is written.
 #[derive(Debug, Clone, PartialEq)]
@@ -153,6 +156,16 @@ pub struct EmfOptions {
     /// smallest box that holds it; everything else stays vector. Off by
     /// default; see [`EmfPatches`].
     pub patch_approximations: bool,
+    /// Write flat transparency as opaque vector regions instead of bitmaps:
+    /// a constant alpha, a blend, an isolated, knockout or non-isolated
+    /// group, an overprint over other ink, compositing on a CMYK page. Each
+    /// such op and what lies beneath it is resolved by `pdfcer-flatten`
+    /// into regions of one colour, each written as a fill already
+    /// composited over the paper. What cannot be resolved (an image or
+    /// gradient beneath, a soft mask, a spot ink, a scene past the
+    /// flattener's ceiling) is written by [`Self::patch_approximations`],
+    /// which this turns on. Off by default; see [`EmfVectorised`].
+    pub vector_transparency: bool,
 }
 
 /// How an EMF writes text.
@@ -212,6 +225,7 @@ impl Default for EmfOptions {
             text: EmfText::Outlines,
             underlay_blends: true,
             patch_approximations: false,
+            vector_transparency: false,
         }
     }
 }
@@ -268,6 +282,20 @@ impl EmfOptions {
         self.patch_approximations = patch;
         self
     }
+
+    /// Write flat transparency as vector regions; see
+    /// [`Self::vector_transparency`].
+    ///
+    /// ```
+    /// use pdfcer_emf::EmfOptions;
+    /// let options = EmfOptions::default().with_vector_transparency(true);
+    /// assert!(options.vector_transparency);
+    /// ```
+    #[must_use]
+    pub fn with_vector_transparency(mut self, vector: bool) -> Self {
+        self.vector_transparency = vector;
+        self
+    }
 }
 
 /// What an EMF export produced beside the bytes — the disclosure.
@@ -312,6 +340,9 @@ pub struct EmfOutcome {
     pub text: EmfTextOutcome,
     /// What [`EmfOptions::patch_approximations`] wrote as pixels.
     pub patches: EmfPatches,
+    /// What [`EmfOptions::vector_transparency`] wrote as regions, and what
+    /// it left to [`Self::patches`].
+    pub vectorised: EmfVectorised,
     /// The export recording's own tally (what was rasterised or
     /// approximated BEFORE this writer saw it). With
     /// [`EmfOptions::patch_approximations`] the approximations it patched
@@ -361,12 +392,14 @@ pub fn export_emf_view(
     let keep_text = emf.text == EmfText::KeepText;
     let mut recording = record_page_for_export(view, page, scale, render, keep_text)?;
     let (w_px, h_px) = recording.page_size;
-    let (flattened, plan) = flatten_and_plan(&mut recording, view, page, render, emf, scale);
+    let (flattened, plan, vectorised) =
+        flatten_and_plan(&mut recording, view, page, render, emf, scale);
     let (unit, size_u) = metafile_units((w_px, h_px), dpi)?;
 
     let mut outcome = EmfOutcome::empty(recording.tally, recording.diagnostics.clone());
     outcome.blends_flattened = flattened.total();
     outcome.blends_underlaid = flattened.underlaid;
+    outcome.vectorised = vectorised;
     #[allow(clippy::cast_precision_loss)]
     {
         outcome.width_pt = w_px as f32 / scale;
@@ -398,8 +431,10 @@ fn metafile_units((w_px, h_px): (u32, u32), dpi: f32) -> Result<(f32, (i32, i32)
     Ok((unit, (w_u as i32, h_u as i32)))
 }
 
-/// Flatten top-level blends and, with [`EmfOptions::patch_approximations`],
-/// plan the pixel patches. On a subtractive page the plan comes first:
+/// Vectorise flat transparency with [`EmfOptions::vector_transparency`],
+/// flatten top-level blends and, with [`EmfOptions::patch_approximations`],
+/// plan the pixel patches. Vectorising comes first: it reads the recording
+/// as recorded. On a subtractive page the plan comes before flattening:
 /// flattening composites in RGB, which is the approximation a patch there
 /// replaces. On an additive page flattening comes first, since a flattened
 /// highlight is exact and stays vector.
@@ -410,10 +445,20 @@ fn flatten_and_plan(
     render: &RenderOptions,
     emf: &EmfOptions,
     scale: f32,
-) -> (pdfcer_render::writer_seam::Flattened, Option<patch::Plan>) {
-    let before = emf.patch_approximations && rec.subtractive_page;
+) -> (
+    pdfcer_render::writer_seam::Flattened,
+    Option<patch::Plan>,
+    EmfVectorised,
+) {
+    let (vectorised, left) = if emf.vector_transparency {
+        vector::vectorise(rec, render, emf.background)
+    } else {
+        (EmfVectorised::default(), Vec::new())
+    };
+    let patching = emf.patch_approximations || emf.vector_transparency;
+    let before = patching && rec.subtractive_page;
     let mut plan = if before {
-        patch::plan(rec, view, page, render, scale)
+        patch::plan(rec, view, page, render, scale, &left)
     } else {
         None
     };
@@ -425,10 +470,10 @@ fn flatten_and_plan(
         h,
         emf.underlay_blends,
     );
-    if emf.patch_approximations && !before {
-        plan = patch::plan(rec, view, page, render, scale);
+    if patching && !before {
+        plan = patch::plan(rec, view, page, render, scale, &left);
     }
-    (flattened, plan)
+    (flattened, plan, vectorised)
 }
 
 impl EmfOutcome {
@@ -450,6 +495,7 @@ impl EmfOutcome {
             nonzero_fills_multi_subpath: 0,
             text: EmfTextOutcome::default(),
             patches: EmfPatches::default(),
+            vectorised: EmfVectorised::default(),
             tally,
             diagnostics,
         }
@@ -879,7 +925,9 @@ impl Writer<'_> {
                         self.write_ops(ops);
                     }
                 },
-                Op::Layer { paint, ops, mask } => {
+                Op::Layer {
+                    paint, ops, mask, ..
+                } => {
                     self.outcome.layers_rasterised += 1;
                     if paint.blend != BlendMode::SourceOver || paint.nonseparable.is_some() {
                         self.outcome.blend_modes_dropped += 1;

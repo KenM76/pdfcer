@@ -533,7 +533,9 @@ impl<'a> Build<'a> {
                         bounds.unwrap_or(pdfcer_render::writer_seam::UNKNOWN),
                     );
                 }
-                Op::Layer { paint, ops, mask } => {
+                Op::Layer {
+                    paint, ops, mask, ..
+                } => {
                     let plain = mask.is_none()
                         && paint.opacity >= 1.0
                         && paint.blend == BlendMode::SourceOver

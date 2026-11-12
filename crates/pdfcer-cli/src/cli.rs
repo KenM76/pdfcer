@@ -4358,6 +4358,15 @@ pub(crate) enum Command {
         /// mis-draws vector pages.
         #[arg(long)]
         print_as_image: bool,
+        /// Send semi-transparent paint, blend modes, transparency groups
+        /// and overprint over flat colours to the printer as opaque vector
+        /// shapes, each in the colour the page shows there over the paper,
+        /// so such a page still prints as vector graphics. What cannot be
+        /// resolved (over an image or gradient, under a soft mask, a spot
+        /// ink, too complex) is sent as the page's own pixels in a small
+        /// box. stderr counts both per page.
+        #[arg(long, conflicts_with = "print_as_image")]
+        vector_transparency: bool,
         /// Staple the printed copy. Checked against what the printer
         /// offers (`list-finishing`); one it does not offer is refused, not
         /// dropped.
@@ -6052,6 +6061,15 @@ pub(crate) enum Command {
         /// Everything else stays vector. Counted on an `emf-patches:` line.
         #[arg(long)]
         patch_approximations: bool,
+        /// EMF only: write semi-transparent paint, blend modes,
+        /// transparency groups and overprint over flat colours as opaque
+        /// vector shapes, each filled with the colour the page shows there
+        /// over the paper, instead of bitmaps. What lies over an image or
+        /// gradient, under a soft mask or a spot ink, or is too complex, is
+        /// written as the page's own pixels as `--patch-approximations`
+        /// does (implied). Counted on an `emf-vector:` line.
+        #[arg(long)]
+        vector_transparency: bool,
         /// EMF only: how text is written. `outlines` (default) draws every
         /// glyph as a path. `keep` writes each line it can as real text in
         /// the INSTALLED font of the same name, each character pinned to

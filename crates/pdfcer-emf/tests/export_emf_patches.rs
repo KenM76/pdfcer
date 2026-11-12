@@ -18,14 +18,14 @@ use crate::export_emf::{DPI, assert_well_formed, build, count, page, record_offs
 
 /// Cyan, then magenta overprinting it (OPM 1), then a small K-only mark
 /// beside both, over paper.
-const OVERPRINT_RES: &str = "/ExtGState << /OP << /OP true /op true /OPM 1 >> >>";
-const OVERPRINT: &str =
+pub(crate) const OVERPRINT_RES: &str = "/ExtGState << /OP << /OP true /op true /OPM 1 >> >>";
+pub(crate) const OVERPRINT: &str =
     "1 0 0 0 k 10 10 50 40 re f /OP gs 0 1 0 0 k 40 20 40 40 re f 0 0 0 1 k 85 10 8 3 re f";
 
 /// A non-isolated group, painted at 70 % opacity (so it needs a buffer: at
 /// full opacity it is drawn straight onto the page, exactly), whose
 /// Multiply fill blends with a blue backdrop.
-fn non_isolated_group() -> Vec<u8> {
+pub(crate) fn non_isolated_group() -> Vec<u8> {
     let form = "/M gs 1 1 0 rg 30 20 40 40 re f\n";
     let content = "0 0.6 1 rg 10 10 50 40 re f /H gs /G Do\n";
     build(&[
@@ -92,7 +92,7 @@ fn export(bytes: &[u8], patch: bool) -> (Pixmap, EmfExport) {
 }
 
 /// The pixels of the `EMR_ALPHABLEND` records, `(cxSrc, cySrc)` each.
-fn bitmap_sizes(emf: &[u8]) -> Vec<(u32, u32)> {
+pub(crate) fn bitmap_sizes(emf: &[u8]) -> Vec<(u32, u32)> {
     let records = walk_records(emf).unwrap();
     records
         .iter()
@@ -108,7 +108,7 @@ fn bitmap_sizes(emf: &[u8]) -> Vec<(u32, u32)> {
 /// right and down of tiny-skia (unpatched vector edges too), so the
 /// comparison forgives edge POSITION by a pixel but not colour.
 #[cfg(windows)]
-fn playback_against_raster(
+pub(crate) fn playback_against_raster(
     name: &str,
     reference: &Pixmap,
     emf: &[u8],
@@ -152,7 +152,7 @@ fn playback_against_raster(
 
 /// Largest per-channel difference counted as rounding.
 #[cfg(windows)]
-const ROUNDING: u8 = 2;
+pub(crate) const ROUNDING: u8 = 2;
 
 #[test]
 fn only_the_overprint_overlap_is_a_patch() {
@@ -243,7 +243,7 @@ fn a_cmyk_page_group_blend_plays_back_like_the_raster() {
 }
 
 /// FNV-1a, 64-bit.
-fn fnv1a(bytes: &[u8]) -> u64 {
+pub(crate) fn fnv1a(bytes: &[u8]) -> u64 {
     bytes.iter().fold(0xcbf2_9ce4_8422_2325, |h, b| {
         (h ^ u64::from(*b)).wrapping_mul(0x0100_0000_01b3)
     })
