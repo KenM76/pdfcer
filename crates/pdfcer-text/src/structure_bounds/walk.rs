@@ -149,6 +149,7 @@ pub(super) fn intersect(a: Rect, b: Rect) -> Option<Rect> {
     (r.urx >= r.llx && r.ury >= r.lly).then_some(r)
 }
 
+/// The smallest rectangle containing both `a` and `b`.
 pub(super) fn union(a: Rect, b: Rect) -> Rect {
     Rect {
         llx: a.llx.min(b.llx),
