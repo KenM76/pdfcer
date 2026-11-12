@@ -4,6 +4,19 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-11-12 (1539th filing) — `03781353` `Pass 700.18` PARTIAL: print parity report tool + two vector-route fixes; `700.22`, `700.23` filed
+
+**Shipped (engineer-reported; no shell here, git/CI state not checked from here):**
+- `03781353`. `tools/print-parity-report.py` (per page: route, counters, GDI-vs-raster delta, patch causes; exit 1 while a vector gap exists); shared player at `crates/pdfcer-emf/tests/gdi_player.ps1`.
+- Fix: vector recorder applied the 4x supersample factor to minimum stroke width and cull (0.25 pt became about 1.9 pt at 150 dpi in EMF, SVG, print vector route); now factor 1. Fix: covered shadings no longer counted as rasterised (`patch::plan`), which had forced licensed-file page 1 to raster.
+- Tests: render and emf 1,371 passed; each fix has a fixture and sabotage check; verification on main running at filing time.
+
+**Findings + decisions:** licensed print test file (local only): all 6 pages vector route (p1 was raster). Mean delta p1 8.49 (was 10.18), p3 7.70 (9.26), p4 8.22 (10.65), p5 5.63 (6.94), p6 5.74 (6.76), p2 1.42 unchanged; max 255 everywhere; residual is glyph/line-edge antialiasing, no area-fill defects. Close condition NOT met: varying soft masks 108, shadings 16, unrecorded patches 13. No decision-log entry.
+
+**Still in flight:** `700.18` open. New in Next up: `700.22` varying soft masks as vector; `700.23` unrecorded patches plus a suspected type-1 shading export drop (unconfirmed).
+
+**For next session:** release (carries `700.21` and the two fixes), then `700.22`, `700.23`. No `crates/` doc sweep owed: no counter changed meaning; the stroke-width change is a behaviour change in three outputs, so any doc claiming 4 px minimum strokes would be a survivor (not swept, no shell).
+
 ## 2026-11-12 (1538th filing) — `21c92452` `Pass 700.21` SHIPPED: spot colorants in the vector flattener
 
 **Shipped (engineer-reported; no shell here, git/CI state not checked from here):**

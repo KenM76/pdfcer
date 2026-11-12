@@ -112,6 +112,17 @@ wherever it appears.*
 
 ## Shipped
 
+### `03781353` `Pass 700.18` (PARTIAL, Pass stays OPEN): print parity report tool and two vector-route bug fixes, 2026-11-12 (1539th filing)
+
+Engineer-reported; no shell here, git, push and CI state not checked from here. `03781353` `feat(render,emf,tools): print parity report; true stroke widths in exports (Pass 700.18)`. NOT in a release at filing time (the release goes out next, carrying `700.21` and these two fixes). Reasoning is in the commit message.
+- **Tool:** `tools/print-parity-report.py PDF --out DIR`. Per page: route (vector or raster), the `emf-vector` and not-flat counters, bitmap count, GDI playback-vs-raster pixel delta (max channel, mean, % over 8, % over 32), and each patch cause classified genuinely raster (image) or vector gap. Exits 1 while any page has a vector gap. The shared GDI player moved to `crates/pdfcer-emf/tests/gdi_player.ps1`; the tests and the tool both use it.
+- **Bug fix 1 (render `display_list.rs`):** under the default supersampled edge antialiasing the vector recorder applied the 4x supersample factor to its minimum stroke width and sub-pixel cull, so every stroke thinner than 4 output pixels came out 4 px wide in EMF, SVG and the print vector route (0.25 pt became about 1.9 pt at 150 dpi). Recording now uses factor 1. Behaviour change in all three outputs.
+- **Bug fix 2 (emf `patch.rs`, `patch::plan`):** a shading drawn wholly inside a patch was still counted as a rasterised shading, which forced page 1 of the licensed file to the raster route. Covered shadings are no longer counted.
+- **Tests (engineer-reported):** each fix has a synthetic fixture test and a sabotage check; render and emf 1,371 passed. Verification on main was still running at filing time.
+- **Measured on the licensed print test file** (local only; 150 dpi; `--patch-approximations --vector-transparency --vector-shadings`). Every page now takes the vector route (page 1 was raster). Per page not_flat / unrecorded / bitmaps / mean delta (before) / % over 32: p1 50 / 0 / 31 / 8.49 (10.18) / 6.17; p2 18 / 8 / 9 / 1.42 (1.42) / 1.28; p3 125 / 0 / 11 / 7.70 (9.26) / 5.38; p4 35 / 0 / 16 / 8.22 (10.65) / 6.00; p5 25 / 3 / 11 / 5.63 (6.94) / 4.62; p6 28 / 2 / 9 / 5.74 (6.76) / 4.08. Max delta 255 on every page. The page-1 diff image shows the residual confined to glyph and line edges (GDI-vs-raster antialiasing); no area-fill defects.
+- **Close condition NOT met.** Vector gaps by patch count: varying soft masks 108 (18 per page), shadings 16 (p1 12, p4 4), unrecorded patches 13 (p2 8, p5 3, p6 2). Genuinely raster (image) per page 20 / 0 / 107 / 13 / 7 / 10. Residue filed as `700.22` and `700.23` (Next up).
+- **FEATURES:** the `700.18` *Planned* row left unticked, now noting the tool exists; two new *Planned* rows (`700.22`, `700.23`). No existing row covers stroke fidelity, so the thin-stroke fix is not noted on any row.
+
 ### `21c92452` `Pass 700.21`: spot colorants in the vector flattener (EMF print route), 2026-11-12 (1538th filing)
 
 Engineer-reported; no shell here, git, push and CI state not checked from here. `21c92452` `feat(flatten,emf,render,cli): spot colorants in the vector flattener (Pass 700.21)`, on `main`, a cherry-pick of worker `23f02dbe`; NOT pushed at filing time, NOT in a release. Reasoning is in the commit message. Authority ISO 32000-2 §11.7.4.2 (the white-preserving note is in 32000-2, not 32000-1 NOTE 2; citations corrected).
@@ -26989,7 +27000,19 @@ closes out the *prior* filing's business rather than opening this one's.
 
 > **`Pass 700.21`: SHIPPED 2026-11-12 (1538th filing), `21c92452`; see its *Shipped* entry.**
 
-> **Remaining order (1538th filing; `700.21` shipped in the 1538th):** `700.18` (parity report), then the release.
+> **`Pass 700.18` PARTIAL (1539th filing), `03781353`; see its *Shipped* entry.** The tool and two fixes shipped; the Pass stays OPEN until every page prints vector apart from genuinely raster content, tracked by `700.22` and `700.23`.
+
+> **`Pass 700.22`: varying soft masks as vector in EMF (filed 1539th).** A luminosity or alpha soft mask whose value varies across the region currently becomes a bitmap patch: 18 per page on the licensed print test file, 108 total, the largest vector gap.
+> - **Approach to evaluate:** decompose a smooth-shading-driven mask into constant-alpha pieces or gradient triangles; leave an image-driven mask as raster content.
+> - **Acceptance:** the `soft_mask_varying` count on the licensed file falls; synthetic fixtures show GDI playback matching the raster; disclosure goes through the existing counters.
+> - FEATURES: one *Planned* row, unticked.
+
+> **`Pass 700.23`: unrecorded patches and covered shadings (filed 1539th).**
+> - (a) Find the cause of the 13 `patched_unrecorded` patches (p2 8, p5 3, p6 2) and convert those that are vector.
+> - (b) Investigate a suspected export drop: a function-based (type 1) shading, with patching off, was counted as rasterised but left no image in the EMF recording. Candidate defect, NOT confirmed; confirm, then fix if real.
+> - FEATURES: *Planned*, unticked.
+
+> **Remaining order (1539th filing; `700.18` partial shipped):** `700.22` then `700.23`. The release goes out now, before them, carrying `700.21` and the two `700.18` fixes.
 
 > **`Pass 706.0` (`X076`): SHIPPED 2026-11-11 (1533rd filing), `06516ff6`; see its *Shipped* entry.**
 
