@@ -85,6 +85,8 @@ pub struct ShadingSource {
 }
 
 impl ShadingSource {
+    /// Captures the shading behind a rasterised shading image, so the
+    /// EMF writer can re-emit it as triangles instead of the bitmap.
     pub(crate) fn new(
         shading: &Shading,
         to_target: Transform,
