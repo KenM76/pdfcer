@@ -4,6 +4,21 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-11-12 (1535th filing) — `8393f2eb` `Pass 700.14` SHIPPED: smooth shadings as `EMR_GRADIENTFILL` in EMF (opt-in)
+
+**Shipped (engineer-reported; no shell here, git/CI state not checked from here):**
+- `8393f2eb` on `main`, not pushed at filing time, not in a release. `--vector-shadings` on `export-image --format emf` and `print`'s EMF route; new `pdfcer-render::gouraud`; `EmfOptions::vector_shadings` (default off, default output byte-identical); `EmfOutcome.shadings`. Detail in the ROADMAP *Shipped* entry.
+- Tests: emf 15 lib + 71 integration (13 new GDI-playback shading tests); render 573+650+6+36; cli 126+1083; sabotage 8/8 caught. Gates clean per engineer.
+- FEATURES: new *Implemented* row core `[x]`, cli `[x]`, gui `[ ]`; *Planned* row narrowed to the undelivered translucent/in-region part; print-as-vector row notes the flag.
+
+**Decisions made this session:** none new. GDI quirk recorded: each gradient record must end on a triangle at least 0.5 px high (sliver triangles under about 0.3 px make `PlayEnhMetaFile` return FALSE).
+
+**Findings + decisions:** on the licensed print test file the Pass moves nothing: 0 shadings vectorised, 0 declined, 6 pages, patch counts identical with and without the flag, because every shading lies inside overprint or not-flat regions patched first (`patched_not_flat` 73/18/676/193/33/32). The Pass is a general capability, not progress on that file. RAG: `D:\dev\rag\emf\gradient_fill_records.md` written and indexed by the worker (not checked from here).
+
+**Still in flight:** the original plan's "shadings under the flattener" is undelivered; the FEATURES residue row has no Pass ID (engineer to assign). Untested: too-many-triangles fallback; print EMF route end to end.
+
+**For next session:** `700.15`, `700.18` (parity report; it should address the not-flat and overprint patches), then the release.
+
 ## 2026-11-11 (1534th filing) — `88abc2c4` `Pass 706.0` follow-up: doc comment on `structure_bounds::walk::union`
 
 **Shipped (engineer-reported; no shell here, git/CI state not checked from here; docs only):**

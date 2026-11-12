@@ -112,6 +112,18 @@ wherever it appears.*
 
 ## Shipped
 
+### `8393f2eb` `Pass 700.14`: smooth shadings written as `EMR_GRADIENTFILL` triangles in EMF, opt-in, 2026-11-12 (1535th filing)
+
+Engineer-reported; no shell here, git, push and CI state not checked from here. `8393f2eb` `feat(render,emf,cli): smooth shadings written as EMR_GRADIENTFILL triangles (Pass 700.14)`, on `main`, NOT pushed at filing time, NOT in a release. Reasoning is in the commit message.
+- **Core (`pdfcer-render::gouraud`, plus `gouraud/mesh.rs`):** turns axial, radial (concentric, offset, cone) and type 4/6 mesh shadings into Gouraud triangles. Colours come from the raster's own ramp as linear pieces within 1/255; knots closer than 1 device pixel merge; circle chord sag at most 0.25 px. Each `EMR_GRADIENTFILL` record (MS-EMF 2.3.5.12) ends on a triangle at least 0.5 px high: GDI returns the result of the last triangle and fails diagonal slivers under about 0.3 px, and `PlayEnhMetaFile` then returns FALSE, which would fail a print page. The display-list recorder now keeps the source shading behind each rasterised shading image.
+- **`pdfcer-emf`:** `EmfOptions::vector_shadings` / `with_vector_shadings`, default off, default output pinned byte-identical. `EmfOutcome.shadings`: `EmfShadings` (`#[non_exhaustive]`: `vector`, `triangles`, `declined_translucent`, `declined_too_many`, `declined_other`, `declined()`). A declined shading stays on the bitmap route.
+- **CLI:** `--vector-shadings` on `export-image --format emf` and on `print`'s EMF route; independent of `--vector-transparency`; raster formats refuse it. New `emf-shadings:` stderr line, separate from `emf-vector:`. `docs/core-api` updated; `check-core-api-verbs` passes.
+- **Tests (engineer-reported):** emf 15 lib (4 new) + 71 integration, 1 ignored; 13 new GDI-playback shading tests (axial with Extend; radial concentric, offset, cone; type 4; type 6; `W n` clip; pattern with `/BBox`; CMYK; Separation; type 1; translucent declined; switch-off byte pin; triangle budget). render 573 + 650 + 6 + 36. cli 126 + 1083 (one new end-to-end). Sabotage 8/8 caught; the knot-merge sabotage was first uncaught (it bounds output size, not correctness), so the triangle-budget test was added.
+- **Gates (engineer-reported):** clippy (workspace, plus the Linux target for cli/emf/render), lite check, rustdoc, wasm32 for emf/render/flatten, code structure, core-api check clean; `cargo tree` shows no GUI or network crates.
+- **Measured on the licensed print test file** (local only), `--patch-approximations --vector-transparency --vector-shadings`: **0 shadings vectorised, 0 declined, all 6 pages**; patch counts identical with and without the flag. Every shading there lies inside overprint or not-flat regions, which are patched before the shading path is reached. `patched_not_flat` per page 73, 18, 676, 193, 33, 32. **A general capability with no effect on the target file**; the levers there remain the not-flat and overprint patches (`700.15`, `700.18` report).
+- **Open:** translucent shadings and non-Normal blends stay bitmaps (no per-vertex alpha in the Paint model; GDI ignores triangle alpha). No test reaches the too-many-triangles fallback. The print EMF route has a unit test only, no end-to-end test. Shadings under the `700.13` flattener (vector region or gradient-ppi patch) were in the original plan and are not delivered.
+- **FEATURES:** *Planned* row replaced by a narrower one (translucent and in-region shadings, no Pass ID); new *Implemented* row core `[x]`, cli `[x]`, gui `[ ]`; print-as-vector row notes the opt-in flag.
+
 ### `88abc2c4` `Pass 706.0` follow-up: doc comment on `structure_bounds::walk::union`, 2026-11-11 (1534th filing)
 
 Engineer-reported; no shell here, git, push and CI state not checked from here. `88abc2c4` `docs(text): doc comment on structure_bounds::walk::union (Pass 706.0)`. `check-public-fns-documented.py` flagged `crates/pdfcer-text/src/structure_bounds/walk.rs::union` as a public fn with no doc comment; the flag was read after `b6c0a8ef` was pushed (push chained before reading the audit output). One doc line, no behaviour change; gate clean now. Pushed with this filing; CI on `88abc2c4` pending, not read. No FEATURES change.
@@ -26932,9 +26944,7 @@ closes out the *prior* filing's business rather than opening this one's.
 
 > **`Pass 700.13`: SHIPPED 2026-11-11 (1531st filing), `f37875fc`; see its *Shipped* entry.** Acceptance (b) only partly met (0/6 pages fully vector); the remaining patches fall to `700.14` / `700.15` and the parity report `700.18`.
 
-> **`Pass 700.14`: smooth shadings as vector in EMF.** Axial, radial, function and mesh shadings (types 1-7) are written as GDI gradient triangles/strips (`EMR_GRADIENTFILL`), subdivision tolerance tied to the device resolution, instead of `gradients_rasterised`. Professional RIPs keep shades as smooth shades.
-> - **Under transparency:** gradients go through the `700.13` flattener: a vector region if flat interaction is possible, otherwise a patch at gradient ppi (default 300, settable).
-> - **Acceptance:** synthetic type 2, 3 and 4/6 shadings play back matching the raster within a stated tolerance, with no bitmap. FEATURES: one *Planned* row (unticked).
+> **`Pass 700.14`: SHIPPED 2026-11-12 (1535th filing), `8393f2eb`; see its *Shipped* entry.** Residue (translucent shadings, shadings inside not-flat regions, gradient-ppi patch) is a *Planned* FEATURES row with no Pass ID yet.
 
 > **`Pass 700.15`: soft masks with vector content stay vector.** A luminosity or alpha soft mask whose content is flat-coloured vector resolves to constant-alpha regions and is flattened by `700.13`. A mask with gradient or image content becomes a patch at gradient ppi.
 > - **Acceptance:** synthetic flat-shape mask and gradient mask; playback matches the raster. FEATURES: one *Planned* row (unticked).
@@ -26949,7 +26959,7 @@ closes out the *prior* filing's business rather than opening this one's.
 
 > **`Pass 700.20` (`X075`): SHIPPED 2026-11-11 (1525th filing), `9dbb9f7a`; see its *Shipped* entry.**
 
-> **Remaining order (1533rd filing; `700.11` shipped in the 1528th, `700.17` in the 1529th, `700.13` in the 1531st, `706.0` in the 1533rd):** `700.14`, `700.15`, `700.18` (parity report), then the release.
+> **Remaining order (1535th filing; `700.11` shipped in the 1528th, `700.17` in the 1529th, `700.13` in the 1531st, `706.0` in the 1533rd, `700.14` in the 1535th):** `700.15`, `700.18` (parity report), then the release. Measured on the licensed print test file, `700.14` moved nothing; the levers there are the not-flat transparency and overprint patches.
 
 > **`Pass 706.0` (`X076`): SHIPPED 2026-11-11 (1533rd filing), `06516ff6`; see its *Shipped* entry.**
 
