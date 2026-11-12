@@ -4,6 +4,17 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-11-12 (1536th filing) — `83817839` `Pass 700.14` follow-up: doc comment on `gouraud::ShadingSource::new`
+
+**Shipped (engineer-reported; no shell here, git/CI state not checked from here; docs only):**
+- `83817839`: one doc comment on `ShadingSource::new` in `pdfcer-render::gouraud`, the one public fn `check-public-fns-documented.py` flagged after `8393f2eb` (filed as the 1535th in `a3f72767`). No code or behaviour change; gate clean now. Push and CI state not recorded here.
+
+**Findings + decisions:** none. No FEATURES change, no new decision.
+
+**Still in flight:** unchanged from the 1535th.
+
+**For next session:** unchanged: `700.15`, `700.18`, then the release.
+
 ## 2026-11-12 (1535th filing) — `8393f2eb` `Pass 700.14` SHIPPED: smooth shadings as `EMR_GRADIENTFILL` in EMF (opt-in)
 
 **Shipped (engineer-reported; no shell here, git/CI state not checked from here):**
