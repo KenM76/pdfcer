@@ -4,6 +4,16 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-11-12 (1540th filing) — `v0.146.0` PUBLISHED (`20bcbb1c`)
+
+**Filed (engineer-reported, shell held by the engineer; nothing checked from here; docs only):**
+- **`v0.146.0` PUBLISHED.** Annotated tag on `20bcbb1cf1d3cf5420e41735fdb765f862c66179` (the version-bump chore commit, filed here), CI green at the tag; `656a8980` also green. Carries `Pass 700.21` (`21c92452`) and `Pass 700.18` partial (`03781353`). Package `D:\builds\pdfcer-20261112-0839-20bcbb1`; fresh-folder smoke OK (`--version` 0.146.0, revision `v0.146.0`, icccer 0.4.2; `render-page` of `hello.pdf`; `export-image --format emf --vector-transparency` wrote 16,528 bytes). GitHub release 8 assets, `gh-release.py` PASS (portable zip 32,242,103 bytes; OCR add-ons 3,789,155 / 11,352,262 / 4,483,685; each with `.sha256`). OneDrive `pdfcer1` now 0.146.0 (6 items, 86,372,313 bytes), `pdfcer2` keeps 0.145.0: **the next release writes `pdfcer2`**. `verify-release.py` all ok except "working tree clean" (26 uncommitted paths, expected). Channel notice `notice_2026-11-12_release_v0.146.0.md` posted.
+- **crates.io: 16 crates at 0.146.0**, detached worktree at the tag, `CARGO_BUILD_JOBS=1`, no 429s. `pdfcer-flatten` and `pdfcer-emf` published for the first time. Standing order: model, color, pkix, vec3, json, jpeg-remux, 3d, 3d-nav, image-codec, fonts, function, text, core, render, flatten (15th), emf (16th). The 1529th entry's "emf publishes 15th" is superseded.
+- **Finding (not a Pass):** `export-image --output-dir` needs an existing directory, and its help names only `<png|jpg>` though emf/svg are also written; engineer will fix the help wording.
+- ROADMAP: new Shipped entry. FEATURES: `Engine crates on crates.io` row now 16 crates, current at `v0.146.0`. No decision, no rule.
+
+**For next session:** `700.22`, `700.23`; the next release deploys to `pdfcer2`.
+
 ## 2026-11-12 (1539th filing) — `03781353` `Pass 700.18` PARTIAL: print parity report tool + two vector-route fixes; `700.22`, `700.23` filed
 
 **Shipped (engineer-reported; no shell here, git/CI state not checked from here):**

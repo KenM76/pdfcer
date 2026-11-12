@@ -112,6 +112,19 @@ wherever it appears.*
 
 ## Shipped
 
+### `20bcbb1c` `v0.146.0` PUBLISHED, 2026-11-12 (1540th filing)
+
+Engineer-reported (shell held by the engineer; each item stated checked); nothing checked from here.
+- **Release:** version bump `20bcbb1cf1d3cf5420e41735fdb765f862c66179` `chore(release): v0.146.0` (root `Cargo.toml`: 17 `0.145.0` strings, the workspace version plus 16 workspace dependency lines; `Cargo.lock`; `fuzz/Cargo.lock`, which also picked up the flattener's `i_overlay`/`i_float`/`i_key_sort`). Annotated tag `v0.146.0` on it, pushed with `main`; CI green at the tag (push run, success); `656a8980` before it also green. Carries `Pass 700.21` (`21c92452`, spot colorants in the vector flattener) and `Pass 700.18` partial (`03781353`: print parity report, true stroke widths, covered shadings no longer force raster).
+- **Package:** `D:\builds\pdfcer-20261112-0839-20bcbb1`. Fresh-folder smoke OK: `--version` 0.146.0, revision `v0.146.0`, icccer 0.4.2 (registry); `render-page` of `fixtures/synthetic/hello.pdf`; `export-image --format emf --vector-transparency` wrote `hello_p1.emf` (16,528 bytes).
+- **GitHub release:** 8 assets, `gh-release.py` PASS, staged in `D:\builds\rel146`: `pdfcer-v0.146.0-windows-x64.zip` 32,242,103 bytes; `ocr-addon-ocrcer.zip` 3,789,155; `ocr-addon-ocrs.zip` 11,352,262; `ocr-addon-tesseract.zip` 4,483,685; each with a `.sha256`.
+- **OneDrive:** `pdfcer1` now 0.146.0 (6 items, 86,372,313 bytes); `pdfcer2` keeps 0.145.0. **The next release writes `pdfcer2`.**
+- **`verify-release.py`:** all ok except "working tree clean" (26 uncommitted paths: agent-memory files and operator-owned untracked files; expected).
+- **crates.io: 16 crates at 0.146.0**, from a detached worktree at the tag, `CARGO_BUILD_JOBS=1`, no 429s. Order used (the standing order): model, color, pkix, vec3, json, jpeg-remux, 3d, 3d-nav, image-codec, fonts, function, text, core, render, **flatten (15th), emf (16th)**. **`pdfcer-flatten` and `pdfcer-emf` published for the first time.** This settles the publish-order item (flatten before emf); the "emf publishes 15th" wording in the 1529th entry is superseded, left as history.
+- **Channel:** notice `FeatureRequests/pdfce_FeatureRequests/open/notice_2026-11-12_release_v0.146.0.md` posted.
+- **Finding (not a Pass yet):** `pdfcer export-image --output-dir` requires an existing directory (documented so), and its help names only `<png|jpg>` although the command also writes emf/svg; the engineer will fix the help wording.
+- **FEATURES:** the `Engine crates on crates.io` row updated to 16 crates at 0.146.0. Nothing minted: no decision, no rule.
+
 ### `03781353` `Pass 700.18` (PARTIAL, Pass stays OPEN): print parity report tool and two vector-route bug fixes, 2026-11-12 (1539th filing)
 
 Engineer-reported; no shell here, git, push and CI state not checked from here. `03781353` `feat(render,emf,tools): print parity report; true stroke widths in exports (Pass 700.18)`. NOT in a release at filing time (the release goes out next, carrying `700.21` and these two fixes). Reasoning is in the commit message.
