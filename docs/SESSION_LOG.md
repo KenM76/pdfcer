@@ -4,6 +4,16 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-11-12 (1544th filing) — `670b2130` `Pass 700.23` PARTIAL: CMYK group on a CMYK page records as vector
+
+**Filed (engineer-reported; no git run here):**
+- `670b2130`: the EMF record canvas read itself as RGB on a CMYK page, so a CMYK group was refused as a blending-space change (patched `Why::Unrecorded`) and an RGB group slipped through modelled in CMYK. New private `composites_in_ink` in `crates/pdfcer-render/src/canvas/group_space.rs` reads `export.sites.subtractive_page`; `SiteCause::BlendingSpace` doc covers both directions. No signature change.
+- Tests: `crates/pdfcer-emf/tests/export_emf_group_space.rs` (3, in `all.rs`); two fail on revert, the GDI parity test stays green either way. Render, emf, cli gates green.
+- Measured (licensed print file): `patched_unrecorded` per page 0/8/0/0/3/2 to 0/0/0/0/0/0; 13 groups now honestly caused (p2: 4 soft-masked image, 1 image, 3 too complex; p5: 2 image, 1 too complex; p6: 2 too complex). No group became vector; beneath counts 19/17/51/19/17/21 and parity means 8.492/1.424/7.696/8.222/5.628/5.743 unchanged. Correctness fix, pixels unchanged.
+
+**Open:** 6 too-complex groups (p2 3, p5 1, p6 2) are the real vector gap, which `pdfcer-flatten` `Limits` ceiling is unmeasured; type 1 ink/overprint route; page still reads RGB inside a soft mask's own recording (harmless, refusals discarded).
+**For next session:** measure which `Limits` ceiling the 6 groups hit, then `700.22` remainder. No decision, no rule. FEATURES: no box change; `700.23` Planned row rewritten to the remainders.
+
 ## 2026-11-12 (1543rd filing) — `cc97eed5` `Pass 700.23` PARTIAL: type 1 (function-based) shadings painted
 
 **Filed (engineer-reported; no git run here):**
