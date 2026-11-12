@@ -4,6 +4,16 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-11-11 (1530th filing) — `Pass 706.0` (`X076`) filed: painted bounds for structure elements
+
+**Filed (docs only; no shell, git state not checked from here):**
+- `Pass 706.0`, OPEN, scoped, in *Next up* as a banner block; FEATURES *Planned* row added, unticked (core `[ ]`, cli `[ ]`, gui `—`). From request `X076` (crates consumer, 2026-11-11, against v0.145.0 / `f37875fc`). `706.0` and `X076` had zero hits across `docs/*.md` by grep, so the number was free.
+- Order per the operator: after `700.13` is filed, before `700.14`/`700.15`. A SCOPED reply to the channel is being written by the engineer.
+
+**Findings:** `element_bbox` already has a CLI caller in `crates/pdfcer-cli/src/extract.rs`, so the request's "decide the CLI caller at implementation" has a concrete candidate.
+
+**For next session:** implement `706.0` at its place in the order; check the spec RAG for §14.7.4 / §14.7.4.3 first.
+
 ## 2026-11-11 (1529th filing) — `1978c956` `Pass 700.17` SHIPPED: the EMF writer becomes the crate `pdfcer-emf`
 
 **Shipped (engineer-reported; no shell here, git/CI/crates.io state not checked from here; docs only):**
