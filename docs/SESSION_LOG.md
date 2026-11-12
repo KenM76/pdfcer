@@ -4,6 +4,16 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-11-12 (1543rd filing) — `cc97eed5` `Pass 700.23` PARTIAL: type 1 (function-based) shadings painted
+
+**Filed (engineer-reported; no git run here):**
+- `cc97eed5`: `pdfcer-render` now paints type 1 shadings (`shading/function_based.rs`: 128x128 sample over `/Domain`, inverse `/Matrix`, nothing outside domain). Before, nothing was painted and export wrongly called the file malformed. EMF `--vector-shadings` still declines type 1 (exported as bitmap). Stale "does not paint" notes fixed (`render_export.rs`, `docs/core-api/03-capabilities.md`).
+- Tests: 5 new, all fail under 3 sabotages; 1,384 render+emf passed; all named gates green; one structure-baseline entry removed.
+- Measured, no code: the 13 `patched_unrecorded` EMF patches are isolated CMYK groups on a CMYK page, refused in `group_space.rs` (`on_ink` false for the record canvas); a false approximation, fix is the next 700.23 rung. `--tight-mask-patches` at 300/600 dpi: area down ~0.4 pt, mismatch share up to +0.2 pt; stays opt-in.
+
+**Open:** ink/overprint route falls back to sRGB for type 1; `/Background` not painted for type 1 pattern fills; the CMYK-group fix (in flight).
+**For next session:** finish `700.23` (group fix), then `700.22` remainder. No decision, no rule. FEATURES: type 1 row ticked core+cli, `700.23` Planned row narrowed, print row notes type 1 exports as bitmap. Sweep (docs only): the stale "colour ramp resolves but geometry is not painted" FEATURES wording is the survivor that was fixed.
+
 ## 2026-11-12 (1542nd filing) — `a0205bb0` `Pass 700.24` SHIPPED opt-in: tight mask patches
 
 **Filed (engineer-reported; no shell here, nothing checked from here):**
