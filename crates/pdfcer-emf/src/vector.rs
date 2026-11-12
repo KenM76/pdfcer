@@ -7,8 +7,11 @@
 //! `pdfcer_flatten` scene, resolved into atomic regions, and replaced by
 //! one opaque fill per region it covers, each composited over the paper.
 //! A soft mask whose group is flat colour is split into constant-value
-//! pieces (`mask`). An op that cannot be modelled (an image or gradient in
-//! the stack or in a mask, a spot ink, a blend the recording did not keep)
+//! pieces (`mask`). On a page blending in DeviceCMYK, spot colorants ride
+//! as spot planes and fold into each region's colour (`spots`). An op that
+//! cannot be modelled (an image or gradient in the stack or in a mask, a
+//! spot ink on an additive page or past the planes, a blend the recording
+//! did not keep)
 //! or that passes the flattener's ceiling is returned as a box for the
 //! pixel patch.
 
@@ -16,11 +19,12 @@ use std::sync::Arc;
 
 use pdfcer_core::color::{CmykIntent, cmyk_to_srgb_with, srgb_to_cmyk_fast};
 use pdfcer_flatten::{
-    Blend, Element, FlattenError, Group, Inks, Limits, Overprint, Paint, Region, Space, flatten,
+    Blend, Element, FlattenError, Group, Inks, Limits, Overprint, Paint, Region, SPOT_PLANES,
+    Space, Spots, flatten,
 };
 use pdfcer_render::export::Rgb;
 use pdfcer_render::font::RenderOptions;
-use pdfcer_render::writer_seam::{Brush, BrushSpec, LayerPaint};
+use pdfcer_render::writer_seam::{Brush, BrushSpec, LayerPaint, SpotInk};
 use pdfcer_render::writer_seam::{DeviceBounds, ExportRecording, Op, SiteCause, UNKNOWN, op_box};
 use tiny_skia::{BlendMode, FillRule, Transform};
 
@@ -29,6 +33,7 @@ use crate::vector_census::{Cause, EmfNotFlat};
 use crate::vector_geom::{self, Clips};
 
 mod mask;
+mod spots;
 
 /// What [`super::EmfOptions::with_vector_transparency`] wrote as opaque
 /// vector regions, and what it left to the pixel patch. All zero with the
@@ -52,7 +57,8 @@ pub struct EmfVectorised {
     /// Of [`Self::ops`]: paints with a blend mode other than `Normal`.
     pub blends: usize,
     /// Patched because something in the op or beneath it is not a flat
-    /// colour: an image, a gradient, a soft mask, a spot ink, a paint on a
+    /// colour: an image, a gradient, a soft mask, a spot ink it cannot
+    /// plane, a paint on a
     /// CMYK page with no CMYK colour, or kept text.
     pub patched_not_flat: usize,
     /// Patched because the scene passed the flattener's ceiling.
@@ -157,6 +163,7 @@ fn layer_blend(paint: &LayerPaint) -> Option<Blend> {
 /// Recorded ops as flatten elements, each computed once.
 struct Model<'a> {
     space: Space,
+    roster: spots::Roster,
     clips: Clips<'a>,
     rec: &'a ExportRecording,
     memo: Vec<Option<Result<Vec<Element>, Cause>>>,
@@ -258,13 +265,31 @@ impl Model<'_> {
                 });
             }
         }
-        if !brush.spots.is_empty() || brush.all_colorants.is_some() {
+        let spotted = !brush.spots.is_empty() || brush.all_colorants.is_some();
+        if spotted && self.space != Space::Cmyk {
             return Err(Cause::Spot);
         }
-        if self.space == Space::Cmyk && brush.cmyk.is_none() {
-            return Err(Cause::Cmyk);
+        if self.space == Space::Cmyk {
+            self.inks(brush)?;
         }
         blend_of(brush.blend).map(|_| ()).ok_or(Cause::Blend)
+    }
+
+    /// On an ink page: the process colour `brush` composites, the tint it
+    /// leaves on each spot plane, and the planes it names. As the raster
+    /// paints it: `/All` sets every process plate and every spot plane its
+    /// buffer holds (§8.6.6.4); a spot paint with authored process tints
+    /// deposits its spots on their planes; any other paint composites its
+    /// flattened CMYK and no spot ink.
+    fn inks(&self, brush: &BrushSpec) -> Result<([f32; 4], Spots, Named), Cause> {
+        let named = self.roster.named(brush)?;
+        if let Some(t) = brush.all_colorants {
+            return Ok(([t; 4], self.roster.all(brush, t)?, named));
+        }
+        if let (false, Some(process)) = (brush.spots.is_empty(), brush.process_tints) {
+            return Ok((process, named.map(|s| s.unwrap_or(0.0)), named));
+        }
+        Ok((brush.cmyk.ok_or(Cause::Cmyk)?, [0.0; SPOT_PLANES], named))
     }
 
     fn paint(&self, brush: &BrushSpec, shape: pdfcer_flatten::Shape) -> Result<Paint, Cause> {
@@ -272,11 +297,12 @@ impl Model<'_> {
         let Brush::Solid { rgba } = brush.brush else {
             return Err(Cause::Image);
         };
-        let colour = match self.space {
-            Space::Cmyk => brush.cmyk.ok_or(Cause::Cmyk)?,
+        let (colour, spots, named) = match self.space {
+            Space::Cmyk => self.inks(brush)?,
             _ => {
                 let f = |v: u8| f32::from(v) / 255.0;
-                [f(rgba[0]), f(rgba[1]), f(rgba[2]), 0.0]
+                let rgb = [f(rgba[0]), f(rgba[1]), f(rgba[2]), 0.0];
+                (rgb, [0.0; SPOT_PLANES], [None; SPOT_PLANES])
             }
         };
         Ok(Paint {
@@ -284,13 +310,20 @@ impl Model<'_> {
             colour,
             alpha: f32::from(rgba[3]) / 255.0,
             blend: blend_of(brush.blend).ok_or(Cause::Blend)?,
+            // §11.7.4.3: an overprint keeps every spot plane it names no
+            // tint for, as the raster's colorant buffer does.
             overprint: brush.overprint_process.map(|tints| Overprint {
                 tints,
                 model: usize::from(brush.cmyk.is_some()),
+                spots: named,
             }),
+            spots,
         })
     }
 }
+
+/// The tint a paint names on each spot plane, `None` where it names none.
+type Named = [Option<f32>; SPOT_PLANES];
 
 fn overlaps(a: DeviceBounds, b: DeviceBounds) -> bool {
     a.left < b.right && b.left < a.right && a.top < b.bottom && b.top < a.bottom
@@ -341,12 +374,18 @@ fn count_paints(elements: &[Element]) -> usize {
         .sum()
 }
 
-/// One region as an opaque fill: converted to sRGB, composited over
-/// `paper`.
-fn region_op(r: &Region, space: Space, intent: CmykIntent, paper: [f32; 3]) -> Option<Op> {
+/// One region as an opaque fill: converted to sRGB with each spot plane's
+/// ink folded in by `inks`, composited over `paper`.
+fn region_op(
+    r: &Region,
+    space: Space,
+    inks: &[SpotInk],
+    intent: CmykIntent,
+    paper: [f32; 3],
+) -> Option<Op> {
     let [c0, c1, c2, c3] = r.colour;
     let rgb = match space {
-        Space::Cmyk => cmyk_to_srgb_with(intent, c0, c1, c2, c3),
+        Space::Cmyk => spots::fold(inks, r.spots, cmyk_to_srgb_with(intent, c0, c1, c2, c3)),
         _ => [c0, c1, c2],
     };
     let a = r.alpha.clamp(0.0, 1.0);
@@ -431,7 +470,7 @@ fn resolve(
     Ok(regions
         .iter()
         .filter(|r| r.paints.iter().any(|&p| p >= beneath) && r.alpha > 0.0)
-        .filter_map(|r| region_op(r, model.space, intent, paper))
+        .filter_map(|r| region_op(r, model.space, model.roster.inks(), intent, paper))
         .collect())
 }
 
@@ -461,6 +500,7 @@ pub(super) fn vectorise(
     };
     let mut model = Model {
         space,
+        roster: spots::Roster::of(&rec.ops),
         clips: Clips::new(&rec.clips),
         rec,
         memo: vec![None; rec.ops.len()],

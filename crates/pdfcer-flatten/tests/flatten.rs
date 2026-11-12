@@ -25,7 +25,7 @@ fn paint(shape: Shape, colour: [f32; 4], alpha: f32, blend: Blend) -> Element {
         colour,
         alpha,
         blend,
-        overprint: None,
+        ..Paint::default()
     })
 }
 
@@ -123,8 +123,9 @@ fn an_additive_overprint_through_naive_inks_adds_ink() {
             blend: Blend::Normal,
             overprint: Some(Overprint {
                 tints: [Some(1.0), None, None, None],
-                model: 0,
+                ..Overprint::default()
             }),
+            ..Paint::default()
         }),
     ]);
     let r = flatten(&g, Space::Rgb, &NaiveInks, &Limits::default()).unwrap();
@@ -185,4 +186,32 @@ fn a_cmyk_hue_blend_keeps_the_backdrop_black() {
     ]);
     let r = flatten(&g, Space::Cmyk, &NaiveInks, &Limits::default()).unwrap();
     assert!((r[0].colour[3] - 0.3).abs() < 1e-6);
+}
+
+#[test]
+fn spot_over_spot_overprint_regions_carry_both_planes() {
+    // Plane 0 solid on the left square, plane 1 at 0.5 overprinted on a
+    // square overlapping it: the overlap keeps plane 0 and gains plane 1.
+    let g = page(vec![
+        Element::Paint(Paint {
+            shape: rect(0.0, 0.0, 4.0, 4.0),
+            alpha: 1.0,
+            spots: [1.0, 0.0, 0.0, 0.0],
+            ..Paint::default()
+        }),
+        Element::Paint(Paint {
+            shape: rect(2.0, 0.0, 4.0, 4.0),
+            alpha: 1.0,
+            overprint: Some(Overprint {
+                tints: [None; 4],
+                spots: [None, Some(0.5), None, None],
+                ..Overprint::default()
+            }),
+            ..Paint::default()
+        }),
+    ]);
+    let r = flatten(&g, Space::Cmyk, &NaiveInks, &Limits::default()).unwrap();
+    assert_eq!(region(&r, &[0]).spots, [1.0, 0.0, 0.0, 0.0]);
+    assert_eq!(region(&r, &[0, 1]).spots, [1.0, 0.5, 0.0, 0.0]);
+    assert_eq!(region(&r, &[1]).spots, [0.0, 0.5, 0.0, 0.0]);
 }

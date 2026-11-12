@@ -158,7 +158,7 @@ fn mask_scene(content: Vec<Element>, [r, g, b]: [f32; 3], w: f64, h: f64) -> Gro
             colour: [r, g, b, 0.0],
             alpha: 1.0,
             blend: Blend::Normal,
-            overprint: None,
+            ..Paint::default()
         }),
         Element::Group(group(content)),
     ])

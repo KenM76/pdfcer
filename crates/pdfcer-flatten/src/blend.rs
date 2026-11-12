@@ -145,6 +145,18 @@ pub(crate) fn blend(mode: Blend, space: Space, cb: Colour, cs: Colour) -> Colour
     out
 }
 
+/// `B(cb, cs)` on one spot plane. Only a separable, white-preserving mode
+/// reaches a spot colorant (ISO 32000-1 §11.7.4.2; ISO 32000-2 notes
+/// `Difference` and `Exclusion` as the separable ones that are not), and it
+/// blends the complements like any subtractive component. Any other mode is
+/// `Normal` there.
+pub(crate) fn spot(mode: Blend, cb: f32, cs: f32) -> f32 {
+    if !mode.is_separable() || matches!(mode, Blend::Difference | Blend::Exclusion) {
+        return cs;
+    }
+    1.0 - separable(mode, 1.0 - cb, 1.0 - cs)
+}
+
 #[cfg(test)]
 mod tests {
     // Tests fail by panicking.

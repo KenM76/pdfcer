@@ -36,6 +36,16 @@
 //!   caller's [`Inks`] to CMYK and back; a transparent backdrop is paper.
 //!   This is `pdfcer-render`'s overprint model, not §11.4.8's, which has no
 //!   overprint term for an additive group.
+//! - Beside its process components every paint carries [`SPOT_PLANES`]
+//!   spot colorant tints ([`Paint::spots`]), the first branch of ISO
+//!   32000-1 §11.7.3: the group keeps a separate value per spot colorant.
+//!   Every paint paints every plane (0.0 where it names none), and every
+//!   compositing step treats a plane as one more subtractive component,
+//!   except that a blend that is not separable and white-preserving is
+//!   `Normal` on the spot planes (§11.7.4.2). Under overprint a plane the
+//!   paint does not name keeps the backdrop ([`Overprint::spots`], Table
+//!   149). The caller assigns planes to colorants and folds them into its
+//!   output colour.
 //!
 //! ## Failure modes
 //!
@@ -66,6 +76,14 @@ pub type Point = [f64; 2];
 /// A colour in a blending [`Space`]: the space's components first, the rest
 /// zero. Each component is in `0.0..=1.0`.
 pub type Colour = [f32; 4];
+
+/// How many spot colorant planes a scene carries: `pdfcer-render`'s
+/// per-page plane cap, so a page whose colorants all have planes there has
+/// them here.
+pub const SPOT_PLANES: usize = 4;
+
+/// One tint per spot plane, subtractive: `0.0` is no ink, `1.0` solid.
+pub type Spots = [f32; SPOT_PLANES];
 
 /// How a [`Shape`]'s contours decide inside (ISO 32000-2 §8.5.3.3).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
@@ -203,6 +221,10 @@ pub struct Overprint {
     /// Which of the caller's [`Inks`] pairs converts an additive backdrop
     /// for this paint. Ignored in [`Space::Cmyk`].
     pub model: usize,
+    /// Per spot plane, the tint, or `None` to keep the backdrop: Table
+    /// 149's `c_b` for a colorant the source does not name. Replaces
+    /// [`Paint::spots`] for this paint.
+    pub spots: [Option<f32>; SPOT_PLANES],
 }
 
 /// One flat-coloured paint.
@@ -218,6 +240,9 @@ pub struct Paint {
     pub blend: Blend,
     /// Overprint, or `None` to composite normally.
     pub overprint: Option<Overprint>,
+    /// The tint it paints on each spot plane; `0.0` on a plane it does not
+    /// name, which knocks the backdrop's ink out there (§11.7.3).
+    pub spots: Spots,
 }
 
 /// A member of a [`Group`].
@@ -316,6 +341,9 @@ pub struct Region {
     pub colour: Colour,
     /// The composited alpha.
     pub alpha: f32,
+    /// The composited spot plane tints, `0.0..=1.0`, not yet scaled by
+    /// [`Self::alpha`].
+    pub spots: Spots,
     /// The paints covering it, as indices in depth-first order (the order
     /// the paints are met reading the tree bottom first, groups expanded
     /// where they stand), ascending.
@@ -402,10 +430,12 @@ pub fn flatten(
             }
         }
         let px = composite::evaluate(root, space, inks, &covered)?;
+        let (colour, spots) = composite::split(px.c);
         out.push(Region {
             contours: atom.contours,
-            colour: px.c,
+            colour,
             alpha: px.a,
+            spots,
             paints: atom.paints,
         });
     }

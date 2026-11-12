@@ -262,6 +262,16 @@ pub struct SpotInk {
     pub own_appearance: bool,
 }
 
+impl SpotInk {
+    /// This colorant alone on white paper at `tint`, sRGB `0.0..=1.0`: the
+    /// factor the colorant buffer multiplies into the page where its plane
+    /// holds `tint` (ISO 32000-2 §10.8.3 step (c)).
+    #[must_use]
+    pub fn appearance(&self, tint: f32) -> [f32; 3] {
+        self.lut.at(tint)
+    }
+}
+
 impl BrushSpec {
     /// A solid colour at `alpha`, quantised exactly as the interpreter has
     /// always quantised it.

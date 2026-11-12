@@ -720,9 +720,11 @@ pub fn composite_element_cmyk(backdrop: PixelCmyk, source: PixelCmyk, blend: Ble
 ///
 /// The clause is normative and unambiguous: only **separable,
 /// white-preserving** blend modes may be applied to a spot colour. A
-/// non-separable mode (`Hue`, `Saturation`, `Color`, `Luminosity`) is
-/// therefore **degraded to `Normal`** on every spot plane, while the four
-/// process channels still get it.
+/// non-separable mode (`Hue`, `Saturation`, `Color`, `Luminosity`), and
+/// `Difference` and `Exclusion`, which ISO 32000-2 notes are not
+/// white-preserving,
+/// are therefore **degraded to `Normal`** on every spot plane, while the
+/// four process channels still get them.
 ///
 /// That asymmetry is deliberate and is not an approximation. It is what the
 /// standard requires, and the implementation reason reinforces it:
@@ -771,8 +773,15 @@ pub fn composite_element_cmyk(backdrop: PixelCmyk, source: PixelCmyk, blend: Ble
 fn blend_spots(blend: Blend, backdrop: PixelCmyk, source: PixelCmyk, ab: f32) -> [f32; MAX_SPOTS] {
     // `NonSeparable` joins `Normal` here, per §11.7.4.2 above. Matched
     // explicitly rather than folded into the `is_normal()` test so that the
-    // clause is visible at the branch it governs.
-    if blend.is_normal() || matches!(blend, Blend::NonSeparable(_)) || ab <= 0.0 {
+    // clause is visible at the branch it governs; `Difference` and
+    // `Exclusion` by ISO 32000-2's note on each.
+    if blend.is_normal()
+        || matches!(
+            blend,
+            Blend::NonSeparable(_) | Blend::Difference | Blend::Exclusion
+        )
+        || ab <= 0.0
+    {
         return source.s;
     }
     let mut out = [0.0_f32; MAX_SPOTS];
@@ -1550,6 +1559,26 @@ mod tests {
                 let r = remove_backdrop(g, Pixel { c: [0.5; 3], a: ab }, 0.0);
                 assert!(r.iter().all(|v| v.is_finite()));
             }
+        }
+    }
+
+    /// ISO 32000-2 notes Difference and Exclusion are not white-preserving,
+    /// so §11.7.4.2 composites a spot plane under them as Normal: 0.2 over
+    /// 0.3 stays 0.2 (Difference would give 0.9, Exclusion 0.62).
+    #[test]
+    fn difference_and_exclusion_composite_a_spot_plane_as_normal() {
+        let px = |s0: f32| {
+            let mut s = [0.0; MAX_SPOTS];
+            s[0] = s0;
+            PixelCmyk {
+                c: [0.0; 4],
+                s,
+                a: 1.0,
+            }
+        };
+        for blend in [Blend::Difference, Blend::Exclusion] {
+            let out = blend_spots(blend, px(0.3), px(0.2), 1.0);
+            assert!((out[0] - 0.2).abs() < EPS, "{blend:?}: {out:?}");
         }
     }
 }

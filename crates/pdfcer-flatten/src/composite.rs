@@ -1,34 +1,69 @@
 //! §11.4.8 for one region: the tree walked with a fixed set of covering
 //! paints, every covered paint at shape 1 and every other at shape 0.
 
-use crate::blend::blend;
+use crate::blend::{blend, spot};
 use crate::{
-    Blend, Ceiling, Colour, Element, FlattenError, Group, Inks, Limits, Paint, Shape, Space,
+    Blend, Ceiling, Colour, Element, FlattenError, Group, Inks, Limits, Overprint, Paint,
+    SPOT_PLANES, Shape, Space, Spots,
 };
+
+/// The process components, then the spot planes.
+pub(crate) type Chans = [f32; 4 + SPOT_PLANES];
 
 /// A colour and its alpha, not premultiplied.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub(crate) struct Px {
-    pub(crate) c: Colour,
+    pub(crate) c: Chans,
     pub(crate) a: f32,
 }
 
 const CLEAR: Px = Px {
-    c: [0.0; 4],
+    c: [0.0; 4 + SPOT_PLANES],
     a: 0.0,
 };
+
+/// Process components and spot planes as one array.
+pub(crate) fn join(c: Colour, s: Spots) -> Chans {
+    let mut out = [0.0; 4 + SPOT_PLANES];
+    for (o, v) in out.iter_mut().zip(c.into_iter().chain(s)) {
+        *o = v;
+    }
+    out
+}
+
+/// The inverse of [`join`].
+pub(crate) fn split(v: Chans) -> (Colour, Spots) {
+    let mut c = [0.0; 4];
+    let mut s = [0.0; SPOT_PLANES];
+    for (o, &x) in c.iter_mut().chain(s.iter_mut()).zip(&v) {
+        *o = x;
+    }
+    (c, s)
+}
 
 /// `Union(b, s) = b + s − b·s` (§11.3.6).
 fn union(b: f32, s: f32) -> f32 {
     b + s - b * s
 }
 
-fn lerp(a: Colour, b: Colour, t: f32) -> Colour {
+fn lerp(a: Chans, b: Chans, t: f32) -> Chans {
     let mut out = a;
     for (o, &v) in out.iter_mut().zip(&b) {
         *o += t * (v - *o);
     }
     out
+}
+
+/// `B(cb, cs)` on every channel: the process components in `space`, the
+/// spot planes by [`spot`].
+fn mix(mode: Blend, space: Space, cb: Chans, cs: Chans) -> Chans {
+    let (pb, sb) = split(cb);
+    let (ps, ss) = split(cs);
+    let mut s = ss;
+    for ((o, &b), &v) in s.iter_mut().zip(&sb).zip(&ss) {
+        *o = spot(mode, b, v);
+    }
+    join(blend(mode, space, pb, ps), s)
 }
 
 /// The paints' shapes in depth-first order, with the depth ceiling and the
@@ -94,7 +129,7 @@ impl Ctx<'_> {
         let mixed = if mode == Blend::Normal || ab <= 0.0 {
             s.c
         } else {
-            lerp(s.c, blend(mode, self.space, b.c, s.c), ab)
+            lerp(s.c, mix(mode, self.space, b.c, s.c), ab)
         };
         Px {
             c: lerp(b.c, mixed, a_s / ai),
@@ -102,14 +137,26 @@ impl Ctx<'_> {
         }
     }
 
-    /// An overprinting paint: the named components replaced, the rest kept,
-    /// mixed into the backdrop by alpha. The blend mode is not used.
-    fn overprint(&self, b: Px, p: &Paint, tints: [Option<f32>; 4], model: usize) -> Px {
+    /// An overprinting paint: the named components and spot planes
+    /// replaced, the rest kept, mixed into the backdrop by alpha. The blend
+    /// mode is not used.
+    fn overprint(&self, b: Px, p: &Paint, o: Overprint) -> Px {
         let t = p.alpha.clamp(0.0, 1.0);
-        let base = if b.a <= 0.0 { self.space.paper() } else { b.c };
+        let base = if b.a <= 0.0 {
+            join(self.space.paper(), [0.0; SPOT_PLANES])
+        } else {
+            b.c
+        };
+        let (process, planes) = split(base);
+        let mut spots = planes;
+        for (o, tint) in spots.iter_mut().zip(o.spots) {
+            if let Some(v) = tint {
+                *o = v.clamp(0.0, 1.0);
+            }
+        }
         let rule = |under: [f32; 4]| {
             let mut out = under;
-            for (o, tint) in out.iter_mut().zip(tints) {
+            for (o, tint) in out.iter_mut().zip(o.tints) {
                 if let Some(v) = tint {
                     *o = v.clamp(0.0, 1.0);
                 }
@@ -117,34 +164,33 @@ impl Ctx<'_> {
             out
         };
         let target = match self.space {
-            Space::Cmyk => rule(base),
+            Space::Cmyk => rule(process),
             Space::Rgb => {
-                let under = self.inks.to_cmyk(model, [base[0], base[1], base[2]]);
+                let under = self
+                    .inks
+                    .to_cmyk(o.model, [process[0], process[1], process[2]]);
                 let out = rule(under);
                 if out == under && b.a >= 1.0 {
-                    return b;
+                    if spots == planes {
+                        return b;
+                    }
+                    process
+                } else {
+                    let [r, g, bl] = self.inks.to_rgb(o.model, out);
+                    [r, g, bl, 0.0]
                 }
-                let [r, g, bl] = self.inks.to_rgb(model, out);
-                [r, g, bl, 0.0]
             }
         };
         Px {
-            c: lerp(base, target, t),
+            c: lerp(base, join(target, spots), t),
             a: b.a + (1.0 - b.a) * t,
         }
     }
 
     fn paint(&self, b: Px, p: &Paint) -> Px {
         match p.overprint {
-            Some(o) => self.overprint(b, p, o.tints, o.model),
-            None => self.element(
-                b,
-                Px {
-                    c: p.colour,
-                    a: p.alpha,
-                },
-                p.blend,
-            ),
+            Some(o) => self.overprint(b, p, o),
+            None => self.element(b, source(p), p.blend),
         }
     }
 
@@ -208,14 +254,7 @@ impl Ctx<'_> {
                     if !hit {
                         continue;
                     }
-                    (
-                        Px {
-                            c: p.colour,
-                            a: p.alpha,
-                        },
-                        1.0,
-                        p.blend,
-                    )
+                    (source(p), 1.0, p.blend)
                 }
                 Element::Group(child) => {
                     let n = paints_in(child);
@@ -264,10 +303,10 @@ impl Ctx<'_> {
         let mixed = if a0 <= 0.0 || mode == Blend::Normal {
             s.c
         } else {
-            lerp(s.c, blend(mode, self.space, initial.c, s.c), a0)
+            lerp(s.c, mix(mode, self.space, initial.c, s.c), a0)
         };
         let k = (f - a_s) * a0;
-        let mut c = [0.0; 4];
+        let mut c = [0.0; 4 + SPOT_PLANES];
         for (((o, &m), &ini), &acc) in c.iter_mut().zip(&mixed).zip(&initial.c).zip(&accum.c) {
             *o = ((1.0 - f) * accum.a * acc + a_s * m + k * ini) / ai;
         }
@@ -277,7 +316,7 @@ impl Ctx<'_> {
 
 /// §11.4.4's backdrop removal: the group colour with the backdrop's
 /// contribution taken back out, given the group's own alpha `α_gn`.
-fn remove_backdrop(over: Colour, backdrop: Px, agn: f32) -> Colour {
+fn remove_backdrop(over: Chans, backdrop: Px, agn: f32) -> Chans {
     let a0 = backdrop.a.clamp(0.0, 1.0);
     let agn = agn.clamp(0.0, 1.0);
     if a0 <= 0.0 || agn <= 0.0 {
@@ -291,8 +330,16 @@ fn remove_backdrop(over: Colour, backdrop: Px, agn: f32) -> Colour {
     out
 }
 
+/// A non-overprinting paint as a source pixel.
+fn source(p: &Paint) -> Px {
+    Px {
+        c: join(p.colour, p.spots),
+        a: p.alpha,
+    }
+}
+
 /// The page group's result where exactly the `covered` paints mark, scaled
-/// by the root's alpha. Colours are clamped to `0..=1`.
+/// by the root's alpha. Colours and spot tints are clamped to `0..=1`.
 pub(crate) fn evaluate(
     root: &Group,
     space: Space,
@@ -309,12 +356,12 @@ pub(crate) fn evaluate(
     } else {
         ctx.run(root, CLEAR, 0)
     };
-    let mut c = res.c;
-    for v in c.iter_mut().take(space.components()) {
+    let (mut c, mut s) = split(res.c);
+    for v in c.iter_mut().take(space.components()).chain(s.iter_mut()) {
         *v = v.clamp(0.0, 1.0);
     }
     Ok(Px {
-        c,
+        c: join(c, s),
         a: (res.a * root.alpha.clamp(0.0, 1.0)).clamp(0.0, 1.0),
     })
 }
@@ -324,7 +371,7 @@ mod tests {
     // Tests fail by panicking.
     #![allow(clippy::indexing_slicing)]
     use super::*;
-    use crate::{NaiveInks, Overprint};
+    use crate::NaiveInks;
 
     fn paint(colour: Colour, alpha: f32) -> Element {
         Element::Paint(Paint {
@@ -338,8 +385,105 @@ mod tests {
         evaluate(g, space, &NaiveInks, covered).unwrap_or(CLEAR)
     }
 
-    fn close(a: Colour, b: Colour) -> bool {
-        a.iter().zip(&b).all(|(x, y)| (x - y).abs() < 1e-5)
+    fn close(a: Chans, b: Colour) -> bool {
+        split(a).0.iter().zip(&b).all(|(x, y)| (x - y).abs() < 1e-5)
+    }
+
+    fn spots_of(px: Px) -> Spots {
+        split(px.c).1
+    }
+
+    fn spot_paint(spots: Spots, alpha: f32, blend: Blend) -> Element {
+        Element::Paint(Paint {
+            alpha,
+            blend,
+            spots,
+            ..Paint::default()
+        })
+    }
+
+    #[test]
+    fn a_process_paint_knocks_the_spot_planes_out() {
+        let g = page(vec![
+            spot_paint([0.8, 0.0, 0.0, 0.0], 1.0, Blend::Normal),
+            paint([0.0, 0.5, 0.0, 0.0], 1.0),
+        ]);
+        let px = eval(&g, Space::Cmyk, &[true, true]);
+        assert_eq!(spots_of(px), [0.0; SPOT_PLANES]);
+        assert!(close(px.c, [0.0, 0.5, 0.0, 0.0]));
+    }
+
+    #[test]
+    fn half_alpha_spot_over_spot_mixes_each_plane() {
+        let g = page(vec![
+            spot_paint([0.8, 0.0, 0.0, 0.0], 1.0, Blend::Normal),
+            spot_paint([0.0, 0.6, 0.0, 0.0], 0.5, Blend::Normal),
+        ]);
+        let s = spots_of(eval(&g, Space::Cmyk, &[true, true]));
+        assert!((s[0] - 0.4).abs() < 1e-6 && (s[1] - 0.3).abs() < 1e-6);
+    }
+
+    #[test]
+    fn multiply_reaches_a_spot_plane_but_difference_and_hue_do_not() {
+        // 0.2 over 0.3: Difference would give 0.9 and Exclusion 0.62, so
+        // each mode is told apart from Normal.
+        let under = spot_paint([0.3, 0.0, 0.0, 0.0], 1.0, Blend::Normal);
+        let over = |b| spot_paint([0.2, 0.0, 0.0, 0.0], 1.0, b);
+        let at = |b| {
+            spots_of(eval(
+                &page(vec![under.clone(), over(b)]),
+                Space::Cmyk,
+                &[true, true],
+            ))[0]
+        };
+        // Subtractive multiply: 1 − 0.7·0.8.
+        assert!((at(Blend::Multiply) - 0.44).abs() < 1e-6);
+        assert!((at(Blend::Difference) - 0.2).abs() < 1e-6);
+        assert!((at(Blend::Exclusion) - 0.2).abs() < 1e-6);
+        assert!((at(Blend::Hue) - 0.2).abs() < 1e-6);
+    }
+
+    #[test]
+    fn overprint_keeps_the_spot_planes_it_does_not_name() {
+        let g = page(vec![
+            spot_paint([0.8, 0.0, 0.0, 0.0], 1.0, Blend::Normal),
+            Element::Paint(Paint {
+                alpha: 0.5,
+                overprint: Some(Overprint {
+                    spots: [None, Some(0.6), None, None],
+                    ..Overprint::default()
+                }),
+                ..Paint::default()
+            }),
+        ]);
+        let s = spots_of(eval(&g, Space::Cmyk, &[true, true]));
+        assert!((s[0] - 0.8).abs() < 1e-6 && (s[1] - 0.3).abs() < 1e-6);
+    }
+
+    #[test]
+    fn a_knockout_group_and_backdrop_removal_carry_the_spot_planes() {
+        let ko = Group {
+            elements: vec![
+                spot_paint([0.4, 0.0, 0.0, 0.0], 0.5, Blend::Normal),
+                spot_paint([0.0, 0.8, 0.0, 0.0], 0.5, Blend::Normal),
+            ],
+            isolated: false,
+            knockout: true,
+            alpha: 1.0,
+            ..Group::default()
+        };
+        let g = page(vec![
+            spot_paint([0.0, 0.0, 1.0, 0.0], 1.0, Blend::Normal),
+            Element::Group(ko),
+        ]);
+        let s = spots_of(eval(&g, Space::Cmyk, &[true, true, true]));
+        // The upper member knocks the lower out and mixes half into the
+        // page's plane 2.
+        assert!(s[0].abs() < 1e-6, "{s:?}");
+        assert!(
+            (s[1] - 0.4).abs() < 1e-6 && (s[2] - 0.5).abs() < 1e-6,
+            "{s:?}"
+        );
     }
 
     fn page(elements: Vec<Element>) -> Group {
@@ -425,7 +569,7 @@ mod tests {
                 alpha: 1.0,
                 overprint: Some(Overprint {
                     tints: [Some(0.6), None, None, None],
-                    model: 0,
+                    ..Overprint::default()
                 }),
                 ..Paint::default()
             }),

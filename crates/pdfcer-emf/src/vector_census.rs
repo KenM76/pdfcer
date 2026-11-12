@@ -24,8 +24,15 @@ pub struct EmfNotFlat {
     pub image: usize,
     /// A smooth shading or a gradient.
     pub shading: usize,
-    /// A paint with spot or `/All` colorants.
+    /// A paint with spot or `/All` colorants on a page whose blending space
+    /// is additive, where the raster keeps no spot planes to model.
     pub spot: usize,
+    /// A spot paint on a page naming more spot colorants than the
+    /// flattener has planes for (ISO 32000-1 §11.7.3).
+    pub spot_roster: usize,
+    /// An `/All` paint inside a non-isolated group, whose content the
+    /// raster composites over two different sets of spot planes.
+    pub spot_all_group: usize,
     /// A paint on a CMYK page that recorded no CMYK colour.
     pub cmyk: usize,
     /// A blend mode the flattener does not model.
@@ -48,6 +55,8 @@ pub(crate) enum Cause {
     Image,
     Shading,
     Spot,
+    SpotRoster,
+    SpotAllGroup,
     Cmyk,
     Blend,
     Knockout,
@@ -66,6 +75,8 @@ impl EmfNotFlat {
             Cause::Image => &mut self.image,
             Cause::Shading => &mut self.shading,
             Cause::Spot => &mut self.spot,
+            Cause::SpotRoster => &mut self.spot_roster,
+            Cause::SpotAllGroup => &mut self.spot_all_group,
             Cause::Cmyk => &mut self.cmyk,
             Cause::Blend => &mut self.blend,
             Cause::Knockout => &mut self.knockout,
