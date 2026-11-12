@@ -4,6 +4,16 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-11-12 (1541st filing) — `fd4f4010` `Pass 700.22` PARTIAL: image soft masks counted apart; `700.24` filed
+
+**Filed (engineer-reported; no shell here, nothing checked from here):**
+- `fd4f4010` `Pass 700.22` partial: the licensed print test file's 18 "varying" masks per page were one image-driven drop-shadow mask plus 17 overprint ops stacked above it. New census cause `soft_mask_image` (genuinely raster); `soft_mask_varying` now gradient-only and 0 on the file. EMF bytes unchanged, parity means unchanged; vector-gap patches per page 30/26/18/22/21/20 to 12/8/0/4/3/2. Tests: emf 110, flatten 27, render 1263, cli 1209; gates green per the engineer.
+- `c846a58c` docs only: `export-image` format help names png, jpg, jxl, svg, emf (closes the 1540th finding).
+- `700.24` filed (Next up): overprint ops above an image mask vector outside the mask's bounds, patched only in the overlap. Order `700.24`, then `700.23`.
+
+**Still open:** `700.22` gradient-band remainder (no fixture); `700.18`, `700.23`.
+**For next session:** `700.24`. No decision, no rule. Sweep (docs only; `crates/` not searched): one survivor fixed, the `FEATURES.md` soft-mask row's "masks are single image or shading ops, so varying"; history entries in ROADMAP left as written.
+
 ## 2026-11-12 (1540th filing) — `v0.146.0` PUBLISHED (`20bcbb1c`)
 
 **Filed (engineer-reported, shell held by the engineer; nothing checked from here; docs only):**

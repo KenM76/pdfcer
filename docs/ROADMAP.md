@@ -112,6 +112,17 @@ wherever it appears.*
 
 ## Shipped
 
+### `fd4f4010` `Pass 700.22` (PARTIAL, remainder open): image soft masks counted apart from gradient masks in the EMF census, 2026-11-12 (1541st filing)
+
+Engineer-reported; no shell here, git, push and CI state not checked from here. `fd4f4010` `feat(emf,cli,tools): count image soft masks apart from gradient masks (Pass 700.22)`, on `main`. Also filed here: `c846a58c` (docs only), below. Reasoning is in the commit message.
+- **Census finding.** Every soft mask on the licensed print test file is one construct: one per page, `/S /Luminosity`, `/BC [1 1 1 1]`, no `/TR`; the group (DeviceCMYK, `/I false /K false`) holds one DCTDecode DeviceGray image of about 1120x164 px, a blurred drop shadow of the page title. The earlier "18 per page" was 1 masked op plus 17 overprint ops above it whose stacks contain it. No mask on the file is driven by a shading or gradient.
+- **Shipped.** New `EmfNotFlat` cause and census field `soft_mask_image` for a mask whose group holds an image or a nested image mask: genuinely raster (the Acrobat RAG says Adobe's flattener always rasterises soft masks and drop shadows). `soft_mask_varying` now counts only gradient, shading and varying nested masks, still a vector gap. CLI `emf-vector-not-flat:` prints `soft_mask_image=`; `tools/print-parity-report.py` counts it as genuine raster; `docs/core-api/03-capabilities.md` updated. Files: `crates/pdfcer-emf/src/vector_census.rs`, `crates/pdfcer-emf/src/vector/mask.rs`, `crates/pdfcer-cli/src/render_export.rs`, `crates/pdfcer-cli/tests/export_image.rs`, `crates/pdfcer-emf/tests/export_emf_mask.rs`.
+- **Measured on the licensed file** (local only). `soft_mask_varying` 18 to 0 per page; `soft_mask_image` 18 per page. EMF output byte-identical to before: reclassification, not new vector output. Parity-report means unchanged at 8.492/1.424/7.696/8.222/5.628/5.743. Vector-gap patches per page fell 30/26/18/22/21/20 to 12/8/0/4/3/2; `patched_not_flat` unchanged at 50/18/125/35/25/28.
+- **Tests (engineer-reported):** emf 110 passed (1 ignored), flatten 27, render 1263 (2 ignored), cli 1209 (2 ignored). New: `an_image_mask_is_counted_apart_from_a_gradient_mask` (sabotage-verified), `an_image_mask_patch_plays_back_like_the_raster` (GDI playback against the raster). Gates green per the engineer: clippy, rustdoc, structure, public-fns-documented, core-api verbs, suite-name; `cargo tree` for render and emf clean.
+- **Not done (remainder of 700.22, stays in Next up):** gradient-band decomposition of shading-driven masks; no test file has one. The overprint-above-mask patching is filed as `700.24`.
+- **`c846a58c` (docs only):** `export-image --output-dir` help and the format argument's `as_str` doc now name every format extension (png, jpg, jxl, svg, emf); closes the 1540th-filing help-wording finding.
+- **FEATURES:** new *Implemented* row core `[x]`, cli `[x]`, gui `[ ]`; the `700.22` *Planned* row renamed to gradient-driven masks, `[ ]` on all three; new *Planned* row for `700.24`.
+
 ### `20bcbb1c` `v0.146.0` PUBLISHED, 2026-11-12 (1540th filing)
 
 Engineer-reported (shell held by the engineer; each item stated checked); nothing checked from here.
@@ -27015,17 +27026,21 @@ closes out the *prior* filing's business rather than opening this one's.
 
 > **`Pass 700.18` PARTIAL (1539th filing), `03781353`; see its *Shipped* entry.** The tool and two fixes shipped; the Pass stays OPEN until every page prints vector apart from genuinely raster content, tracked by `700.22` and `700.23`.
 
-> **`Pass 700.22`: varying soft masks as vector in EMF (filed 1539th).** A luminosity or alpha soft mask whose value varies across the region currently becomes a bitmap patch: 18 per page on the licensed print test file, 108 total, the largest vector gap.
-> - **Approach to evaluate:** decompose a smooth-shading-driven mask into constant-alpha pieces or gradient triangles; leave an image-driven mask as raster content.
-> - **Acceptance:** the `soft_mask_varying` count on the licensed file falls; synthetic fixtures show GDI playback matching the raster; disclosure goes through the existing counters.
-> - FEATURES: one *Planned* row, unticked.
+> **`Pass 700.22` PARTIAL (1541st filing), `fd4f4010`; see its *Shipped* entry. REMAINDER OPEN: gradient-band decomposition of shading-driven soft masks** (a luminosity or alpha mask driven by a shading or gradient becomes a bitmap patch today).
+> - **Approach to evaluate:** decompose a smooth-shading-driven mask into constant-alpha pieces or gradient triangles.
+> - **Acceptance:** `soft_mask_varying` falls on a file that has such a mask; synthetic fixtures show GDI playback matching the raster. No test file currently has one, so a synthetic fixture comes first.
+> - FEATURES: *Planned* row "Gradient-driven soft masks as vector in EMF", unticked.
 
 > **`Pass 700.23`: unrecorded patches and covered shadings (filed 1539th).**
 > - (a) Find the cause of the 13 `patched_unrecorded` patches (p2 8, p5 3, p6 2) and convert those that are vector.
 > - (b) Investigate a suspected export drop: a function-based (type 1) shading, with patching off, was counted as rasterised but left no image in the EMF recording. Candidate defect, NOT confirmed; confirm, then fix if real.
 > - FEATURES: *Planned*, unticked.
 
-> **Remaining order (1539th filing; `700.18` partial shipped):** `700.22` then `700.23`. The release goes out now, before them, carrying `700.21` and the two `700.18` fixes.
+> **`Pass 700.24`: overprint above an image soft mask stays vector outside the mask (filed 1541st).** Today the 17 overprint ops per page above the title's drop shadow on the licensed print test file are patched whole, because their stack contains the image mask. Their overlap with the shadow genuinely needs raster (overprint colour depends on the shadow's pixels), but a RIP's rule is "shadow raster, text vector": the part of each op outside the shadow's painted bounds should be emitted as vector and only the overlap patched.
+> - **Acceptance:** on the licensed file the patch area per page shrinks (the patch count may stay the same); the parity-report means do not get worse (baseline 8.492/1.424/7.696/8.222/5.628/5.743); a synthetic fixture shows GDI playback matching the raster.
+> - FEATURES: *Planned* row, unticked.
+
+> **Remaining order (1541st filing; `700.22` partial shipped):** `700.24`, then `700.23`; the `700.22` gradient-mask remainder waits for a fixture. Next release deploys to OneDrive `pdfcer2`.
 
 > **`Pass 706.0` (`X076`): SHIPPED 2026-11-11 (1533rd filing), `06516ff6`; see its *Shipped* entry.**
 
