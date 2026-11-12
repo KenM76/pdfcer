@@ -4,6 +4,17 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-11-11 (1534th filing) — `88abc2c4` `Pass 706.0` follow-up: doc comment on `structure_bounds::walk::union`
+
+**Shipped (engineer-reported; no shell here, git/CI state not checked from here; docs only):**
+- `88abc2c4`: one doc line on `crates/pdfcer-text/src/structure_bounds/walk.rs::union`, flagged by `check-public-fns-documented.py`. No behaviour change; gate clean now. Pushed with this filing; CI pending, not read.
+
+**Findings + decisions:** process slip, engineer's own: the push of `b6c0a8ef` was chained before the audit output was read, so the flag arrived after publication. Read gate output before the push. No FEATURES change, no new decision.
+
+**Still in flight:** CI on `88abc2c4` (and the 1533rd's `06516ff6`) is not recorded here.
+
+**For next session:** unchanged: `700.14`, `700.15`, `700.18`, then the release.
+
 ## 2026-11-11 (1533rd filing) — `06516ff6` `Pass 706.0` (`X076`) SHIPPED: painted bounds for structure elements
 
 **Shipped (engineer-reported; no shell here, git/CI state not checked from here; docs only):**

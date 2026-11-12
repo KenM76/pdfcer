@@ -112,6 +112,10 @@ wherever it appears.*
 
 ## Shipped
 
+### `88abc2c4` `Pass 706.0` follow-up: doc comment on `structure_bounds::walk::union`, 2026-11-11 (1534th filing)
+
+Engineer-reported; no shell here, git, push and CI state not checked from here. `88abc2c4` `docs(text): doc comment on structure_bounds::walk::union (Pass 706.0)`. `check-public-fns-documented.py` flagged `crates/pdfcer-text/src/structure_bounds/walk.rs::union` as a public fn with no doc comment; the flag was read after `b6c0a8ef` was pushed (push chained before reading the audit output). One doc line, no behaviour change; gate clean now. Pushed with this filing; CI on `88abc2c4` pending, not read. No FEATURES change.
+
 ### `06516ff6` `Pass 706.0` (`X076`): painted bounds for structure elements, non-text content included, 2026-11-11 (1533rd filing)
 
 Engineer-reported; no shell here, git, push and CI state not checked from here. `06516ff6` `feat(text,cli): painted bounds for structure elements (Pass 706.0)`, on `main`, a cherry-pick of worker `f9ae37eb`; NOT in a release. Scoped in the 1530th filing (`7d62e174`). Reasoning is in the commit message. SHIPPED reply written: `D:\Dev\FeatureRequests\pdfce_FeatureRequests\open\reply_X076_structure_element_painted_bounds_SHIPPED.md` (X076 to be marked answered in the request register by the operator or engineer; not touched from here).
