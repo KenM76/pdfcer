@@ -4,6 +4,18 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-11-11 (1532nd filing) — `2ed9e905` `Pass 700.13` CI follow-up: Linux `dead_code` fix
+
+**Shipped (engineer-reported; no shell here, git/CI state not checked from here; docs only):**
+- `2ed9e905`: `#[cfg_attr(not(windows), allow(dead_code))]` on `PrintOutput.vector_transparency`; CI on `972452dc` had failed Linux `cargo clippy -D warnings` because only the `#[cfg(windows)]` print path reads it. No behaviour change. See the ROADMAP *Shipped* entry.
+- FEATURES unchanged.
+
+**Findings:** Windows clippy cannot see a field read only under `#[cfg(windows)]`; only CI's Linux clippy can. Check it after any new Windows-only field.
+
+**Still in flight:** pushed with this filing; CI on `2ed9e905` pending, not read. Do not call it green until read from GitHub.
+
+**For next session:** read CI on `2ed9e905`, then as in the 1531st.
+
 ## 2026-11-11 (1531st filing) — `f37875fc` `Pass 700.13` SHIPPED: vector flattener, new crate `pdfcer-flatten`
 
 **Shipped (engineer-reported; no shell here, git/CI/crates.io state not checked from here; docs only):**

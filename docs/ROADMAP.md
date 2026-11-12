@@ -112,6 +112,10 @@ wherever it appears.*
 
 ## Shipped
 
+### `2ed9e905` `Pass 700.13` CI follow-up: Linux-only `dead_code` on `PrintOutput.vector_transparency`, 2026-11-11 (1532nd filing)
+
+Engineer-reported; no shell here, git, push and CI state not checked from here. CI on `972452dc` failed one job, `cargo clippy -D warnings`, Linux only: `dead_code` on `PrintOutput.vector_transparency` (`crates/pdfcer-cli/src/print_output.rs`), read only by the `#[cfg(windows)]` print path. `2ed9e905` adds `#[cfg_attr(not(windows), allow(dead_code))]` to the field, the same gate `edge_antialiasing` and `route` already carry. One attribute line, no behaviour change. Windows clippy cannot see this class of error; only CI's Linux clippy can. Pushed with this filing; CI on `2ed9e905` pending, not read.
+
 ### `f37875fc` `Pass 700.13`: the vector atomic-region flattener, new crate `pdfcer-flatten`, for the EMF print route, 2026-11-11 (1531st filing)
 
 Engineer-reported; no shell here, git, push, CI and crates.io state not checked from here. `f37875fc` `feat(flatten,emf,cli): flat transparency written as vector EMF regions (Pass 700.13)`, on `main`, a cherry-pick of worker `a1c33112`; NOT in a release. Reasoning is in the commit message.
