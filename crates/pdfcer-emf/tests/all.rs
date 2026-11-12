@@ -5,6 +5,7 @@
 mod emf_import_roundtrip;
 mod emf_plates;
 mod export_emf;
+mod export_emf_group_space;
 mod export_emf_keep_text;
 mod export_emf_mask;
 mod export_emf_mask_split;

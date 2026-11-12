@@ -18,8 +18,10 @@ pub enum SiteCause {
     NonIsolatedGroup,
     /// A blend drawn `Normal`.
     Blend,
-    /// Compositing done in RGB that the raster does in a subtractive
-    /// blending space (§11.7.2).
+    /// Compositing recorded in the page's blending space that the raster
+    /// does in another (§11.3.4, §11.7.2): the page's own subtractive
+    /// space, or an isolated group's `CS` — subtractive on an additive
+    /// page, additive on a subtractive one.
     BlendingSpace,
 }
 

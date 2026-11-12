@@ -39,8 +39,10 @@ impl Canvas<'_> {
     /// converted, is the isolated group's result, which the parent then
     /// composites under the outer state and mask as for any group.
     ///
-    /// A recording cannot hold ink, so a subtractive group refuses it with
-    /// [`PoisonReason::ColorantBuffer`] and composites in sRGB. A colorant
+    /// A recording holds one space, the page's, so a group in the other —
+    /// subtractive on an additive page, or additive on a subtractive one —
+    /// refuses it with [`PoisonReason::ColorantBuffer`] and is recorded as
+    /// an isolated group in the page's space. A colorant
     /// buffer that cannot be allocated does the same, and the interior's
     /// blends are then counted by `blends_in_wrong_space`.
     #[allow(clippy::too_many_arguments)] // `group`'s seven plus the space and its buffer setup.
@@ -58,7 +60,7 @@ impl Canvas<'_> {
         let Some(space) = declared.filter(|_| isolated) else {
             return self.group(paint, isolated, knockout, mask, bounds, f);
         };
-        let on_ink = matches!(self, Self::Cmyk(_));
+        let on_ink = self.composites_in_ink();
         if space.is_subtractive() == on_ink {
             return self.group(paint, true, knockout, mask, bounds, f);
         }
@@ -80,6 +82,19 @@ impl Canvas<'_> {
             (ink_interior(sub, &mut buffer, knockout, &mut f), false)
         })?;
         outer.result
+    }
+
+    /// Whether the space this canvas stands for is subtractive: a colorant
+    /// buffer, or an export recording of a subtractive page, whose writer
+    /// composites in ink (`ExportRecording::subtractive_page`). Without the
+    /// second, a subtractive group on such a page reads as a space change
+    /// and an additive one does not.
+    fn composites_in_ink(&self) -> bool {
+        match self {
+            Self::Cmyk(_) => true,
+            Self::Record(r) => r.export.as_ref().is_some_and(|e| e.sites.subtractive_page),
+            _ => false,
+        }
     }
 }
 
