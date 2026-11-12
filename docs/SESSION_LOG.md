@@ -4,6 +4,19 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-11-11 (1533rd filing) — `06516ff6` `Pass 706.0` (`X076`) SHIPPED: painted bounds for structure elements
+
+**Shipped (engineer-reported; no shell here, git/CI state not checked from here; docs only):**
+- `06516ff6` on `main` (cherry-pick of worker `f9ae37eb`), not in a release. New `pdfcer_core::structure_bounds` (`read_painted_bounds`, `element_painted_bounds`, `elements_without_painted_bounds`); CLI `extract-tags --painted-bounds`. Detail in the ROADMAP *Shipped* entry. SHIPPED reply written to the channel (`reply_X076_structure_element_painted_bounds_SHIPPED.md`).
+- Tests: pdfcer-text 11 new, integration binary 72 pass; pdfcer-cli 2 new, 1082 + 125 pass; acceptance (a)-(f) pass; sabotage 10/10; fuzz 60 s 33,721 runs, 0 crashes.
+- FEATURES: *Planned* row moved to *Implemented*: core `[x]`, cli `[x]`, gui `[ ]`.
+
+**Decisions made this session:** none new. Extra reason `NoContent`; CLI flag placed on `extract-tags`, not `extract`.
+
+**Still in flight:** CI on `2ed9e905` (the 1532nd's fix) is not recorded here; the engineer confirms it. `X076` register status not edited from here.
+
+**For next session:** `700.14`, `700.15`, `700.18`, then the release.
+
 ## 2026-11-11 (1532nd filing) — `2ed9e905` `Pass 700.13` CI follow-up: Linux `dead_code` fix
 
 **Shipped (engineer-reported; no shell here, git/CI state not checked from here; docs only):**
