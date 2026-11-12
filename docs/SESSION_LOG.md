@@ -4,6 +4,21 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-11-12 (1537th filing) — `7ee06213` `Pass 700.15` SHIPPED: flat soft masks as vector EMF regions; `Pass 700.21` (spot colour) filed
+
+**Shipped (engineer-reported; no shell here, git/CI state not checked from here):**
+- `7ee06213` on `main` (cherry-pick of worker `36204985`), not pushed at filing time, not in a release. Flat luminosity/alpha soft masks become constant-alpha pieces under `--vector-transparency`; raster now applies `/TR` and builds the mask `/BBox` clip on the mask's own buffer; `EmfVectorised.not_flat` census and CLI `emf-vector-not-flat:`. Detail in the ROADMAP *Shipped* entry.
+- Tests: emf 78 (+1 ignored); render 573/653/36/6/2; flatten 13/6; cli 126/1083; 8 GDI-playback cases at 0 differing pixels; sabotage 9 of 10 caught (the miss is an optimisation only). Gates clean per engineer.
+- FEATURES: new *Implemented* row core `[x]`, cli `[x]`, gui `[ ]`; *Planned* 700.15 row replaced by an image/shading-mask residue row and a `700.21` row.
+
+**Decisions made this session:** `Pass 700.21` minted (700.19/700.20 taken by `X074`/`X075`, 700.21 free by operator's check; grep of `docs/` for `700.21` found none before filing). No new decision-log entry.
+
+**Findings + decisions:** on the licensed print test file the Pass moves nothing: `patched_not_flat` 73/18/676/193/33/32 unchanged, `soft_mask_flat` 0 everywhere (18 masks per page, each a single image or shading op in a CMYK group). Spot colour holds 903 of 1025 not-flat regions (page 3: 644 of 676). RAG: `D:\dev\rag\emf\soft_mask_as_constant_pieces.md` (indexed).
+
+**Still in flight:** image/shading soft-mask residue has no Pass ID; translucent-shading residue (1535th) likewise.
+
+**For next session:** `700.21` (spot colour in the flattener), `700.18` (parity report), then the release.
+
 ## 2026-11-12 (1536th filing) — `83817839` `Pass 700.14` follow-up: doc comment on `gouraud::ShadingSource::new`
 
 **Shipped (engineer-reported; no shell here, git/CI state not checked from here; docs only):**

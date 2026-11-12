@@ -112,6 +112,20 @@ wherever it appears.*
 
 ## Shipped
 
+### `7ee06213` `Pass 700.15`: flat soft masks written as vector regions in EMF, plus two raster fixes, 2026-11-12 (1537th filing)
+
+Engineer-reported; no shell here, git, push and CI state not checked from here. `7ee06213` `feat(render,emf,cli): flat soft masks written as vector regions (Pass 700.15)`, on `main`, a cherry-pick of worker `36204985`; NOT pushed at filing time, NOT in a release. Reasoning is in the commit message. Authority ISO 32000-1 §11.6.5, §11.3.4, Table 144.
+- **Engine:** with `vector_transparency` on (no new switch), a flat luminosity or alpha soft mask becomes constant-alpha pieces, which the `700.13` flattener writes as opaque fills. `/BC` sets the value outside the mask's `/BBox`; `/TR` is applied last. Gradient, image and varying nested masks stay patches. An alpha mask on a CMYK group is exact; a luminosity mask on a CMYK group is vectorised only when every paint is opaque, Normal blend and not overprinted, else it stays a patch.
+- **Raster fixes (behaviour changes):** the raster now applies a soft mask's `/TR`; a transfer function that is not one-in-one-out is counted in the new diagnostic `soft_mask_transfer_ignored`. The mask's `/BBox` clip is now built on the mask's own buffer (it was ignored on recorded pages).
+- **API and CLI:** `EmfVectorised.not_flat` is a per-cause census (soft_mask_flat, soft_mask_varying, soft_mask_unrecorded, image, shading, spot, cmyk, blend, knockout, geometry) plus `beneath` (cause sat under the region's top op). The writer seam records each mask's source. New CLI stderr line `emf-vector-not-flat:`. `docs/core-api` updated; `check-core-api-verbs` passes. New files: emf `vector/mask.rs`, `vector_census.rs`, `tests/export_emf_mask.rs`; render `interpret/soft_mask.rs`, `mask_source.rs`, `tests/soft_mask_transfer.rs`.
+- **Switch-off pin:** length and hash pinned for luminosity, alpha and form-group cases. The `/BC` and `/TR` cases are excluded because the raster fixes change their output; they instead assert each differs from its plain twin in no more pixels than the plain case does.
+- **Tests (engineer-reported):** 8 synthetic GDI-playback cases match the raster with 0 differing pixels (luminosity, alpha, `/BC`, `/TR`, alpha+`/TR`, form group, CMYK luminosity, CMYK alpha); a translucent CMYK luminosity mask stays a patch. emf 78 (+1 ignored); render 573 / 653 / 36 / 6 / 2; flatten 13 / 6; cli 126 / 1083. Sabotage 10 attempts, 9 caught; the one not caught kept value-0 pieces, an optimisation only (they paint nothing).
+- **Gates (engineer-reported, on main):** workspace clippy, lite check, rustdoc, wasm32 (render/emf/flatten), code-structure (546 baseline, one fewer), core-api verbs, public-fns-documented, all clean.
+- **Measured on the licensed print test file** (local only; fresh release build on main), `--patch-approximations --vector-transparency --vector-shadings`: `patched_not_flat` per page unchanged at 73, 18, 676, 193, 33, 32. Census per page (spot / image / soft_mask_varying / beneath): p1 55/0/18/72; p2 0/0/18/17; p3 644/14/18/673; p4 175/0/18/188; p5 15/0/18/32; p6 14/0/18/31. `soft_mask_flat` is 0 everywhere: the file's 18 masks per page are each a single image or shading op in a CMYK group, so they are "varying". **Spot colour is the dominant blocker: 903 of 1025 not-flat regions.** **A general capability with no effect on the target file**; the lever there is spot colour, filed as `700.21`.
+- **Open:** image and shading masks need a per-pixel route (no Pass ID). Planned FEATURES row kept for it.
+- **RAG:** `D:\dev\rag\emf\soft_mask_as_constant_pieces.md` (written and indexed by the worker; index line present, checked by grep from here).
+- **FEATURES:** new *Implemented* row core `[x]`, cli `[x]`, gui `[ ]`; the `700.15` *Planned* row replaced by a residue row (image/shading masks) and a new `700.21` row. No existing soft-mask rendering row to amend; the raster `/TR` fix is noted in the new row.
+
 ### `8393f2eb` `Pass 700.14`: smooth shadings written as `EMR_GRADIENTFILL` triangles in EMF, opt-in, 2026-11-12 (1535th filing)
 
 Engineer-reported; no shell here, git, push and CI state not checked from here. `8393f2eb` `feat(render,emf,cli): smooth shadings written as EMR_GRADIENTFILL triangles (Pass 700.14)`, on `main`, NOT pushed at filing time, NOT in a release. Reasoning is in the commit message.
@@ -26947,8 +26961,7 @@ closes out the *prior* filing's business rather than opening this one's.
 
 > **`Pass 700.14`: SHIPPED 2026-11-12 (1535th filing), `8393f2eb`; see its *Shipped* entry.** Residue (translucent shadings, shadings inside not-flat regions, gradient-ppi patch) is a *Planned* FEATURES row with no Pass ID yet.
 
-> **`Pass 700.15`: soft masks with vector content stay vector.** A luminosity or alpha soft mask whose content is flat-coloured vector resolves to constant-alpha regions and is flattened by `700.13`. A mask with gradient or image content becomes a patch at gradient ppi.
-> - **Acceptance:** synthetic flat-shape mask and gradient mask; playback matches the raster. FEATURES: one *Planned* row (unticked).
+> **`Pass 700.15`: SHIPPED 2026-11-12 (1537th filing), `7ee06213`; see its *Shipped* entry.** Residue (image and shading masks, per-pixel route) is a *Planned* FEATURES row with no Pass ID yet.
 
 > **`Pass 700.16`: SHIPPED 2026-11-11 (1521st filing), `587ed549`; see its *Shipped* entry.**
 
@@ -26960,7 +26973,11 @@ closes out the *prior* filing's business rather than opening this one's.
 
 > **`Pass 700.20` (`X075`): SHIPPED 2026-11-11 (1525th filing), `9dbb9f7a`; see its *Shipped* entry.**
 
-> **Remaining order (1535th filing; `700.11` shipped in the 1528th, `700.17` in the 1529th, `700.13` in the 1531st, `706.0` in the 1533rd, `700.14` in the 1535th):** `700.15`, `700.18` (parity report), then the release. Measured on the licensed print test file, `700.14` moved nothing; the levers there are the not-flat transparency and overprint patches.
+> **`Pass 700.21`: spot colour in the transparency flattener (EMF print route).** OPEN, not started (1537th filing). The `700.15` census puts spot (Separation/DeviceN) colour at 903 of the 1025 not-flat patches on the licensed print test file (page 3: 644 of 676). Ken's goal: professional-printer parity, everything that should print as vector does.
+> - **Scope:** teach `pdfcer-flatten` to flatten flat-colour transparency and overprint where one or more operands are Separation or DeviceN (N-channel inks). Work in the blending space on the ink planes, consistent with `700.20`'s per-spot-plane model and the compositor's spot planes; emit vector regions. The GDI target is RGB/CMYK, so final colour comes from each region's alternate-space conversion, as the raster route does. Anything not resolvable flat stays a patch and is counted.
+> - **Acceptance:** synthetic fixtures: spot over spot with overprint; spot over process; DeviceN with more than 4 inks; tint transform types 0/2/4; a constant-alpha spot. GDI playback matches the raster within the existing EMF test tolerance. Sabotage on each branch; default-off bytes unchanged. Re-measure the licensed file and report. FEATURES: one *Planned* row (unticked).
+
+> **Remaining order (1537th filing; `700.15` shipped in the 1537th):** `700.21`, then `700.18` (parity report), then the release. Measured on the licensed print test file, `700.14` and `700.15` moved nothing; spot colour is the dominant blocker, hence `700.21`.
 
 > **`Pass 706.0` (`X076`): SHIPPED 2026-11-11 (1533rd filing), `06516ff6`; see its *Shipped* entry.**
 
