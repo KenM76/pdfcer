@@ -112,6 +112,20 @@ wherever it appears.*
 
 ## Shipped
 
+### `21c92452` `Pass 700.21`: spot colorants in the vector flattener (EMF print route), 2026-11-12 (1538th filing)
+
+Engineer-reported; no shell here, git, push and CI state not checked from here. `21c92452` `feat(flatten,emf,render,cli): spot colorants in the vector flattener (Pass 700.21)`, on `main`, a cherry-pick of worker `23f02dbe`; NOT pushed at filing time, NOT in a release. Reasoning is in the commit message. Authority ISO 32000-2 §11.7.4.2 (the white-preserving note is in 32000-2, not 32000-1 NOTE 2; citations corrected).
+- **Engine:** `pdfcer-flatten` paints, overprints and regions carry up to 4 spot-plane tints (reusing `700.20`'s per-spot-plane model); final colour via alternate space plus tint transform, as the raster does. Separation and DeviceN (at most 4 colorants per page) flatten to vector EMF regions instead of bitmap patches. No new flag; rides `--vector-transparency`.
+- **API and CLI:** `EmfNotFlat` (pdfcer-emf, pub) gains patch causes `spot_roster` (more than 4 colorants on a page) and `spot_all_group` (`/All` inside a non-isolated non-knockout group); `spot` now means only pages blending in RGB. `docs/core-api/03-capabilities.md` updated; `check-core-api-verbs` passes. The `emf-vector-not-flat:` stderr line prints `spot_roster=` and `spot_all_group=`.
+- **Renderer fix (behaviour change):** Difference and Exclusion were blended on spot planes; neither is white-preserving (§11.7.4.2), so spot planes now use Normal. Raster fixed, flattener matches.
+- **Tests (engineer-reported, on main):** cli 126 / 1083; emf 15 / 85; flatten 6 / 18 / 7 / 2 groups as run; render 574 / 653 / 36. New `crates/pdfcer-emf/tests/export_emf_spot.rs`: 13 synthetic fixtures, GDI playback matches raster, switch-off output pinned to parent bytes. Every new branch sabotaged and caught. Two pre-existing Difference tests and one Exclusion check were vacuous (zero process inks, so full black hid the spot tint; 0.5 over 0.5) and were replaced by 0.2-over-0.3 unit tests.
+- **Gates (engineer-reported, on main):** fmt, clippy `-D warnings`, no-default-features CLI check, rustdoc broken-links, wasm32, `cargo tree` (no GUI, no network), code-structure (546 baseline, none new), core-api verbs, public-fns-documented, all clean.
+- **Measured on the licensed print test file** (worker, release build, 150 dpi, `--patch-approximations --vector-transparency --vector-shadings`): spot-caused patches 903 to 0 (903 / 0 = a full elimination); total `patched_not_flat` 1025 to 281; vector ops 204 to 948. Per page `patched_not_flat` 73 to 50, 18 to 18, 676 to 125, 193 to 35, 33 to 25, 32 to 28. Remaining causes: image (p1 20, p3 107, p4 13, p5 7, p6 10), shading (p1 12, p4 4), `soft_mask_varying` 18 per page. `spot_roster` and `spot_all_group` 0 on every page. **Playback-vs-raster pixel parity on the licensed file was NOT measured** (synthetic fixtures only).
+- **Process disclosure:** one CLI test expected-string edited with `sed` and one Rust edit made via python, against the Edit-tool rule.
+- **Open:** the spot residue (more than 4 colorants, `/All` in a non-isolated group, RGB-blended pages) has no Pass ID; image/shading-mask and translucent-shading residues stay planned.
+- **RAG:** `C:\personal_rag\pdf\lesson_20261112_difference_and_exclusion_are_normal_on_a_spot_plane.md` and `D:\dev\rag\emf\spot_colorants_as_folded_planes.md` (written and indexed by the worker; not re-checked by grep from here).
+- **FEATURES:** new *Implemented* row core `[x]`, cli `[x]`, gui `[ ]`; the `700.21` *Planned* row replaced by a spot-residue row (no Pass ID).
+
 ### `7ee06213` `Pass 700.15`: flat soft masks written as vector regions in EMF, plus two raster fixes, 2026-11-12 (1537th filing)
 
 Engineer-reported; no shell here, git, push and CI state not checked from here. `7ee06213` `feat(render,emf,cli): flat soft masks written as vector regions (Pass 700.15)`, on `main`, a cherry-pick of worker `36204985`; NOT pushed at filing time, NOT in a release. Reasoning is in the commit message. Authority ISO 32000-1 §11.6.5, §11.3.4, Table 144.
@@ -26973,11 +26987,9 @@ closes out the *prior* filing's business rather than opening this one's.
 
 > **`Pass 700.20` (`X075`): SHIPPED 2026-11-11 (1525th filing), `9dbb9f7a`; see its *Shipped* entry.**
 
-> **`Pass 700.21`: spot colour in the transparency flattener (EMF print route).** OPEN, not started (1537th filing). The `700.15` census puts spot (Separation/DeviceN) colour at 903 of the 1025 not-flat patches on the licensed print test file (page 3: 644 of 676). Ken's goal: professional-printer parity, everything that should print as vector does.
-> - **Scope:** teach `pdfcer-flatten` to flatten flat-colour transparency and overprint where one or more operands are Separation or DeviceN (N-channel inks). Work in the blending space on the ink planes, consistent with `700.20`'s per-spot-plane model and the compositor's spot planes; emit vector regions. The GDI target is RGB/CMYK, so final colour comes from each region's alternate-space conversion, as the raster route does. Anything not resolvable flat stays a patch and is counted.
-> - **Acceptance:** synthetic fixtures: spot over spot with overprint; spot over process; DeviceN with more than 4 inks; tint transform types 0/2/4; a constant-alpha spot. GDI playback matches the raster within the existing EMF test tolerance. Sabotage on each branch; default-off bytes unchanged. Re-measure the licensed file and report. FEATURES: one *Planned* row (unticked).
+> **`Pass 700.21`: SHIPPED 2026-11-12 (1538th filing), `21c92452`; see its *Shipped* entry.**
 
-> **Remaining order (1537th filing; `700.15` shipped in the 1537th):** `700.21`, then `700.18` (parity report), then the release. Measured on the licensed print test file, `700.14` and `700.15` moved nothing; spot colour is the dominant blocker, hence `700.21`.
+> **Remaining order (1538th filing; `700.21` shipped in the 1538th):** `700.18` (parity report), then the release.
 
 > **`Pass 706.0` (`X076`): SHIPPED 2026-11-11 (1533rd filing), `06516ff6`; see its *Shipped* entry.**
 

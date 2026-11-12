@@ -4,6 +4,22 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-11-12 (1538th filing) — `21c92452` `Pass 700.21` SHIPPED: spot colorants in the vector flattener
+
+**Shipped (engineer-reported; no shell here, git/CI state not checked from here):**
+- `21c92452` on `main` (cherry-pick of worker `23f02dbe`), not pushed at filing time, not in a release. Up to 4 spot-plane tints per paint/overprint/region in `pdfcer-flatten`; Separation and DeviceN (at most 4 colorants per page) now flatten to vector. New `EmfNotFlat` causes `spot_roster`, `spot_all_group`; CLI `emf-vector-not-flat:` prints them. Raster fix: Difference/Exclusion are Normal on spot planes (ISO 32000-2 §11.7.4.2). Detail in the ROADMAP *Shipped* entry.
+- Tests: cli 126/1083; emf 15/85; flatten 6/18/7/2; render 574/653/36; 13 synthetic spot fixtures match GDI playback; every new branch sabotaged and caught; three vacuous pre-existing tests replaced. Gates clean per engineer.
+- FEATURES: new *Implemented* row core `[x]`, cli `[x]`, gui `[ ]`; *Planned* 700.21 row replaced by a spot-residue row.
+
+**Decisions made this session:** none new; no decision-log entry.
+
+**Findings + decisions:** licensed print test file: spot-caused patches 903 to 0; `patched_not_flat` 1025 to 281; vector ops 204 to 948. Per page 73→50, 18→18, 676→125, 193→35, 33→25, 32→28. Remaining: image, shading, `soft_mask_varying` 18 per page. Pixel parity on that file NOT measured. RAG: `C:\personal_rag\pdf\lesson_20261112_difference_and_exclusion_are_normal_on_a_spot_plane.md`, `D:\dev\rag\emf\spot_colorants_as_folded_planes.md` (worker-written, indexed per engineer).
+- Process disclosure: one CLI test expected-string edited with `sed` and one Rust edit via python, against the Edit-tool rule.
+
+**Still in flight:** spot residue (more than 4 colorants, `/All` in non-isolated group, RGB-blended pages), image/shading-mask residue and translucent-shading residue, all without Pass IDs.
+
+**For next session:** `700.18` (parity report, should also measure playback-vs-raster on the licensed file), then the release.
+
 ## 2026-11-12 (1537th filing) — `7ee06213` `Pass 700.15` SHIPPED: flat soft masks as vector EMF regions; `Pass 700.21` (spot colour) filed
 
 **Shipped (engineer-reported; no shell here, git/CI state not checked from here):**
