@@ -488,7 +488,6 @@ fn pdfcer-render/src/image.rs::resolve_space_array
 fn pdfcer-render/src/image.rs::resolve_transparency
 fn pdfcer-render/src/interpret.rs::apply_ext_gstate
 fn pdfcer-render/src/interpret.rs::authored_cmyk
-fn pdfcer-render/src/interpret.rs::build_soft_mask
 fn pdfcer-render/src/interpret.rs::do_form
 fn pdfcer-render/src/interpret.rs::do_xobject
 fn pdfcer-render/src/interpret.rs::draw_image

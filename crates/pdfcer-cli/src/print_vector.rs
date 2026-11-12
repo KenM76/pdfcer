@@ -53,6 +53,11 @@ pub(crate) fn report_route(
                     crate::render_export::emf_vector_fields(&o.vectorised),
                     o.patches.rasters
                 );
+                eprintln!(
+                    "pdfcer: page {}: vector-transparency-not-flat {}",
+                    index + 1,
+                    crate::render_export::emf_not_flat_fields(&o.vectorised.not_flat)
+                );
                 if let Some(note) = crate::render_export::vector_note(&o.vectorised) {
                     eprintln!("pdfcer: note: page {}: {note}", index + 1);
                 }

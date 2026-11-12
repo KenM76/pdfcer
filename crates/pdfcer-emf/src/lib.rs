@@ -121,6 +121,7 @@ mod plates;
 mod print;
 mod text;
 mod vector;
+mod vector_census;
 mod vector_geom;
 pub use gradient::EmfShadings;
 pub use patch::EmfPatches;
@@ -132,6 +133,7 @@ pub use print::{
     PrintMetafileError, RasterReason, print_export_with, print_metafile, print_metafile_with,
 };
 pub use vector::EmfVectorised;
+pub use vector_census::EmfNotFlat;
 
 /// How an EMF is written.
 #[derive(Debug, Clone, PartialEq)]

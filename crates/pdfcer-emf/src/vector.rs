@@ -6,9 +6,11 @@
 //! CMYK page — is rebuilt with every earlier op whose box meets it as a
 //! `pdfcer_flatten` scene, resolved into atomic regions, and replaced by
 //! one opaque fill per region it covers, each composited over the paper.
-//! An op that cannot be modelled (an image or gradient in the stack, a
-//! soft mask, a spot ink, a blend the recording did not keep) or that
-//! passes the flattener's ceiling is returned as a box for the pixel patch.
+//! A soft mask whose group is flat colour is split into constant-value
+//! pieces (`mask`). An op that cannot be modelled (an image or gradient in
+//! the stack or in a mask, a spot ink, a blend the recording did not keep)
+//! or that passes the flattener's ceiling is returned as a box for the
+//! pixel patch.
 
 use std::sync::Arc;
 
@@ -23,7 +25,10 @@ use pdfcer_render::writer_seam::{DeviceBounds, ExportRecording, Op, SiteCause, U
 use tiny_skia::{BlendMode, FillRule, Transform};
 
 use crate::patch::within;
+use crate::vector_census::{Cause, EmfNotFlat};
 use crate::vector_geom::{self, Clips};
+
+mod mask;
 
 /// What [`super::EmfOptions::with_vector_transparency`] wrote as opaque
 /// vector regions, and what it left to the pixel patch. All zero with the
@@ -55,6 +60,8 @@ pub struct EmfVectorised {
     /// Patched because the recording logged a blend or blending space there
     /// that it did not keep, so the scene cannot be rebuilt.
     pub patched_unrecorded: usize,
+    /// [`Self::patched_not_flat`] broken down by cause.
+    pub not_flat: EmfNotFlat,
 }
 
 impl EmfVectorised {
@@ -68,7 +75,8 @@ impl EmfVectorised {
 /// Why an op was left to the patch.
 #[derive(Clone, Copy)]
 enum Why {
-    NotFlat,
+    /// The cause, and whether it was in an op beneath.
+    NotFlat(Cause, bool),
     TooComplex,
     Unrecorded,
 }
@@ -150,21 +158,29 @@ fn layer_blend(paint: &LayerPaint) -> Option<Blend> {
 struct Model<'a> {
     space: Space,
     clips: Clips<'a>,
-    memo: Vec<Option<Option<Vec<Element>>>>,
+    rec: &'a ExportRecording,
+    memo: Vec<Option<Result<Vec<Element>, Cause>>>,
+    /// Per entry of `rec.masks`, its pieces once built.
+    masks: Vec<Option<Result<mask::Pieces, Cause>>>,
 }
 
 impl Model<'_> {
-    /// Top-level op `i` as elements; `None` when it is not flat.
-    fn top(&mut self, i: usize, op: &Op) -> Option<Vec<Element>> {
-        if self.memo.get(i)?.is_none() {
+    /// Top-level op `i` as elements, or the first content that is not
+    /// flat.
+    fn top(&mut self, i: usize, op: &Op) -> Result<Vec<Element>, Cause> {
+        let slot = self.memo.get(i).ok_or(Cause::Geometry)?;
+        if slot.is_none() {
             let mut out = Vec::new();
             let got = self.element(op, &mut out).map(|()| out);
-            *self.memo.get_mut(i)? = Some(got);
+            *self.memo.get_mut(i).ok_or(Cause::Geometry)? = Some(got);
         }
-        self.memo.get(i)?.clone()?
+        self.memo
+            .get(i)
+            .and_then(Option::clone)
+            .ok_or(Cause::Geometry)?
     }
 
-    fn element(&mut self, op: &Op, out: &mut Vec<Element>) -> Option<()> {
+    fn element(&mut self, op: &Op, out: &mut Vec<Element>) -> Result<(), Cause> {
         match op {
             Op::Fill {
                 path,
@@ -174,8 +190,9 @@ impl Model<'_> {
                 clip,
                 ..
             } => {
-                let shape = vector_geom::fill(path, *rule, *ctm)?;
-                let shape = self.clips.apply(shape, *clip)?;
+                self.paintable(brush)?;
+                let shape = vector_geom::fill(path, *rule, *ctm).ok_or(Cause::Geometry)?;
+                let shape = self.clips.apply(shape, *clip).ok_or(Cause::Geometry)?;
                 out.push(Element::Paint(self.paint(brush, shape)?));
             }
             Op::Stroke {
@@ -186,8 +203,9 @@ impl Model<'_> {
                 clip,
                 ..
             } => {
-                let shape = vector_geom::stroke(path, stroke, *ctm)?;
-                let shape = self.clips.apply(shape, *clip)?;
+                self.paintable(brush)?;
+                let shape = vector_geom::stroke(path, stroke, *ctm).ok_or(Cause::Geometry)?;
+                let shape = self.clips.apply(shape, *clip).ok_or(Cause::Geometry)?;
                 out.push(Element::Paint(self.paint(brush, shape)?));
             }
             Op::Layer {
@@ -197,20 +215,21 @@ impl Model<'_> {
                 isolated,
                 knockout,
             } => {
-                if mask.is_some() {
-                    return None;
-                }
                 let mut inner = Vec::with_capacity(ops.len());
                 for o in ops {
                     self.element(o, &mut inner)?;
                 }
-                out.push(Element::Group(Group {
+                let group = Group {
                     elements: inner,
                     isolated: *isolated,
                     knockout: *knockout,
                     alpha: paint.opacity,
-                    blend: layer_blend(paint)?,
-                }));
+                    blend: layer_blend(paint).ok_or(Cause::Blend)?,
+                };
+                match mask {
+                    Some(m) => out.extend(self.masked(m, group)?),
+                    None => out.push(Element::Group(group)),
+                }
             }
             Op::Text { ops, .. } => {
                 for o in ops {
@@ -218,28 +237,53 @@ impl Model<'_> {
                 }
             }
         }
-        Some(())
+        Ok(())
     }
 
-    fn paint(&self, brush: &BrushSpec, shape: pdfcer_flatten::Shape) -> Option<Paint> {
-        let Brush::Solid { rgba } = brush.brush else {
-            return None;
-        };
-        if !brush.spots.is_empty() || brush.all_colorants.is_some() {
-            return None;
+    /// Why `brush` is not a flat colour, before its geometry is built.
+    fn paintable(&self, brush: &BrushSpec) -> Result<(), Cause> {
+        match &brush.brush {
+            Brush::Solid { .. } => {}
+            Brush::Gradient(_) => return Err(Cause::Shading),
+            Brush::Image { texels, .. } => {
+                let shading = self
+                    .rec
+                    .shadings
+                    .iter()
+                    .any(|(t, _)| Arc::ptr_eq(t, texels));
+                return Err(if shading {
+                    Cause::Shading
+                } else {
+                    Cause::Image
+                });
+            }
         }
+        if !brush.spots.is_empty() || brush.all_colorants.is_some() {
+            return Err(Cause::Spot);
+        }
+        if self.space == Space::Cmyk && brush.cmyk.is_none() {
+            return Err(Cause::Cmyk);
+        }
+        blend_of(brush.blend).map(|_| ()).ok_or(Cause::Blend)
+    }
+
+    fn paint(&self, brush: &BrushSpec, shape: pdfcer_flatten::Shape) -> Result<Paint, Cause> {
+        self.paintable(brush)?;
+        let Brush::Solid { rgba } = brush.brush else {
+            return Err(Cause::Image);
+        };
         let colour = match self.space {
-            Space::Cmyk => brush.cmyk?,
+            Space::Cmyk => brush.cmyk.ok_or(Cause::Cmyk)?,
             _ => {
                 let f = |v: u8| f32::from(v) / 255.0;
                 [f(rgba[0]), f(rgba[1]), f(rgba[2]), 0.0]
             }
         };
-        Some(Paint {
+        Ok(Paint {
             shape,
             colour,
             alpha: f32::from(rgba[3]) / 255.0,
-            blend: blend_of(brush.blend)?,
+            blend: blend_of(brush.blend).ok_or(Cause::Blend)?,
             overprint: brush.overprint_process.map(|tints| Overprint {
                 tints,
                 model: usize::from(brush.cmyk.is_some()),
@@ -339,16 +383,17 @@ fn stack(
     boxes: &[DeviceBounds],
     i: usize,
 ) -> Result<(Group, usize), Why> {
-    let bx = *boxes.get(i).ok_or(Why::NotFlat)?;
+    let lost = Why::NotFlat(Cause::Geometry, false);
+    let bx = *boxes.get(i).ok_or(lost)?;
     let mut elements = Vec::new();
     for (j, (op, b)) in ops.iter().zip(boxes).enumerate().take(i) {
         if overlaps(*b, bx) {
-            elements.extend(model.top(j, op).ok_or(Why::NotFlat)?);
+            elements.extend(model.top(j, op).map_err(|c| Why::NotFlat(c, true))?);
         }
     }
     let beneath = count_paints(&elements);
-    let own = ops.get(i).ok_or(Why::NotFlat)?;
-    elements.extend(model.top(i, own).ok_or(Why::NotFlat)?);
+    let own = ops.get(i).ok_or(lost)?;
+    elements.extend(model.top(i, own).map_err(|c| Why::NotFlat(c, false))?);
     Ok((
         Group {
             elements,
@@ -370,7 +415,7 @@ fn resolve(
     intent: CmykIntent,
     paper: [f32; 3],
 ) -> Result<Vec<Op>, Why> {
-    let bx = *boxes.get(i).ok_or(Why::NotFlat)?;
+    let bx = *boxes.get(i).ok_or(Why::NotFlat(Cause::Geometry, false))?;
     let unrecorded = rec.sites.iter().any(|s| {
         matches!(s.cause, SiteCause::Blend | SiteCause::BlendingSpace) && overlaps(s.bounds, bx)
     });
@@ -381,7 +426,7 @@ fn resolve(
     let regions = match flatten(&scene, model.space, &PageInks(intent), &Limits::default()) {
         Ok(r) => r,
         Err(FlattenError::TooComplex(_)) => return Err(Why::TooComplex),
-        Err(_) => return Err(Why::NotFlat),
+        Err(_) => return Err(Why::NotFlat(Cause::Knockout, false)),
     };
     Ok(regions
         .iter()
@@ -417,7 +462,9 @@ pub(super) fn vectorise(
     let mut model = Model {
         space,
         clips: Clips::new(&rec.clips),
+        rec,
         memo: vec![None; rec.ops.len()],
+        masks: vec![None; rec.masks.len()],
     };
     let mut replaced: Vec<Option<Vec<Op>>> = vec![None; rec.ops.len()];
     let mut left = Vec::new();
@@ -493,7 +540,10 @@ impl EmfVectorised {
 
     fn count_patched(&mut self, why: Why) {
         match why {
-            Why::NotFlat => self.patched_not_flat += 1,
+            Why::NotFlat(cause, beneath) => {
+                self.patched_not_flat += 1;
+                self.not_flat.count(cause, beneath);
+            }
             Why::TooComplex => self.patched_too_complex += 1,
             Why::Unrecorded => self.patched_unrecorded += 1,
         }

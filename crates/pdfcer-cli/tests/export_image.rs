@@ -787,6 +787,12 @@ fn patch_approximations_reaches_the_emf_writer() {
         ),
         "{text}"
     );
+    assert!(
+        text.contains(
+            "emf-vector-not-flat: soft_mask_flat=0 soft_mask_varying=0 soft_mask_unrecorded=0 image=0 shading=0 spot=0 cmyk=0 blend=0 knockout=0 geometry=0 beneath=0"
+        ),
+        "{text}"
+    );
     assert!(text.contains("emf-patches: rasters=0 "), "{text}");
     assert!(text.contains("emf: ops=3 rasters=0 "), "{text}");
     assert!(

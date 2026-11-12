@@ -883,8 +883,8 @@ cmyk_spots_flattened_ceiling={} cmyk_spots_flattened_allocation={}",
         d.blend_modes_ignored,
         d.soft_masks_ignored,
         // §11.6.5 soft masks that were BUILT and applied, plus the two
-        // shortfalls inside that: a `/TR` transfer function not
-        // evaluated (which can leave visible exactly the content a
+        // shortfalls inside that: a `/TR` that is not a one-in
+        // one-out function, used untransformed (which can leave visible exactly the content a
         // document meant to hide, since `/TR` is where a mask is
         // inverted), and a `/SMask /None` reset that could not restore
         // the pre-mask clip because a `W n` intervened.
@@ -1453,6 +1453,25 @@ pub(crate) fn emf_vector_fields(v: &pdfcer_emf::EmfVectorised) -> String {
     )
 }
 
+/// The fields of `--vector-transparency`'s `emf-vector-not-flat:` line:
+/// why each `patched_not_flat` op was not flat.
+pub(crate) fn emf_not_flat_fields(n: &pdfcer_emf::EmfNotFlat) -> String {
+    format!(
+        "soft_mask_flat={} soft_mask_varying={} soft_mask_unrecorded={} image={} shading={} spot={} cmyk={} blend={} knockout={} geometry={} beneath={}",
+        n.soft_mask_flat,
+        n.soft_mask_varying,
+        n.soft_mask_unrecorded,
+        n.image,
+        n.shading,
+        n.spot,
+        n.cmyk,
+        n.blend,
+        n.knockout,
+        n.geometry,
+        n.beneath
+    )
+}
+
 /// `--vector-transparency`'s note: what was computed rather than copied
 /// (rule 4).
 pub(crate) fn vector_note(v: &pdfcer_emf::EmfVectorised) -> Option<String> {
@@ -1499,6 +1518,10 @@ fn print_emf_shadings(o: &pdfcer_emf::EmfOutcome, page_number: usize) {
 /// `--vector-transparency`'s stable `emf-vector:` line and its note.
 fn print_emf_vector(o: &pdfcer_emf::EmfOutcome, page_number: usize) {
     println!("emf-vector: {}", emf_vector_fields(&o.vectorised));
+    println!(
+        "emf-vector-not-flat: {}",
+        emf_not_flat_fields(&o.vectorised.not_flat)
+    );
     if let Some(note) = vector_note(&o.vectorised) {
         eprintln!("pdfcer: note: page {page_number}: {note}");
     }

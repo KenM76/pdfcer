@@ -76,6 +76,7 @@ use crate::display_list::{
 use crate::cmyk_paint::{device_region, paint_solid_into_cmyk};
 
 mod group_space;
+mod mask_record;
 pub(crate) use group_space::InkSetup;
 
 /// What a paint is made of, in **owned** terms.
@@ -1900,7 +1901,9 @@ impl<'a> Canvas<'a> {
                 // mask is valid and travels WITH the layer; `poison`
                 // there only counts it (`ExportTally::soft_masks_kept`).
                 let kept_mask = match mask {
-                    Some(m) if r.export.is_some() => Some(Arc::new(m.clone())),
+                    Some(m) if r.export.is_some() => {
+                        Some(r.registered_mask(m).unwrap_or_else(|| Arc::new(m.clone())))
+                    }
                     _ => None,
                 };
                 r.push(Op::Layer {

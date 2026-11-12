@@ -126,6 +126,7 @@ use crate::device_clip::{FitMask, FitPaint};
 
 mod clip_rect;
 mod coverage;
+mod soft_mask;
 mod tiling;
 mod windows;
 
@@ -1255,11 +1256,10 @@ pub struct Diagnostics {
     /// threshold for reference-strip patches — that is an instrument gap,
     /// not a render result.
     ///
-    /// See also [`Self::soft_mask_transfer_ignored`], which is the other
-    /// half and is **still owed**: `/TR` is read, counted and never
-    /// evaluated.
+    /// See also [`Self::soft_mask_transfer_ignored`].
     pub soft_masks_applied: usize,
-    /// Soft masks carrying a `/TR` transfer function that was not applied.
+    /// Soft masks whose `/TR` is not a one-in one-out function, used
+    /// untransformed. A usable `/TR` is evaluated and not counted.
     ///
     /// A shortfall the operator cannot see by looking: `/TR` is the natural
     /// place to INVERT a mask, so an ignored one can show exactly the
@@ -5139,7 +5139,7 @@ impl<'a> Interpreter<'a> {
                 self.gs.current.soft_mask = None;
             } else if let Some(dict) = sm.as_dict().cloned() {
                 match self.build_soft_mask(&dict, canvas) {
-                    Some(mask) => {
+                    Some((mask, source)) => {
                         // Fold into the clip, which every paint site in
                         // this renderer already honours. A soft mask
                         // multiplies coverage exactly as a clip does, so
@@ -5213,7 +5213,11 @@ impl<'a> Interpreter<'a> {
                         // or carry it (export mode, where `refuse` only
                         // counts it and `push_masked` wraps each object).
                         canvas.refuse(PoisonReason::SoftMask);
-                        self.gs.current.soft_mask = Some(std::sync::Arc::new(mask.clone()));
+                        let soft = std::sync::Arc::new(mask.clone());
+                        // Unclipped, the clip IS the mask, and a per-object
+                        // layer carries the clip's `Arc`; register both so
+                        // either route finds the source.
+                        let unclipped = self.gs.current.clip.is_none();
                         let combined = match self.gs.current.clip.as_deref() {
                             Some(old) => {
                                 let mut m = mask;
@@ -5225,7 +5229,15 @@ impl<'a> Interpreter<'a> {
                             }
                             None => mask,
                         };
-                        self.gs.current.clip = Some(std::sync::Arc::new(combined));
+                        let clip = std::sync::Arc::new(combined);
+                        if let Some(source) = &source {
+                            canvas.register_mask(&soft, source);
+                            if unclipped {
+                                canvas.register_mask(&clip, source);
+                            }
+                        }
+                        self.gs.current.soft_mask = Some(soft);
+                        self.gs.current.clip = Some(clip);
                         // The mask covers the whole page, so any cached
                         // clip bbox is now wrong in the direction that
                         // culls too much. Dropping it costs a cull, which
@@ -6319,359 +6331,6 @@ impl<'a> Interpreter<'a> {
             self.gs.current.fill_color
         };
         (c.r, c.g, c.b)
-    }
-
-    /// Build the soft mask a `gs` `/SMask` dictionary describes
-    /// (§11.6.5), or [`None`] if it cannot be built.
-    ///
-    /// # The contract, clause by clause
-    ///
-    /// * **§11.5.3** — a `/Luminosity` mask renders its group `/G` over a
-    ///   **fully opaque** backdrop of colour `/BC` (the spec's `α₀ = 1`),
-    ///   then takes the luminosity of the composite. The opacity of that
-    ///   backdrop is easy to miss and changes the answer for a
-    ///   non-isolated mask group.
-    /// * **Table 144** — `/BC`'s default is *"the colour space's initial
-    ///   value, representing black"*. Table 74 gives that value per space,
-    ///   and the trap is that it is all-zeros for RGB and Gray but
-    ///   `[0 0 0 1]` for `DeviceCMYK`. A renderer that defaults to "all
-    ///   zeros" therefore gets **black in RGB and pure WHITE in CMYK** — a
-    ///   mask wide open exactly where it should be shut. pdfcer defaults to
-    ///   black *as a colour*, so the CMYK case is right by construction
-    ///   rather than by a special case that could be forgotten.
-    /// * **§11.6.5.2** — outside the group's bounding box the mask value is
-    ///   neither 0 nor 1: it is `TR(lum(BC))` for `/Luminosity` and
-    ///   `TR(0.0)` for `/Alpha`. Implemented by pre-filling the buffer with
-    ///   the backdrop *before* rendering the group into it, so "outside the
-    ///   bbox" is simply "where the group did not paint" and needs no case
-    ///   of its own. Under the defaults that value is 0 — everything
-    ///   outside a defaulted-`/BC` luminosity mask is fully masked out.
-    /// * **§11.5.3 NOTE 3** — device-space luminosity is
-    ///   `0.30 R + 0.59 G + 0.11 B`, with **no** gamma compensation. It is
-    ///   deliberately *not* Rec.709 (`0.2126/0.7152/0.0722`) and the values
-    ///   are deliberately *not* linearised first; the standard says so in
-    ///   as many words, and both "corrections" are tempting.
-    /// * **§11.6.5.2** — the mask's coordinate system is `/Matrix`
-    ///   concatenated with the CTM **at the moment the mask is established
-    ///   by `gs`**, not the CTM at paint time. Building the mask eagerly,
-    ///   here inside the `gs` handler, is what makes that true by
-    ///   construction. A lazily-evaluated mask would silently use the wrong
-    ///   matrix under any later `cm`.
-    /// * **Table 147** — `/CS` is *Required* in a luminosity mask group's
-    ///   attributes, precisely because such a group is rootless: it does
-    ///   **not** inherit the page group's colour space, and making it do so
-    ///   "for consistency" is a named error.
-    ///
-    /// # Not yet honoured, and counted rather than assumed away
-    ///
-    /// `/TR` (Table 144) is read and, when it is anything other than the
-    /// name `/Identity`, counted and disclosed. Evaluating it needs the
-    /// function machinery threaded into the render crate; until then a
-    /// document that inverts its mask through `/TR` gets the un-inverted
-    /// mask and **says so** rather than looking correct.
-    fn build_soft_mask(&mut self, sm: &Dict, canvas: &mut Canvas<'_>) -> Option<Mask> {
-        let doc = self.doc;
-        let subtype = match doc.resolve(sm.get(b"S")?) {
-            Object::Name(n) => n.as_bytes().to_vec(),
-            _ => return None,
-        };
-        let luminosity = subtype == b"Luminosity";
-        if !luminosity && subtype != b"Alpha" {
-            return None;
-        }
-
-        // Table 144: `/TR` is applied LAST, after the luminosity or alpha
-        // computation, once. Not implemented; disclosed.
-        if let Some(tr) = sm.get(b"TR").map(|o| doc.resolve(o))
-            && !matches!(tr, Object::Name(n) if n.as_bytes() == b"Identity")
-            && !matches!(tr, Object::Null)
-        {
-            self.diag.soft_mask_transfer_ignored += 1;
-            self.diag
-                .note(b"gs /SMask /TR: transfer function not applied; mask used untransformed");
-        }
-
-        let g_obj = doc.resolve(sm.get(b"G")?);
-        let Object::Stream(gs_stream) = g_obj else {
-            return None;
-        };
-        let g_dict = gs_stream.dict.clone();
-        let raw = doc.slice(gs_stream.data_span)?;
-        let mut content = ContentChunks::from_stream(&g_dict, raw);
-        content.prime().ok()?;
-
-        // THE BACKDROP IS COMPOSITED UNDER THE RESULT, NOT PRE-FILLED
-        // INTO THE OBJECTS' BACKDROP (`Pass 192.0`).
-        //
-        // This buffer used to start FILLED with `/BC`, which is the
-        // NON-ISOLATED model: every object painted inside the group then saw
-        // `/BC` as its backdrop, with alpha 1. A luminosity mask group is
-        // ISOLATED -- Table 147 makes its `/CS` **Required** precisely because
-        // the group is rootless, and §11.4.5 makes a group with an explicit
-        // `/CS` isolated -- so its backdrop alpha is **0**, and §11.3.3 weights
-        // the blend function `B(c_b, c_s)` by that alpha. With alpha_b = 0
-        // every blend mode collapses to `c_s`.
-        //
-        // The two models are indistinguishable while everything inside is
-        // opaque and `Normal`-blended, which is why this stood for so long.
-        // They diverge exactly when an object inside the mask group blends or
-        // overprints against the backdrop -- and that is the measured defect:
-        // a `/BC [1 1 1 1]` (four inks = black) pre-fill made an overprinting
-        // `DeviceGray` image inside the group composite against black, pinning
-        // C/M/Y at 1, so every pixel was black, the mask was zero everywhere,
-        // and the artwork it masked VANISHED.
-        //
-        // `/BC` participates exactly once, at §11.5.3's outer composite
-        // `C = (1 - alpha_g) * C_0 + alpha_g * C_g`, which is what the
-        // `SourceOver` draw below performs. That still makes "outside the
-        // `/BBox`" correct -- nothing was painted there, so alpha_g is 0 and
-        // the result is `/BC` -- which was the pre-fill's other job and is the
-        // reason it must not simply be deleted.
-        let backdrop = if luminosity {
-            Some(self.soft_mask_backdrop(&g_dict, sm))
-        } else {
-            None
-        };
-        let mut buf = Pixmap::new(canvas.width(), canvas.height())?;
-
-        // §11.6.6: inside a group the blend mode is Normal, both alpha
-        // constants are 1.0 and the soft mask is None — "to ensure that
-        // they are not applied twice". That applies with particular force
-        // here, where applying the mask under construction to its own
-        // construction would be circular.
-        let mut inner = GraphicsState::default_with_ctm(self.gs.current.ctm);
-        // §8.10.2 step (b): concatenate /Matrix, THEN clip to /BBox in the
-        // already-transformed space. Same order as `do_form`.
-        if let Some(m) = matrix_entry64(doc, &g_dict) {
-            inner.set_ctm64(m.post_concat(inner.ctm64));
-        }
-        if let Some(rect) = rect_entry(doc, &g_dict, b"BBox") {
-            if rect.width() <= 0.0 || rect.height() <= 0.0 {
-                // A degenerate BBox paints nothing, so the mask is the
-                // backdrop everywhere — which the outer composite supplies,
-                // `buf` being wholly transparent.
-                Self::composite_over_backdrop(&mut buf, backdrop);
-                return Self::mask_from_buffer(&buf, luminosity, canvas);
-            }
-            let path = PathBuilder::from_rect(rect);
-            let form_ctm = inner.ctm;
-            intersect_clip(
-                &mut inner,
-                &path,
-                FillRule::Winding,
-                form_ctm,
-                canvas,
-                &mut self.clip_cache,
-                self.edge_aa,
-            );
-        }
-
-        let resources = match g_dict
-            .get(b"Resources")
-            .map(|o| doc.resolve(o))
-            .and_then(Object::as_dict)
-            .filter(|d| !d.is_empty())
-        {
-            Some(own) => own,
-            None => self.inherited_resources(),
-        };
-
-        // §11.6.5 / Table 147: a luminosity mask group's `/CS` is
-        // **Required**, precisely because such a group is rootless — it
-        // does NOT inherit the page's blending space, and making it do so
-        // "for consistency" is a named error. So the space is read from
-        // the mask group's own dictionary, and a mask group missing `/CS`
-        // (already counted above) falls to additive, which is what pdfcer
-        // does everywhere today.
-        let mask_space = g_dict
-            .get(b"Group")
-            .map(|o| doc.resolve(o))
-            .and_then(Object::as_dict)
-            .and_then(|g| g.get(b"CS"))
-            .and_then(|cs| {
-                crate::color::resolve_object(
-                    doc,
-                    doc.resolve(cs),
-                    resources,
-                    0,
-                    &mut self.diag.color,
-                )
-            })
-            .map_or(crate::compositor::BlendSpace::Additive, |sp| {
-                crate::compositor::BlendSpace::of(&sp)
-            });
-        let nested = run_nested(
-            doc,
-            content.into(),
-            resources,
-            self.page_resources,
-            self.fonts,
-            inner,
-            &mut Canvas::paint(&mut buf),
-            self.depth + 1,
-            // The mask group's own recursion guard set. Cloned rather than
-            // borrowed because `self` is already mutably borrowed here; a
-            // mask group is built once per `gs`, not per paint, so the
-            // clone is not on a hot path. It must still be a REAL copy of
-            // the active set, not an empty one, or a form that invokes
-            // itself through a soft mask would recurse unguarded.
-            self.active.clone(),
-            self.cancel,
-            self.budget,
-            self.policy,
-            false,
-            mask_space,
-            // A soft-mask group is a form XObject, not a glyph procedure.
-            None,
-        );
-        self.diag.merge(nested);
-        Self::composite_over_backdrop(&mut buf, backdrop);
-        Self::mask_from_buffer(&buf, luminosity, canvas)
-    }
-
-    /// §11.5.3's outer composite: put the mask group's result over an opaque
-    /// backdrop of `/BC`.
-    ///
-    /// `C = (1 - alpha_g) * C_0 + alpha_g * C_g`, which is exactly what a
-    /// `SourceOver` draw of the group's buffer onto a `/BC`-filled one
-    /// computes. Separated from the group's own painting because the two are
-    /// different steps of the model and merging them is the defect this
-    /// function exists to have fixed: a pre-filled buffer makes `/BC` the
-    /// backdrop of every OBJECT, and it is only the backdrop of the GROUP.
-    ///
-    /// An alpha mask has no backdrop colour (§11.6.5.1 -- `/BC` is meaningful
-    /// only for `/S /Luminosity`), so `None` leaves the buffer alone.
-    fn composite_over_backdrop(buf: &mut Pixmap, backdrop: Option<tiny_skia::Color>) {
-        let Some(colour) = backdrop else { return };
-        let Some(mut base) = Pixmap::new(buf.width(), buf.height()) else {
-            return;
-        };
-        base.fill(colour);
-        base.draw_pixmap(
-            0,
-            0,
-            buf.as_ref(),
-            &tiny_skia::PixmapPaint::default(),
-            tiny_skia::Transform::identity(),
-            None,
-        );
-        *buf = base;
-    }
-
-    /// Turn a rendered mask-group buffer into per-pixel mask coverage.
-    ///
-    /// Split out so the degenerate-`/BBox` path and the ordinary path
-    /// cannot disagree about the conversion — the two differ only in
-    /// whether anything was painted into the buffer.
-    fn mask_from_buffer(buf: &Pixmap, luminosity: bool, canvas: &Canvas<'_>) -> Option<Mask> {
-        let mut mask = Mask::new(canvas.width(), canvas.height())?;
-        let data = mask.data_mut();
-        for (i, px) in buf.pixels().iter().enumerate() {
-            let a = f32::from(px.alpha()) / 255.0;
-            let v = if luminosity {
-                // Un-premultiply, then §11.5.3 NOTE 3's device formula.
-                // Weights 0.30/0.59/0.11, values NOT linearised — the
-                // standard forbids gamma compensation here explicitly.
-                let (r, g, b) = if a <= 0.0 {
-                    (0.0, 0.0, 0.0)
-                } else {
-                    (
-                        f32::from(px.red()) / 255.0 / a,
-                        f32::from(px.green()) / 255.0 / a,
-                        f32::from(px.blue()) / 255.0 / a,
-                    )
-                };
-                0.30_f32.mul_add(r, 0.59_f32.mul_add(g, 0.11 * b))
-            } else {
-                a
-            };
-            #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
-            {
-                *data.get_mut(i)? = (v.clamp(0.0, 1.0) * 255.0 + 0.5) as u8;
-            }
-        }
-        Some(mask)
-    }
-
-    /// The opaque backdrop colour a `/Luminosity` mask composites over.
-    ///
-    /// Table 144's `/BC`, defaulting to the group colour space's initial
-    /// value — black in every space Table 74 defines, which is why the
-    /// fallback here is literally black rather than "all components zero".
-    /// Those are the same thing in RGB and Gray and **opposite** things in
-    /// `DeviceCMYK`, where all-zeros is white.
-    fn soft_mask_backdrop(&mut self, g_dict: &Dict, sm: &Dict) -> tiny_skia::Color {
-        let doc = self.doc;
-        let black = tiny_skia::Color::BLACK;
-        let Some(arr) = sm
-            .get(b"BC")
-            .map(|o| doc.resolve(o))
-            .and_then(Object::as_array)
-        else {
-            return black;
-        };
-        let comps: Vec<f32> = arr
-            .iter()
-            .filter_map(|o| doc.resolve(o).as_number())
-            .map(|v| v as f32)
-            .collect();
-        if comps.is_empty() {
-            return black;
-        }
-        // Table 147 makes `/CS` Required for a luminosity mask group, and
-        // it is the space `/BC`'s components are expressed in. A mask group
-        // does NOT inherit the page group's space — it is rootless, which
-        // is exactly why `/CS` is Required rather than Optional.
-        //
-        // Resolved by COMPONENT COUNT rather than by loading the space.
-        // `/BC` is optional and rare, its default (black) is already
-        // correct for every space Table 74 lists, and the only thing that
-        // matters when it IS present is the polarity trap: four components
-        // are subtractive, so `[0 0 0 1]` is black and `[0 0 0 0]` is
-        // white. One and three components are additive and zero is black
-        // in both. Anything else is disclosed rather than guessed.
-        let has_cs = g_dict
-            .get(b"Group")
-            .map(|o| doc.resolve(o))
-            .and_then(Object::as_dict)
-            .is_some_and(|g| g.contains_key(b"CS"));
-        if !has_cs {
-            self.diag.tolerated += 1;
-            self.diag
-                .note(b"gs /SMask /BC without group /CS (Required, Table 147)");
-        }
-        // THE SAME CONVERSION ROUTE THE PAINT PATH USES, and this is a
-        // correction: `/BC` originally went through an inline naive
-        // complement `(1−c)(1−k)`, justified by a comment claiming the
-        // naive form "is right for the polarity question, which is all
-        // this is used for".
-        //
-        // That justification was FALSE, and falsely reassuring, which is
-        // the worse half. §11.6.5.2 makes this backdrop's *magnitude* the
-        // mask value everywhere outside the group's `/BBox` — that is
-        // exactly what the pre-fill in `build_soft_mask` implements — so
-        // the number matters, not just its polarity. Meanwhile painted
-        // content inside the same mask group reached luminosity through
-        // `Rgb::from_cmyk`'s calibrated 6⁴ grid. One mask, one luminosity
-        // computation, two different CMYK→sRGB routes feeding it.
-        //
-        // Found by the librarian while filing the commit that introduced
-        // it. The lesson is not "use the calibrated table" — it is that a
-        // comment asserting why a shortcut is safe is a claim, and this
-        // one was never checked against the clause it was standing in.
-        let Rgb { r, g, b } = match *comps.as_slice() {
-            [v] => Rgb::from_gray(v),
-            [r, g, b] => Rgb::from_rgb(r, g, b),
-            [c, m, y, k] => Rgb::from_cmyk(self.policy.cmyk_intent, c, m, y, k),
-            _ => {
-                self.diag.tolerated += 1;
-                self.diag
-                    .note(b"gs /SMask /BC with unhandled component count - assuming black");
-                return black;
-            }
-        };
-        tiny_skia::Color::from_rgba(r.clamp(0.0, 1.0), g.clamp(0.0, 1.0), b.clamp(0.0, 1.0), 1.0)
-            .unwrap_or(black)
     }
 
     /// The current paint colour as **authored subtractive tints**, or

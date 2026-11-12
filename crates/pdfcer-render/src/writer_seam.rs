@@ -22,5 +22,6 @@ pub use crate::display_list::{
 };
 pub use crate::export_sites::{Site, SiteCause, UNKNOWN, op_box};
 pub use crate::gouraud::{Decline, Gouraud, ShadingSource, tessellate, tessellate_gradient};
+pub use crate::mask_source::MaskSource;
 pub use crate::plates::{plate_pixmap, probe_inks};
 pub use crate::svg_text::{family_of, is_sfnt, single_char, uniform_paint};

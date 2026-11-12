@@ -958,6 +958,9 @@ pub struct ExportRecording {
     /// Each shading harvested as an image op, keyed by that op's texels
     /// (`Arc::ptr_eq`), with what a writer needs to draw it as geometry.
     pub shadings: Vec<(Arc<Pixmap>, crate::gouraud::ShadingSource)>,
+    /// Each soft mask a layer carries, keyed by that layer's mask
+    /// (`Arc::ptr_eq`), with the dictionary and group it was built from.
+    pub masks: Vec<(Arc<tiny_skia::Mask>, Arc<crate::mask_source::MaskSource>)>,
 }
 
 /// Record a page in export mode (`Pass 248.1`).
@@ -1006,6 +1009,7 @@ impl Recorded {
             sites: recorded.sites.sites,
             subtractive_page: recorded.sites.subtractive_page,
             shadings: recorded.shadings,
+            masks: recorded.masks,
         }
     }
 }
@@ -1022,6 +1026,7 @@ struct Recorded {
     tally: ExportTally,
     sites: crate::export_sites::SiteLog,
     shadings: Vec<(Arc<Pixmap>, crate::gouraud::ShadingSource)>,
+    masks: Vec<(Arc<tiny_skia::Mask>, Arc<crate::mask_source::MaskSource>)>,
 }
 
 /// The one walk both [`record_page`] and [`record_page_for_export`]
@@ -1199,6 +1204,11 @@ fn record_impl(
         .as_mut()
         .map(|e| std::mem::take(&mut e.shadings))
         .unwrap_or_default();
+    let masks = recorder
+        .export
+        .as_mut()
+        .map(|e| std::mem::take(&mut e.masks))
+        .unwrap_or_default();
     let sites = recorder
         .export
         .as_mut()
@@ -1220,6 +1230,7 @@ fn record_impl(
         tally,
         sites,
         shadings,
+        masks,
     })
 }
 
@@ -1604,6 +1615,8 @@ pub(crate) struct ExportState {
     pub pending_shading: Option<crate::gouraud::ShadingSource>,
     /// Each harvested shading raster with the shading that painted it.
     pub shadings: Vec<(Arc<Pixmap>, crate::gouraud::ShadingSource)>,
+    /// Each soft mask built while recording, with what it was built from.
+    pub masks: Vec<(Arc<tiny_skia::Mask>, Arc<crate::mask_source::MaskSource>)>,
 }
 
 /// The inclusive pixel box of every pixel of `scratch` with coverage, or
@@ -1703,6 +1716,7 @@ impl RecorderState {
             sites: crate::export_sites::SiteLog::default(),
             pending_shading: None,
             shadings: Vec::new(),
+            masks: Vec::new(),
         });
         Some(state)
     }

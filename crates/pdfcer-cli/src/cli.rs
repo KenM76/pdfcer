@@ -6081,10 +6081,13 @@ pub(crate) enum Command {
         /// EMF only: write semi-transparent paint, blend modes,
         /// transparency groups and overprint over flat colours as opaque
         /// vector shapes, each filled with the colour the page shows there
-        /// over the paper, instead of bitmaps. What lies over an image or
-        /// gradient, under a soft mask or a spot ink, or is too complex, is
-        /// written as the page's own pixels as `--patch-approximations`
-        /// does (implied). Counted on an `emf-vector:` line.
+        /// over the paper, instead of bitmaps. A soft mask whose content is
+        /// flat colour is resolved the same way. What lies over an image or
+        /// gradient, under a mask holding one, under a spot ink, or is too
+        /// complex, is written as the page's own pixels as
+        /// `--patch-approximations` does (implied). Counted on an
+        /// `emf-vector:` line, and why each patch was not flat on an
+        /// `emf-vector-not-flat:` line.
         #[arg(long)]
         vector_transparency: bool,
         /// EMF only: write smooth shadings (axial, radial, mesh) as small

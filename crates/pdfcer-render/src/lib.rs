@@ -245,6 +245,7 @@ pub mod interpret;
 mod invisible_text;
 pub mod layer_state;
 pub mod mask;
+mod mask_source;
 pub mod mesh;
 pub(crate) mod minify;
 pub mod overprint;
