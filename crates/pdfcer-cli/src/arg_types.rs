@@ -690,7 +690,7 @@ impl ImageFormatArg {
         }
     }
 
-    /// The token printed on the stable line (`format=<png|jpeg>`).
+    /// The token printed on the stable line (`format=<png|jpeg|jxl|svg|emf>`).
     pub(crate) const fn as_str(self) -> &'static str {
         match self {
             Self::Png => "png",

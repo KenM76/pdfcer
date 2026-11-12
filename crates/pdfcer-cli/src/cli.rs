@@ -5999,7 +5999,8 @@ pub(crate) enum Command {
         #[arg(short, long, conflicts_with = "output_dir")]
         output: Option<PathBuf>,
         /// Existing directory to write one file per page into, named
-        /// `<stem>_p<n>.<png|jpg>` with `<n>` zero-padded to the widest page
+        /// `<stem>_p<n>.<ext>` (`png`, `jpg`, `jxl`, `svg` or `emf`, from
+        /// `--format`) with `<n>` zero-padded to the widest page
         /// number in the run so the files sort in page order — the same
         /// naming `export-dxf --pages` uses.
         #[arg(long, conflicts_with = "output")]
