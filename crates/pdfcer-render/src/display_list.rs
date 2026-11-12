@@ -1029,6 +1029,24 @@ struct Recorded {
     masks: Vec<(Arc<tiny_skia::Mask>, Arc<crate::mask_source::MaskSource>)>,
 }
 
+/// `options` for a recording, which is made at the output scale and never
+/// at a supersampled raster's fine one: the interpreter's device-pixel
+/// thresholds (the thinnest stroke, the sub-pixel cull) scale by
+/// [`crate::EdgeAntialiasing::pixel_factor`], and here one device pixel is
+/// one recorded pixel. `Off` keeps `Supersampled`'s hard edges at factor 1.
+fn at_recording_scale(options: &RenderOptions) -> std::borrow::Cow<'_, RenderOptions> {
+    use crate::EdgeAntialiasing;
+    if options.edge_antialiasing == EdgeAntialiasing::Supersampled {
+        std::borrow::Cow::Owned(
+            options
+                .clone()
+                .with_edge_antialiasing(EdgeAntialiasing::Off),
+        )
+    } else {
+        std::borrow::Cow::Borrowed(options)
+    }
+}
+
 /// The one walk both [`record_page`] and [`record_page_for_export`]
 /// share — same interpreter, same annotation survey, same order — so the
 /// cache and the export cannot disagree about what a page contains.
@@ -1041,6 +1059,7 @@ fn record_impl(
     keep_text: bool,
     force_ink: bool,
 ) -> Result<Recorded, RenderError> {
+    let options = &*at_recording_scale(options);
     let (page_w, page_h, page_ctm) = crate::page_device_geometry(page, scale);
     // A recording allocates no raster, so the MAX_PIXMAP_EDGE ceiling does
     // NOT apply here — that is the point of recording at a deep zoom. Zero

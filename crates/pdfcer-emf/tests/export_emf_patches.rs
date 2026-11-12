@@ -242,6 +242,32 @@ fn a_cmyk_page_group_blend_plays_back_like_the_raster() {
     assert!(bad > 1000, "{bad}");
 }
 
+/// An unextended two-circle radial shading (no native gradient form, so
+/// it is harvested as a raster) drawn wholly under the overprinting
+/// magenta of [`OVERPRINT`], so the patch for the overlap covers it.
+fn shading_under_a_patch() -> Vec<u8> {
+    let shading = "<< /ShadingType 3 /ColorSpace /DeviceRGB /Coords [50 30 1 50 30 4] \
+         /Function << /FunctionType 2 /Domain [0 1] /C0 [1 1 0] /C1 [0 0 1] /N 1 >> \
+         /Extend [false false] >>";
+    page(
+        &format!("{OVERPRINT_RES} /Shading << /Sh0 {shading} >>"),
+        &format!("q 45 25 10 10 re W n /Sh0 sh Q {OVERPRINT}"),
+    )
+}
+
+/// A shading the patch already carries as pixels is not a rasterised
+/// shading the print route has to fall back for.
+#[test]
+fn a_shading_inside_a_patch_does_not_send_the_page_to_raster() {
+    let (_, off) = export(&shading_under_a_patch(), false);
+    assert_eq!(off.outcome.tally.shadings_rasterised, 1);
+    let (_, on) = export(&shading_under_a_patch(), true);
+    let o = &on.outcome;
+    assert!(o.patches.overprint > 0, "{:?}", o.patches);
+    assert_eq!(o.tally.shadings_rasterised, 0);
+    assert_eq!(o.print_fallback(), None);
+}
+
 /// FNV-1a, 64-bit.
 pub(crate) fn fnv1a(bytes: &[u8]) -> u64 {
     bytes.iter().fold(0xcbf2_9ce4_8422_2325, |h, b| {

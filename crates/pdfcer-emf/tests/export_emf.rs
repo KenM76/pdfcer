@@ -209,6 +209,39 @@ fn a_stroke_is_a_geometric_pen_with_caps_joins_and_an_integer_miter_limit() {
     assert_eq!(u32_at(&emf.emf, miter + 8), 10);
 }
 
+/// Every EXTCREATEPEN's width, in logical units.
+fn pen_widths(emf: &[u8]) -> Vec<u32> {
+    let r = walk_records(emf).unwrap();
+    r.iter()
+        .zip(record_offsets(&r))
+        .filter(|((t, _), _)| *t == 0x5F)
+        .map(|(_, off)| u32_at(emf, off + 32))
+        .collect()
+}
+
+/// A supersampled render's thinnest-stroke floor is four FINE pixels, one
+/// output pixel; the recording is at the output scale, so there it is one.
+#[test]
+fn a_thin_stroke_keeps_its_width_when_the_render_is_supersampled() {
+    let bytes = page("", "0.25 w 0 0 0 RG 10 10 40 30 re S 2 w 60 10 20 30 re S");
+    let doc = Document::from_bytes(bytes).expect("fixture parses");
+    let p = page_tree::pages(&doc).expect("page tree").remove(0);
+    let opts = EmfOptions::default().with_raster_dpi(DPI);
+    let widths = |edges| {
+        let render = RenderOptions::default().with_edge_antialiasing(edges);
+        pen_widths(
+            &export_emf(&doc, &p, &render, &opts)
+                .expect("emf export")
+                .emf,
+        )
+    };
+    let on = widths(pdfcer_render::EdgeAntialiasing::On);
+    // 0.25 pt is half a pixel at 144 dpi, so the one-pixel floor: 2540/144
+    // ≈ 17.6 units. 2 pt = 4 px ≈ 70.6 units.
+    assert_eq!(on, vec![18, 71]);
+    assert_eq!(widths(pdfcer_render::EdgeAntialiasing::Supersampled), on);
+}
+
 #[test]
 fn a_dashed_stroke_is_pre_dashed_geometry_with_a_solid_pen() {
     let (_, emf) = export(page("", "[6 3] 0 d 2 w 0 0 0 RG 10 40 m 90 40 l S"));
@@ -441,44 +474,9 @@ fn oracle_fixtures() -> Vec<(&'static str, &'static str, &'static str, bool)> {
 /// mis-plays `EMR_ALPHABLEND` (measured 2026-09-03: a premultiplied
 /// (0,0,128,128) pixel came back (134,5,6) through GDI+ and (255,127,127)
 /// -- the spec's answer -- through GDI). Office and every Win32 paste
-/// target play through GDI.
+/// target play through GDI. Shared with `tools/print-parity-report.py`.
 #[cfg(windows)]
-const GDI_PLAYER_PS1: &str = r#"
-param([string]$Path, [int]$W, [int]$H, [string]$Out)
-Add-Type -TypeDefinition @"
-using System;
-using System.Runtime.InteropServices;
-public static class Gdi {
-  [DllImport("gdi32.dll")] public static extern IntPtr CreateCompatibleDC(IntPtr hdc);
-  [DllImport("gdi32.dll")] public static extern IntPtr CreateDIBSection(IntPtr hdc, ref BITMAPINFO bmi, uint usage, out IntPtr bits, IntPtr section, uint offset);
-  [DllImport("gdi32.dll")] public static extern IntPtr SelectObject(IntPtr hdc, IntPtr h);
-  [DllImport("gdi32.dll")] public static extern bool DeleteObject(IntPtr h);
-  [DllImport("gdi32.dll")] public static extern bool DeleteDC(IntPtr hdc);
-  [DllImport("gdi32.dll", CharSet=CharSet.Unicode)] public static extern IntPtr GetEnhMetaFileW(string path);
-  [DllImport("gdi32.dll")] public static extern bool PlayEnhMetaFile(IntPtr hdc, IntPtr hemf, ref RECT rect);
-  [DllImport("gdi32.dll")] public static extern bool DeleteEnhMetaFile(IntPtr hemf);
-  [DllImport("gdi32.dll")] public static extern IntPtr CreateSolidBrush(uint color);
-  [DllImport("user32.dll")] public static extern int FillRect(IntPtr hdc, ref RECT rect, IntPtr brush);
-  [StructLayout(LayoutKind.Sequential)] public struct RECT { public int L, T, R, B; }
-  [StructLayout(LayoutKind.Sequential)] public struct BITMAPINFO { public uint size; public int w, h; public ushort planes, bpp; public uint comp, sizeImage; public int xppm, yppm; public uint used, imp; public uint r0, g0, b0, a0; }
-  public static byte[] Play(string path, int w, int h) {
-    IntPtr hdc = CreateCompatibleDC(IntPtr.Zero);
-    BITMAPINFO bmi = new BITMAPINFO(); bmi.size = 40; bmi.w = w; bmi.h = -h; bmi.planes = 1; bmi.bpp = 32; bmi.comp = 0;
-    IntPtr bits; IntPtr hbm = CreateDIBSection(hdc, ref bmi, 0, out bits, IntPtr.Zero, 0);
-    IntPtr old = SelectObject(hdc, hbm);
-    RECT rc = new RECT(); rc.L = 0; rc.T = 0; rc.R = w; rc.B = h;
-    IntPtr white = CreateSolidBrush(0x00FFFFFF); FillRect(hdc, ref rc, white); DeleteObject(white);
-    IntPtr hemf = GetEnhMetaFileW(path);
-    if (hemf == IntPtr.Zero) throw new Exception("GetEnhMetaFile failed");
-    if (!PlayEnhMetaFile(hdc, hemf, ref rc)) throw new Exception("PlayEnhMetaFile failed");
-    byte[] px = new byte[w * h * 4]; Marshal.Copy(bits, px, 0, px.Length);
-    DeleteEnhMetaFile(hemf); SelectObject(hdc, old); DeleteObject(hbm); DeleteDC(hdc);
-    return px;
-  }
-}
-"@
-[System.IO.File]::WriteAllBytes($Out, [Gdi]::Play($Path, $W, $H))
-"#;
+const GDI_PLAYER_PS1: &str = include_str!("gdi_player.ps1");
 
 /// Play `emf` through GDI onto a white `w` × `h` surface; the raw BGRA.
 #[cfg(windows)]

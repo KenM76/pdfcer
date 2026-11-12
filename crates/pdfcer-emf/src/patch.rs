@@ -11,13 +11,15 @@
 //! paints there, in any order. Everything outside the rectangles stays as
 //! it was.
 
+use std::sync::Arc;
+
 use pdfcer_core::page_tree::Page;
 use pdfcer_core::view::DocumentView;
 use tiny_skia::{BlendMode, Pixmap};
 
 use super::{Writer, rectl};
 use pdfcer_render::font::RenderOptions;
-use pdfcer_render::writer_seam::Brush;
+use pdfcer_render::writer_seam::{Brush, ShadingSource};
 use pdfcer_render::writer_seam::{DeviceBounds, ExportRecording, Op};
 use pdfcer_render::writer_seam::{Site, SiteCause, op_box};
 
@@ -120,12 +122,22 @@ pub(super) fn plan(
         if (truth.width(), truth.height()) != (w, h) {
             return None;
         }
-        rec.ops.retain(|op| {
-            let Some(r) = op_box(op).and_then(|b| px_rect(b, w, h)) else {
-                return true;
-            };
-            !rects.iter().any(|c| contains(*c, r))
-        });
+        let covered = |op: &Op| {
+            op_box(op)
+                .and_then(|b| px_rect(b, w, h))
+                .is_some_and(|r| rects.iter().any(|c| contains(*c, r)))
+        };
+        // A shading inside a patch is the raster's own pixels, not a
+        // rasterised shading the print route must fall back for.
+        let patched_shadings: u32 = rec
+            .ops
+            .iter()
+            .filter(|op| covered(op))
+            .map(|op| harvested_shadings(op, &rec.shadings))
+            .sum();
+        let t = &mut rec.tally;
+        t.shadings_rasterised = t.shadings_rasterised.saturating_sub(patched_shadings);
+        rec.ops.retain(|op| !covered(op));
         let mut patches = count(&sites, rects.len());
         patches.transparency = extra.len();
         zero_tallies(rec);
@@ -162,6 +174,22 @@ fn sites(rec: &ExportRecording) -> Vec<Site> {
         }
     }
     out
+}
+
+/// Shadings in `op` the recorder harvested as image ops (each counted in
+/// `ExportTally::shadings_rasterised`).
+fn harvested_shadings(op: &Op, shadings: &[(Arc<Pixmap>, ShadingSource)]) -> u32 {
+    match op {
+        Op::Fill { brush, .. } | Op::Stroke { brush, .. } => match &brush.brush {
+            Brush::Image { texels, .. } => {
+                u32::from(shadings.iter().any(|(t, _)| Arc::ptr_eq(t, texels)))
+            }
+            _ => 0,
+        },
+        Op::Layer { ops, .. } | Op::Text { ops, .. } => {
+            ops.iter().map(|o| harvested_shadings(o, shadings)).sum()
+        }
+    }
 }
 
 /// The recording's approximations are all patched: none is left to count.
