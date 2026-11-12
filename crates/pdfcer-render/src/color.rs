@@ -1041,7 +1041,7 @@ pub struct ColorDiagnostics {
     /// `cs`/`CS` selections of a `Pattern` colour space.
     pub pattern_spaces_selected: usize,
     /// Pattern paints pdfcer could not draw: an unresolvable `/Pattern`
-    /// name, a malformed pattern, a mesh or type 1 function shading, or a
+    /// name, a malformed pattern, a shading with nothing to paint with, or a
     /// tiling pattern refused by a ceiling (`crate::tiling`). Nothing is
     /// drawn in their place: Table 74's initial `Pattern` colour "causes
     /// nothing to be painted", and an invented solid fill would be worse.

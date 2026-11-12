@@ -7642,8 +7642,8 @@ impl<'a> Interpreter<'a> {
             self.diag.shading.painted += 1;
             true
         } else {
-            // Modelled but not drawable — a mesh, or a type 1 function
-            // shading. A real shortfall, so it counts.
+            // Nothing to paint with (no ramp, grid or decoded mesh). A
+            // real shortfall, so it counts.
             self.diag.color.patterns_unpainted += 1;
             false
         }

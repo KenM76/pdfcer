@@ -176,9 +176,9 @@ pub struct EmfOptions {
     /// (`EMR_GRADIENTFILL`) instead of bitmaps: within 1/255 per channel of
     /// the raster's ramp and 0.25 device pixel of its circles. A shading
     /// with a constant alpha below 1, a ramp with holes, or more than
-    /// 200 000 triangles stays a bitmap. Function-based (type 1) shadings
-    /// are not painted by the raster either. Independent of
-    /// [`Self::vector_transparency`]. Off by default; see [`EmfShadings`].
+    /// 200 000 triangles stays a bitmap, as does a function-based (type 1)
+    /// shading. Independent of [`Self::vector_transparency`]. Off by
+    /// default; see [`EmfShadings`].
     pub vector_shadings: bool,
     /// Size a soft-masked layer's patch by where its mask is nonzero
     /// (outside its group's `/BBox` the mask is the backdrop value,

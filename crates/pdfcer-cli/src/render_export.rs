@@ -2851,20 +2851,6 @@ pub(crate) fn report_shading_diagnostics(s: &pdfcer_render::ShadingDiagnostics) 
         s.painted,
         unpainted
     );
-    // The two kinds pdfcer does not paint are named SEPARATELY, because
-    // they are different amounts of remaining work: type 1 is one function
-    // and an inverse matrix, the meshes are a bit-packed stream format.
-    // An operator waiting for one should not be quoted the other's
-    // timeline.
-    if s.by_type[0] > 0 {
-        eprintln!(
-            "pdfcer: note: {} of those are FUNCTION-BASED shadings (type 1, ISO 32000-1 \
-8.7.4.5.2), which this build resolves but does not paint. Unlike the axial and radial types it \
-has no /Extend at all — outside its transformed domain rectangle the standard paints the \
-background colour, or nothing",
-            s.by_type[0]
-        );
-    }
     if s.mesh() > 0 {
         eprintln!(
             // 8.7.4.5.5-.8, NOT 9.x -- the first version of this string said

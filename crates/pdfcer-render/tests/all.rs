@@ -35,6 +35,7 @@ mod flatten_annotations_look_the_same;
 mod form_bbox_clip_identity;
 mod format_embed_font;
 mod format_style_donor;
+mod function_based_shading;
 mod fuzz_cmyk_page_reaches_the_buffer;
 mod gray_icc_through_the_output_intent;
 mod grey_image_into_a_cmyk_group;

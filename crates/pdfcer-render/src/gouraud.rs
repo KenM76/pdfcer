@@ -171,7 +171,8 @@ impl Gouraud {
 #[non_exhaustive]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Decline {
-    /// `ShadingType 1`, which the raster does not paint either.
+    /// `ShadingType 1`: its colour varies in two dimensions, which no
+    /// triangle mesh here is built for.
     FunctionBased,
     /// The ramp has holes (a `/Function` that failed at some sample).
     IncompleteRamp,

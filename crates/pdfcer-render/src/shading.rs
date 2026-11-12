@@ -151,6 +151,8 @@ use pdfcer_core::view::DocumentView;
 use crate::color::{ColorDiagnostics, ColorSpace};
 use crate::gstate::Rgb;
 
+mod function_based;
+
 /// Entries in the pre-sampled colour ramp ([`ColorRamp`]).
 ///
 /// # Why 256, and why a constant rather than a knob
@@ -855,6 +857,10 @@ pub struct Shading {
     /// space naming a spot. Kept here rather than on the mesh because the
     /// curves are not comparable and [`crate::mesh::Mesh`] is.
     mesh_spot_colorants: Vec<crate::overprint::SpotColorant>,
+    /// A type 1 shading's function, pre-sampled over `/Domain`; `None` for
+    /// every other type and for a type 1 with no function, an empty domain
+    /// or a singular `/Matrix`.
+    grid: Option<Arc<function_based::FunctionGrid>>,
 }
 
 impl Shading {
@@ -1054,6 +1060,13 @@ impl Shading {
             }
             _ => None,
         };
+        let grid = function_based::grid_for(
+            &geometry,
+            function.as_ref(),
+            (&color_space, &bridges, intent),
+            diag,
+            color_diag,
+        );
 
         if geometry.is_analytic() && function.is_none() {
             diag.missing_function += 1;
@@ -1140,6 +1153,7 @@ impl Shading {
             anti_alias: boolean(doc, dict, b"AntiAlias"),
             mesh,
             mesh_spot_colorants,
+            grid,
         })
     }
 
@@ -1262,9 +1276,9 @@ impl Shading {
     /// difference between an operator whose file is malformed and one
     /// waiting on a capability.
     ///
-    /// True for an analytic type with a ramp, or for a mesh whose stream
-    /// decoded. False is always accompanied by a named reason in
-    /// [`ShadingDiagnostics::notes`] - a shading pdfcer declines and cannot
+    /// True for an axial or radial with a ramp, a type 1 with a sampled
+    /// grid, or a mesh whose stream decoded. False is always accompanied by
+    /// a named reason in [`ShadingDiagnostics::notes`] - a shading pdfcer declines and cannot
     /// explain would violate project rule 4.
     #[must_use]
     pub fn is_paintable(&self) -> bool {
@@ -1275,7 +1289,7 @@ impl Shading {
             // condition.
             return true;
         }
-        self.geometry.is_analytic() && self.ramp.is_some()
+        self.grid.is_some() || (self.geometry.is_analytic() && self.ramp.is_some())
     }
 }
 
@@ -1616,18 +1630,13 @@ impl Geometry {
     /// under a shading pattern (SH1, SH6) — the caller has already applied
     /// whichever transform that is, so this function is route-agnostic.
     ///
-    /// Returns `None` for a geometry this slice does not paint (type 1,
-    /// and the meshes), which the caller distinguishes from
+    /// Returns `None` for a geometry with no 1-D parameter (type 1, and
+    /// the meshes), which the caller distinguishes from
     /// [`Param::Unpainted`].
     fn param_at(&self, x: f32, y: f32) -> Option<Param> {
         match self {
-            // Type 1 is MODELLED but not painted in this slice. It needs a
-            // 2-in function evaluated over an inverse `/Matrix` and has no
-            // `/Extend` at all — outside the transformed domain rectangle
-            // it is `/Background` or nothing (SH21). Deliberately deferred
-            // rather than rushed: the suite measurement found **zero**
-            // type-1 shadings against 5 axial and 9 radial, so it is the
-            // cheapest of the three to leave and the least missed.
+            // Type 1 has a 2-D domain, not a parameter; it is painted by
+            // `function_based`. A mesh is forward-rasterised.
             Self::FunctionBased { .. } | Self::Mesh { .. } => None,
             Self::Axial {
                 coords,
@@ -1910,10 +1919,26 @@ fn sample_at(
     width: i32,
     clip: Option<&tiny_skia::Mask>,
 ) -> Option<(f32, f32)> {
+    let (pt, coverage) = target_at(shading, to_target, px, py, width, clip)?;
+    let Some(Param::At(t)) = shading.geometry.param_at(pt.x, pt.y) else {
+        return None;
+    };
+    Some((t, coverage))
+}
+
+/// Device pixel `(px, py)`'s centre in target space and its clip coverage,
+/// or `None` outside `/BBox` (SH6, SH7). Shared by every analytic painter so
+/// they agree on which pixels a shading covers.
+fn target_at(
+    shading: &Shading,
+    to_target: tiny_skia::Transform,
+    px: i32,
+    py: i32,
+    width: i32,
+    clip: Option<&tiny_skia::Mask>,
+) -> Option<(tiny_skia::Point, f32)> {
     let mut pt = tiny_skia::Point::from_xy(px as f32 + 0.5, py as f32 + 0.5);
     to_target.map_point(&mut pt);
-
-    // /BBox clips, in TARGET space (SH6, SH7).
     if let Some([bx0, by0, bx1, by1]) = shading.bbox
         && (pt.x < bx0.min(bx1)
             || pt.x > bx0.max(bx1)
@@ -1922,19 +1947,13 @@ fn sample_at(
     {
         return None;
     }
-
-    let Some(Param::At(t)) = shading.geometry.param_at(pt.x, pt.y) else {
-        return None;
-    };
-
     let idx = (py as usize) * (width as usize) + (px as usize);
     let coverage = match clip {
-        // The clip mask is one byte of coverage per device pixel, laid out
-        // in the same row-major order as the pixmap.
+        // One byte of coverage per device pixel, in the pixmap's order.
         Some(mask) => mask.data().get(idx).map_or(0.0, |&c| f32::from(c) / 255.0),
         None => 1.0,
     };
-    Some((t, coverage))
+    Some((pt, coverage))
 }
 
 fn paint_region(
@@ -2004,46 +2023,52 @@ fn paint_region(
                 }
                 continue;
             }
-            let Some(&dst) = pixmap.pixels().get(idx) else {
-                continue;
-            };
-            let inv = 1.0 - a;
-            let out_a = a
-                .mul_add(255.0, f32::from(dst.alpha()) * inv)
-                .round()
-                .clamp(0.0, 255.0) as u8;
-            // Each channel is CLAMPED TO out_a, not merely to 255.
-            //
-            // Algebraically a premultiplied channel can never exceed its
-            // own alpha here — `src·a·255 + dst.c·inv ≤ a·255 +
-            // dst.alpha·inv` because a straight colour is ≤ 1 and `dst.c ≤
-            // dst.alpha` by the premultiplied invariant. But the channels
-            // and the alpha are rounded INDEPENDENTLY, and rounding can
-            // put a channel one unit above alpha. `from_rgba` rejects that
-            // (it validates the invariant), so without this clamp a
-            // scattering of pixels along a gradient would silently fail to
-            // paint — a speckled hole through the gradient, which reads as
-            // a rasteriser bug rather than as a rounding artefact.
-            let mix = |src: f32, d: u8| -> u8 {
-                let v = (src * a)
-                    .mul_add(255.0, f32::from(d) * inv)
-                    .round()
-                    .clamp(0.0, 255.0) as u8;
-                v.min(out_a)
-            };
-            if let Some(c) = tiny_skia::PremultipliedColorU8::from_rgba(
-                mix(rgb.r, dst.red()),
-                mix(rgb.g, dst.green()),
-                mix(rgb.b, dst.blue()),
-                out_a,
-            ) && let Some(slot) = pixmap.pixels_mut().get_mut(idx)
-            {
-                *slot = c;
-                painted += 1;
-            }
+            painted += usize::from(source_over(pixmap, idx, [rgb.r, rgb.g, rgb.b], a));
         }
     }
     painted
+}
+
+/// Composite straight sRGB `rgb` at alpha `a` over pixel `idx`, in
+/// premultiplied space: `out = src·a + dst·(1 − a)`. Whether it wrote.
+fn source_over(pixmap: &mut tiny_skia::Pixmap, idx: usize, rgb: [f32; 3], a: f32) -> bool {
+    if a <= 0.0 {
+        return false;
+    }
+    let Some(&dst) = pixmap.pixels().get(idx) else {
+        return false;
+    };
+    let a = a.min(1.0);
+    let inv = 1.0 - a;
+    let out_a = a
+        .mul_add(255.0, f32::from(dst.alpha()) * inv)
+        .round()
+        .clamp(0.0, 255.0) as u8;
+    // Each channel is CLAMPED TO out_a, not merely to 255: channels and
+    // alpha round independently, a channel can land one unit above alpha,
+    // and `from_rgba` rejects that, which would speckle holes through the
+    // gradient.
+    let mix = |src: f32, d: u8| -> u8 {
+        let v = (src * a)
+            .mul_add(255.0, f32::from(d) * inv)
+            .round()
+            .clamp(0.0, 255.0) as u8;
+        v.min(out_a)
+    };
+    let [r, g, b] = rgb;
+    let Some(c) = tiny_skia::PremultipliedColorU8::from_rgba(
+        mix(r, dst.red()),
+        mix(g, dst.green()),
+        mix(b, dst.blue()),
+        out_a,
+    ) else {
+        return false;
+    };
+    pixmap
+        .pixels_mut()
+        .get_mut(idx)
+        .map(|slot| *slot = c)
+        .is_some()
 }
 
 impl Shading {
@@ -2075,9 +2100,9 @@ impl Shading {
     /// both ends and whose geometry misses the region entirely — and the
     /// caller reports it rather than treating it as failure.
     ///
-    /// `None` means this shading is of a type this build does not paint
-    /// (type 1, and the meshes), which is a different fact from "painted
-    /// zero pixels" and must not collapse into it.
+    /// `None` means this shading has nothing to paint with (no ramp, no
+    /// type 1 grid, no decoded mesh), which is a different fact from
+    /// "painted zero pixels" and must not collapse into it.
     /// Paint this shading **natively in ink**, honouring overprint.
     ///
     /// Returns `None` for the same reasons [`Shading::paint`] does, and
@@ -2283,11 +2308,12 @@ impl Shading {
         if !self.geometry.is_analytic() {
             return None;
         }
-        // Type 1 is modelled but not painted in this build — see
-        // `Geometry::param_at`. Asked here rather than inside the pixel
-        // loop so a whole-region no-op costs one branch, not W×H of them.
+        // Type 1 has no 1-D parameter: its own grid painter.
         if matches!(self.geometry, Geometry::FunctionBased { .. }) {
-            return None;
+            let grid = self.grid.as_deref()?;
+            return Some(function_based::paint(
+                self, grid, to_target, region, clip, alpha, pixmap,
+            ));
         }
         let ramp = self.ramp.as_ref()?;
         Some(paint_region(

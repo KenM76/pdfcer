@@ -49,10 +49,32 @@ const RADIAL_SEPARATION: &str = "<< /ShadingType 3 \
      /C0 [0 0 0 0] /C1 [0 1 1 0] /N 1 >>] /Coords [50 40 4 50 40 30] \
      /Extend [false true] /Function << /FunctionType 2 /Domain [0 1] \
      /C0 [0.1] /C1 [1] /N 1 >> >>";
-/// A function-based shading.
-const FUNCTION_BASED: &str = "<< /ShadingType 1 /ColorSpace /DeviceRGB \
-     /Domain [0 1 0 1] /Matrix [100 0 0 80 0 0] /Function << /FunctionType 2 \
-     /Domain [0 1] /C0 [1 0 0] /C1 [0 0 1] /N 1 >> >>";
+
+/// A type 1 shading over user `[20 80] × [20 60]` whose colour is
+/// `(x, y, 0.25)` at domain point `(x, y)`: a 2-in type 4 function.
+fn function_based_page() -> Vec<u8> {
+    let function = "{ 0.25 }";
+    build(&[
+        (1, "<< /Type /Catalog /Pages 2 0 R >>".into()),
+        (
+            2,
+            "<< /Type /Pages /Kids [3 0 R] /Count 1 /MediaBox [0 0 100 80] \
+             /Resources << /Shading << /Sh0 << /ShadingType 1 /ColorSpace /DeviceRGB \
+             /Domain [0 1 0 1] /Matrix [60 0 0 40 20 20] /Function 5 0 R >> >> >> >>"
+                .into(),
+        ),
+        (3, "<< /Type /Page /Parent 2 0 R /Contents 4 0 R >>".into()),
+        (4, "<< /Length 7 >>\nstream\n/Sh0 sh\nendstream".into()),
+        (
+            5,
+            format!(
+                "<< /FunctionType 4 /Domain [0 1 0 1] /Range [0 1 0 1 0 1] /Length {} >>\n\
+                 stream\n{function}\nendstream",
+                function.len()
+            ),
+        ),
+    ])
+}
 
 /// A page whose `/Sh0` is `shading`, drawn by `content`.
 fn shading_page(shading: &str, content: &str) -> Vec<u8> {
@@ -319,16 +341,40 @@ fn a_crowded_radial_ramp_is_merged_into_pixel_wide_bands() {
     assert!(s.triangles <= 6_000, "{s:?}");
 }
 
-/// The raster paints no function-based shading, so there is nothing to
-/// write either way: both metafiles are empty of paint.
+/// A type 1 shading is painted inside its domain only (SH20, SH21) and
+/// reaches the metafile as a bitmap that plays back like the raster, with
+/// or without vector shadings (no triangle route takes type 1).
 #[test]
-fn a_function_based_shading_paints_nothing_either_way() {
-    let bytes = shading_page(FUNCTION_BASED, "/Sh0 sh");
-    let (_, off) = export(&bytes, false);
+fn a_function_based_shading_is_painted_and_kept_as_a_bitmap() {
+    let bytes = function_based_page();
+    let (reference, off) = export(&bytes, false);
+    let at = |x: u32, y: u32| {
+        let c = reference.pixel(x, y).unwrap();
+        [c.red(), c.green(), c.blue()]
+    };
+    // User (50, 40) is domain (0.5, 0.5); user (5, 5) is outside it.
+    let mid = at(100, 80);
+    assert!(
+        mid.iter()
+            .zip([128u8, 128, 64])
+            .all(|(g, w)| g.abs_diff(w) <= 3),
+        "{mid:?}"
+    );
+    assert_eq!(at(10, 150), [255, 255, 255]);
+    assert_eq!(off.outcome.tally.shadings_rasterised, 1);
+    assert!(records(&off.emf).1 > 0, "no bitmap");
     let (_, on) = export(&bytes, true);
-    assert_eq!(off.emf, on.emf);
-    assert_eq!(records(&on.emf), (0, 0));
-    assert_eq!(on.outcome.shadings, pdfcer_emf::EmfShadings::default());
+    assert_eq!(
+        (on.outcome.shadings.vector, on.outcome.shadings.declined()),
+        (0, 1)
+    );
+    assert!(records(&on.emf).1 > 0, "no bitmap with vector shadings");
+    #[cfg(windows)]
+    {
+        use crate::export_emf_patches::{ROUNDING, playback_against_raster};
+        let (bad, worst) = playback_against_raster("type1", &reference, &off.emf, ROUNDING);
+        assert_eq!(bad, 0, "{bad} pixels off, worst {worst}");
+    }
 }
 
 #[test]
