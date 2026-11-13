@@ -112,6 +112,13 @@ wherever it appears.*
 
 ## Shipped
 
+### `4224a9c2` `chore(release): v0.149.0`, 2026-11-13: version bump filed, release NOT yet published (1559th filing)
+
+Engineer-reported; no shell here, git, tag, push, CI, crates.io and backup state not checked from here. `4224a9c2` on `main` bumps the workspace version and every `pdfcer-*` workspace dependency from 0.148.0 to 0.149.0 in `Cargo.toml` (17 strings), plus `cargo update -w` in the root and in `fuzz/`; `Cargo.lock` and `fuzz/Cargo.lock` changed for the workspace crates only. No code change, no dependency change.
+- **Planned contents of `v0.149.0`** (already filed, 1558th): `Pass 711.0` (`X082` rich black at a 0% start, `2efcc8c5`).
+- **Not published.** The tag `v0.149.0` will go on this filing's commit. Still to come, filed separately: GitHub release, OneDrive `pdfcer2` (alternating; `pdfcer1` holds 0.148.0), crates.io (16 crates). A later filing records PUBLISHED.
+- **FEATURES:** no change; the `Engine crates on crates.io` row stays at 0.148.0 until publication.
+
 ### `2efcc8c5` `Pass 711.0` (`X082`): rich black at a 0% start needs some black, 2026-11-13 (1558th filing)
 
 Engineer-reported; no shell here, nothing checked from here. Request `X082` (operator, as a crates consumer, pinned at `43abf651`) reported a defect in `pdfcer-render` `CoverageWarning::RichBlack` (`Pass 710.0`, `X081`, `391f9e4c`): at `black_start_percent: 0` the test `k >= start*10` is always true, so a cyan-only pixel was flagged as rich black. The rule now also requires `k > 0` ("a 0% start still needs some black"). New lib test `a_zero_start_still_needs_some_black`: `[0.5,0,0,0]` not flagged, `[0.5,0,0,0.001]` flagged. `pdfcer-render` coverage_warning lib tests: 3 passed; clippy clean; `check-core-api-verbs` OK; code-structure clean. Doc comment and `docs/core-api/03-capabilities.md` updated (`index.md` line count 6,390).
