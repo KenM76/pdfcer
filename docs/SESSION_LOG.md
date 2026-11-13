@@ -4,6 +4,13 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-11-13 (1554th filing) — `a3c0cfd8` `Pass 708.0` follow-up: `SoftProof::from_output_intent`
+
+**Filed (engineer-reported; no shell here, nothing checked from here):**
+- `a3c0cfd8` adds `SoftProof::from_output_intent(&DocumentView)` in `pdfcer-render`: the document's own output intent as a proof choice. `None` without a usable intent; `NotCmyk` for an RGB intent. Core only, no CLI flag. render `tests/soft_proof.rs` now 6 tests. Gates green per engineer (clippy, fmt, code-structure, core-api-verbs; `docs/core-api` updated in the commit).
+
+**Open:** ROADMAP: one line added to the `708.0` Shipped entry. FEATURES untouched (Soft proof row left as is; the CLI cannot reach this piece). No decision, no rule.
+
 ## 2026-11-13 (1553rd filing) — `391f9e4c` `Pass 708.0` / `709.0` / `710.0`: soft proof, page overprint, ink coverage warnings
 
 **Filed (engineer-reported; no shell here, nothing checked from here):**
