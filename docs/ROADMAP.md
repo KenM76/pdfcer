@@ -112,6 +112,13 @@ wherever it appears.*
 
 ## Shipped
 
+### `e8260525` `chore(release): v0.148.0`, 2026-11-13: version bump filed, release NOT yet published (1555th filing)
+
+Engineer-reported; no shell here, git, tag, push, CI, crates.io and backup state not checked from here. `e8260525` on `main` bumps the workspace version and every `pdfcer-*` workspace dependency from 0.147.0 to 0.148.0 in `Cargo.toml` (17 strings), plus `cargo update -w` in `Cargo.lock` and `fuzz/Cargo.lock`. No code change, no dependency change.
+- **Planned contents of `v0.148.0`** (all already filed, 1553rd and 1554th): `Pass 708.0` (`X079` soft proof, `391f9e4c` + `a3c0cfd8`), `Pass 709.0` (`X080` page overprint, `391f9e4c`), `Pass 710.0` (`X081` coverage warnings, `391f9e4c`).
+- **Not published.** The tag `v0.148.0` will go on this filing's commit. Still to come, filed separately: GitHub release, OneDrive `pdfcer1` (alternating; `pdfcer2` holds 0.147.0), crates.io (16 crates). A later filing records PUBLISHED.
+- **FEATURES:** no change; the `Engine crates on crates.io` row stays at 0.147.0 until publication.
+
 ### `391f9e4c` `Pass 708.0` / `709.0` / `710.0` (`X079`, `X080`, `X081`): soft proof, page overprint, ink coverage warnings, 2026-11-13 (1553rd filing)
 
 Engineer-reported; no shell here, git, push and CI state not checked from here. One code commit, `391f9e4c` `feat(render,cli): soft proof, page overprint and coverage warnings (X079-X081)`, on `main`, NOT in a release (next is `v0.148.0`). Requests from `pdfcer-gui` (operator request `O421`), `D:\Dev\FeatureRequests\pdfce_FeatureRequests\open\request_X079_soft_proof_simulation_profile.md`, `request_X080_page_uses_overprint.md`, `request_X081_ink_coverage_warning_map.md`. Reasoning is in the commit message. All three: core (render) + cli; gui is the GUI project's column.

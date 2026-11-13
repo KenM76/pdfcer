@@ -4,6 +4,14 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-11-13 (1555th filing) — `e8260525` `v0.148.0` version bump (not yet published)
+
+**Filed (engineer-reported; no shell here, nothing checked from here):**
+- `e8260525` `chore(release): v0.148.0`: workspace version and every `pdfcer-*` workspace dependency 0.147.0 to 0.148.0 in `Cargo.toml` (17 strings), `cargo update -w` in `Cargo.lock` and `fuzz/Cargo.lock`. No code change, no dependency change.
+- Carries, all already filed: `Pass 708.0` (`391f9e4c`, `a3c0cfd8`), `Pass 709.0` and `Pass 710.0` (`391f9e4c`).
+
+**Open:** bumped, NOT yet tagged or published. Tag `v0.148.0` goes on this filing's commit; GitHub release, OneDrive `pdfcer1`, crates.io (16 crates) are filed separately afterwards. ROADMAP: new Shipped note. FEATURES: no change. No decision, no rule.
+
 ## 2026-11-13 (1554th filing) — `a3c0cfd8` `Pass 708.0` follow-up: `SoftProof::from_output_intent`
 
 **Filed (engineer-reported; no shell here, nothing checked from here):**
