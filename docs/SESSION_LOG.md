@@ -4,6 +4,16 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-11-13 (1548th filing) — `01692479` `Pass 700.23` PARTIAL: overprinted shadings band as vector on ink pages
+
+**Filed (engineer-reported; no git run here):**
+- `01692479`: render records per-channel overprint rules with each gradient/shading (new pub field `overprint` on `GradientSpec`/`ShadingSource`; shared `overprint::narrow_to_reach`); emf bands an overprinted shading as overprinted flat fills through the existing flattener on ink pages. RGB pages ignore the rules, as the raster does.
+- Measured (licensed print test file, EMF 150 dpi): p1 patched ops 42 to 40, shading patches 4 to 2; p4 shading patches 4 to 0. Parity means p1 8.581 to 8.585, p4 8.222 to 8.223, others unchanged. `pdfcer print` vector on every page.
+- Tests: `export_emf_shading_bands.rs` (sabotage-checked on the /Cyan playback case); emf 103, render 579+657+36 pass. Gates green.
+
+**Open:** overprinted DeviceCMYK shading knocks out spot ink beneath it (spec keeps it; raster's two routes disagree too); spot/DeviceN shadings (3 on p4); p1's 2 unidentified shading patches; mesh, type 1; native gradient route drops overprint/spot/blend. Semver: new pub fields, next 0.x minor.
+**For next session:** spot shadings need a spot plate inside a band. No decision, no rule. FEATURES: 1547th row widened; Planned remainders row narrowed.
+
 ## 2026-11-13 (1547th filing) — `e7d6d124` `Pass 700.23` PARTIAL: axial and radial shadings band as vector under transparency
 
 **Filed (engineer-reported; no git run here):**
