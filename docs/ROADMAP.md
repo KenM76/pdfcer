@@ -112,6 +112,18 @@ wherever it appears.*
 
 ## Shipped
 
+### `93ec5d2d` `v0.148.0` PUBLISHED, 2026-11-13 (1557th filing)
+
+Engineer-reported measurements; no shell here. Bump `e8260525` (1555th), pre-tag fixes `f8ac2dce` + `d5dc17ea` (1556th). Annotated tag `v0.148.0` is on `93ec5d2d` (the 1556th filing commit), pushed; CI green at the tag (the earlier run on `8787c566` was red on `check-clap-help`, fixed by `f8ac2dce` + `d5dc17ea`).
+- **Carries:** `Pass 708.0` (`X079` soft proof; `391f9e4c` + `a3c0cfd8`), `Pass 709.0` (`X080` page overprint), `Pass 710.0` (`X081` coverage warnings), for `pdfcer-gui` round `O421`.
+- **Smoke:** build folder `D:\builds\pdfcer-20261113-1149-93ec5d2` (clean, not `-dirty`), 66,992,149 bytes. Fresh-folder: `pdfcer --version` reports 0.148.0, revision `v0.148.0`, icccer 0.4.2 (registry); `coverage-warning --help` prints.
+- **GitHub release:** 8 assets: `pdfcer-v0.148.0-windows-x64.zip`, `ocr-addon-ocrcer.zip`, `ocr-addon-ocrs.zip`, `ocr-addon-tesseract.zip`, each with a `.sha256`; uploaded via `tools/gh-release.py`, PASS.
+- **OneDrive:** wrote `pdfcer1` (6 items, 86,614,489 bytes); `pdfcer2` keeps 0.147.0; the next release writes `pdfcer2`.
+- **crates.io:** all 16 crates at 0.148.0 (model, color, pkix, vec3, json, jpeg-remux, 3d, 3d-nav, image-codec, fonts, function, text, core, render, flatten, emf), published from a detached worktree at the tag, no 429.
+- **Channel:** notice `open/notice_2026-11-13_release_v0.148.0.md` sent to `D:\Dev\FeatureRequests\pdfce_FeatureRequests`.
+- **verify-release.py v0.148.0:** all checks ok except "working tree clean" (27 uncommitted paths: agent-memory and untracked research notes, never committed by policy), as for previous releases.
+- **FEATURES:** no row change. Supersedes the "NOT yet published" status of the `e8260525` note below.
+
 ### `f8ac2dce` + `d5dc17ea`, 2026-11-13: two CI-audit fixes before the `v0.148.0` tag (1556th filing)
 
 Engineer-reported; no shell here, git, push and CI state not checked from here. `f8ac2dce` `docs(readme): 248 working subcommands` (README said 247; `coverage-warning`, `Pass 710.0`, added one; caught by `check-clap-help`). `d5dc17ea` `fix(cli): rejoin the soft-proof note; document join_pages`: two 18-space gaps in the `--soft-proof` BPC stderr note (`Pass 708.0`; `check-string-gaps`) and a missing doc comment on `inspect_ink.rs::join_pages` (`Pass 709.0`; `check-public-fns-documented`). core none, cli fix. These land before the `v0.148.0` tag, which goes on this filing's commit. Why the local sweep missed them (a `while read` pipe starved by stdin-reading audits) is in the 1556th SESSION_LOG entry. **FEATURES:** no change.

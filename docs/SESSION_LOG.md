@@ -4,6 +4,18 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-11-13 (1557th filing) — `v0.148.0` PUBLISHED
+
+**Filed (engineer-reported; no shell here, nothing checked from here):**
+- Tag `v0.148.0` (annotated) on `93ec5d2d`, pushed; CI green at the tag (run on `8787c566` was red on `check-clap-help`, fixed by `f8ac2dce` + `d5dc17ea`, filed in the 1556th). Carries `Pass 708.0`, `709.0`, `710.0` (round `O421`).
+- GitHub release: 8 assets (4 zips, each with `.sha256`), uploaded via `tools/gh-release.py`, PASS. Build folder `D:\builds\pdfcer-20261113-1149-93ec5d2` clean, 66,992,149 bytes; fresh-folder smoke: `--version` 0.148.0 / `v0.148.0` / icccer 0.4.2; `coverage-warning --help` prints.
+- OneDrive `pdfcer1` written (6 items, 86,614,489 bytes); `pdfcer2` keeps 0.147.0; next release writes `pdfcer2`.
+- crates.io: 16 crates at 0.148.0, from a detached worktree at the tag, no 429.
+- GUI-channel notice `open/notice_2026-11-13_release_v0.148.0.md` sent.
+- `verify-release.py` fails only the dirty-tree check (27 uncommitted paths, agent-memory and research notes), accepted.
+
+**Open:** none from this release. ROADMAP: new Shipped entry. FEATURES: no change. No decision, no rule.
+
 ## 2026-11-13 (1556th filing) — `f8ac2dce` + `d5dc17ea`: two CI-audit fixes before the `v0.148.0` tag
 
 **Filed (engineer-reported; no shell here, nothing checked from here):**
