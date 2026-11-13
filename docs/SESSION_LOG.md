@@ -4,6 +4,15 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-11-13 (1553rd filing) — `391f9e4c` `Pass 708.0` / `709.0` / `710.0`: soft proof, page overprint, ink coverage warnings
+
+**Filed (engineer-reported; no shell here, nothing checked from here):**
+- `391f9e4c`, one commit, three Passes from `pdfcer-gui` requests `X079` (soft proof against a CMYK output profile), `X080` (page uses overprint), `X081` (ink coverage warnings); operator request `O421`. core (render) + cli; gui unticked.
+- Disclosed limit on `708.0`: BPC refused for LUT-based CMYK profiles (icccer cannot estimate source black); icccer feature request being filed.
+- Tests: render 5 + 5 + 2 unit, cli 3 + 3 + 4; full `pdfcer-render` and `pdfcer-cli` suites pass. Gates green per engineer. No manifest change.
+
+**Open:** not released (next `v0.148.0`). ROADMAP: new Shipped entry. FEATURES: three new Implemented rows. No decision, no rule.
+
 ## 2026-11-13 (1552nd filing) — `v0.147.0` PUBLISHED
 
 **Filed (engineer-reported; no shell here, nothing checked from here):**
