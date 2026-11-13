@@ -112,6 +112,18 @@ wherever it appears.*
 
 ## Shipped
 
+### `04fc8592` `v0.147.0` PUBLISHED, 2026-11-13 (1552nd filing)
+
+Engineer-reported measurements; no shell here. Bump `e3caef00`, filed by `04fc8592` (1551st). Annotated tag `v0.147.0` is on `04fc8592`, pushed; CI green on `04fc8592`.
+- **Carries:** `Pass 707.0` (`X078`, `EditSession::clear_page_content`; fields-only prints keep header/footer/marks), `Pass 700.23` partial (spot shadings banded on ink pages), and the earlier `700.x` shading work (contents list in the `e3caef00` note below).
+- **Smoke:** fresh-folder smoke test passed (`render-page`). Build folder `pdfcer.exe` 50,917,376 bytes.
+- **GitHub release:** 8 assets: `pdfcer-v0.147.0-windows-x64.zip`, `ocr-addon-ocrcer.zip`, `ocr-addon-ocrs.zip`, `ocr-addon-tesseract.zip`, each with a `.sha256`.
+- **OneDrive:** deployed to the `pdfcer2` slot; `pdfcer1` keeps 0.146.0; the next release writes `pdfcer1`.
+- **crates.io:** all 16 crates published at 0.147.0 (model, color, pkix, vec3, json, jpeg-remux, 3d, 3d-nav, image-codec, fonts, function, text, core, render, flatten, emf).
+- **Channel:** notice `open/notice_2026-11-13_release_v0.147.0.md` sent to the GUI channel; action owed there: bump the engine pin.
+- **verify-release.py:** fails only the dirty-tree check (untracked/modified `.claude/agent-memory` files), the accepted state.
+- **FEATURES:** `Engine crates on crates.io` row now 0.147.0, 16 crates. Supersedes the "NOT yet published" status of the note below.
+
 ### `e3caef00` `chore(release): v0.147.0`, 2026-11-13: version bump filed, release NOT yet published (1551st filing)
 
 Engineer-reported; no shell here, git, tag, push, CI, crates.io and backup state not checked from here. `e3caef00` on `main` bumps the workspace version and every `pdfcer-*` workspace dependency from 0.146.0 to 0.147.0 in `Cargo.toml` (17 lines), plus `cargo update -w` in `Cargo.lock` and `fuzz/Cargo.lock`. No code change.

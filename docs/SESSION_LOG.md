@@ -4,6 +4,18 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-11-13 (1552nd filing) — `v0.147.0` PUBLISHED
+
+**Filed (engineer-reported; no shell here, nothing checked from here):**
+- Tag `v0.147.0` on `04fc8592`, pushed; CI green on `04fc8592`. Carries `Pass 707.0`, `Pass 700.23` partial and earlier `700.x` shading work.
+- GitHub release: 8 assets (4 zips, each with `.sha256`); fresh-folder smoke (`render-page`) passed; `pdfcer.exe` 50,917,376 bytes.
+- OneDrive `pdfcer2` deployed; `pdfcer1` keeps 0.146.0; next release writes `pdfcer1`.
+- crates.io: 16 crates at 0.147.0.
+- GUI-channel notice `open/notice_2026-11-13_release_v0.147.0.md` sent; owed there: bump the engine pin.
+- `verify-release.py` fails only the dirty-tree check (agent-memory files), accepted.
+
+**Open:** none from this release. ROADMAP: new Shipped entry. FEATURES: crates.io row to 0.147.0. No decision, no rule.
+
 ## 2026-11-13 (1551st filing) — `e3caef00` `v0.147.0` version bump (not yet published)
 
 **Filed (engineer-reported; no shell here, nothing checked from here):**
