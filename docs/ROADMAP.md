@@ -112,6 +112,13 @@ wherever it appears.*
 
 ## Shipped
 
+### `e3caef00` `chore(release): v0.147.0`, 2026-11-13: version bump filed, release NOT yet published (1551st filing)
+
+Engineer-reported; no shell here, git, tag, push, CI, crates.io and backup state not checked from here. `e3caef00` on `main` bumps the workspace version and every `pdfcer-*` workspace dependency from 0.146.0 to 0.147.0 in `Cargo.toml` (17 lines), plus `cargo update -w` in `Cargo.lock` and `fuzz/Cargo.lock`. No code change.
+- **Planned contents of `v0.147.0`** (all already filed): `Pass 700.22` (`fd4f4010`), `Pass 700.24` (`a0205bb0`), `Pass 700.23` partial (`cc97eed5`, `670b2130`, `0ea71339`, `eabab3c8`, `e7d6d124`, `01692479`, `69e26bed`), `Pass 707.0` / `X078` (`df37a1ab`). `c846a58c` (`export-image --output-dir` help names every extension) was already filed in the 1541st filing (grep `docs/ROADMAP.md`, `docs/SESSION_LOG.md`), so nothing folded in here.
+- **Not tagged, not published.** Still to come: tag, GitHub release, crates.io (16 crates), OneDrive `pdfcer2` (alternating; `pdfcer1` holds 0.146.0). A later filing records PUBLISHED.
+- **FEATURES:** no change; the `Engine crates on crates.io` row still reads current at `v0.146.0` and stays so until publication.
+
 ### `df37a1ab` `Pass 707.0` (`X078`): fields-only prints keep headers, footers and printer's marks, 2026-11-13 (1549th filing)
 
 Engineer-reported; no shell here, git, push and CI state not checked from here. `df37a1ab` `fix(print): fields-only prints keep headers, footers and printer's marks (X078)`, on `main`, NOT in a release (the next after v0.146.0 carries it). Reasoning is in the commit message.

@@ -4,6 +4,14 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-11-13 (1551st filing) — `e3caef00` `v0.147.0` version bump (not yet published)
+
+**Filed (engineer-reported; no shell here, nothing checked from here):**
+- `e3caef00` `chore(release): v0.147.0`: workspace version and every `pdfcer-*` workspace dependency 0.146.0 to 0.147.0 in `Cargo.toml` (17 lines), `cargo update -w` in `Cargo.lock` and `fuzz/Cargo.lock`. No code change.
+- Carries, all already filed: `Pass 700.22` (`fd4f4010`), `Pass 700.24` (`a0205bb0`), `Pass 700.23` partial (`cc97eed5`, `670b2130`, `0ea71339`, `eabab3c8`, `e7d6d124`, `01692479`, `69e26bed`), `Pass 707.0` (`df37a1ab`). `c846a58c` was already filed (1541st), not re-filed.
+
+**Open:** bumped, NOT tagged or published. Tag, GitHub release, crates.io (16 crates), OneDrive `pdfcer2` follow; a later filing records PUBLISHED. ROADMAP: new Shipped note. FEATURES: no change. No decision, no rule.
+
 ## 2026-11-13 (1550th filing) — `69e26bed` `Pass 700.23` PARTIAL: spot/DeviceN shadings band as vector on ink pages
 
 **Filed (engineer-reported; no git run here):**
