@@ -112,6 +112,13 @@ wherever it appears.*
 
 ## Shipped
 
+### `0fbc28b3` `chore(release): v0.150.0`, 2026-11-13: version bump filed, release NOT yet published (1562nd filing)
+
+Engineer-reported; no shell here, git, tag, push, CI, crates.io and backup state not checked from here. `0fbc28b3` on `main` bumps the workspace version and every `pdfcer-*` workspace dependency from 0.149.0 to 0.150.0 in `Cargo.toml` (17 strings), plus `cargo update -w` in the root and in `fuzz/`; `Cargo.lock` and `fuzz/Cargo.lock` changed for the workspace crates only. No code change, no dependency change.
+- **Planned contents of `v0.150.0`** (already filed, 1561st): `Pass 712.0` (coverage warnings for several rules from one render, `0b4331e5`).
+- **Not published.** The tag `v0.150.0` will go on this filing's commit. Still to come, filed separately: GitHub release, OneDrive `pdfcer1` (alternating; `pdfcer2` holds 0.149.0), crates.io (16 crates). A later filing records PUBLISHED.
+- **FEATURES:** no change; the `Engine crates on crates.io` row stays at 0.149.0 until publication.
+
 ### `0b4331e5` `Pass 712.0`: coverage warnings for several rules from one render, 2026-11-13 (1561st filing)
 
 Engineer-reported; no shell here, nothing checked from here. Engineer improvement, not a request: `pdfcer-gui`'s `done_X081_ink_coverage_warning_map_CONSUMED.md` observed that its two rules (TAC and rich black) cost two renders of the same region, and that a multi-rule call would halve that; it did not ask for one.

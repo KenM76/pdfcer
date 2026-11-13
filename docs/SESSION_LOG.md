@@ -4,6 +4,14 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-11-13 (1562nd filing) — `0fbc28b3` `v0.150.0` version bump (not yet published)
+
+**Filed (engineer-reported; no shell here, nothing checked from here):**
+- `0fbc28b3` `chore(release): v0.150.0`: workspace version and every `pdfcer-*` workspace dependency 0.149.0 to 0.150.0 in `Cargo.toml` (17 strings), `cargo update -w` run in the root and in `fuzz/`; `Cargo.lock` and `fuzz/Cargo.lock` changed for the workspace crates only. No code change, no dependency change.
+- Carries, already filed: `Pass 712.0` (`0b4331e5`, filed in the 1561st as `31353e54`).
+
+**Open:** bumped, NOT yet tagged or published. Tag `v0.150.0` goes on this filing's commit; GitHub release, OneDrive `pdfcer1` (alternating; `pdfcer2` holds 0.149.0), crates.io (16 crates) are filed separately afterwards. ROADMAP: new Shipped note. FEATURES: no change (crates.io row stays 0.149.0 until publishing). No decision, no rule.
+
 ## 2026-11-13 (1561st filing) — `0b4331e5` `Pass 712.0`: coverage warnings for several rules from one render
 
 **Filed (engineer-reported; no shell here, nothing checked from here):**
