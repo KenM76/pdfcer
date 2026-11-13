@@ -4,6 +4,16 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-11-13 (1556th filing) — `f8ac2dce` + `d5dc17ea`: two CI-audit fixes before the `v0.148.0` tag
+
+**Filed (engineer-reported; no shell here, nothing checked from here):**
+- `f8ac2dce` `docs(readme): 248 working subcommands`: `README.md` said 247; the `coverage-warning` subcommand (`Pass 710.0`, `X081`, `391f9e4c`) added one. CI's `check-clap-help` caught it on the run for `8787c566` (repository audits job failed).
+- `d5dc17ea` `fix(cli): rejoin the soft-proof note; document join_pages`: the `--soft-proof` black-point-compensation stderr note (`Pass 708.0`, `X079`) carried two 18-space gaps from a wrapped string literal that lost its continuation backslashes (`check-string-gaps`); `inspect_ink.rs::join_pages` (`Pass 709.0`, `X080`) lacked a doc comment (`check-public-fns-documented`). core: none; cli: fix. No behaviour change beyond the note's text.
+
+**Root cause of why the local sweep missed both (engineer-reported):** the pre-push audit sweep piped `check-ci-parity.py --list` into `while read -r c; do eval "$c"; done`. Audits that read stdin consumed the remaining command lines, so later audits never ran and the sweep reported clean. Fixed: write the list to a file, loop `done < file`, run each `eval "$c" </dev/null`, print `ran=N of M`. With that, 36 of 36 ran. RAG: `D:/dev/rag/rust/audit_sweep_piped_into_while_read_loses_audits_to_stdin.md` (indexed). There is no gotchas section in the project docs to extend.
+
+**Open:** these land before the `v0.148.0` tag; the tag goes on this filing's commit (supersedes the 1555th's "tag on this filing's commit"). ROADMAP: one Shipped note. **FEATURES: no change; no capability changed.** No decision, no rule.
+
 ## 2026-11-13 (1555th filing) — `e8260525` `v0.148.0` version bump (not yet published)
 
 **Filed (engineer-reported; no shell here, nothing checked from here):**

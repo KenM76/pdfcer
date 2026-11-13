@@ -112,6 +112,10 @@ wherever it appears.*
 
 ## Shipped
 
+### `f8ac2dce` + `d5dc17ea`, 2026-11-13: two CI-audit fixes before the `v0.148.0` tag (1556th filing)
+
+Engineer-reported; no shell here, git, push and CI state not checked from here. `f8ac2dce` `docs(readme): 248 working subcommands` (README said 247; `coverage-warning`, `Pass 710.0`, added one; caught by `check-clap-help`). `d5dc17ea` `fix(cli): rejoin the soft-proof note; document join_pages`: two 18-space gaps in the `--soft-proof` BPC stderr note (`Pass 708.0`; `check-string-gaps`) and a missing doc comment on `inspect_ink.rs::join_pages` (`Pass 709.0`; `check-public-fns-documented`). core none, cli fix. These land before the `v0.148.0` tag, which goes on this filing's commit. Why the local sweep missed them (a `while read` pipe starved by stdin-reading audits) is in the 1556th SESSION_LOG entry. **FEATURES:** no change.
+
 ### `e8260525` `chore(release): v0.148.0`, 2026-11-13: version bump filed, release NOT yet published (1555th filing)
 
 Engineer-reported; no shell here, git, tag, push, CI, crates.io and backup state not checked from here. `e8260525` on `main` bumps the workspace version and every `pdfcer-*` workspace dependency from 0.147.0 to 0.148.0 in `Cargo.toml` (17 strings), plus `cargo update -w` in `Cargo.lock` and `fuzz/Cargo.lock`. No code change, no dependency change.
