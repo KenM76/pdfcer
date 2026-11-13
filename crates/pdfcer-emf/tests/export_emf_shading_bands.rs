@@ -4,9 +4,9 @@
 //! shading that composites with other paint is written as flat-colour band
 //! regions, as a print RIP flattens a smooth shade, instead of patching the
 //! stack; an overprinted one on an ink page keeps the backdrop in the
-//! components it does not name. A mesh and a spot shading on an ink page
-//! stay patches. The oracle is GDI's `PlayEnhMetaFile`
-//! (Windows only) against the white-backed raster.
+//! components it does not name, and a spot one deposits each band's tints
+//! on the colorant's plane. A mesh stays a patch. The oracle is GDI's
+//! `PlayEnhMetaFile` (Windows only) against the white-backed raster.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -177,23 +177,79 @@ fn an_overprinted_shading_plays_back_like_the_raster() {
 }
 
 /// An overprinted shading over an image composites with a backdrop that
-/// is not flat, so it stays a patch, recorded as what lies beneath; a spot
-/// shading on an ink page has no plate in a process band, so it stays a
-/// patch too.
+/// is not flat, so it stays a patch, recorded as what lies beneath.
 #[test]
-fn an_overprinted_shading_over_an_image_or_a_spot_shading_stays_a_patch() {
+fn an_overprinted_shading_over_an_image_stays_a_patch() {
     let (_, on) = export(&on_ink(IMAGE, AXIAL_SEP_CYAN, true));
     let v = on.outcome.vectorised;
     assert!(v.patched() >= 1 && v.not_flat.beneath >= 1, "{v:?}");
     assert_eq!(v.not_flat.shading, 0, "{v:?}");
     assert!(bitmaps(&on.emf) > 0);
-    let (_, on) = export(&on_ink_backdrop(AXIAL_SPOT, false));
-    assert!(
-        on.outcome.vectorised.not_flat.spot >= 1,
-        "{:?}",
-        on.outcome.vectorised
-    );
-    assert!(bitmaps(&on.emf) > 0);
+}
+
+/// [`AXIAL_SPOT`] as a two-circle radial: no native gradient form, so the
+/// recorder harvests it with its source.
+const RADIAL_SPOT: &str = "<< /ShadingType 3 /ColorSpace [/Separation /Green /DeviceCMYK \
+     << /FunctionType 2 /Domain [0 1] /C0 [0 0 0 0] /C1 [1 0 1 0] /N 1 >>] \
+     /Coords [35 30 5 50 40 35] /Extend [true true] /Function << /FunctionType 2 \
+     /Domain [0 1] /C0 [0.2] /C1 [1] /N 1 >> >>";
+
+/// The spot shadings, by both routes, overprinted and not.
+const SPOT_CASES: [(&str, &str, bool); 4] = [
+    ("axial-spot", AXIAL_SPOT, false),
+    ("axial-spot-op", AXIAL_SPOT, true),
+    ("radial-spot", RADIAL_SPOT, false),
+    ("radial-spot-op", RADIAL_SPOT, true),
+];
+
+/// A spot shading on an ink page bands as flat paints on the colorant's
+/// own plane, by both routes, as a RIP keeps it on its spot plate.
+#[test]
+fn a_spot_shading_on_an_ink_page_is_banded_on_its_plane() {
+    for (name, shading, op) in SPOT_CASES {
+        let (_, on) = export(&on_ink_backdrop(shading, op));
+        let v = on.outcome.vectorised;
+        assert_eq!(v.patched(), 0, "{name}: {v:?}");
+        assert!(v.ops > 0 && v.regions > 10, "{name}: {v:?}");
+        assert_eq!(bitmaps(&on.emf), 0, "{name}");
+        assert_eq!(on.outcome.print_fallback(), None, "{name}");
+    }
+}
+
+/// The spot bands play back like the colorant buffer's raster, which
+/// deposits each tint on the colorant's plane and folds the plane's ink
+/// into the page: overprinted, the yellow beneath survives the spot-only
+/// source (Table 149), and knocked out it does not. The steep two-circle
+/// radial bands no closer to the raster in a process colorant, so it is
+/// held to that: the spot route adds no error of its own.
+#[cfg(windows)]
+#[test]
+fn a_spot_shading_plays_back_like_the_raster() {
+    for (name, shading, op) in SPOT_CASES {
+        let (bad, worst) = playback_error(name, shading, op);
+        let (most, most_worst) = if shading == RADIAL_SPOT {
+            let cyan = shading
+                .replace("/Green", "/Cyan")
+                .replace("[1 0 1 0]", "[1 0 0 0]");
+            let (b, w) = playback_error(&format!("{name}-cyan"), &cyan, op);
+            (b + b / 4, w + 1)
+        } else {
+            (0, 6)
+        };
+        assert!(
+            bad <= most && worst <= most_worst,
+            "{name}: {bad} bad, worst {worst}; allowed {most}, {most_worst}"
+        );
+    }
+}
+
+/// Pixels of `shading`'s EMF over [`on_ink_backdrop`] off the raster by
+/// more than rounding, and the worst of them; the shading must not patch.
+#[cfg(windows)]
+fn playback_error(name: &str, shading: &str, op: bool) -> (usize, u8) {
+    let (reference, on) = export(&on_ink_backdrop(shading, op));
+    assert_eq!(on.outcome.vectorised.patched(), 0, "{name}");
+    playback_against_raster(&format!("bands-{name}"), &reference, &on.emf, 2)
 }
 
 /// On an ink page the bands paint the shading's authored process ink, by

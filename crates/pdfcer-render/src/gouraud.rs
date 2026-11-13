@@ -91,6 +91,10 @@ pub struct ShadingSource {
     pub overprint: Option<[crate::overprint::ComponentRule; 4]>,
     /// The blend mode in force; set by the caller.
     pub blend: tiny_skia::BlendMode,
+    /// The spot colorants the ramp names, at tint 0, where an ink page's
+    /// raster deposits them on planes of their own; empty otherwise. Set by
+    /// the caller.
+    pub spots: Vec<crate::canvas::SpotInk>,
 }
 
 impl ShadingSource {
@@ -111,6 +115,7 @@ impl ShadingSource {
             alpha,
             overprint: None,
             blend: tiny_skia::BlendMode::SourceOver,
+            spots: Vec::new(),
         }
     }
 

@@ -152,6 +152,9 @@ use crate::color::{ColorDiagnostics, ColorSpace};
 use crate::gstate::Rgb;
 
 mod function_based;
+mod spot_ramp;
+
+pub use spot_ramp::{SpotRamp, SpotTints};
 
 /// Entries in the pre-sampled colour ramp ([`ColorRamp`]).
 ///
@@ -786,6 +789,11 @@ pub struct GradientSpec {
     /// Whether the ramp's space names a spot colorant, whose ink a
     /// process-only paint cannot carry.
     pub spot: bool,
+    /// For a ramp naming spot colorants, its authored process and spot
+    /// tints, for an ink-page writer that deposits each spot on a plane of
+    /// its own. The caller clears it where the raster gives spots no plane
+    /// (`SpotColorantDeviceModel::AlternateSpaceSubstitution`).
+    pub spots: Option<std::sync::Arc<SpotRamp>>,
     /// Under overprint, the per-process-component rules an ink page's
     /// raster composites the shading with (§11.7.4.3, Table 149); `None`
     /// where it paints normally, overprint off included. The caller sets
@@ -1218,6 +1226,7 @@ impl Shading {
             alpha: alpha.clamp(0.0, 1.0),
             cmyk: cmyk.into_iter().collect(),
             spot: !self.spot_colorants().is_empty(),
+            spots: self.spot_ramp([t0, t1], reversed).map(std::sync::Arc::new),
             overprint: None,
             blend: tiny_skia::BlendMode::SourceOver,
         })

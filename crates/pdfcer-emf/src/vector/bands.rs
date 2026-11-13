@@ -10,18 +10,27 @@
 //! so the flattener composites it against what is beneath, as a press does
 //! per separation (§11.7.4.3; `OPM` never applies to a shading, §8.6.7).
 //!
+//! A spot shading on an ink page whose ramp the raster plates (separation
+//! simulation) bands as flat spot fills: each band's authored process tints
+//! on the process plates and its spot tints on the colorants' planes, the
+//! planes it does not name keeping the backdrop, as the colorant buffer's
+//! shading route composites it (§10.8.3, §8.6.6.4–5). Overprint, where in
+//! force, rules the process plates as above; the blend mode is ignored, as
+//! there.
+//!
 //! Left to the patch, as [`Cause::Shading`]: type 1 and the meshes, and a
 //! radial whose bands overlap (circles that do not nest) under a constant
-//! alpha or a blend, which would composite the overlap twice. A spot shading is [`Cause::Spot`] (a gradient one only
-//! on a CMYK page: on an RGB page the raster paints its alternate too); one
-//! on a CMYK page without process ink is [`Cause::Cmyk`].
+//! alpha or a blend, which would composite the overlap twice. A gradient
+//! spot shading on an ink page the raster does not plate is [`Cause::Spot`];
+//! a shading on a CMYK page without process ink is [`Cause::Cmyk`].
 
 use pdfcer_flatten::{
     Blend, Colour, Element, FillRule, Overprint, Paint, Point, SPOT_PLANES, Shape, Space,
 };
 use pdfcer_render::overprint::ComponentRule;
 use pdfcer_render::writer_seam::{
-    Bands, Brush, BrushSpec, ClipId, DeviceBounds, Op, ShadingSource, band, band_gradient,
+    Bands, Brush, BrushSpec, ClipId, DeviceBounds, FlatBand, Op, ShadingSource, SpotInk, band,
+    band_gradient,
 };
 use tiny_skia::{BlendMode, Transform};
 
@@ -51,7 +60,12 @@ impl Model<'_> {
             return Err(Cause::Shading);
         }
         let (bands, paint, inner) = self.bands_of(brush, ctm, bounds)?;
-        if paint.spot && self.space == Space::Cmyk {
+        // An additive page's raster paints a spot shading's alternate.
+        let inks = match self.space {
+            Space::Cmyk => super::spots::shading_inks(brush, &self.rec.shadings),
+            Space::Rgb => &[],
+        };
+        if paint.spot && self.space == Space::Cmyk && inks.is_empty() {
             return Err(Cause::Spot);
         }
         let alpha = paint.alpha;
@@ -74,10 +88,7 @@ impl Model<'_> {
         // An additive page's raster paints an overprinted shading normally.
         let rules = paint.overprint.filter(|_| self.space == Space::Cmyk);
         for b in &bands.bands {
-            let colour = match self.space {
-                Space::Cmyk => b.cmyk.ok_or(Cause::Cmyk)?,
-                Space::Rgb => [b.rgb[0], b.rgb[1], b.rgb[2], 0.0],
-            };
+            let (colour, overprint) = self.band_colour(b, rules, inks)?;
             let cut = quads_shape(&b.quads).intersection(&shape);
             if cut.contours.is_empty() {
                 continue;
@@ -87,11 +98,42 @@ impl Model<'_> {
                 colour,
                 alpha,
                 blend,
-                overprint: rules.map(|r| overprinted(r, colour)),
+                overprint,
                 spots: [0.0; SPOT_PLANES],
             }));
         }
         Ok(())
+    }
+
+    /// A band's colour on this page and the overprint it paints under:
+    /// `rules` over its tints, or over its authored process tints with its
+    /// spot tints on their planes where its shading's `inks` are plated
+    /// (`rules` absent: every process plate takes the source).
+    fn band_colour(
+        &self,
+        b: &FlatBand,
+        rules: Option<[ComponentRule; 4]>,
+        inks: &[SpotInk],
+    ) -> Result<(Colour, Option<Overprint>), Cause> {
+        if inks.is_empty() {
+            let colour = match self.space {
+                Space::Cmyk => b.cmyk.ok_or(Cause::Cmyk)?,
+                Space::Rgb => [b.rgb[0], b.rgb[1], b.rgb[2], 0.0],
+            };
+            return Ok((colour, rules.map(|r| overprinted(r, colour))));
+        }
+        let authored = b.authored.as_ref().ok_or(Cause::Spot)?;
+        if authored.spots.len() != inks.len() {
+            return Err(Cause::Spot);
+        }
+        let colour = authored.process;
+        let mut over = overprinted(rules.unwrap_or([ComponentRule::Source; 4]), colour);
+        over.spots = self.roster.planes(
+            inks.iter()
+                .zip(&authored.spots)
+                .map(|(i, t)| (&*i.colorant, *t)),
+        )?;
+        Ok((colour, Some(over)))
     }
 
     /// The brush's shading as bands, its paint state, and the shading's
@@ -133,7 +175,7 @@ impl Model<'_> {
                     .map(|(_, s)| s)
                     .ok_or(Cause::Image)?;
                 let got = band(src, MAX_QUADS).map_err(|_| Cause::Shading)?;
-                // A spot rides on the brush (`BrushSpec::spots`).
+                // Its spots ride on the source (`ShadingSource::spots`).
                 let facts = Facts {
                     alpha: src.alpha,
                     overprint: src.overprint,
@@ -147,7 +189,8 @@ impl Model<'_> {
 }
 
 /// A band in `colour` under the shading's overprint `rules`: every spot
-/// plane keeps the backdrop, as the colorant buffer's shading route does.
+/// plane keeps the backdrop, as the colorant buffer's shading route does
+/// for a ramp naming no spot.
 fn overprinted(rules: [ComponentRule; 4], colour: Colour) -> Overprint {
     let mut tints = [None; 4];
     for ((t, rule), c) in tints.iter_mut().zip(rules).zip(colour) {

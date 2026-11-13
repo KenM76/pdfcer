@@ -15,7 +15,7 @@ use super::{
     Decline, Frame, Gouraud, Knot, MIN_BAND_PX, ShadingSource, axial, dist, lerp3, ramp_knots,
     rings, split, stop_knots,
 };
-use crate::shading::{Geometry, GradientKind, GradientSpec};
+use crate::shading::{Geometry, GradientKind, GradientSpec, SpotTints};
 
 /// The most a flat band's colour changes across it, in any sRGB channel.
 pub const BAND_STEP: f32 = 1.0 / 255.0 + 1e-6;
@@ -32,6 +32,10 @@ pub struct FlatBand {
     /// (`ColorRamp::at_cmyk`, or [`GradientSpec::cmyk`] interpolated);
     /// `None` otherwise.
     pub cmyk: Option<[f32; 4]>,
+    /// For a ramp whose spots the source deposits on planes of their own
+    /// ([`ShadingSource::spots`], [`GradientSpec::spots`]), the authored
+    /// tints there; `None` otherwise.
+    pub authored: Option<SpotTints>,
 }
 
 /// A shading as flat bands, in paint order.
@@ -75,10 +79,18 @@ pub fn band(src: &ShadingSource, max: usize) -> Result<Bands, Decline> {
     let ramp = sh.ramp.as_ref().ok_or(Decline::IncompleteRamp)?;
     let knots = ramp_knots(ramp)?;
     let [t0, t1] = ramp.domain();
+    let planed = !src.spots.is_empty();
     let colour = |s: f32| {
         let t = s.clamp(0.0, 1.0).mul_add(t1 - t0, t0);
         let c = ramp.at(t).ok_or(Decline::IncompleteRamp)?;
-        Ok(([c.r, c.g, c.b], ramp.at_cmyk(t)))
+        let authored = planed
+            .then(|| ramp.at_authored(t))
+            .flatten()
+            .map(|(process, spots)| SpotTints {
+                process,
+                spots: spots.to_vec(),
+            });
+        Ok(([c.r, c.g, c.b], ramp.at_cmyk(t), authored))
     };
     match sh.geometry {
         Geometry::FunctionBased { .. } => Err(Decline::FunctionBased),
@@ -111,7 +123,13 @@ pub fn band_gradient(
     let frame = Frame::new(to_device, region).ok_or(Decline::Unpaintable)?;
     let knots = stop_knots(&spec.stops).ok_or(Decline::IncompleteRamp)?;
     let cmyk = spec.cmyk.as_deref();
-    let colour = |s: f32| Ok((colour_at(&knots, s), cmyk.and_then(|c| cmyk_at(c, s))));
+    let colour = |s: f32| {
+        Ok((
+            colour_at(&knots, s),
+            cmyk.and_then(|c| cmyk_at(c, s)),
+            spec.spots.as_ref().and_then(|r| r.at(s)),
+        ))
+    };
     match spec.kind {
         GradientKind::Linear { x0, y0, x1, y1 } => {
             let coords = [x0, y0, x1, y1];
@@ -185,7 +203,7 @@ fn cmyk_at(samples: &[(f32, [f32; 4])], s: f32) -> Option<[f32; 4]> {
     Some(out)
 }
 
-type Colour = Result<([f32; 3], Option<[f32; 4]>), Decline>;
+type Colour = Result<([f32; 3], Option<[f32; 4]>, Option<SpotTints>), Decline>;
 
 /// `g`'s quads (two triangles each, [`Gouraud::quad`]) as bands: the first
 /// vertex colour carries `sa`, the third `sb`.
@@ -205,11 +223,12 @@ fn collect(
         let key = (s(a0), s(b0));
         let quad = [at(a0), at(a1), at(b1), at(b0)];
         if current != Some(key) {
-            let (rgb, cmyk) = colour((key.0 + key.1) / 2.0)?;
+            let (rgb, cmyk, authored) = colour((key.0 + key.1) / 2.0)?;
             out.bands.push(FlatBand {
                 quads: Vec::new(),
                 rgb,
                 cmyk,
+                authored,
             });
             current = Some(key);
         }
@@ -234,6 +253,7 @@ mod tests {
             alpha: 1.0,
             cmyk: None,
             spot: false,
+            spots: None,
             overprint: None,
             blend: tiny_skia::BlendMode::SourceOver,
         }

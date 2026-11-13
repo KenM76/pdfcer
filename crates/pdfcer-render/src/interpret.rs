@@ -5665,6 +5665,9 @@ impl<'a> Interpreter<'a> {
                 true,
             );
             spec.blend = self.gs.current.blend_mode;
+            if self.plated_spot_inks(&shading).is_empty() {
+                spec.spots = None;
+            }
             #[allow(clippy::cast_precision_loss)]
             let rect = tiny_skia::Rect::from_ltrb(
                 region.0 as f32,
@@ -6058,6 +6061,7 @@ impl<'a> Interpreter<'a> {
                 true,
             );
             s.blend = self.gs.current.blend_mode;
+            s.spots = self.plated_spot_inks(&shading);
             s
         });
         if let Some(scratch) = canvas.export_shading_scratch(self.gs.current.clip_ref().id, source)
@@ -6607,9 +6611,9 @@ impl<'a> Interpreter<'a> {
     /// `OPM` never applies to a shading, §8.6.7). `None` where the raster
     /// paints it normally: overprint off, a process source, no authored
     /// ink, or a source naming no process colorant. `narrow` applies the
-    /// `sh` route's [`crate::overprint::narrow_to_reach`]. Spots are taken
-    /// as having no plane: a writer that bands only spot-free shadings on
-    /// an ink page needs no more.
+    /// `sh` route's [`crate::overprint::narrow_to_reach`]. A ramp whose
+    /// spots get planes ([`Self::plated_spot_inks`]) takes the plated rules
+    /// unnarrowed, as the colorant buffer's spot composite does.
     fn recorded_shading_overprint(
         &self,
         shading: &crate::shading::Shading,
@@ -6625,17 +6629,37 @@ impl<'a> Interpreter<'a> {
             false,
             self.policy.overprint_zero_tint_scope,
         )?;
-        if !matches!(kind, overprint::SourceKind::SeparationOrDeviceN { .. })
-            || !overprint::names_a_process_colorant(&kind)
-        {
+        if !matches!(kind, overprint::SourceKind::SeparationOrDeviceN { .. }) {
             return None;
         }
         let opm = u8::from(self.gs.current.overprint_mode == 1);
+        if !self.plated_spot_inks(shading).is_empty() {
+            return Some(overprint::cmyk_group_rules_with_planes(
+                &kind, [0.0; 4], true, opm, true,
+            ));
+        }
+        if !overprint::names_a_process_colorant(&kind) {
+            return None;
+        }
         let mut rules = overprint::cmyk_group_rules_with_planes(&kind, [0.0; 4], true, opm, false);
         if narrow {
             overprint::narrow_to_reach(&mut rules, &kind, shading.ramp_reach());
         }
         Some(rules)
+    }
+
+    /// The spot inks a shading's ramp deposits on planes of their own under
+    /// separation simulation, as the colorant buffer's shading route does;
+    /// empty under any other spot model or for a ramp naming no spot.
+    fn plated_spot_inks(&self, shading: &crate::shading::Shading) -> Vec<crate::canvas::SpotInk> {
+        if matches!(
+            self.policy.spot_colorant_device_model,
+            pdfcer_core::settings::SpotColorantDeviceModel::SimulateSeparations
+        ) {
+            shading.spot_inks()
+        } else {
+            Vec::new()
+        }
     }
 
     /// Table 149 per process plate for the current colour, with every named
@@ -7546,6 +7570,9 @@ impl<'a> Interpreter<'a> {
                     false,
                 );
                 spec.blend = self.gs.current.blend_mode;
+                if self.plated_spot_inks(&shading).is_empty() {
+                    spec.spots = None;
+                }
                 canvas.record_gradient(path, spec, rule, ctm, self.gs.current.clip_ref())
             }
         {
@@ -7666,6 +7693,7 @@ impl<'a> Interpreter<'a> {
             s.overprint =
                 self.recorded_shading_overprint(&shading, self.gs.current.overprint_fill, false);
             s.blend = self.gs.current.blend_mode;
+            s.spots = self.plated_spot_inks(&shading);
             s
         });
         if let Some(scratch) = canvas.export_shading_scratch(self.gs.current.clip_ref().id, source)

@@ -12,9 +12,11 @@
 //! the raster runs over two different rosters), stays a patch.
 
 use std::collections::HashMap;
+use std::sync::Arc;
 
 use pdfcer_flatten::{SPOT_PLANES, Spots};
-use pdfcer_render::writer_seam::{BrushSpec, Op, SpotInk};
+use pdfcer_render::writer_seam::{Brush, BrushSpec, Op, ShadingSource, SpotInk};
+use tiny_skia::Pixmap;
 
 use crate::vector_census::Cause;
 
@@ -33,15 +35,16 @@ pub(super) struct Roster {
 }
 
 impl Roster {
-    /// The roster of the ops of a page, in paint order.
-    pub(super) fn of(ops: &[Op]) -> Self {
+    /// The roster of the ops of a page, in paint order; `shadings` are the
+    /// recording's harvested shadings, whose plated spots count as named.
+    pub(super) fn of(ops: &[Op], shadings: &[(Arc<Pixmap>, ShadingSource)]) -> Self {
         let mut r = Self {
             inks: Vec::new(),
             all: HashMap::new(),
             overflow: false,
             twice: 0,
         };
-        r.walk(ops, &mut Vec::new());
+        r.walk(ops, shadings, &mut Vec::new());
         r
     }
 
@@ -52,19 +55,24 @@ impl Roster {
 
     /// The tint `brush` states on each plane, `None` where it names none.
     pub(super) fn named(&self, brush: &BrushSpec) -> Result<[Option<f32>; SPOT_PLANES], Cause> {
+        self.planes(brush.spots.iter().map(|i| (&*i.colorant, i.tint)))
+    }
+
+    /// Each `(colorant, tint)` on its plane, `None` on the planes not named.
+    pub(super) fn planes<'c>(
+        &self,
+        tints: impl IntoIterator<Item = (&'c [u8], f32)>,
+    ) -> Result<[Option<f32>; SPOT_PLANES], Cause> {
         let mut out = [None; SPOT_PLANES];
-        if brush.spots.is_empty() {
-            return Ok(out);
-        }
-        if self.overflow {
-            return Err(Cause::SpotRoster);
-        }
-        for ink in &brush.spots {
+        for (colorant, tint) in tints {
+            if self.overflow {
+                return Err(Cause::SpotRoster);
+            }
             let slot = self
-                .plane(&ink.colorant)
+                .plane(colorant)
                 .and_then(|p| out.get_mut(p))
                 .ok_or(Cause::SpotRoster)?;
-            *slot = Some(ink.tint);
+            *slot = Some(tint);
         }
         Ok(out)
     }
@@ -100,11 +108,18 @@ impl Roster {
     }
 
     /// `buffer` holds the planes the current group's buffer has taken.
-    fn walk(&mut self, ops: &[Op], buffer: &mut Vec<usize>) {
+    fn walk(
+        &mut self,
+        ops: &[Op],
+        shadings: &[(Arc<Pixmap>, ShadingSource)],
+        buffer: &mut Vec<usize>,
+    ) {
         for op in ops {
             match op {
-                Op::Fill { brush, .. } | Op::Stroke { brush, .. } => self.paint(brush, buffer),
-                Op::Text { ops, .. } => self.walk(ops, buffer),
+                Op::Fill { brush, .. } | Op::Stroke { brush, .. } => {
+                    self.paint(brush, shading_inks(brush, shadings), buffer);
+                }
+                Op::Text { ops, .. } => self.walk(ops, shadings, buffer),
                 Op::Layer {
                     ops,
                     isolated,
@@ -121,7 +136,7 @@ impl Roster {
                     };
                     let twice = !*isolated && !*knockout;
                     self.twice += usize::from(twice);
-                    self.walk(ops, &mut child);
+                    self.walk(ops, shadings, &mut child);
                     self.twice -= usize::from(twice);
                     for p in child {
                         if !buffer.contains(&p) {
@@ -133,7 +148,7 @@ impl Roster {
         }
     }
 
-    fn paint(&mut self, brush: &BrushSpec, buffer: &mut Vec<usize>) {
+    fn paint(&mut self, brush: &BrushSpec, shading: &[SpotInk], buffer: &mut Vec<usize>) {
         if brush.all_colorants.is_some() {
             let held = (self.twice == 0).then(|| {
                 let mut h = [false; SPOT_PLANES];
@@ -146,13 +161,29 @@ impl Roster {
             });
             self.all.insert(std::ptr::from_ref(brush), held);
         }
-        for ink in &brush.spots {
+        for ink in brush.spots.iter().chain(shading) {
             if let Some(p) = self.take(ink)
                 && !buffer.contains(&p)
             {
                 buffer.push(p);
             }
         }
+    }
+}
+
+/// The inks a gradient or harvested shading brush deposits on planes of
+/// their own (`GradientSpec::spots`, `ShadingSource::spots`).
+pub(super) fn shading_inks<'a>(
+    brush: &'a BrushSpec,
+    shadings: &'a [(Arc<Pixmap>, ShadingSource)],
+) -> &'a [SpotInk] {
+    match &brush.brush {
+        Brush::Gradient(spec) => spec.spots.as_ref().map_or(&[], |r| &r.inks),
+        Brush::Image { texels, .. } => shadings
+            .iter()
+            .find(|(t, _)| Arc::ptr_eq(t, texels))
+            .map_or(&[], |(_, s)| &s.spots),
+        Brush::Solid { .. } => &[],
     }
 }
 

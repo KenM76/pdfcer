@@ -592,7 +592,7 @@ pub(super) fn vectorise(
     };
     let mut model = Model {
         space,
-        roster: spots::Roster::of(&rec.ops),
+        roster: spots::Roster::of(&rec.ops, &rec.shadings),
         clips: Clips::new(&rec.clips),
         rec,
         memo: vec![None; rec.ops.len()],
