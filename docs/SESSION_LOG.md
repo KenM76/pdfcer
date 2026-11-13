@@ -4,6 +4,16 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-11-13 (1547th filing) — `e7d6d124` `Pass 700.23` PARTIAL: axial and radial shadings band as vector under transparency
+
+**Filed (engineer-reported; no git run here):**
+- `e7d6d124`: with `--vector-transparency --vector-shadings`, type 2/3 shadings export as flat vector bands instead of a raster patch (render: `GradientSpec`/`ShadingSource` carry overprint/blend, new `gouraud/bands.rs`, fixes crowded radials; emf: new `vector/bands.rs`, `MAX_QUADS` 4096 to 16384). Overprinted shadings and spot shadings on an ink page stay patches. `pdfcer print` now sends p1 as vector.
+- Measured: p1 patched ops 50 to 42 (8 of 12 shading patches banded, 4 overprinted remain); p4 unchanged. p1 parity mean 8.492 to 8.581, accepted (GDI aliased edges of the former patch discs and text). New baseline p1..p6 8.581/5.338/7.696/8.222/7.055/7.031.
+- Tests: new `export_emf_shading_bands.rs`, sabotage-checked; render 579+657, EMF 101 pass. Gates green (clippy, fmt, no-default-features, structure, public-fns, suite-name).
+
+**Open:** overprinted, spot/DeviceN, type 1 and mesh shadings; native gradient route drops overprint/spot/blend; loose playback tolerance; `tight_mask_patches` into print; `700.22`.
+**For next session:** overprinted shadings (p1 4, p4 4). No decision, no rule. FEATURES: new Implemented row; Planned `700.23` row narrowed.
+
 ## 2026-11-12 (1546th filing) — `eabab3c8` doc-only follow-up to `Pass 700.23`
 
 **Filed (engineer-reported; no git run here):**
