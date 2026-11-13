@@ -4,6 +4,15 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-11-13 (1561st filing) — `0b4331e5` `Pass 712.0`: coverage warnings for several rules from one render
+
+**Filed (engineer-reported; no shell here, nothing checked from here):**
+- `Pass 712.0` (ID grep-checked free across `docs/`), an engineer improvement prompted by an observation in `pdfcer-gui`'s consumed `X081` file (two rules cost two renders of one region). `pdfcer_render::coverage_warning_masks(.., &[CoverageWarning]) -> Result<Vec<CoverageMask>, RenderError>`: one mask per rule in order, each equal to the single-rule call, one render per three rules (one rule per RGB channel); empty slice renders nothing; `coverage_warning_mask` is its single-rule case.
+- CLI: `coverage-warning --tac --rich-black` together prints one line per rule, `--tac` first; `-o` with both refused, exit 9, nothing written.
+- Tests: render `coverage_warning_masks.rs` 2 (sabotage-checked), CLI `coverage_warning.rs` +2 (6 pass); `pdfcer-render` suite 582 + 670 (2 ignored) + 40 pass; clippy clean on render and cli; `check-core-api-verbs` PASS; no manifest change. core-api `03-capabilities.md` updated, `index.md` 6,395 lines.
+
+**Open:** unreleased. No reply file owed. FEATURES: `Ink coverage warnings` row gains the multi-rule note, boxes unchanged. No decision, no rule.
+
 ## 2026-11-13 (1560th filing) — `v0.149.0` PUBLISHED
 
 **Filed (engineer-reported; no shell here, nothing checked from here):**

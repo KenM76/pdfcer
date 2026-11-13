@@ -112,6 +112,17 @@ wherever it appears.*
 
 ## Shipped
 
+### `0b4331e5` `Pass 712.0`: coverage warnings for several rules from one render, 2026-11-13 (1561st filing)
+
+Engineer-reported; no shell here, nothing checked from here. Engineer improvement, not a request: `pdfcer-gui`'s `done_X081_ink_coverage_warning_map_CONSUMED.md` observed that its two rules (TAC and rich black) cost two renders of the same region, and that a multi-rule call would halve that; it did not ask for one.
+- **Core/render:** `pdfcer_render::coverage_warning_masks(doc, page, scale, region, options, &[CoverageWarning]) -> Result<Vec<CoverageMask>, RenderError>` returns one mask per rule, in order, each equal to the single-rule call, from one render per three rules (the mask render carries one rule per RGB channel). An empty slice renders nothing. `coverage_warning_mask` is now its single-rule case. Crate-internal `RenderOptions.coverage_warning` became `coverage_warnings: [Option<CoverageWarning>; 3]`.
+- **CLI:** `pdfcer coverage-warning` accepts `--tac` and `--rich-black` together, one output line per rule, `--tac` first. `-o` with both rules is refused with exit 9 (EDIT_REFUSED) and writes nothing.
+- **GUI:** none; `pdfcer-gui` consumes it, box unchanged.
+- **Tests:** new `crates/pdfcer-render/tests/coverage_warning_masks.rs`, 2 tests (4 rules across two renders, each equal to its single-rule mask plus flagged counts; empty slice). Sabotage-checked: reading every rule from the red channel fails it. CLI `tests/coverage_warning.rs` +2 tests (both-rules order, `-o` refusal), 6 pass. `pdfcer-render` full suite 582 + 670 (2 ignored) + 40 pass. Clippy `-D warnings` clean on render and cli.
+- **Checks:** `docs/core-api/03-capabilities.md` Coverage warnings paragraph updated, `index.md` line count 6,395; `check-core-api-verbs` PASS; `cargo tree`: no manifest change.
+- **Release:** unreleased. No reply file owed; the engineer writes a short note in the release notice.
+- **FEATURES:** the `Ink coverage warnings` row notes multi-rule in one render; boxes unchanged (core [x], cli [x], gui not wired). No decision, no rule.
+
 ### `5320a2a5` `v0.149.0` PUBLISHED, 2026-11-13 (1560th filing)
 
 Engineer-reported measurements; no shell here, nothing checked from here. Bump `4224a9c2`, filed by `5320a2a5` (1559th). Annotated tag `v0.149.0` is on `5320a2a5`, pushed; CI green at that commit.
