@@ -4,6 +4,16 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-11-13 (1550th filing) — `69e26bed` `Pass 700.23` PARTIAL: spot/DeviceN shadings band as vector on ink pages
+
+**Filed (engineer-reported; no git run here):**
+- `69e26bed`: spot/DeviceN shadings on ink pages, previously refused by the EMF vector route, band into flat fills through the flattener's existing spot path (no second path); per-plate rules match the raster under separation simulation; shadings the raster does not plate stay refused. New render-internal `SpotRamp`, `SpotTints`, fields `GradientSpec::spots`, `ShadingSource::spots`, `FlatBand::authored`; core-api unchanged. No dependency change.
+- Measured (licensed print test file, EMF 150 dpi): p4 shading patches 4 to 0, bitmap area 11.539% to 9.815%, verdict not met to met; mean error 8.222 to 8.429, pixels over 8 6.656% to 6.861% (GDI non-antialiased edges plus check-mark outlines formerly an exact bitmap; flat interiors mean 0.43). p1 mean 8.585, still not met (2 type 7 meshes). Other pages unchanged. Print dry run vector on all 6 pages.
+- Tests: axial and two-circle radial, with and without overprint, playback vs raster; two sabotages failed as they should. emf 17/105 (1 ignored)/7, render lib 579, shading-bands 9/9.
+
+**Open:** mesh banding for type 4-7 (p1); steep two-circle radials 5-7 levels off over about 280-370 px in GDI, cause unknown, predates this change (process-cyan control same); mesh refusal reason mislabelled "incomplete ramp" (never shown). Type 1 and `tight_mask_patches` into print remain.
+**For next session:** mesh banding is a new Pass. No decision, no rule. FEATURES: 1547th row widened; Planned remainders row rewritten.
+
 ## 2026-11-13 (1549th filing) — `df37a1ab` `Pass 707.0` (`X078`): fields-only prints keep headers, footers and printer's marks
 
 **Filed (engineer-reported; no git run here):**
