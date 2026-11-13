@@ -4230,6 +4230,10 @@ calls: it refuses `TooLarge { bytes }` (past `MAX_SOFT_PROOF_PROFILE_BYTES`,
 (class not `prtr`) and `NoTransform(String)`; every message is a sentence the
 UI can show as it is. List candidate profiles with
 `pdfcer_print::icc_profiles::installed_profiles()` / `is_proof_source`.
+`SoftProof::from_output_intent(&view) -> Option<Result<SoftProof, SoftProofError>>`
+is the document's own output intent (the one the renderer separates into,
+ISO 32000-2 §14.11.5) as a proof choice; `None` with no usable intent, a
+`NotCmyk` refusal for an RGB intent.
 The profile replaces the output intent as the destination non-CMYK colour
 separates into, and the composited process ink converts to sRGB through it.
 Spot inks are not proofed (they fold in after, as unproofed). Switches,

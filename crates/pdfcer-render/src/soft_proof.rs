@@ -144,6 +144,22 @@ impl SoftProof {
         })
     }
 
+    /// The document's own output intent as a proof profile: the
+    /// destination profile of the intent the renderer already separates
+    /// into (ISO 32000-2 §14.11.5), so a viewer can offer it beside the
+    /// installed profiles. `None` when the document has no usable intent.
+    ///
+    /// # Errors
+    ///
+    /// As [`Self::from_bytes`], inside the `Some`: an intent profile that
+    /// is not a CMYK output profile (an RGB intent, say) cannot proof.
+    #[must_use]
+    pub fn from_output_intent(
+        doc: &crate::DocumentView<'_>,
+    ) -> Option<Result<Self, SoftProofError>> {
+        crate::interpret::output_intent_profile(doc).map(Self::from_bytes)
+    }
+
     /// Show the paper's white as the profile measured it. Implies
     /// [`Self::with_black_ink`].
     #[must_use]

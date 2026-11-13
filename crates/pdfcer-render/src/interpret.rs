@@ -2416,7 +2416,7 @@ fn chosen_output_intent(doc: &DocumentView<'_>) -> Option<(i64, std::sync::Arc<[
 
 /// The chosen output intent's decoded destination profile
 /// ([`chosen_output_intent`]).
-fn output_intent_profile(doc: &DocumentView<'_>) -> Option<std::sync::Arc<[u8]>> {
+pub(crate) fn output_intent_profile(doc: &DocumentView<'_>) -> Option<std::sync::Arc<[u8]>> {
     chosen_output_intent(doc).map(|(_, profile)| profile)
 }
 

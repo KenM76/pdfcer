@@ -125,3 +125,17 @@ fn a_refused_black_compensation_is_reported() {
         proofed(Some(proof.with_black_ink(true)))
     );
 }
+
+#[test]
+fn the_documents_own_output_intent_can_proof() {
+    let path = format!(
+        "{}/../../fixtures/synthetic/icc-rgb/icc-rgb-four-ways-subtractive.pdf",
+        env!("CARGO_MANIFEST_DIR")
+    );
+    let doc = Document::from_bytes(std::fs::read(path).unwrap()).unwrap();
+    let proof = SoftProof::from_output_intent(&doc.view())
+        .expect("the fixture has an output intent")
+        .unwrap();
+    assert!(proof.profile().len() > 128);
+    assert!(SoftProof::from_output_intent(&black_and_blank().view()).is_none());
+}
