@@ -4,6 +4,17 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-11-12 (1545th filing) — `0ea71339` `Pass 700.23` PARTIAL: a page of text in a group flattens as vectors
+
+**Filed (engineer-reported; no git run here):**
+- `0ea71339` (`pdfcer-flatten` only): the 6 "too complex" groups on the licensed print test file hit the 64-paint ceiling (165-677 glyph paints). Near-linear reduction (disjoint skip, `src/punch.rs`, less bookkeeping); `max_paints` 64 to 1024, `max_vertices` 200k to 100k (same bound, counted once), new pub `Limits::max_work`. `Limits` is not `#[non_exhaustive]`: a struct literal without `..Default` breaks; none in the workspace; next 0.x minor carries it.
+- Equivalence on 6 scenes: colour diff 0, area diff at most 2.3e-5; per group 0.28-0.34 s / 21 ms / 11 ms vs 0.5-8.5 s. Worst cases no slower (stars 6.5 to 6.2 s, bars 0.78 to 2.1 s, squares 16 ms to 1.2 s, dots 0.24 s to 15-66 ms; refusals stay refusals).
+- Real file: too-complex patches 0/3/0/0/1/2 to all 0 (export 106.5 s to 98.5 s). Parity means 8.492/1.424/7.696/8.222/5.628/5.743 to 8.492/5.338/7.696/8.222/7.055/7.031, verdicts unchanged: edge aliasing of hard vector text vs a smoothed bitmap (p2: 4.6% differ by more than 32, 0.04% after 5x5 erosion). Engineer decision: accepted; new means are the baseline.
+- Tests: 2 new in `crates/pdfcer-flatten/tests/flatten.rs`, each fails on revert. Gates green (fmt, clippy, flatten, emf, cli no-default-features, rustdoc, structure).
+
+**Open:** shading gaps p1/p4; type 1 ink/overprint route; `tight_mask_patches` into the print route; `700.22` gradient-band masks. Remaining patches on the file are images, which a professional flattener also rasterises.
+**For next session:** the shading gaps. No decision number, no rule. FEATURES: row 752 reworded, no box change.
+
 ## 2026-11-12 (1544th filing) — `670b2130` `Pass 700.23` PARTIAL: CMYK group on a CMYK page records as vector
 
 **Filed (engineer-reported; no git run here):**
