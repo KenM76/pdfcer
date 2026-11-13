@@ -4,6 +4,13 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-11-12 (1546th filing) — `eabab3c8` doc-only follow-up to `Pass 700.23`
+
+**Filed (engineer-reported; no git run here):**
+- `eabab3c8` (parent `ae71beff`): one-sentence doc comment on `overlay::signed_area` (`pdfcer-flatten`), which `0ea71339` made `pub(crate)` and shared with `punch.rs` undocumented. `tools/check-public-fns-documented.py` caught it before the push; gate now clean. No behaviour change.
+
+**Open / next:** unchanged from the 1545th entry. No decision, no rule. FEATURES: no change.
+
 ## 2026-11-12 (1545th filing) — `0ea71339` `Pass 700.23` PARTIAL: a page of text in a group flattens as vectors
 
 **Filed (engineer-reported; no git run here):**
