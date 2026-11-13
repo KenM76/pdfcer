@@ -112,6 +112,13 @@ wherever it appears.*
 
 ## Shipped
 
+### `2efcc8c5` `Pass 711.0` (`X082`): rich black at a 0% start needs some black, 2026-11-13 (1558th filing)
+
+Engineer-reported; no shell here, nothing checked from here. Request `X082` (operator, as a crates consumer, pinned at `43abf651`) reported a defect in `pdfcer-render` `CoverageWarning::RichBlack` (`Pass 710.0`, `X081`, `391f9e4c`): at `black_start_percent: 0` the test `k >= start*10` is always true, so a cyan-only pixel was flagged as rich black. The rule now also requires `k > 0` ("a 0% start still needs some black"). New lib test `a_zero_start_still_needs_some_black`: `[0.5,0,0,0]` not flagged, `[0.5,0,0,0.001]` flagged. `pdfcer-render` coverage_warning lib tests: 3 passed; clippy clean; `check-core-api-verbs` OK; code-structure clean. Doc comment and `docs/core-api/03-capabilities.md` updated (`index.md` line count 6,390).
+- **By layer:** core (`pdfcer-render`) fix; cli inherits through `coverage-warning --rich-black`, no CLI change; gui none.
+- **Release:** ships in `v0.149.0`, not yet released. Reply `open/reply_X082_rich_black_at_zero_start_SHIPPED.md`.
+- **FEATURES:** the coverage-warnings row (`X081`) gains the 0% clarification; boxes unchanged. No decision, no rule.
+
 ### `93ec5d2d` `v0.148.0` PUBLISHED, 2026-11-13 (1557th filing)
 
 Engineer-reported measurements; no shell here. Bump `e8260525` (1555th), pre-tag fixes `f8ac2dce` + `d5dc17ea` (1556th). Annotated tag `v0.148.0` is on `93ec5d2d` (the 1556th filing commit), pushed; CI green at the tag (the earlier run on `8787c566` was red on `check-clap-help`, fixed by `f8ac2dce` + `d5dc17ea`).

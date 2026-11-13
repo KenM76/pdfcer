@@ -4,6 +4,14 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-11-13 (1558th filing) — `2efcc8c5` `Pass 711.0` (`X082`): rich black at a 0% start
+
+**Filed (engineer-reported; no shell here, nothing checked from here):**
+- Request `X082` filed and completed in one filing as `Pass 711.0` (ID grep-checked free across `docs/`). `pdfcer-render` `CoverageWarning::RichBlack` (`Pass 710.0`) flagged a cyan-only pixel at `black_start_percent: 0` because `k >= start*10` is always true; fix requires `k > 0` too. Test `a_zero_start_still_needs_some_black` (`[0.5,0,0,0]` clean, `[0.5,0,0,0.001]` flagged); coverage_warning lib tests 3 passed; clippy, `check-core-api-verbs`, code-structure clean. Docs: doc comment and `docs/core-api/03-capabilities.md`.
+- Layers: core fix, cli inherits via `coverage-warning --rich-black`, gui none.
+
+**Open:** ships in `v0.149.0` (unreleased). Reply `open/reply_X082_rich_black_at_zero_start_SHIPPED.md` owed by the engineer. FEATURES: coverage-warnings row text clarified, boxes unchanged. No decision, no rule.
+
 ## 2026-11-13 (1557th filing) — `v0.148.0` PUBLISHED
 
 **Filed (engineer-reported; no shell here, nothing checked from here):**
