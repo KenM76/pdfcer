@@ -16,6 +16,8 @@ the affected entry. Maintained by `pdfce-librarian`.
 
 **Open:** crates.io completion to be confirmed; `700.23` mesh-banding remainder (page 1). ROADMAP: new Shipped entry + one note in the `700.23` block. FEATURES: no change (the crates.io row still says 0.147.0, stale since 0.148.0; flagged). No decision, no rule.
 
+**Amendment 2026-11-13 (same day, no new filing number):** crates.io is PUBLISHED, 16/16, confirmed live (engineer-reported: crates.io API `max_version` 0.149.0 for `pdfcer-model`, `-core`, `-render`, `-emf`; all 16 `cargo publish` runs exit 0 in the order model, color, pkix, vec3, json, jpeg-remux, 3d, 3d-nav, image-codec, fonts, function, text, core, render, flatten, emf; 0.148.0 also published). Supersedes "PUBLISHING (completion not confirmed)" and the "Open: crates.io completion" item above. FEATURES `Engine crates on crates.io` row advanced to 0.149.0. Not checked from here.
+
 ## 2026-11-13 (1559th filing) — `4224a9c2` `v0.149.0` version bump (not yet published)
 
 **Filed (engineer-reported; no shell here, nothing checked from here):**

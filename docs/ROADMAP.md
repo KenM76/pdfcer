@@ -124,6 +124,7 @@ Engineer-reported measurements; no shell here, nothing checked from here. Bump `
 - **verify-release.py v0.149.0:** all checks pass except "working tree clean" (untracked local files, expected).
 - **Print parity (newest measurement, `Pass 700.18` / `700.23`):** `tools/print-parity-report.py` at default flags on the 0.148.0 build, the licensed print test file: all 6 pages take the vector route with 0 unrecorded patches; pages 2-6 meet the close condition; page 1 is NOT MET on 2 `shading` vector-gap patches (the type-7 mesh). Recorded under both Passes in *Next up*/Backlog notes.
 - **FEATURES:** no row change. The `Engine crates on crates.io` row still reads 0.147.0 (it was not advanced at 0.148.0 either); left for a filing that confirms crates.io completion. Supersedes the "NOT yet published" status of the `4224a9c2` note below.
+- **Amendment 2026-11-13 (same day, no new filing number): crates.io PUBLISHED, 16/16, confirmed live.** Engineer-reported: crates.io API `max_version` is 0.149.0 for `pdfcer-model`, `-core`, `-render`, `-emf`; all 16 `cargo publish` runs exited 0, in order model, color, pkix, vec3, json, jpeg-remux, 3d, 3d-nav, image-codec, fonts, function, text, core, render, flatten, emf (0.148.0 was also published). Replaces "PUBLISHING ... completion not confirmed" above. FEATURES `Engine crates on crates.io` row advanced to 0.149.0 in the same edit. Not checked from here.
 
 ### `4224a9c2` `chore(release): v0.149.0`, 2026-11-13: version bump filed, release NOT yet published (1559th filing)
 
