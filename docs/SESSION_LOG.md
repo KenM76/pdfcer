@@ -4,6 +4,18 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-11-13 (1563rd filing) — `v0.150.0` PUBLISHED
+
+**Filed (engineer-reported; no shell here, nothing checked from here):**
+- Tag `v0.150.0` (annotated, tag object `88bb6e18`) on `b8f6649f` (the 1562nd filing commit), CI green there; pre-push audits 36 of 36 clean; `check-commits-filed` and `check-suite-name-absent` clean. Carries `Pass 712.0` (`0b4331e5`).
+- Package `D:\builds\pdfcer-20261113-1631-b8f6649` (`pdfcer.exe` 51,053,568 bytes, total 66,996,877). Smoke: `--version` 0.150.0, `inspect` ok, `coverage-warning --tac 200 --rich-black 0` two rule lines, rc 0.
+- GitHub release: 8 assets (zip + 3 OCR add-ons, each with `.sha256`); `verify-release.py` all ok.
+- OneDrive `pdfcer1` written (6 items, 86,619,609 bytes); `pdfcer2` keeps 0.149.0; next release writes `pdfcer2`.
+- crates.io: 16 of 16 live at 0.150.0, confirmed through the crates.io API.
+- GUI-channel notice `open/notice_2026-11-13_release_v0.150.0.md` written.
+
+**Open:** work PAUSED at Ken's request; the 30-minute request-folder loop is stopped. On resume: mesh banding (shading types 4-7) to close print-parity page 1 (2 `shading` vector-gap patches; pages 2-6 met). ROADMAP: new Shipped entry. FEATURES: `Engine crates on crates.io` row advanced to 0.150.0. `NEXT_SESSION.md` edited by the engineer, not touched here. No decision, no rule.
+
 ## 2026-11-13 (1562nd filing) — `0fbc28b3` `v0.150.0` version bump (not yet published)
 
 **Filed (engineer-reported; no shell here, nothing checked from here):**

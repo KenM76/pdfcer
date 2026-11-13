@@ -112,6 +112,18 @@ wherever it appears.*
 
 ## Shipped
 
+### `b8f6649f` `v0.150.0` PUBLISHED, 2026-11-13 (1563rd filing)
+
+Engineer-reported measurements; no shell here, nothing checked from here. Bump `0fbc28b3`, filed by `b8f6649f` (1562nd). Annotated tag `v0.150.0` (tag object `88bb6e18`) is on `b8f6649f`; CI green at that commit. Pre-push audits 36 of 36 clean; `check-commits-filed` and `check-suite-name-absent` clean.
+- **Carries:** `Pass 712.0` (`coverage_warning_masks`: up to 3 coverage rules per render; CLI `coverage-warning --tac --rich-black` together, one line per rule, `-o` refused with both, exit 9, `0b4331e5`). Answers `pdfcer-gui`'s `X081` observation.
+- **Package:** `D:\builds\pdfcer-20261113-1631-b8f6649`, `pdfcer.exe` 51,053,568 bytes, folder total 66,996,877. Fresh-folder smoke: `--version` reports 0.150.0; `inspect` works; `coverage-warning --tac 200 --rich-black 0` printed two rule lines, rc 0.
+- **GitHub release:** 8 assets (portable zip + 3 OCR add-ons, each with `.sha256`). `verify-release.py`: all checks ok.
+- **OneDrive:** wrote `pdfcer1` (6 items, 86,619,609 bytes); `pdfcer2` keeps 0.149.0; the next release writes `pdfcer2`.
+- **crates.io:** all 16 crates (model, color, pkix, vec3, json, jpeg-remux, 3d, 3d-nav, image-codec, fonts, function, text, core, render, flatten, emf) live at 0.150.0, confirmed through the crates.io API.
+- **Channel:** notice `open/notice_2026-11-13_release_v0.150.0.md` written to `D:\Dev\FeatureRequests\pdfce_FeatureRequests`.
+- **Work paused** after this release at Ken's request; the 30-minute request-folder loop is stopped. Next on resume: mesh banding (shading types 4-7) to close print-parity page 1 (2 `shading` vector-gap patches; pages 2-6 met), under `Pass 700.23`.
+- **FEATURES:** `Engine crates on crates.io` row advanced to 0.150.0 (0.149.0 also published). No decision, no rule. Supersedes the "NOT yet published" status of the `0fbc28b3` note below.
+
 ### `0fbc28b3` `chore(release): v0.150.0`, 2026-11-13: version bump filed, release NOT yet published (1562nd filing)
 
 Engineer-reported; no shell here, git, tag, push, CI, crates.io and backup state not checked from here. `0fbc28b3` on `main` bumps the workspace version and every `pdfcer-*` workspace dependency from 0.149.0 to 0.150.0 in `Cargo.toml` (17 strings), plus `cargo update -w` in the root and in `fuzz/`; `Cargo.lock` and `fuzz/Cargo.lock` changed for the workspace crates only. No code change, no dependency change.
