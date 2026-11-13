@@ -3,7 +3,8 @@
 //! With `EmfOptions::with_vector_transparency(true)` an axial or radial
 //! shading that composites with other paint is written as flat-colour band
 //! regions, as a print RIP flattens a smooth shade, instead of patching the
-//! stack. A mesh, an overprinted shading and a spot one on an ink page
+//! stack; an overprinted one on an ink page keeps the backdrop in the
+//! components it does not name. A mesh and a spot shading on an ink page
 //! stay patches. The oracle is GDI's `PlayEnhMetaFile`
 //! (Windows only) against the white-backed raster.
 
@@ -101,68 +102,98 @@ const AXIAL_SEP_CYAN: &str = "<< /ShadingType 2 /ColorSpace [/Separation /Cyan /
 /// [`AXIAL_SEP_CYAN`] in a spot colorant, `/Green`.
 const AXIAL_SPOT: &str = "<< /ShadingType 2 /ColorSpace [/Separation /Green /DeviceCMYK      << /FunctionType 2 /Domain [0 1] /C0 [0 0 0 0] /C1 [1 0 1 0] /N 1 >>]      /Coords [20 0 80 0] /Extend [true true] /Function << /FunctionType 2      /Domain [0 1] /C0 [0.2] /C1 [1] /N 1 >> >>";
 
-/// An ink page: a yellow backdrop, then `shading` by `sh` (under
+/// A yellow backdrop over the whole page.
+const YELLOW: &str = "0 0 1 0 k 0 0 100 80 re f";
+
+/// A 2 × 2 cyan-and-yellow image over the whole page.
+const IMAGE: &str = "q 100 0 0 80 0 0 cm BI /W 2 /H 2 /CS /CMYK /BPC 8 /F /AHx ID \
+     FF000000 0000FF00 0000FF00 FF000000> EI Q";
+
+/// An ink page: [`YELLOW`] beneath, then `shading` by `sh` (under
 /// `/OP /op /OPM 1` when `overprint`), then a half-opaque magenta square.
 fn on_ink_backdrop(shading: &str, overprint: bool) -> Vec<u8> {
+    on_ink(YELLOW, shading, overprint)
+}
+
+/// [`on_ink_backdrop`] with `beneath` painted first.
+fn on_ink(beneath: &str, shading: &str, overprint: bool) -> Vec<u8> {
     let o = if overprint { "/O gs " } else { "" };
-    let content = format!(
-        "0 0 1 0 k 0 0 100 80 re f q {o}/Sh0 sh Q /A gs 0 1 0 0 k 30 20 40 40 re f
-"
-    );
+    let content = format!("{beneath} q {o}/Sh0 sh Q /A gs 0 1 0 0 k 30 20 40 40 re f\n");
     build(&[
         (1, "<< /Type /Catalog /Pages 2 0 R >>".into()),
         (
             2,
             format!(
-                "<< /Type /Pages /Kids [3 0 R] /Count 1 /MediaBox [0 0 100 80]                  /Resources << /Shading << /Sh0 {shading} >> /ExtGState <<                  /A << /ca 0.5 >> /O << /OP true /op true /OPM 1 >> >> >> >>"
+                "<< /Type /Pages /Kids [3 0 R] /Count 1 /MediaBox [0 0 100 80] \
+                 /Resources << /Shading << /Sh0 {shading} >> /ExtGState << \
+                 /A << /ca 0.5 >> /O << /OP true /op true /OPM 1 >> >> >> >>"
             ),
         ),
         (
             3,
-            "<< /Type /Page /Parent 2 0 R /Contents 4 0 R              /Group << /S /Transparency /CS /DeviceCMYK >> >>"
+            "<< /Type /Page /Parent 2 0 R /Contents 4 0 R \
+             /Group << /S /Transparency /CS /DeviceCMYK >> >>"
                 .into(),
         ),
         (
             4,
             format!(
-                "<< /Length {} >>
-stream
-{content}endstream",
+                "<< /Length {} >>\nstream\n{content}endstream",
                 content.len()
             ),
         ),
     ])
 }
 
-/// Bands knock out, so an overprinted shading (which keeps the backdrop's
-/// ink in the channels it does not name) stays a patch, by both routes: a
-/// gradient brush and a harvested two-circle radial. A spot shading on an
-/// ink page has no plate in a process band, so it stays a patch too.
+/// An overprinted shading bands as overprinted flat paints, by both
+/// routes: a gradient brush naming only `/Cyan` (the yellow beneath is
+/// kept, Table 149) and a harvested `DeviceCMYK` radial (every process
+/// component named, so it paints normally).
 #[test]
-fn an_overprinted_or_spot_shading_on_an_ink_page_stays_a_patch() {
-    for (name, shading, overprint, spot) in [
-        ("sep-cyan-op", AXIAL_SEP_CYAN, true, false),
-        ("cmyk-radial-op", RADIAL_CMYK, true, false),
-        ("spot", AXIAL_SPOT, false, true),
+fn an_overprinted_shading_on_an_ink_page_is_banded() {
+    for (name, shading) in [
+        ("sep-cyan-op", AXIAL_SEP_CYAN),
+        ("cmyk-radial-op", RADIAL_CMYK),
     ] {
-        let (_, on) = export(&on_ink_backdrop(shading, overprint));
+        let (_, on) = export(&on_ink_backdrop(shading, true));
         let v = on.outcome.vectorised;
-        let cause = if spot {
-            v.not_flat.spot
-        } else {
-            v.not_flat.shading
-        };
-        assert!(cause >= 1, "{name}: {v:?}");
-        assert!(bitmaps(&on.emf) > 0, "{name}");
+        assert_eq!(v.patched(), 0, "{name}: {v:?}");
+        assert!(v.ops > 0 && v.regions > 10, "{name}: {v:?}");
+        assert_eq!(bitmaps(&on.emf), 0, "{name}");
+        assert_eq!(on.outcome.print_fallback(), None, "{name}");
     }
-    // The same process shading without overprint bands.
-    let (_, on) = export(&on_ink_backdrop(AXIAL_SEP_CYAN, false));
-    assert_eq!(
-        on.outcome.vectorised.patched(),
-        0,
+}
+
+/// The overprinted `/Cyan` ramp keeps the yellow beneath in every band:
+/// playback matches the colorant buffer's raster, which composites the
+/// shading by Table 149.
+#[cfg(windows)]
+#[test]
+fn an_overprinted_shading_plays_back_like_the_raster() {
+    let (reference, on) = export(&on_ink_backdrop(AXIAL_SEP_CYAN, true));
+    assert_eq!(on.outcome.vectorised.patched(), 0);
+    let (bad, worst) = playback_against_raster("bands-op", &reference, &on.emf, 2);
+    assert!(bad == 0 && worst <= 6, "{bad} bad, worst {worst}");
+}
+
+/// An overprinted shading over an image composites with a backdrop that
+/// is not flat, so it stays a patch, recorded as what lies beneath; a spot
+/// shading on an ink page has no plate in a process band, so it stays a
+/// patch too.
+#[test]
+fn an_overprinted_shading_over_an_image_or_a_spot_shading_stays_a_patch() {
+    let (_, on) = export(&on_ink(IMAGE, AXIAL_SEP_CYAN, true));
+    let v = on.outcome.vectorised;
+    assert!(v.patched() >= 1 && v.not_flat.beneath >= 1, "{v:?}");
+    assert_eq!(v.not_flat.shading, 0, "{v:?}");
+    assert!(bitmaps(&on.emf) > 0);
+    let (_, on) = export(&on_ink_backdrop(AXIAL_SPOT, false));
+    assert!(
+        on.outcome.vectorised.not_flat.spot >= 1,
         "{:?}",
         on.outcome.vectorised
     );
+    assert!(bitmaps(&on.emf) > 0);
 }
 
 /// On an ink page the bands paint the shading's authored process ink, by

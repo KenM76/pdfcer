@@ -5659,7 +5659,11 @@ impl<'a> Interpreter<'a> {
         if canvas.exporting()
             && let Some(mut spec) = shading.gradient_spec(ctm, alpha)
         {
-            spec.overprint = self.gs.current.overprint_fill;
+            spec.overprint = self.recorded_shading_overprint(
+                &shading,
+                self.gs.current.overprint_fill || self.gs.current.overprint_stroke,
+                true,
+            );
             spec.blend = self.gs.current.blend_mode;
             #[allow(clippy::cast_precision_loss)]
             let rect = tiny_skia::Rect::from_ltrb(
@@ -5832,21 +5836,8 @@ impl<'a> Interpreter<'a> {
                 // With planes there is nothing to narrow: the rules above
                 // are the table's own, and the spot's ink is not in the
                 // ramp's process channels at all (`Pass 239.0`).
-                if !spots_plated && crate::overprint::names_unplatable_spot(&kind) {
-                    let reach = shading
-                        .ramp
-                        .as_ref()
-                        .map_or([true; 4], super::shading::ColorRamp::ink_reach);
-                    for (i, (rule, reaches)) in rules.iter_mut().zip(reach).enumerate() {
-                        if *rule == crate::overprint::ComponentRule::Source
-                            && !reaches
-                            && !crate::overprint::names_process_channel(&kind, i)
-                        {
-                            // The shading never puts ink here and never named
-                            // this colorant: Table 149 keeps the backdrop.
-                            *rule = crate::overprint::ComponentRule::Backdrop;
-                        }
-                    }
+                if !spots_plated {
+                    crate::overprint::narrow_to_reach(&mut rules, &kind, shading.ramp_reach());
                 }
                 // THE SPOT-ONLY REFUSAL, `Pass 130.3`. WITHOUT IT THIS
                 // ROUTE ERASES THE SHADING AND EVERY COUNTER READS GREEN.
@@ -6061,7 +6052,11 @@ impl<'a> Interpreter<'a> {
         let source = canvas.exporting().then(|| {
             let mut s =
                 crate::gouraud::ShadingSource::new(&shading, to_target, region, None, alpha);
-            s.overprint = self.gs.current.overprint_fill;
+            s.overprint = self.recorded_shading_overprint(
+                &shading,
+                self.gs.current.overprint_fill || self.gs.current.overprint_stroke,
+                true,
+            );
             s.blend = self.gs.current.blend_mode;
             s
         });
@@ -6605,6 +6600,42 @@ impl<'a> Interpreter<'a> {
             spec.overprint_process = self.overprint_process_tints(stroking);
         }
         spec
+    }
+
+    /// For an export recording, the rules the colorant buffer composites a
+    /// shading with when `op` (overprint) is in force (§11.7.4.3, Table 149;
+    /// `OPM` never applies to a shading, §8.6.7). `None` where the raster
+    /// paints it normally: overprint off, a process source, no authored
+    /// ink, or a source naming no process colorant. `narrow` applies the
+    /// `sh` route's [`crate::overprint::narrow_to_reach`]. Spots are taken
+    /// as having no plane: a writer that bands only spot-free shadings on
+    /// an ink page needs no more.
+    fn recorded_shading_overprint(
+        &self,
+        shading: &crate::shading::Shading,
+        op: bool,
+        narrow: bool,
+    ) -> Option<[crate::overprint::ComponentRule; 4]> {
+        use crate::overprint;
+        if !op || !shading.has_colorants() {
+            return None;
+        }
+        let kind = overprint::classify(
+            &shading.color_space,
+            false,
+            self.policy.overprint_zero_tint_scope,
+        )?;
+        if !matches!(kind, overprint::SourceKind::SeparationOrDeviceN { .. })
+            || !overprint::names_a_process_colorant(&kind)
+        {
+            return None;
+        }
+        let opm = u8::from(self.gs.current.overprint_mode == 1);
+        let mut rules = overprint::cmyk_group_rules_with_planes(&kind, [0.0; 4], true, opm, false);
+        if narrow {
+            overprint::narrow_to_reach(&mut rules, &kind, shading.ramp_reach());
+        }
+        Some(rules)
     }
 
     /// Table 149 per process plate for the current colour, with every named
@@ -7509,7 +7540,11 @@ impl<'a> Interpreter<'a> {
             && let Some(inv) = ctm.invert()
             && let Some(mut spec) = shading.gradient_spec(inv.pre_concat(to_device), alpha)
             && {
-                spec.overprint = self.gs.current.overprint_fill;
+                spec.overprint = self.recorded_shading_overprint(
+                    &shading,
+                    self.gs.current.overprint_fill,
+                    false,
+                );
                 spec.blend = self.gs.current.blend_mode;
                 canvas.record_gradient(path, spec, rule, ctm, self.gs.current.clip_ref())
             }
@@ -7628,7 +7663,8 @@ impl<'a> Interpreter<'a> {
             let area = path.clone().transform(ctm).map(|p| (Arc::new(p), rule));
             let mut s =
                 crate::gouraud::ShadingSource::new(&shading, to_target, region, area, alpha);
-            s.overprint = self.gs.current.overprint_fill;
+            s.overprint =
+                self.recorded_shading_overprint(&shading, self.gs.current.overprint_fill, false);
             s.blend = self.gs.current.blend_mode;
             s
         });

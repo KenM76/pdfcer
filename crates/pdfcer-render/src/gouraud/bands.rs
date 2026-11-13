@@ -234,7 +234,7 @@ mod tests {
             alpha: 1.0,
             cmyk: None,
             spot: false,
-            overprint: false,
+            overprint: None,
             blend: tiny_skia::BlendMode::SourceOver,
         }
     }

@@ -1124,6 +1124,25 @@ pub fn names_process_channel(source: &SourceKind, channel: usize) -> bool {
     }
 }
 
+/// The `Pass 201.0` narrowing of a shading's rules: each `Source` channel
+/// the source never names and its ramp never inks (`reach`) goes back to
+/// the backdrop (Table 149's `c_b`). Only for a source naming a spot with
+/// no plane of its own; any other source is left as it is.
+pub(crate) fn narrow_to_reach(
+    rules: &mut [ComponentRule; 4],
+    source: &SourceKind,
+    reach: [bool; 4],
+) {
+    if !names_unplatable_spot(source) {
+        return;
+    }
+    for (i, (rule, reaches)) in rules.iter_mut().zip(reach).enumerate() {
+        if *rule == ComponentRule::Source && !reaches && !names_process_channel(source, i) {
+            *rule = ComponentRule::Backdrop;
+        }
+    }
+}
+
 #[must_use]
 pub fn cmyk_group_rules(
     source: &SourceKind,

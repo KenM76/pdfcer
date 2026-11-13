@@ -85,8 +85,10 @@ pub struct ShadingSource {
     pub area: Option<(Arc<Path>, FillRule)>,
     /// The constant alpha in force.
     pub alpha: f32,
-    /// Whether overprint was in force for the paint; set by the caller.
-    pub overprint: bool,
+    /// Under overprint, the per-process-component rules an ink page's
+    /// raster composites the shading with (§11.7.4.3, Table 149); `None`
+    /// where it paints normally. Set by the caller.
+    pub overprint: Option<[crate::overprint::ComponentRule; 4]>,
     /// The blend mode in force; set by the caller.
     pub blend: tiny_skia::BlendMode,
 }
@@ -107,7 +109,7 @@ impl ShadingSource {
             region,
             area,
             alpha,
-            overprint: false,
+            overprint: None,
             blend: tiny_skia::BlendMode::SourceOver,
         }
     }

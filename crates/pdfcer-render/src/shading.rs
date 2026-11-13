@@ -786,9 +786,11 @@ pub struct GradientSpec {
     /// Whether the ramp's space names a spot colorant, whose ink a
     /// process-only paint cannot carry.
     pub spot: bool,
-    /// Whether overprint was in force for the paint (`/OP` or `/op`); the
-    /// caller sets it, [`Shading::gradient_spec`] leaves it `false`.
-    pub overprint: bool,
+    /// Under overprint, the per-process-component rules an ink page's
+    /// raster composites the shading with (§11.7.4.3, Table 149); `None`
+    /// where it paints normally, overprint off included. The caller sets
+    /// it, [`Shading::gradient_spec`] leaves it `None`.
+    pub overprint: Option<[crate::overprint::ComponentRule; 4]>,
     /// The blend mode in force; the caller sets it,
     /// [`Shading::gradient_spec`] leaves it `SourceOver`.
     pub blend: tiny_skia::BlendMode,
@@ -1216,7 +1218,7 @@ impl Shading {
             alpha: alpha.clamp(0.0, 1.0),
             cmyk: cmyk.into_iter().collect(),
             spot: !self.spot_colorants().is_empty(),
-            overprint: false,
+            overprint: None,
             blend: tiny_skia::BlendMode::SourceOver,
         })
     }
@@ -2177,6 +2179,13 @@ impl Shading {
             };
         }
         self.ramp.as_ref().is_some_and(ColorRamp::has_colorants)
+    }
+
+    /// The process channels this shading's ramp ever inks
+    /// ([`ColorRamp::ink_reach`]); all four without a ramp.
+    #[must_use]
+    pub(crate) fn ramp_reach(&self) -> [bool; 4] {
+        self.ramp.as_ref().map_or([true; 4], ColorRamp::ink_reach)
     }
 
     /// The spot colorants this shading paints — a per-vertex mesh's own, or
