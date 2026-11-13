@@ -269,3 +269,81 @@ fn a_refused_print_fork_leaves_the_open_session_alone() {
     assert!(!fork.can_undo());
     assert_eq!(fork.pages().expect("pages").len(), 2);
 }
+
+/// One page drawing `Hello`, with a widget and a square markup annotation.
+fn page_with_annots() -> EditSession {
+    let stream = format!("<< /Length {} >>\nstream\n{HELLO}\nendstream", HELLO.len());
+    let bodies = [
+        "<< /Type /Catalog /Pages 2 0 R >>".to_owned(),
+        "<< /Type /Pages /Kids [3 0 R] /Count 1 /MediaBox [0 0 300 200] /Resources          << /Font << /F1 << /Type /Font /Subtype /Type1 /BaseFont /Helvetica >> >> >> >>"
+            .to_owned(),
+        "<< /Type /Page /Parent 2 0 R /Contents 4 0 R /Annots 7 0 R >>".to_owned(),
+        stream,
+        "<< /Type /Annot /Subtype /Widget /FT /Tx /T (a) /Rect [10 10 50 30] >>".to_owned(),
+        "<< /Type /Annot /Subtype /Square /Rect [60 10 90 30] >>".to_owned(),
+        "[5 0 R 6 0 R]".to_owned(),
+    ];
+    let mut buf = b"%PDF-1.7\n".to_vec();
+    let mut offsets = Vec::new();
+    for (i, body) in bodies.iter().enumerate() {
+        offsets.push(buf.len());
+        buf.extend_from_slice(format!("{} 0 obj\n{body}\nendobj\n", i + 1).as_bytes());
+    }
+    let xref_at = buf.len();
+    let size = bodies.len() + 1;
+    buf.extend_from_slice(format!("xref\n0 {size}\n0000000000 65535 f \n").as_bytes());
+    for off in &offsets {
+        buf.extend_from_slice(format!("{off:010} 00000 n \n").as_bytes());
+    }
+    buf.extend_from_slice(
+        format!("trailer\n<< /Size {size} /Root 1 0 R >>\nstartxref\n{xref_at}\n%%EOF\n")
+            .as_bytes(),
+    );
+    EditSession::new(Document::from_bytes(buf).expect("fixture loads"))
+}
+
+/// Page 0's extracted text runs, joined.
+fn page_text(doc: &Document) -> String {
+    let page = page_tree::pages(doc).unwrap().remove(0);
+    text_extract::extract_page(doc, &page, 0, &ExtractOptions::default())
+        .unwrap()
+        .runs
+        .into_iter()
+        .map(|r| r.text)
+        .collect()
+}
+
+#[test]
+fn clear_page_content_empties_pages_and_keeps_only_chosen_annotations() {
+    let mut s = page_with_annots();
+    let removed = s
+        .clear_page_content(|subtype| subtype == b"Widget")
+        .expect("cleared");
+    assert_eq!(removed, 1);
+    assert_eq!(s.undo_kind(), Some(CommandKind::ClearPageContent));
+    assert!(page_text(&saved(&page_with_annots())).contains("Hello"));
+    let doc = saved(&s);
+    assert!(!page_text(&doc).contains("Hello"), "content gone");
+    let page = page_tree::pages(&doc).unwrap().remove(0);
+    assert!(page.contents.is_empty());
+    let annots: Vec<_> = pdfcer_core::annot::page_annotations(&doc.view(), page.id)
+        .into_iter()
+        .map(|a| a.subtype)
+        .collect();
+    assert_eq!(annots, vec![b"Widget".to_vec()]);
+    // Decoration still lands on the emptied page, as its only content.
+    s.add_printer_marks(&PrinterMarks::all("job"))
+        .expect("marks");
+    s.undo();
+    assert_eq!(s.undo(), Some(CommandKind::ClearPageContent));
+    assert!(page_text(&saved(&s)).contains("Hello"), "undo restores it");
+}
+
+#[test]
+fn clear_page_content_on_an_empty_page_records_nothing() {
+    let mut s = page_with_annots();
+    s.clear_page_content(|_| true).expect("first clear");
+    s.clear_page_content(|_| true).expect("second clear");
+    assert_eq!(s.undo(), Some(CommandKind::ClearPageContent));
+    assert_eq!(s.undo_kind(), None, "the second clear changed nothing");
+}

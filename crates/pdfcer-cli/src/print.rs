@@ -74,7 +74,8 @@ pub(crate) enum CommentsArg {
     /// Page content plus stamps only — narrower than markup.
     Stamps,
     /// Form fields alone. The page itself is NOT printed, which is the
-    /// point: this is for printing onto a pre-printed form.
+    /// point: this is for printing onto a pre-printed form. A header,
+    /// footer or printer's marks still print.
     FieldsOnly,
 }
 
@@ -299,13 +300,19 @@ pub(crate) fn cmd_print(
     let label = input
         .file_name()
         .map_or_else(String::new, |n| n.to_string_lossy().into_owned());
-    match output.stamp(&mut session, &label) {
-        Ok(notes) => notes.iter().for_each(|n| eprintln!("pdfcer: {n}")),
+    let stamped = output
+        .fields_only_scope(&mut session, comments)
+        .and_then(|scope| Ok((scope, output.stamp(&mut session, &label)?)));
+    let comments = match stamped {
+        Ok((scope, notes)) => {
+            notes.iter().for_each(|n| eprintln!("pdfcer: {n}"));
+            scope
+        }
         Err(err) => {
             eprintln!("pdfcer: {}: {err}", input.display());
             return exit::EDIT_REFUSED;
         }
-    }
+    };
     let page_list = match session.pages() {
         Ok(p) => p,
         Err(err) => {

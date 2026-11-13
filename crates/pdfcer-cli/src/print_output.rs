@@ -10,6 +10,7 @@ use pdfcer_core::running_text::{RunningText, RunningTextAlign, RunningTextKind};
 use pdfcer_print::output_color::{OutputColor, apply_output_color};
 
 use crate::exit;
+use crate::print::CommentsArg;
 
 /// clap's usage-error code.
 pub(crate) const USAGE: u8 = 2;
@@ -166,6 +167,29 @@ impl PrintOutput {
         }
         d.marks = self.printer_marks(label);
         d
+    }
+
+    /// The `--comments` scope to render `session` with once it is stamped.
+    ///
+    /// `fields-only` skips all page content, which would drop the header,
+    /// footer and marks with it. So when any of them is asked for, the
+    /// copy's pages are emptied first ([`EditSession::clear_page_content`],
+    /// keeping only form-field annotations) and the job renders with
+    /// `document`: the decoration is then the only page content. Call it
+    /// before [`Self::stamp`].
+    pub(crate) fn fields_only_scope(
+        &self,
+        session: &mut EditSession,
+        comments: CommentsArg,
+    ) -> Result<CommentsArg, EditError> {
+        if comments != CommentsArg::FieldsOnly || self.decoration("").is_empty() {
+            return Ok(comments);
+        }
+        let scope = comments.to_scope();
+        session.clear_page_content(|subtype| {
+            scope.paints_class(pdfcer_render::AnnotationClass::of_subtype(subtype))
+        })?;
+        Ok(CommentsArg::Document)
     }
 
     /// Stamp the header, footer and printer's marks onto `session` (never

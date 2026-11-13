@@ -157,6 +157,7 @@ mod insert_fields;
 mod node_shape;
 mod ocr_layer_write;
 mod page_import;
+mod print_content;
 mod print_decoration;
 mod print_ready;
 pub use print_ready::{
@@ -984,6 +985,10 @@ pub enum CommandKind {
     /// shared font and colour space, then per page new boxes and a clip and
     /// marks stream around the untouched content.
     AddPrinterMarks,
+    /// One clear of a printed copy's pages
+    /// ([`EditSession::clear_page_content`]): every page's `/Contents`
+    /// removed and the rejected annotations unlinked from `/Annots`.
+    ClearPageContent,
     /// One plain-text IMPORT: `pages` blank pages were created and the text was
     /// poured into them, all as ONE undo entry
     /// ([`EditSession::place_text`]).
