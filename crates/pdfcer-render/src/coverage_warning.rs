@@ -30,8 +30,8 @@ pub enum CoverageWarning {
         limit_percent: u16,
     },
     /// Rich black: black at or above `black_start_percent` with any cyan,
-    /// magenta or yellow present (0.1% or more). Spot inks never make a
-    /// black rich.
+    /// magenta or yellow present (0.1% or more). A 0% start still needs
+    /// some black. Spot inks never make a black rich.
     RichBlack {
         /// The black tint a pixel must reach, in percent.
         black_start_percent: u16,
@@ -52,7 +52,7 @@ impl CoverageWarning {
                 black_start_percent,
             } => {
                 let [c, m, y, k] = process.map(tenths);
-                k >= u32::from(black_start_percent) * 10 && c + m + y > 0
+                k > 0 && k >= u32::from(black_start_percent) * 10 && c + m + y > 0
             }
         }
     }
@@ -205,5 +205,14 @@ mod tests {
         assert!(!rich.flags([0.0, 0.0, 0.0, 1.0], &[0.8]));
         assert!(!rich.flags([0.4, 0.3, 0.3, 0.94], &[]));
         assert!(!rich.flags([0.0, 0.0, 0.0004, 1.0], &[]));
+    }
+
+    #[test]
+    fn a_zero_start_still_needs_some_black() {
+        let rich = CoverageWarning::RichBlack {
+            black_start_percent: 0,
+        };
+        assert!(!rich.flags([0.5, 0.0, 0.0, 0.0], &[]));
+        assert!(rich.flags([0.5, 0.0, 0.0, 0.001], &[]));
     }
 }

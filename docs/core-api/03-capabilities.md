@@ -4266,7 +4266,8 @@ the same scale and region. `CoverageWarning` (`#[non_exhaustive]`):
 `TotalAreaCoverage { limit_percent: u16 }` flags a sum of every plate (C, M,
 Y, K and each spot) **strictly above** the limit; `RichBlack {
 black_start_percent: u16 }` flags K at or above the start with any C, M or
-Y of 0.1% or more — spot inks never make black rich. Ink is read as it lands
+Y of 0.1% or more (a 0% start still needs some K) — spot inks never make
+black rich. Ink is read as it lands
 on the sheet (tint × page-group alpha after overprint, transparency and
 spots); hidden plates count as no ink; every tint compares in tenths of a
 percent, rounded. `flags(process, spots)` is the per-pixel rule for a caller
