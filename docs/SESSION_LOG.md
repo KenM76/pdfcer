@@ -4,6 +4,14 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-11-13 (1549th filing) — `df37a1ab` `Pass 707.0` (`X078`): fields-only prints keep headers, footers and printer's marks
+
+**Filed (engineer-reported; no git run here):**
+- `df37a1ab`: new `EditSession::clear_page_content` and `CommandKind::ClearPageContent`; `cmd_print` clears the print copy to widgets, decorates, renders with the Document scope. Fixes silent loss of decoration under `--comments fields-only`.
+- Tests: CLI pixel tests (marks, header, footer; sabotage caught), core `printer_marks` 11, CLI `print_output` 8. Gates green; core-api 405 verbs. No manifest change.
+
+**Open:** not in a release (next after v0.146.0). `pdfcer-gui` must apply the same clear/stamp/Document-scope steps; X078 reply says so. FEATURES: one new row, gui unticked. No decision, no rule.
+
 ## 2026-11-13 (1548th filing) — `01692479` `Pass 700.23` PARTIAL: overprinted shadings band as vector on ink pages
 
 **Filed (engineer-reported; no git run here):**

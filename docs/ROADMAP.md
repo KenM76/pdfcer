@@ -112,6 +112,16 @@ wherever it appears.*
 
 ## Shipped
 
+### `df37a1ab` `Pass 707.0` (`X078`): fields-only prints keep headers, footers and printer's marks, 2026-11-13 (1549th filing)
+
+Engineer-reported; no shell here, git, push and CI state not checked from here. `df37a1ab` `fix(print): fields-only prints keep headers, footers and printer's marks (X078)`, on `main`, NOT in a release (the next after v0.146.0 carries it). Reasoning is in the commit message.
+- **Defect.** `AnnotationScope::FormFieldsOnly` skips all page content, and print-time decoration (printer's marks, `--header`/`--footer`) is stamped as page content on the print copy, so `pdfcer print --comments fields-only` silently dropped it while still growing the page.
+- **Core.** New `EditSession::clear_page_content(keep_annotation) -> Result<usize, EditError>` (`pdfcer-core/src/edit/print_content.rs`): removes every page's `/Contents` (absent means empty, ISO 32000-1 §7.7.3.3 Table 30), unlinks the annotations the predicate rejects, returns that count; keeps `/Resources` and the boxes. One undo entry, new `CommandKind::ClearPageContent`; nothing recorded when no page changes.
+- **CLI.** `PrintOutput::fields_only_scope`: under fields-only with any decoration, `cmd_print` clears the copy to widgets, stamps, then renders with the Document scope. `--comments fields-only` help updated. URI/CUPS and `--pdf-direct` already refuse or fall back; `print-preview` does not decorate. `pdfcer-gui` renders its own copy and must repeat the three steps (noted in the reply to `X078`).
+- **Tests (engineer-reported):** CLI pixel tests on a synthetic repro for marks, header, footer (widget and decoration print; band and markup do not); sabotage failed both decoration tests. Core `printer_marks`: 11 passed (clear plus undo; idempotent second clear). CLI `print_output`: 8 passed.
+- **Gates (engineer-reported):** clippy `-D warnings`, fmt, code structure (no new debt), public-fns-documented, core-api verbs (405; row in `docs/core-api/02-editing-and-saving.md`). No manifest changed; no new dependency.
+- **FEATURES:** new *Implemented* row, core `[x]`, cli `[x]`, gui `[ ]`. No decision needed.
+
 ### `a0205bb0` `Pass 700.24` (SHIPPED as an OPT-IN option; default off): patch a soft-masked layer only where its mask shows, 2026-11-12 (1542nd filing)
 
 Engineer-reported; no shell here, git, push and CI state not checked from here. `a0205bb0` `feat(emf,cli,tools): patch a soft-masked layer only where its mask shows, opt-in (Pass 700.24)`, on `main`. Reasoning is in the commit message.
