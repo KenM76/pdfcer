@@ -152,7 +152,7 @@ impl ViewerPreview {
         };
         if !proof.simulates_black_ink() && !proof.compensates_black() {
             eprintln!(
-                "pdfcer: note: --soft-proof: black point compensation cannot be applied to                  this profile, so its black shows as the profile measured it, as with                  --simulate-black-ink"
+                "pdfcer: note: --soft-proof: black point compensation cannot be applied to this profile, so its black shows as the profile measured it, as with --simulate-black-ink"
             );
         }
         let separation = self.separation.take().unwrap_or_default();

@@ -49,6 +49,7 @@ document's output intent (ISO 32000-2 Annex P, informative). Set \
     exit::SUCCESS
 }
 
+/// Joins 1-based page numbers as `1,2,5` for a one-line report field.
 pub(crate) fn join_pages(pages: &[usize]) -> String {
     pages
         .iter()
