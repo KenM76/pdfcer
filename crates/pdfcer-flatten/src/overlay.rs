@@ -22,6 +22,8 @@ pub(crate) struct Atom {
     pub(crate) paints: Vec<usize>,
 }
 
+/// The shoelace area of a closed contour: positive when counter-clockwise,
+/// so its sign is the contour's winding.
 pub(crate) fn signed_area(c: &[Point]) -> f64 {
     let mut s = 0.0;
     let mut prev = c.last().copied().unwrap_or([0.0, 0.0]);
