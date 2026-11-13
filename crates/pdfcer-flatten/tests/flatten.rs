@@ -215,3 +215,113 @@ fn spot_over_spot_overprint_regions_carry_both_planes() {
     assert_eq!(region(&r, &[0, 1]).spots, [1.0, 0.5, 0.0, 0.0]);
     assert_eq!(region(&r, &[1]).spots, [0.0, 0.5, 0.0, 0.0]);
 }
+
+/// The area an even-odd region covers, by a 0.25-unit sample grid over
+/// `0..w` squared: independent of how the contours are wound or grouped.
+fn sampled_area(r: &Region, w: f64) -> f64 {
+    let n = (w * 4.0) as usize;
+    let mut hits = 0usize;
+    for ix in 0..n {
+        for iy in 0..n {
+            let p = [(ix as f64 + 0.5) / 4.0, (iy as f64 + 0.5) / 4.0];
+            let mut odd = false;
+            for c in &r.contours {
+                let mut prev = c[c.len() - 1];
+                for &q in c {
+                    if (q[1] > p[1]) != (prev[1] > p[1])
+                        && p[0] < q[0] + (p[1] - q[1]) / (prev[1] - q[1]) * (prev[0] - q[0])
+                    {
+                        odd = !odd;
+                    }
+                    prev = q;
+                }
+            }
+            hits += usize::from(odd);
+        }
+    }
+    hits as f64 / 16.0
+}
+
+/// The signed area of a region's contours: equal to its even-odd area only
+/// when holes wind against their outer and islands with it.
+fn wound_area(r: &Region) -> f64 {
+    r.contours
+        .iter()
+        .map(|c| {
+            let mut s = 0.0;
+            let mut prev = c[c.len() - 1];
+            for &p in c {
+                s += prev[0] * p[1] - p[0] * prev[1];
+                prev = p;
+            }
+            s / 2.0
+        })
+        .sum::<f64>()
+        .abs()
+}
+
+/// A background and 300 translucent glyphs, one of them a ring: more
+/// paints than a 64-paint ceiling, cut without a single boolean because
+/// each glyph lies inside the background clear of its edge.
+#[test]
+fn a_page_of_glyphs_over_a_background_flattens_and_keeps_every_hole() {
+    let mut elements = vec![paint(
+        rect(0.0, 0.0, 80.0, 80.0),
+        [0.0, 0.0, 1.0, 0.0],
+        1.0,
+        Blend::Normal,
+    )];
+    for i in 0..300 {
+        let (x, y) = (f64::from(i % 20) * 4.0 + 1.0, f64::from(i / 20) * 4.0 + 1.0);
+        let mut glyph = rect(x, y, 2.0, 2.0);
+        if i == 0 {
+            glyph.contours.push(vec![
+                [x + 0.5, y + 0.5],
+                [x + 1.5, y + 0.5],
+                [x + 1.5, y + 1.5],
+                [x + 0.5, y + 1.5],
+            ]);
+            glyph.rule = FillRule::EvenOdd;
+        }
+        elements.push(paint(glyph, [1.0, 0.0, 0.0, 0.0], 0.5, Blend::Multiply));
+    }
+    let limits = Limits {
+        max_work: 0,
+        ..Limits::default()
+    };
+    let regions = flatten(&page(elements), Space::Rgb, &NaiveInks, &limits).unwrap();
+    assert_eq!(regions.len(), 301);
+    // The background less 300 glyphs of 4, plus the ring's hole of 1.
+    let background = region(&regions, &[0]);
+    assert!((sampled_area(background, 80.0) - 5201.0).abs() < 1e-9);
+    assert!((wound_area(background) - 5201.0).abs() < 1e-9);
+    let ring = region(&regions, &[0, 1]);
+    assert!((sampled_area(ring, 80.0) - 3.0).abs() < 1e-9);
+    assert!((wound_area(ring) - 3.0).abs() < 1e-9);
+    assert!(close(
+        region(&regions, &[0, 2]).colour,
+        [0.0, 0.0, 0.5, 0.0]
+    ));
+}
+
+#[test]
+fn the_work_ceiling_refuses_overlapping_paints() {
+    let elements = (0..3)
+        .map(|i| {
+            paint(
+                rect(f64::from(i), 0.0, 3.0, 3.0),
+                [0.0; 4],
+                0.5,
+                Blend::Normal,
+            )
+        })
+        .collect();
+    let limits = Limits {
+        max_work: 20,
+        ..Limits::default()
+    };
+    assert_eq!(
+        flatten(&page(elements), Space::Rgb, &NaiveInks, &limits),
+        Err(FlattenError::TooComplex(Ceiling::Work))
+    );
+}

@@ -69,6 +69,7 @@
 mod blend;
 mod composite;
 mod overlay;
+mod punch;
 
 /// A point in device space.
 pub type Point = [f64; 2];
@@ -317,16 +318,25 @@ pub struct Limits {
     pub max_vertices: usize,
     /// Group nesting depth.
     pub max_depth: usize,
+    /// Vertices fed to polygon booleans, summed over the run: the bound on
+    /// time. A pair of shapes whose boxes do not meet costs nothing, so a
+    /// scene of many small, mostly disjoint paints (text in a group) costs
+    /// about its own vertex count, and one where every paint overlaps
+    /// every region pays for each.
+    pub max_work: usize,
 }
 
 impl Default for Limits {
-    /// 64 paints, 1024 regions, 200 000 vertices, 32 levels of nesting.
+    /// 1024 paints, 1024 regions, 100 000 vertices, 32 levels of nesting,
+    /// 10 000 000 units of boolean work. Measured worst case about 6 s:
+    /// stacked 2000-vertex stars, each crossing the last at every edge.
     fn default() -> Self {
         Self {
-            max_paints: 64,
+            max_paints: 1024,
             max_regions: 1024,
-            max_vertices: 200_000,
+            max_vertices: 100_000,
             max_depth: 32,
+            max_work: 10_000_000,
         }
     }
 }
@@ -362,6 +372,8 @@ pub enum Ceiling {
     Vertices,
     /// [`Limits::max_depth`].
     Depth,
+    /// [`Limits::max_work`].
+    Work,
 }
 
 /// Why [`flatten`] returned no regions.
