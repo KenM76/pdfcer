@@ -864,9 +864,10 @@ pub struct RenderOptions {
     /// Composite in ink and leave the named plates off, or `None` for a
     /// normal render. See [`crate::SeparationPreview`].
     pub separation_preview: Option<crate::SeparationPreview>,
-    /// Set only by [`crate::coverage_warning_mask`]: collapse the colorant
-    /// buffer to that rule's mask instead of to colour.
-    pub(crate) coverage_warning: Option<crate::CoverageWarning>,
+    /// Set only by [`crate::coverage_warning_masks`]: collapse the colorant
+    /// buffer to up to three rules' masks, one per RGB channel, instead of
+    /// to colour.
+    pub(crate) coverage_warnings: crate::coverage_warning::RuleSlots,
 }
 
 /// The medium a finished page group is composited onto — §11.4.7's
@@ -1346,7 +1347,7 @@ impl Default for RenderOptions {
             free_text_c: crate::FreeTextC::Fill,
             overprint_preview: crate::OverprintPreview::Simulate,
             separation_preview: None,
-            coverage_warning: None,
+            coverage_warnings: [None; 3],
         }
     }
 }

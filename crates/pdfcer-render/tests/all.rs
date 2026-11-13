@@ -17,6 +17,7 @@ mod cidfont_nocmap_render;
 mod cmyk_intent;
 mod cmyk_variants;
 mod constant_alpha;
+mod coverage_warning_masks;
 mod crop_box_frames_within_the_sheet;
 mod deep_zoom_region_renders;
 mod devicen_image_ink;

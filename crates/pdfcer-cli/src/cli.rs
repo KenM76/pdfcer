@@ -5136,12 +5136,14 @@ pub(crate) enum Command {
     /// - `--rich-black P`: black is at least P percent and cyan, magenta or
     ///   yellow is present (0.1% or more). Spot inks never make black rich.
     ///
-    /// Tints are compared in tenths of a percent, rounded. A plate left off
-    /// with `--hide-ink` counts as no ink. Prints
-    /// `coverage-warning page=N rule=… flagged=PIXELS of=PIXELS percent=…`;
-    /// `-o` also writes the mask as a PNG, white where flagged and black
-    /// elsewhere, the same size as `render-page` at the same scale. Edges
-    /// are not antialiased.
+    /// Give either rule or both; both are checked in one render. Tints are
+    /// compared in tenths of a percent, rounded. A plate left off with
+    /// `--hide-ink` counts as no ink. Prints one line per rule,
+    /// `coverage-warning page=N rule=… flagged=PIXELS of=PIXELS percent=…`,
+    /// `--tac` first. With one rule, `-o` also writes its mask as a PNG,
+    /// white where flagged and black elsewhere, the same size as
+    /// `render-page` at the same scale; with both, `-o` is refused (exit 9).
+    /// Edges are not antialiased.
     CoverageWarning {
         /// Input PDF.
         input: PathBuf,
@@ -5152,12 +5154,7 @@ pub(crate) enum Command {
         #[arg(long, default_value_t = 1.0)]
         scale: f32,
         /// Flag total area coverage above this percentage.
-        #[arg(
-            long,
-            value_name = "PERCENT",
-            conflicts_with = "rich_black",
-            required_unless_present = "rich_black"
-        )]
+        #[arg(long, value_name = "PERCENT", required_unless_present = "rich_black")]
         tac: Option<u16>,
         /// Flag rich black: black at or above this percentage with any
         /// cyan, magenta or yellow.

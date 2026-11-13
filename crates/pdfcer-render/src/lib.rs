@@ -303,7 +303,9 @@ pub use annot::{
 // reading `diagnostics.color.tint_transform_not_applied` must be able to
 // name its type without knowing which module it lives in.
 pub use color::{ColorDiagnostics, ColorSpace, ColorState, Colorant, DeviceSpace};
-pub use coverage_warning::{CoverageMask, CoverageWarning, coverage_warning_mask};
+pub use coverage_warning::{
+    CoverageMask, CoverageWarning, coverage_warning_mask, coverage_warning_masks,
+};
 pub use display_list::{
     BAND_ROW_LATTICE, BandBlocker, ClipId, DisplayList, DisplayListKey, ExportTally,
     MAX_DISPLAY_LIST_BYTES, PoisonReason, record_page,
@@ -1353,8 +1355,8 @@ fn collapse_ink(
         diagnostics.inks = buffer.ink_names();
         (diagnostics.inks_hidden, diagnostics.inks_unmatched) = buffer.hide_inks(&preview.hidden);
     }
-    if let Some(warning) = options.coverage_warning {
-        if let Some(mask) = coverage_warning::mask_pixmap(&buffer, warning) {
+    if options.coverage_warnings.iter().any(Option::is_some) {
+        if let Some(mask) = coverage_warning::mask_pixmap(&buffer, &options.coverage_warnings) {
             *pixmap = mask;
         }
         diagnostics.ink_probe = probe_cmyk;

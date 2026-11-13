@@ -91,3 +91,28 @@ fn a_hidden_plate_counts_as_no_ink() {
     assert_eq!(code, Some(0), "{out}");
     assert!(out.contains("flagged=0"), "{out}");
 }
+
+#[test]
+fn both_rules_print_one_line_each_tac_first() {
+    let (code, out) = run(&["--rich-black", "95", "--tac", "240"]);
+    assert_eq!(code, Some(0), "{out}");
+    let tac = out.find("rule=tac:240 flagged=1800").expect(&out);
+    let rich = out.find("rule=rich-black:95 flagged=1800").expect(&out);
+    assert!(tac < rich, "{out}");
+}
+
+#[test]
+fn both_rules_with_a_mask_file_are_refused() {
+    let png = std::env::temp_dir().join(format!("pdfcer_coverage_both_{}.png", std::process::id()));
+    let (code, out) = run(&[
+        "--tac",
+        "240",
+        "--rich-black",
+        "95",
+        "-o",
+        png.to_str().unwrap(),
+    ]);
+    assert_eq!(code, Some(9), "{out}");
+    assert!(out.contains("not both"), "{out}");
+    assert!(!png.exists());
+}

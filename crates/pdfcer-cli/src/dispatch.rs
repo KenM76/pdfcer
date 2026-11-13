@@ -1334,14 +1334,19 @@ pub(crate) fn run() -> ExitCode {
             input: &input,
             page,
             scale,
-            warning: match (tac, rich_black) {
-                (Some(limit_percent), _) => {
-                    pdfcer_render::CoverageWarning::TotalAreaCoverage { limit_percent }
-                }
-                (None, black) => pdfcer_render::CoverageWarning::RichBlack {
-                    black_start_percent: black.unwrap_or(100),
-                },
-            },
+            warnings: tac
+                .map(
+                    |limit_percent| pdfcer_render::CoverageWarning::TotalAreaCoverage {
+                        limit_percent,
+                    },
+                )
+                .into_iter()
+                .chain(rich_black.map(|black_start_percent| {
+                    pdfcer_render::CoverageWarning::RichBlack {
+                        black_start_percent,
+                    }
+                }))
+                .collect(),
             region: region.as_deref(),
             hide_ink,
             output: output.as_deref(),

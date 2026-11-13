@@ -4256,7 +4256,7 @@ profile bytes and switches. CLI: `render-page` / `export-image
 require `--soft-proof`; a refusal exits 9; the compensation note goes to
 stderr).
 
-**Coverage warnings** (`pdfcer_render::coverage_warning_mask`, request X081)
+**Coverage warnings** (`pdfcer_render::coverage_warning_mask` / `_masks`, request X081)
 — Output Preview's *Total area coverage* and *Rich black* as a per-pixel
 mask. `coverage_warning_mask(&view, &page, scale, region: Option<Rect>,
 &RenderOptions, CoverageWarning) -> Result<CoverageMask, RenderError>`
@@ -4273,9 +4273,14 @@ spots); hidden plates count as no ink; every tint compares in tenths of a
 percent, rounded. `flags(process, spots)` is the per-pixel rule for a caller
 with its own ink values. `CoverageMask { width, height, mask: Vec<u8>
 (1 = flagged, row-major), flagged: u64 }`, `is_flagged(x, y)`. Edges are not
-antialiased. CLI: `pdfcer coverage-warning FILE (--tac P | --rich-black P)
-[--page N] [--scale S] [--region ...] [--hide-ink NAME]... [-o mask.png]`
-prints `coverage-warning page=N rule=tac:P flagged=.. of=.. percent=..`.
+antialiased. Several rules: `coverage_warning_masks(.., &[CoverageWarning])
+-> Result<Vec<CoverageMask>, RenderError>` returns one mask per rule in order,
+equal to the single-rule call, from **one render per three rules** (an empty
+slice renders nothing). CLI: `pdfcer coverage-warning FILE [--tac P]
+[--rich-black P]` (at least one; both share a render) `[--page N] [--scale S]
+[--region ...] [--hide-ink NAME]... [-o mask.png]` prints one
+`coverage-warning page=N rule=tac:P flagged=.. of=.. percent=..` line per
+rule, `--tac` first; `-o` takes one rule only (both → exit 9).
 
 **Page overprint** (`pdfcer_render::page_overprint`, request X080) —
 `page_overprint(&view, &page, &RenderOptions) -> Result<PageOverprint,
