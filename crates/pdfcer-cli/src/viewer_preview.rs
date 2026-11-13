@@ -1,12 +1,15 @@
 //! The viewer-preview flags `render-page` and `export-image` share:
 //! `--no-overprint-preview`, `--separation-preview`, `--hide-ink`,
 //! `--markup-without-ap`, `--free-text-c`, `--widgets-without-ap`,
+//! `--soft-proof` (with `--simulate-paper`, `--simulate-black-ink`),
 //! `--need-appearances`, `--widget-state`, `--edge-antialiasing` and `--preserve-calibrated-cmyk`.
+
+use std::path::Path;
 
 use pdfcer_core::annot::AppearanceKind;
 use pdfcer_render::{
     Diagnostics, EdgeAntialiasing, FreeTextC, MarkupWithoutAp, NeedAppearances, OverprintPreview,
-    RenderOptions, SeparationPreview, WidgetsWithoutAp,
+    RenderOptions, SeparationPreview, SoftProof, WidgetsWithoutAp,
 };
 
 /// `--markup-without-ap`: what to show for a markup annotation (Ink,
@@ -121,6 +124,42 @@ impl ViewerPreview {
         }
     }
 
+    /// This preview proofed against the CMYK output profile at `path`
+    /// (`--soft-proof`), which implies a separation preview. `Err` is the
+    /// exit code, already reported.
+    pub(crate) fn with_soft_proof(
+        mut self,
+        path: Option<&Path>,
+        paper: bool,
+        black_ink: bool,
+    ) -> Result<Self, u8> {
+        let Some(path) = path else {
+            return Ok(self);
+        };
+        let bytes = match read_capped(path) {
+            Ok(bytes) => bytes,
+            Err(message) => {
+                eprintln!("pdfcer: --soft-proof {}: {message}", path.display());
+                return Err(crate::exit::RUNTIME_ERROR);
+            }
+        };
+        let proof = match SoftProof::from_bytes(bytes) {
+            Ok(proof) => proof.with_paper_colour(paper).with_black_ink(black_ink),
+            Err(err) => {
+                eprintln!("pdfcer: --soft-proof {}: {err}", path.display());
+                return Err(crate::exit::EDIT_REFUSED);
+            }
+        };
+        if !proof.simulates_black_ink() && !proof.compensates_black() {
+            eprintln!(
+                "pdfcer: note: --soft-proof: black point compensation cannot be applied to                  this profile, so its black shows as the profile measured it, as with                  --simulate-black-ink"
+            );
+        }
+        let separation = self.separation.take().unwrap_or_default();
+        self.separation = Some(separation.with_soft_proof(Some(proof)));
+        Ok(self)
+    }
+
     /// This preview with the no-`/AP` drawing choices applied.
     pub(crate) fn with_no_ap(
         mut self,
@@ -231,6 +270,22 @@ pub(crate) fn report_separation_preview(d: &Diagnostics) {
             d.cmyk_spots_flattened
         );
     }
+}
+
+/// The file at `path`, refused past the soft-proof profile cap without
+/// reading the rest.
+fn read_capped(path: &Path) -> Result<Vec<u8>, String> {
+    use std::io::Read;
+    let cap = pdfcer_render::MAX_SOFT_PROOF_PROFILE_BYTES;
+    let file = std::fs::File::open(path).map_err(|err| err.to_string())?;
+    let mut bytes = Vec::new();
+    file.take(cap as u64 + 1)
+        .read_to_end(&mut bytes)
+        .map_err(|err| err.to_string())?;
+    if bytes.len() > cap {
+        return Err("the profile is larger than the 16 MiB a proof profile may be".to_owned());
+    }
+    Ok(bytes)
 }
 
 #[cfg(test)]

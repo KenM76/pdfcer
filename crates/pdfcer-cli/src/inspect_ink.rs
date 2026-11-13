@@ -9,33 +9,10 @@ use super::*;
 /// pdfcer took from the output intent gets a note, because that is an
 /// inference (rule 4), not something the page declared.
 pub(crate) fn cmd_inspect_ink(input: &Path, pages_spec: &str) -> u8 {
-    let doc = match open_document(input) {
-        Ok(doc) => doc,
-        Err(err) => {
-            eprintln!("pdfcer: {}: {err}", input.display());
-            return exit_code_for_doc(&err);
-        }
+    let (doc, page_list, indices, options) = match open_selected(input, pages_spec) {
+        Ok(opened) => opened,
+        Err(code) => return code,
     };
-    let page_list = match pdfcer_core::page_tree::pages(&doc) {
-        Ok(pages) => pages,
-        Err(err) => {
-            eprintln!("pdfcer: {}: {err}", input.display());
-            return exit::RUNTIME_ERROR;
-        }
-    };
-    let indices = match parse_pages(pages_spec, page_list.len()) {
-        Ok(indices) => indices,
-        Err(message) => {
-            eprintln!("pdfcer: {}: --pages {message}", input.display());
-            return exit::EDIT_REFUSED;
-        }
-    };
-    let (settings, settings_report) =
-        pdfcer_core::settings::Settings::load(pdfcer_core::settings::resolve_store());
-    report_settings(&settings_report);
-    let options = pdfcer_render::RenderOptions::default()
-        .with_page_blend_space_source(settings.page_blend_space_source)
-        .with_black_point_compensation(settings.black_point_compensation);
 
     let view = doc.view();
     let (mut in_ink, mut inferred) = (0usize, Vec::new());
@@ -72,10 +49,55 @@ document's output intent (ISO 32000-2 Annex P, informative). Set \
     exit::SUCCESS
 }
 
-fn join_pages(pages: &[usize]) -> String {
+pub(crate) fn join_pages(pages: &[usize]) -> String {
     pages
         .iter()
         .map(usize::to_string)
         .collect::<Vec<_>>()
         .join(",")
+}
+
+/// The document, its pages, the `--pages` selection and the render options
+/// the saved settings give, for the `inspect` modes that read a page the
+/// way `render-page` would; `Err` carries the exit code, already reported.
+pub(crate) fn open_selected(
+    input: &Path,
+    pages_spec: &str,
+) -> Result<
+    (
+        pdfcer_core::document::Document,
+        Vec<pdfcer_core::page_tree::Page>,
+        Vec<usize>,
+        pdfcer_render::RenderOptions,
+    ),
+    u8,
+> {
+    let doc = match open_document(input) {
+        Ok(doc) => doc,
+        Err(err) => {
+            eprintln!("pdfcer: {}: {err}", input.display());
+            return Err(exit_code_for_doc(&err));
+        }
+    };
+    let page_list = match pdfcer_core::page_tree::pages(&doc) {
+        Ok(pages) => pages,
+        Err(err) => {
+            eprintln!("pdfcer: {}: {err}", input.display());
+            return Err(exit::RUNTIME_ERROR);
+        }
+    };
+    let indices = match parse_pages(pages_spec, page_list.len()) {
+        Ok(indices) => indices,
+        Err(message) => {
+            eprintln!("pdfcer: {}: --pages {message}", input.display());
+            return Err(exit::EDIT_REFUSED);
+        }
+    };
+    let (settings, settings_report) =
+        pdfcer_core::settings::Settings::load(pdfcer_core::settings::resolve_store());
+    report_settings(&settings_report);
+    let options = pdfcer_render::RenderOptions::default()
+        .with_page_blend_space_source(settings.page_blend_space_source)
+        .with_black_point_compensation(settings.black_point_compensation);
+    Ok((doc, page_list, indices, options))
 }

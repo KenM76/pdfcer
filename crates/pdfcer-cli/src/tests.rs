@@ -461,6 +461,8 @@ const NOT_IN_PLACE: &[&str] = &[
     "optimize",
     // Writes a PRC stream, never a PDF.
     "3d-convert",
+    // Writes a PNG mask, never a PDF.
+    "coverage-warning",
 ];
 
 #[test]

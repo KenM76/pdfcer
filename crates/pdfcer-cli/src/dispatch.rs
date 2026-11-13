@@ -51,8 +51,11 @@ pub(crate) fn run() -> ExitCode {
             leading,
             forms,
             ink,
+            overprint,
         } => {
-            if ink {
+            if overprint {
+                cmd_inspect_overprint(&file, &pages)
+            } else if ink {
                 cmd_inspect_ink(&file, &pages)
             } else if forms {
                 cmd_inspect_forms(&file, &pages)
@@ -1318,6 +1321,31 @@ pub(crate) fn run() -> ExitCode {
             ocr_program::set_refuse_flag(refuse_ocr_programs);
             cmd_ocr_models(&ocr_folder, verify)
         }
+        Command::CoverageWarning {
+            input,
+            page,
+            scale,
+            tac,
+            rich_black,
+            region,
+            hide_ink,
+            output,
+        } => cmd_coverage_warning(&CoverageArgs {
+            input: &input,
+            page,
+            scale,
+            warning: match (tac, rich_black) {
+                (Some(limit_percent), _) => {
+                    pdfcer_render::CoverageWarning::TotalAreaCoverage { limit_percent }
+                }
+                (None, black) => pdfcer_render::CoverageWarning::RichBlack {
+                    black_start_percent: black.unwrap_or(100),
+                },
+            },
+            region: region.as_deref(),
+            hide_ink,
+            output: output.as_deref(),
+        }),
         Command::ListStandards { standard } => cmd_list_standards(standard.as_deref()),
         Command::Ocr {
             input,
@@ -1405,6 +1433,9 @@ pub(crate) fn run() -> ExitCode {
             no_overprint_preview,
             separation_preview,
             hide_ink,
+            soft_proof,
+            simulate_paper,
+            simulate_black_ink,
             markup_without_ap,
             free_text_c,
             widgets_without_ap,
@@ -1434,13 +1465,18 @@ pub(crate) fn run() -> ExitCode {
             invisible_text.map(|rgb| {
                 pdfcer_render::InvisibleTextPaint::new(rgb).with_only(invisible_text_only)
             }),
-            ViewerPreview::from_flags(no_overprint_preview, separation_preview, hide_ink)
-                .with_no_ap(markup_without_ap, widgets_without_ap)
-                .with_need_appearances(need_appearances)
-                .with_widget_state(widget_state)
-                .with_free_text_c(free_text_c)
-                .with_edges(edge_antialiasing, 72.0 * scale)
-                .with_preserve_cmyk(preserve_calibrated_cmyk),
+            match ViewerPreview::from_flags(no_overprint_preview, separation_preview, hide_ink)
+                .with_soft_proof(soft_proof.as_deref(), simulate_paper, simulate_black_ink)
+            {
+                Ok(preview) => preview,
+                Err(code) => return ExitCode::from(code),
+            }
+            .with_no_ap(markup_without_ap, widgets_without_ap)
+            .with_need_appearances(need_appearances)
+            .with_widget_state(widget_state)
+            .with_free_text_c(free_text_c)
+            .with_edges(edge_antialiasing, 72.0 * scale)
+            .with_preserve_cmyk(preserve_calibrated_cmyk),
             dynamic_xfa,
         ),
         Command::ExportImage {
@@ -1477,6 +1513,9 @@ pub(crate) fn run() -> ExitCode {
             no_overprint_preview,
             separation_preview,
             hide_ink,
+            soft_proof,
+            simulate_paper,
+            simulate_black_ink,
             markup_without_ap,
             free_text_c,
             widgets_without_ap,
@@ -1515,13 +1554,22 @@ pub(crate) fn run() -> ExitCode {
             emf_text,
             emf_plates: emf_plates || emf_plates_strict,
             emf_plates_strict,
-            preview: ViewerPreview::from_flags(no_overprint_preview, separation_preview, hide_ink)
-                .with_no_ap(markup_without_ap, widgets_without_ap)
-                .with_need_appearances(need_appearances)
-                .with_widget_state(widget_state)
-                .with_free_text_c(free_text_c)
-                .with_edges(edge_antialiasing, dpi)
-                .with_preserve_cmyk(preserve_calibrated_cmyk),
+            preview: match ViewerPreview::from_flags(
+                no_overprint_preview,
+                separation_preview,
+                hide_ink,
+            )
+            .with_soft_proof(soft_proof.as_deref(), simulate_paper, simulate_black_ink)
+            {
+                Ok(preview) => preview,
+                Err(code) => return ExitCode::from(code),
+            }
+            .with_no_ap(markup_without_ap, widgets_without_ap)
+            .with_need_appearances(need_appearances)
+            .with_widget_state(widget_state)
+            .with_free_text_c(free_text_c)
+            .with_edges(edge_antialiasing, dpi)
+            .with_preserve_cmyk(preserve_calibrated_cmyk),
         }),
         Command::CopyText {
             input,

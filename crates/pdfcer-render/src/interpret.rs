@@ -2580,7 +2580,12 @@ pub fn trace_paths(
         // merges. Sharing one counter across streams would double-count
         // whatever the merge already adds.
         hairline_capped: std::cell::Cell::new(0),
-        icc: crate::icc::IccBridgeCache::new(output_intent_profile(doc)),
+        icc: crate::icc::IccBridgeCache::new(
+            policy
+                .proof_destination
+                .cloned()
+                .or_else(|| output_intent_profile(doc)),
+        ),
         // Geometry only — `trace_paths` records paths and
         // composites nothing, so §11.3.4 cannot apply. Additive
         // is the value that changes no behaviour rather than a
@@ -2702,7 +2707,12 @@ fn run_nested(
         // merges. Sharing one counter across streams would double-count
         // whatever the merge already adds.
         hairline_capped: std::cell::Cell::new(0),
-        icc: crate::icc::IccBridgeCache::new(output_intent_profile(doc)),
+        icc: crate::icc::IccBridgeCache::new(
+            policy
+                .proof_destination
+                .cloned()
+                .or_else(|| output_intent_profile(doc)),
+        ),
         blend_space,
         path: PathBuilder::new(),
         subpixel_culling: policy.subpixel_culling,
@@ -2861,7 +2871,12 @@ pub(crate) fn run_form_at_on(
         // merges. Sharing one counter across streams would double-count
         // whatever the merge already adds.
         hairline_capped: std::cell::Cell::new(0),
-        icc: crate::icc::IccBridgeCache::new(output_intent_profile(doc)),
+        icc: crate::icc::IccBridgeCache::new(
+            policy
+                .proof_destination
+                .cloned()
+                .or_else(|| output_intent_profile(doc)),
+        ),
         // §12.5.5: an appearance stream with no `/Group` is a
         // NON-ISOLATED group, and a non-isolated group INHERITS
         // its blending space (Table 147's `/CS` row). This entry

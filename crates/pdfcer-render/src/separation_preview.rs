@@ -43,13 +43,19 @@ pub const PROCESS_INKS: [&str; 4] = ["Cyan", "Magenta", "Yellow", "Black"];
 pub struct SeparationPreview {
     /// Colorant names whose plates are left off.
     pub hidden: Vec<String>,
+    /// The CMYK output profile the preview is proofed against, or `None`
+    /// for the fixed process-ink model ([`crate::SoftProof`]).
+    pub soft_proof: Option<crate::SoftProof>,
 }
 
 impl SeparationPreview {
     /// Every plate shown.
     #[must_use]
     pub const fn new() -> Self {
-        Self { hidden: Vec::new() }
+        Self {
+            hidden: Vec::new(),
+            soft_proof: None,
+        }
     }
 
     /// Set the plates to leave off.
@@ -60,6 +66,13 @@ impl SeparationPreview {
         S: Into<String>,
     {
         self.hidden = names.into_iter().map(Into::into).collect();
+        self
+    }
+
+    /// Proof against `proof`, or stop proofing with `None`.
+    #[must_use]
+    pub fn with_soft_proof(mut self, proof: Option<crate::SoftProof>) -> Self {
+        self.soft_proof = proof;
         self
     }
 

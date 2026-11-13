@@ -2803,6 +2803,35 @@ impl CmykBuffer {
         Some(out)
     }
 
+    /// [`Self::to_srgb_over_white`] through a soft-proof transform: each
+    /// pixel's process ink converts through the proof profile, spot inks
+    /// fold in after, and the medium is the profile's own paper
+    /// (`[0, 0, 0, 0]` through the same transform).
+    pub(crate) fn to_proofed_srgb(
+        &self,
+        proof: &icccer_cmm::compiled::CompiledTransform,
+    ) -> Option<Pixmap> {
+        let mut out = Pixmap::new(self.width, self.height)?;
+        let paper = crate::SoftProof::to_srgb(proof, [0.0; 4]);
+        for (idx, slot) in out.pixels_mut().iter_mut().enumerate() {
+            let a = at(&self.alpha, idx).clamp(0.0, 1.0);
+            let ink = crate::SoftProof::to_srgb(proof, self.process_at(idx));
+            let rgb = self.fold_spots_srgb(idx, ink);
+            #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+            let [r, g, b] = std::array::from_fn::<u8, 3, _>(|i| {
+                let (ink, sheet) = (
+                    rgb.get(i).copied().unwrap_or_default(),
+                    paper.get(i).copied().unwrap_or_default(),
+                );
+                (a.mul_add(ink, (1.0 - a) * sheet).clamp(0.0, 1.0) * 255.0).round() as u8
+            });
+            if let Some(px) = tiny_skia::PremultipliedColorU8::from_rgba(r, g, b, 255) {
+                *slot = px;
+            }
+        }
+        Some(out)
+    }
+
     /// Collapse the group to sRGB **keeping its own alpha** — the
     /// [`Self::to_srgb_over_white`] conversion with §11.4.7's media
     /// composite left out (`Pass 248.0`, [`crate::PageBackdrop::Transparent`]).

@@ -230,6 +230,7 @@ pub(crate) mod cmyk_buffer;
 pub(crate) mod cmyk_paint;
 pub mod color;
 pub mod compositor;
+mod coverage_warning;
 pub(crate) mod device_clip;
 pub mod display_list;
 mod divergence;
@@ -251,10 +252,12 @@ pub(crate) mod minify;
 pub mod overprint;
 mod overprint_preview;
 pub mod page_budget;
+mod page_overprint;
 pub mod plates;
 pub mod profile;
 mod separation_preview;
 pub mod shading;
+mod soft_proof;
 mod supersample;
 pub mod svg;
 mod svg_text;
@@ -300,6 +303,7 @@ pub use annot::{
 // reading `diagnostics.color.tint_transform_not_applied` must be able to
 // name its type without knowing which module it lives in.
 pub use color::{ColorDiagnostics, ColorSpace, ColorState, Colorant, DeviceSpace};
+pub use coverage_warning::{CoverageMask, CoverageWarning, coverage_warning_mask};
 pub use display_list::{
     BAND_ROW_LATTICE, BandBlocker, ClipId, DisplayList, DisplayListKey, ExportTally,
     MAX_DISPLAY_LIST_BYTES, PoisonReason, record_page,
@@ -312,8 +316,10 @@ pub use interpret::{BlendSpaceFrom, Diagnostics};
 pub use invisible_text::InvisibleTextPaint;
 pub use layer_state::LayerVisibility;
 pub use overprint_preview::OverprintPreview;
+pub use page_overprint::{PageOverprint, page_overprint};
 pub use separation_preview::{PROCESS_INKS, SeparationPreview};
 pub use shading::{ColorRamp, Geometry, PaintRoute, Shading, ShadingDiagnostics, ShadingFunction};
+pub use soft_proof::{MAX_SOFT_PROOF_PROFILE_BYTES, SoftProof, SoftProofError};
 pub use visual_compare::{
     INSERTED_PAGE_NOTE, PageMatch, PagePair, VisualCompareError, VisualCompareOptions,
     VisualCompareReport, VisualRegion, visual_compare,
@@ -1347,6 +1353,13 @@ fn collapse_ink(
         diagnostics.inks = buffer.ink_names();
         (diagnostics.inks_hidden, diagnostics.inks_unmatched) = buffer.hide_inks(&preview.hidden);
     }
+    if let Some(warning) = options.coverage_warning {
+        if let Some(mask) = coverage_warning::mask_pixmap(&buffer, warning) {
+            *pixmap = mask;
+        }
+        diagnostics.ink_probe = probe_cmyk;
+        return;
+    }
     // §11.4.7's media composite, or — for an export that keeps the
     // page's transparency (`Pass 248.0`) — the same conversion with the
     // group's own alpha carried through instead of resolved against
@@ -1354,9 +1367,15 @@ fn collapse_ink(
     // the transparent one must never contain the `1 − a` term and a
     // shared body with a branch inside its pixel loop is where that
     // term would creep back in.
-    let collapsed = match options.effective_backdrop() {
-        PageBackdrop::White => buffer.to_srgb_over_white(),
-        PageBackdrop::Transparent => buffer.to_srgb_transparent(),
+    let proof = options
+        .separation_preview
+        .as_ref()
+        .and_then(|p| p.soft_proof.as_ref())
+        .and_then(soft_proof::SoftProof::transform);
+    let collapsed = match (options.effective_backdrop(), proof) {
+        (PageBackdrop::White, Some(proof)) => buffer.to_proofed_srgb(proof),
+        (PageBackdrop::White, None) => buffer.to_srgb_over_white(),
+        (PageBackdrop::Transparent, _) => buffer.to_srgb_transparent(),
     };
     if let Some(collapsed) = collapsed {
         *pixmap = collapsed;

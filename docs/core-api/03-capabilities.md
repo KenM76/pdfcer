@@ -4220,6 +4220,70 @@ transform's for that ink). A display aid; print and export leave it
 `None`. CLI: `render-page` / `export-image --separation-preview` and
 `--hide-ink NAME` (repeatable, implies the preview); notes go to stderr.
 
+**Soft proof** (`pdfcer_render::SoftProof`, request X079) — the separation
+preview shown as a chosen CMYK output profile prints it.
+`SeparationPreview::with_soft_proof(Option<SoftProof>)`; `None` (default) is
+the fixed process-ink model. `SoftProof::from_bytes(impl Into<Arc<[u8]>>) ->
+Result<SoftProof, SoftProofError>` is also the validator a settings panel
+calls: it refuses `TooLarge { bytes }` (past `MAX_SOFT_PROOF_PROFILE_BYTES`,
+16 MiB), `Unreadable(String)`, `NotCmyk { found }`, `NotOutput { found }`
+(class not `prtr`) and `NoTransform(String)`; every message is a sentence the
+UI can show as it is. List candidate profiles with
+`pdfcer_print::icc_profiles::installed_profiles()` / `is_proof_source`.
+The profile replaces the output intent as the destination non-CMYK colour
+separates into, and the composited process ink converts to sRGB through it.
+Spot inks are not proofed (they fold in after, as unproofed). Switches,
+`with_paper_colour(bool)` and `with_black_ink(bool)`:
+
+| switches | intent (ICC.1:2022 §6.2) | black point compensation |
+|---|---|---|
+| neither | media-relative | on (ISO 18619) |
+| black ink | media-relative | off |
+| paper colour (implies black ink) | ICC-absolute | off |
+
+`simulates_paper_colour()`, `simulates_black_ink()` (true when paper is on)
+and `profile()` read them back. ★ **Disclose `compensates_black() == false`:**
+the colour engine cannot estimate the source black of a LUT-based profile at
+media-relative intent, so "neither" then renders exactly as "black ink".
+Clones share the compiled transforms (17⁴ grid, compiled once per mode on
+first use), so keep one value and change only the switches. Eq/Hash compare
+profile bytes and switches. CLI: `render-page` / `export-image
+--soft-proof ICC [--simulate-paper] [--simulate-black-ink]` (both switches
+require `--soft-proof`; a refusal exits 9; the compensation note goes to
+stderr).
+
+**Coverage warnings** (`pdfcer_render::coverage_warning_mask`, request X081)
+— Output Preview's *Total area coverage* and *Rich black* as a per-pixel
+mask. `coverage_warning_mask(&view, &page, scale, region: Option<Rect>,
+&RenderOptions, CoverageWarning) -> Result<CoverageMask, RenderError>`
+renders in ink under `options`' separation preview (all inks shown when it
+has none), so the mask lines up pixel for pixel with the preview raster at
+the same scale and region. `CoverageWarning` (`#[non_exhaustive]`):
+`TotalAreaCoverage { limit_percent: u16 }` flags a sum of every plate (C, M,
+Y, K and each spot) **strictly above** the limit; `RichBlack {
+black_start_percent: u16 }` flags K at or above the start with any C, M or
+Y of 0.1% or more — spot inks never make black rich. Ink is read as it lands
+on the sheet (tint × page-group alpha after overprint, transparency and
+spots); hidden plates count as no ink; every tint compares in tenths of a
+percent, rounded. `flags(process, spots)` is the per-pixel rule for a caller
+with its own ink values. `CoverageMask { width, height, mask: Vec<u8>
+(1 = flagged, row-major), flagged: u64 }`, `is_flagged(x, y)`. Edges are not
+antialiased. CLI: `pdfcer coverage-warning FILE (--tac P | --rich-black P)
+[--page N] [--scale S] [--region ...] [--hide-ink NAME]... [-o mask.png]`
+prints `coverage-warning page=N rule=tac:P flagged=.. of=.. percent=..`.
+
+**Page overprint** (`pdfcer_render::page_overprint`, request X080) —
+`page_overprint(&view, &page, &RenderOptions) -> Result<PageOverprint,
+RenderError>`, or `PageOverprint::from_diagnostics(&Diagnostics)` from a
+render the shell already made. `PageOverprint { set, takes_effect }`
+(`#[non_exhaustive]`, Default): `set` is Acrobat's "Page has overprint" (a
+graphics state with `/OP` or `/op` true was selected, ISO 32000-2 §8.6.7);
+`takes_effect` means a paint under overprint left some colorant to the
+backdrop that a knockout would erase (Table 149) — `DeviceCMYK` at `/OPM 0`
+over process ink alone is set but has no effect. Read `takes_effect` from a
+render that simulates overprint; an error means unknown, never "no". CLI:
+`pdfcer inspect FILE --overprint`.
+
 **Separation plates** (`pdfcer_render::plates`, request G242) — the page as
 one grey plate per ink, what `pdfcer print --separations` prints.
 `render_plates(&view, &page, scale, &RenderOptions) -> Result<Plates,

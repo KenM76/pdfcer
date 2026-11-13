@@ -864,6 +864,9 @@ pub struct RenderOptions {
     /// Composite in ink and leave the named plates off, or `None` for a
     /// normal render. See [`crate::SeparationPreview`].
     pub separation_preview: Option<crate::SeparationPreview>,
+    /// Set only by [`crate::coverage_warning_mask`]: collapse the colorant
+    /// buffer to that rule's mask instead of to colour.
+    pub(crate) coverage_warning: Option<crate::CoverageWarning>,
 }
 
 /// The medium a finished page group is composited onto — §11.4.7's
@@ -1070,6 +1073,10 @@ pub struct RenderPolicy<'a> {
     pub overprint_preview: crate::OverprintPreview,
     /// See [`RenderOptions::widgets_without_ap`].
     pub widgets_without_ap: crate::WidgetsWithoutAp,
+    /// The separation preview's soft-proof profile, when there is one: the
+    /// destination non-CMYK colour separates into, in place of the output
+    /// intent ([`crate::SoftProof`]).
+    pub proof_destination: Option<&'a std::sync::Arc<[u8]>>,
     /// See [`RenderOptions::need_appearances`].
     pub need_appearances: crate::NeedAppearances,
     /// See [`RenderOptions::field_highlight`].
@@ -1339,6 +1346,7 @@ impl Default for RenderOptions {
             free_text_c: crate::FreeTextC::Fill,
             overprint_preview: crate::OverprintPreview::Simulate,
             separation_preview: None,
+            coverage_warning: None,
         }
     }
 }
@@ -1887,6 +1895,13 @@ impl RenderOptions {
             invisible_text: self.invisible_text,
             overprint_preview: self.overprint_preview,
             widgets_without_ap: self.widgets_without_ap,
+            proof_destination: match &self.separation_preview {
+                Some(crate::SeparationPreview {
+                    soft_proof: Some(proof),
+                    ..
+                }) => Some(proof.profile()),
+                _ => None,
+            },
             need_appearances: self.need_appearances,
             field_highlight: self.field_highlight,
             widget_state: self.widget_state,
@@ -2016,6 +2031,7 @@ mod render_policy_tests {
                 overprint_preview: crate::OverprintPreview::Off,
                 // NOT the default (`Draw`).
                 widgets_without_ap: crate::WidgetsWithoutAp::Blank,
+                proof_destination: None,
                 // NOT the default (`Honour`).
                 need_appearances: crate::NeedAppearances::AsStored,
                 // NOT the default (`None`).

@@ -611,6 +611,19 @@ pub(crate) enum Command {
         /// `render-page` would do.
         #[arg(long)]
         ink: bool,
+        /// Report, per page, whether it uses overprint:
+        /// `page=N overprint=set|none effect=0|1`.
+        ///
+        /// `overprint=set` matches Acrobat's "Page has overprint": a graphics
+        /// state turning overprint on was selected while the page was drawn
+        /// (its content, forms, patterns and annotation appearances).
+        /// `effect=1` is stricter: something painted under overprint left an
+        /// ink below it showing, so the page prints differently if overprint
+        /// is ignored. `DeviceCMYK` overprint at `/OPM 0` over process inks
+        /// alone is `set` with `effect=0`. Draws each page once at low
+        /// resolution. Honours `--pages`; exits 1 if a page cannot be drawn.
+        #[arg(long)]
+        overprint: bool,
     },
 
     /// Merge several PDFs into one, in argument order.
@@ -5111,6 +5124,56 @@ pub(crate) enum Command {
         #[arg(long)]
         verify: bool,
     },
+    /// **Show where a page breaks an ink coverage limit**: total area
+    /// coverage above a percentage, or rich black.
+    ///
+    /// Renders the page in ink, as `render-page --separation-preview` does,
+    /// and flags each pixel whose inks as they land on the sheet (after
+    /// overprint, transparency and spot inks) break the rule:
+    ///
+    /// - `--tac P`: the sum of every plate (C, M, Y, K and each spot ink)
+    ///   is above P percent; exactly P is not flagged.
+    /// - `--rich-black P`: black is at least P percent and cyan, magenta or
+    ///   yellow is present (0.1% or more). Spot inks never make black rich.
+    ///
+    /// Tints are compared in tenths of a percent, rounded. A plate left off
+    /// with `--hide-ink` counts as no ink. Prints
+    /// `coverage-warning page=N rule=… flagged=PIXELS of=PIXELS percent=…`;
+    /// `-o` also writes the mask as a PNG, white where flagged and black
+    /// elsewhere, the same size as `render-page` at the same scale. Edges
+    /// are not antialiased.
+    CoverageWarning {
+        /// Input PDF.
+        input: PathBuf,
+        /// 1-based page number.
+        #[arg(long, default_value_t = 1)]
+        page: u32,
+        /// Device pixels per PDF unit (1.0 = 72 DPI).
+        #[arg(long, default_value_t = 1.0)]
+        scale: f32,
+        /// Flag total area coverage above this percentage.
+        #[arg(
+            long,
+            value_name = "PERCENT",
+            conflicts_with = "rich_black",
+            required_unless_present = "rich_black"
+        )]
+        tac: Option<u16>,
+        /// Flag rich black: black at or above this percentage with any
+        /// cyan, magenta or yellow.
+        #[arg(long, value_name = "PERCENT")]
+        rich_black: Option<u16>,
+        /// Only this part of the page, as `x0,y0,x1,y1` in PDF units (the
+        /// same as `render-page --region`).
+        #[arg(long, value_name = "X0,Y0,X1,Y1")]
+        region: Option<String>,
+        /// Leave this ink's plate off (repeatable); its ink counts as none.
+        #[arg(long, value_name = "NAME")]
+        hide_ink: Vec<String>,
+        /// Also write the mask as a PNG here.
+        #[arg(long, short)]
+        output: Option<PathBuf>,
+    },
     /// **List the rendering presets** pdfcer holds for the PDF subset
     /// standards (PDF/X, PDF/A, PDF/UA), and what each one would set.
     ///
@@ -5868,6 +5931,21 @@ pub(crate) enum Command {
         /// them; the process inks are Cyan, Magenta, Yellow and Black.
         #[arg(long, value_name = "NAME")]
         hide_ink: Vec<String>,
+        /// Show the ink as this CMYK output (printer) ICC profile prints it
+        /// (implies --separation-preview). Colour that is not CMYK separates
+        /// into this profile's ink; spot inks are shown as without it. A
+        /// profile that is not a CMYK output profile is refused. If black
+        /// point compensation cannot be applied to it, stderr says so.
+        #[arg(long, value_name = "ICC")]
+        soft_proof: Option<PathBuf>,
+        /// With --soft-proof: show the paper's white as the profile measured
+        /// it (absolute colorimetric). Implies --simulate-black-ink.
+        #[arg(long, requires = "soft_proof")]
+        simulate_paper: bool,
+        /// With --soft-proof: show the press's black as the profile measured
+        /// it, without black point compensation.
+        #[arg(long, requires = "soft_proof")]
+        simulate_black_ink: bool,
         /// What to show for a markup annotation (Ink, Highlight, Underline,
         /// StrikeOut, Squiggly, Square, Circle, Polygon, PolyLine, Line,
         /// FreeText)
@@ -6148,6 +6226,21 @@ pub(crate) enum Command {
         /// them; the process inks are Cyan, Magenta, Yellow and Black.
         #[arg(long, value_name = "NAME")]
         hide_ink: Vec<String>,
+        /// Show the ink as this CMYK output (printer) ICC profile prints it
+        /// (implies --separation-preview). Colour that is not CMYK separates
+        /// into this profile's ink; spot inks are shown as without it. A
+        /// profile that is not a CMYK output profile is refused. If black
+        /// point compensation cannot be applied to it, stderr says so.
+        #[arg(long, value_name = "ICC")]
+        soft_proof: Option<PathBuf>,
+        /// With --soft-proof: show the paper's white as the profile measured
+        /// it (absolute colorimetric). Implies --simulate-black-ink.
+        #[arg(long, requires = "soft_proof")]
+        simulate_paper: bool,
+        /// With --soft-proof: show the press's black as the profile measured
+        /// it, without black point compensation.
+        #[arg(long, requires = "soft_proof")]
+        simulate_black_ink: bool,
         /// What to show for a markup annotation (Ink, Highlight, Underline,
         /// StrikeOut, Squiggly, Square, Circle, Polygon, PolyLine, Line,
         /// FreeText)
