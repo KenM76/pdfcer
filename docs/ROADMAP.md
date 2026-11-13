@@ -112,6 +112,19 @@ wherever it appears.*
 
 ## Shipped
 
+### `5320a2a5` `v0.149.0` PUBLISHED, 2026-11-13 (1560th filing)
+
+Engineer-reported measurements; no shell here, nothing checked from here. Bump `4224a9c2`, filed by `5320a2a5` (1559th). Annotated tag `v0.149.0` is on `5320a2a5`, pushed; CI green at that commit.
+- **Carries:** `Pass 711.0` (`X082` rich black at a 0% start needs some black, `2efcc8c5`).
+- **Smoke:** fresh-folder smoke test passed: `pdfcer --version` reports 0.149.0, revision `v0.149.0`, icccer 0.4.2; `inspect` and `coverage-warning --rich-black 0` ran on a fixture.
+- **GitHub release:** 8 assets: `pdfcer-v0.149.0-windows-x64.zip`, `ocr-addon-ocrcer.zip`, `ocr-addon-ocrs.zip`, `ocr-addon-tesseract.zip`, each with a `.sha256`; all uploaded at their local sizes.
+- **OneDrive:** wrote `pdfcer2` (86,611,929 bytes); `pdfcer1` keeps 0.148.0; the next release writes `pdfcer1`.
+- **crates.io:** the 16 crates (model, color, pkix, vec3, json, jpeg-remux, 3d, 3d-nav, image-codec, fonts, function, text, core, render, flatten, emf) are PUBLISHING at 0.149.0; completion not confirmed at filing time.
+- **Channel:** notice `open/notice_2026-11-13_release_v0.149.0.md` sent to `D:\Dev\FeatureRequests\pdfce_FeatureRequests`.
+- **verify-release.py v0.149.0:** all checks pass except "working tree clean" (untracked local files, expected).
+- **Print parity (newest measurement, `Pass 700.18` / `700.23`):** `tools/print-parity-report.py` at default flags on the 0.148.0 build, the licensed print test file: all 6 pages take the vector route with 0 unrecorded patches; pages 2-6 meet the close condition; page 1 is NOT MET on 2 `shading` vector-gap patches (the type-7 mesh). Recorded under both Passes in *Next up*/Backlog notes.
+- **FEATURES:** no row change. The `Engine crates on crates.io` row still reads 0.147.0 (it was not advanced at 0.148.0 either); left for a filing that confirms crates.io completion. Supersedes the "NOT yet published" status of the `4224a9c2` note below.
+
 ### `4224a9c2` `chore(release): v0.149.0`, 2026-11-13: version bump filed, release NOT yet published (1559th filing)
 
 Engineer-reported; no shell here, git, tag, push, CI, crates.io and backup state not checked from here. `4224a9c2` on `main` bumps the workspace version and every `pdfcer-*` workspace dependency from 0.148.0 to 0.149.0 in `Cargo.toml` (17 strings), plus `cargo update -w` in the root and in `fuzz/`; `Cargo.lock` and `fuzz/Cargo.lock` changed for the workspace crates only. No code change, no dependency change.
@@ -27153,6 +27166,7 @@ closes out the *prior* filing's business rather than opening this one's.
 > - **Still open (1543rd):** the ink/overprint route does not handle type 1 (falls back to sRGB); `/Background` not painted for type 1 pattern fills (consistent with types 2-3).
 > - **(c) `--tight-mask-patches` measured at 300 and 600 dpi** (`700.24`'s open item): bitmap area falls about 0.4 points on most pages (p3 12.58 to 9.99 at 300, 12.31 to 9.79 at 600); share of pixels off by more than 8 rises slightly (up to 0.2 points, p3); vector-gap patches unchanged (12/8/0/4/3/2). **Decision: the flag stays opt-in**; the parity loss is not a 150 dpi artefact.
 > - FEATURES: type 1 row ticked core+cli (gui unproven); the *Planned* `700.23` row narrowed to the unrecorded-patch remainder.
+> - **Newest parity measurement (1560th filing, 2026-11-13; `700.18` and `700.23`).** `tools/print-parity-report.py`, default flags, 0.148.0 build, the licensed print test file: all 6 pages take the vector route, 0 unrecorded patches; pages 2-6 meet the close condition; page 1 NOT MET on 2 `shading` vector-gap patches (the type-7 mesh). So the only `700.23` remainder with a measured instance is mesh banding for type 4-7 shadings; `700.18` closes when page 1 does.
 
 > **`Pass 700.24`: SHIPPED as an opt-in option (1542nd filing), `a0205bb0`; see its *Shipped* entry.** Open items (the `print` route not wired; parity worse at 150 dpi, possibly a measurement artefact) are recorded there.
 

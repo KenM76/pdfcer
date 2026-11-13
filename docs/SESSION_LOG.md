@@ -4,6 +4,18 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-11-13 (1560th filing) — `v0.149.0` PUBLISHED
+
+**Filed (engineer-reported; no shell here, nothing checked from here):**
+- Tag `v0.149.0` on `5320a2a5` (the 1559th filing commit), CI green at that commit. Carries `Pass 711.0` (`X082`, `2efcc8c5`).
+- GitHub release: 8 assets (4 zips, each with `.sha256`), all uploaded at local sizes. Fresh-folder smoke: `--version` 0.149.0 / `v0.149.0` / icccer 0.4.2; `inspect` and `coverage-warning --rich-black 0` ran on a fixture.
+- OneDrive `pdfcer2` written (86,611,929 bytes); `pdfcer1` keeps 0.148.0; next release writes `pdfcer1`.
+- crates.io: 16 crates PUBLISHING at 0.149.0 (completion not confirmed at filing).
+- GUI-channel notice `open/notice_2026-11-13_release_v0.149.0.md` sent. `verify-release.py v0.149.0` passes except the dirty-tree check (untracked local files), accepted.
+- Print parity, newest measurement (`tools/print-parity-report.py`, default flags, 0.148.0 build, the licensed print test file): 6 of 6 pages vector, 0 unrecorded patches; pages 2-6 meet the close condition; page 1 NOT MET on 2 `shading` vector-gap patches (type-7 mesh). Noted under `Pass 700.18` / `700.23`.
+
+**Open:** crates.io completion to be confirmed; `700.23` mesh-banding remainder (page 1). ROADMAP: new Shipped entry + one note in the `700.23` block. FEATURES: no change (the crates.io row still says 0.147.0, stale since 0.148.0; flagged). No decision, no rule.
+
 ## 2026-11-13 (1559th filing) — `4224a9c2` `v0.149.0` version bump (not yet published)
 
 **Filed (engineer-reported; no shell here, nothing checked from here):**
