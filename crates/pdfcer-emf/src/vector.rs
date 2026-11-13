@@ -31,10 +31,11 @@ use pdfcer_render::writer_seam::{DeviceBounds, ExportRecording, Op, SiteCause, U
 use tiny_skia::{BlendMode, FillRule, Transform};
 
 use crate::painted;
-use crate::patch::within;
+use crate::patch::{harvested_shadings, within};
 use crate::vector_census::{Cause, EmfNotFlat};
 use crate::vector_geom::{self, Clips};
 
+mod bands;
 mod mask;
 mod spots;
 
@@ -215,6 +216,11 @@ impl Model<'_> {
 
     fn element(&mut self, op: &Op, out: &mut Vec<Element>) -> Result<(), Cause> {
         match op {
+            Op::Fill { brush, .. } | Op::Stroke { brush, .. }
+                if !matches!(brush.brush, Brush::Solid { .. }) =>
+            {
+                self.shaded(op, out)?;
+            }
             Op::Fill {
                 path,
                 brush,
@@ -654,6 +660,22 @@ fn splice(rec: &mut ExportRecording, boxes: &[DeviceBounds], replaced: Vec<Optio
         !(matches!(s.cause, SiteCause::Overprint | SiteCause::NonIsolatedGroup)
             && done.iter().any(|d| within(s.bounds, *d)))
     });
+    // A harvested shading banded into flat fills is no longer rasterised.
+    let banded: u32 = rec
+        .ops
+        .iter()
+        .zip(&replaced)
+        .filter_map(|(op, r)| {
+            let fills = r.as_ref()?;
+            let after: u32 = fills
+                .iter()
+                .map(|f| harvested_shadings(f, &rec.shadings))
+                .sum();
+            Some(harvested_shadings(op, &rec.shadings).saturating_sub(after))
+        })
+        .sum();
+    let t = &mut rec.tally;
+    t.shadings_rasterised = t.shadings_rasterised.saturating_sub(banded);
     let ops = std::mem::take(&mut rec.ops);
     for (op, r) in ops.into_iter().zip(replaced) {
         match r {

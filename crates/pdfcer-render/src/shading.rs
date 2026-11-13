@@ -778,7 +778,24 @@ pub struct GradientSpec {
     pub transform: tiny_skia::Transform,
     /// The constant alpha in force (`/ca`), `0..=1`.
     pub alpha: f32,
+    /// For a ramp in process CMYK, the authored ink at
+    /// [`GRADIENT_SAMPLES`]` + 1` evenly spaced offsets `0..=1`, unthinned
+    /// ([`ColorRamp::at_cmyk`]); `None` otherwise. An ink-page writer
+    /// paints from this rather than from the sRGB [`Self::stops`].
+    pub cmyk: Option<Vec<(f32, [f32; 4])>>,
+    /// Whether the ramp's space names a spot colorant, whose ink a
+    /// process-only paint cannot carry.
+    pub spot: bool,
+    /// Whether overprint was in force for the paint (`/OP` or `/op`); the
+    /// caller sets it, [`Shading::gradient_spec`] leaves it `false`.
+    pub overprint: bool,
+    /// The blend mode in force; the caller sets it,
+    /// [`Shading::gradient_spec`] leaves it `SourceOver`.
+    pub blend: tiny_skia::BlendMode,
 }
+
+/// Intervals [`Shading::gradient_spec`] samples its ramp at.
+pub const GRADIENT_SAMPLES: usize = 64;
 
 /// The geometry half of a [`GradientSpec`].
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -1176,8 +1193,39 @@ impl Shading {
         if !ramp.is_complete() {
             return None;
         }
-        let (kind, extend, reversed) = match self.geometry {
-            Geometry::Axial { coords, extend, .. } => (
+        let (kind, extend, reversed) = self.gradient_geometry()?;
+        let [t0, t1] = ramp.domain();
+        let mut raw: Vec<(f32, [u8; 3])> = Vec::with_capacity(GRADIENT_SAMPLES + 1);
+        let mut cmyk = Vec::with_capacity(GRADIENT_SAMPLES + 1);
+        for i in 0..=GRADIENT_SAMPLES {
+            #[allow(clippy::cast_precision_loss)]
+            let u = i as f32 / GRADIENT_SAMPLES as f32;
+            let along = if reversed { 1.0 - u } else { u };
+            let t = t0 + along * (t1 - t0);
+            let c = ramp.at(t)?;
+            #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+            let q = |v: f32| (v.clamp(0.0, 1.0) * 255.0).round() as u8;
+            raw.push((u, [q(c.r), q(c.g), q(c.b)]));
+            cmyk.push(ramp.at_cmyk(t).map(|k| (u, k)));
+        }
+        Some(GradientSpec {
+            kind,
+            stops: thin_stops(&raw)?,
+            extend,
+            transform,
+            alpha: alpha.clamp(0.0, 1.0),
+            cmyk: cmyk.into_iter().collect(),
+            spot: !self.spot_colorants().is_empty(),
+            overprint: false,
+            blend: tiny_skia::BlendMode::SourceOver,
+        })
+    }
+
+    /// The gradient geometry of an axial or focal radial shading, its
+    /// `/Extend`, and whether the ramp runs backwards.
+    fn gradient_geometry(&self) -> Option<(GradientKind, [bool; 2], bool)> {
+        match self.geometry {
+            Geometry::Axial { coords, extend, .. } => Some((
                 GradientKind::Linear {
                     x0: coords[0],
                     y0: coords[1],
@@ -1186,11 +1234,11 @@ impl Shading {
                 },
                 extend,
                 false,
-            ),
+            )),
             Geometry::Radial { coords, extend, .. } => {
                 let [x0, y0, r0, x1, y1, r1] = coords;
                 if r0.abs() < 1e-6 && r1 > 0.0 {
-                    (
+                    Some((
                         GradientKind::Radial {
                             cx: x1,
                             cy: y1,
@@ -1200,11 +1248,11 @@ impl Shading {
                         },
                         extend,
                         false,
-                    )
+                    ))
                 } else if r1.abs() < 1e-6 && r0 > 0.0 {
                     // Circle 1 is the point: run the ramp backwards so the
                     // focal point is still `t = 0` of the SVG gradient.
-                    (
+                    Some((
                         GradientKind::Radial {
                             cx: x0,
                             cy: y0,
@@ -1214,57 +1262,13 @@ impl Shading {
                         },
                         [extend[1], extend[0]],
                         true,
-                    )
+                    ))
                 } else {
-                    return None;
+                    None
                 }
             }
-            Geometry::FunctionBased { .. } | Geometry::Mesh { .. } => return None,
-        };
-        let [t0, t1] = ramp.domain();
-        const N: usize = 64;
-        let mut raw: Vec<(f32, [u8; 3])> = Vec::with_capacity(N + 1);
-        for i in 0..=N {
-            #[allow(clippy::cast_precision_loss)]
-            let u = i as f32 / N as f32;
-            let t = if reversed { 1.0 - u } else { u };
-            let c = ramp.at(t0 + t * (t1 - t0))?;
-            #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
-            let q = |v: f32| (v.clamp(0.0, 1.0) * 255.0).round() as u8;
-            raw.push((u, [q(c.r), q(c.g), q(c.b)]));
+            Geometry::FunctionBased { .. } | Geometry::Mesh { .. } => None,
         }
-        // Thin: keep the ends and every interior stop that is not the
-        // linear interpolation of its kept predecessor and its successor.
-        let (&first, &last) = (raw.first()?, raw.last()?);
-        let mut stops: Vec<(f32, [u8; 3])> = vec![first];
-        for pair in raw.windows(2).skip(1) {
-            let &[(u, c), (ub, cb)] = pair else {
-                continue;
-            };
-            let (ua, ca) = *stops.last().unwrap_or(&first);
-            let f = if (ub - ua).abs() < f32::EPSILON {
-                0.0
-            } else {
-                (u - ua) / (ub - ua)
-            };
-            let lerp = |a: u8, b: u8| f32::from(a) + (f32::from(b) - f32::from(a)) * f;
-            let off = ca
-                .iter()
-                .zip(&cb)
-                .zip(&c)
-                .any(|((&a, &b), &v)| (lerp(a, b) - f32::from(v)).abs() > 1.0);
-            if off {
-                stops.push((u, c));
-            }
-        }
-        stops.push(last);
-        Some(GradientSpec {
-            kind,
-            stops,
-            extend,
-            transform,
-            alpha: alpha.clamp(0.0, 1.0),
-        })
     }
 
     /// Whether pdfcer can paint this shading.
@@ -1291,6 +1295,36 @@ impl Shading {
         }
         self.grid.is_some() || (self.geometry.is_analytic() && self.ramp.is_some())
     }
+}
+
+/// `raw` thinned to its ends and every interior stop that is not, within
+/// one level, the linear interpolation of its kept predecessor and its
+/// successor.
+fn thin_stops(raw: &[(f32, [u8; 3])]) -> Option<Vec<(f32, [u8; 3])>> {
+    let (&first, &last) = (raw.first()?, raw.last()?);
+    let mut stops: Vec<(f32, [u8; 3])> = vec![first];
+    for pair in raw.windows(2).skip(1) {
+        let &[(u, c), (ub, cb)] = pair else {
+            continue;
+        };
+        let (ua, ca) = *stops.last().unwrap_or(&first);
+        let f = if (ub - ua).abs() < f32::EPSILON {
+            0.0
+        } else {
+            (u - ua) / (ub - ua)
+        };
+        let lerp = |a: u8, b: u8| f32::from(a) + (f32::from(b) - f32::from(a)) * f;
+        let off = ca
+            .iter()
+            .zip(&cb)
+            .zip(&c)
+            .any(|((&a, &b), &v)| (lerp(a, b) - f32::from(v)).abs() > 1.0);
+        if off {
+            stops.push((u, c));
+        }
+    }
+    stops.push(last);
+    Some(stops)
 }
 
 /// Load `/Function` in either §8.7.4.4 shape.

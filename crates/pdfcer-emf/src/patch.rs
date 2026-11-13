@@ -191,7 +191,7 @@ fn reach(op: &Op, page: (u32, u32), tight: bool) -> Option<DeviceBounds> {
 
 /// Shadings in `op` the recorder harvested as image ops (each counted in
 /// `ExportTally::shadings_rasterised`).
-fn harvested_shadings(op: &Op, shadings: &[(Arc<Pixmap>, ShadingSource)]) -> u32 {
+pub(crate) fn harvested_shadings(op: &Op, shadings: &[(Arc<Pixmap>, ShadingSource)]) -> u32 {
     match op {
         Op::Fill { brush, .. } | Op::Stroke { brush, .. } => match &brush.brush {
             Brush::Image { texels, .. } => {

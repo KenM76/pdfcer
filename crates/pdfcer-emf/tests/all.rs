@@ -11,6 +11,7 @@ mod export_emf_mask;
 mod export_emf_mask_split;
 mod export_emf_patches;
 mod export_emf_shading;
+mod export_emf_shading_bands;
 mod export_emf_spot;
 mod export_emf_vector;
 mod external_tools;

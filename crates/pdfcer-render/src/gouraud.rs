@@ -42,7 +42,10 @@ use std::sync::Arc;
 
 use tiny_skia::{FillRule, Path, Transform};
 
+mod bands;
 mod mesh;
+
+pub use bands::{BAND_STEP, Bands, FlatBand, band, band_gradient};
 
 use crate::mesh::map;
 use crate::shading::{ColorRamp, Geometry, GradientKind, GradientSpec, RAMP_SAMPLES, Shading};
@@ -82,6 +85,10 @@ pub struct ShadingSource {
     pub area: Option<(Arc<Path>, FillRule)>,
     /// The constant alpha in force.
     pub alpha: f32,
+    /// Whether overprint was in force for the paint; set by the caller.
+    pub overprint: bool,
+    /// The blend mode in force; set by the caller.
+    pub blend: tiny_skia::BlendMode,
 }
 
 impl ShadingSource {
@@ -100,6 +107,8 @@ impl ShadingSource {
             region,
             area,
             alpha,
+            overprint: false,
+            blend: tiny_skia::BlendMode::SourceOver,
         }
     }
 
@@ -642,14 +651,6 @@ fn radial(
     max: usize,
 ) -> Result<Gouraud, Decline> {
     let circles = Circles(coords);
-    let [_, _, r0, _, _, r1] = coords;
-    let mut out = Gouraud::default();
-    if r0 < 0.0 || r1 < 0.0 {
-        return Err(Decline::Unpaintable);
-    }
-    if r0 <= 0.0 && r1 <= 0.0 {
-        return Ok(out);
-    }
     // Device pixels a point moves per unit `s` where the circles crowd: no
     // band is thinner than MIN_BAND_PX there.
     let least = (circles.least_step() * frame.min_scale()).max(1.0);
@@ -658,7 +659,34 @@ fn radial(
     } else {
         knots
     };
-    let knots = thin(&knots, MIN_BAND_PX / least);
+    rings(
+        coords,
+        extend,
+        &thin(&knots, MIN_BAND_PX / least),
+        frame,
+        max,
+    )
+}
+
+/// [`radial`]'s rings for `knots` as given. The flat-band route keeps knots
+/// [`thin`] would merge where the circles crowd: a flat band has no
+/// interpolation to hide the wider step on the far side.
+fn rings(
+    coords: [f32; 6],
+    extend: [bool; 2],
+    knots: &[Knot],
+    frame: &Frame,
+    max: usize,
+) -> Result<Gouraud, Decline> {
+    let circles = Circles(coords);
+    let [_, _, r0, _, _, r1] = coords;
+    let mut out = Gouraud::default();
+    if r0 < 0.0 || r1 < 0.0 {
+        return Err(Decline::Unpaintable);
+    }
+    if r0 <= 0.0 && r1 <= 0.0 {
+        return Ok(out);
+    }
     let (Some(&(_, c0)), Some(&(_, c1))) = (knots.first(), knots.last()) else {
         return Ok(out);
     };
@@ -673,7 +701,7 @@ fn radial(
             bands.push((lo, 0.0, c0, c0));
         }
     }
-    bands.extend(bands_within(&knots, 0.0, 1.0));
+    bands.extend(bands_within(knots, 0.0, 1.0));
     if extend[1] {
         let hi = circles
             .extend_to(1.0, 1.0, frame, cos_n)

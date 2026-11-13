@@ -518,7 +518,6 @@ fn pdfcer-render/src/mesh.rs::parse_type4
 fn pdfcer-render/src/mesh.rs::rasterise
 fn pdfcer-render/src/overprint.rs::classify
 fn pdfcer-render/src/overprint.rs::compatible_overprint_cmyk
-fn pdfcer-render/src/shading.rs::gradient_spec
 fn pdfcer-render/src/shading.rs::load
 fn pdfcer-render/src/svg.rs::write_fill
 fn pdfcer-render/src/text.rs::load_composite

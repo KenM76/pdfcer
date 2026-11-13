@@ -166,21 +166,23 @@ fn a_flat_mask_plays_back_like_the_raster() {
     }
 }
 
+/// A mask painted by an axial shading is banded (`Pass 700.23`): each band
+/// is a flat mask piece, so the masked op is regions with no bitmap.
 #[test]
-fn a_gradient_mask_stays_a_patch_and_is_counted() {
+fn a_gradient_mask_is_banded_into_regions() {
     let (_, on) = export(&masked("/S /Luminosity", PAGE, GRADIENT, false), true);
     let v = on.outcome.vectorised;
-    assert_eq!(v.patched_not_flat, 1, "{v:?}");
-    assert_eq!(v.not_flat.soft_mask_varying, 1, "{v:?}");
-    assert_eq!(v.ops, 0, "{v:?}");
-    assert!(on.outcome.patches.cases() > 0, "{:?}", on.outcome.patches);
+    assert_eq!(v.patched(), 0, "{v:?}");
+    assert!(v.ops > 0 && v.regions > 0, "{v:?}");
+    let records = walk_records(&on.emf).unwrap();
+    assert_eq!(count(&records, 0x72) + count(&records, 0x51), 0);
 }
 
 /// Mask content painted by a 2×1 grey image, as a drop shadow's blur is.
 const IMAGE: &str = "q 60 0 0 40 20 15 cm BI /W 2 /H 1 /CS /G /BPC 8 /F /AHx ID 40C0> EI Q";
 
 /// An image in a mask group is raster by design (a print flattener
-/// rasterises a drop shadow too), so it is counted apart from a gradient
+/// rasterises a drop shadow too), so it is counted apart from a varying
 /// mask, which is a vector gap.
 #[test]
 fn an_image_mask_is_counted_apart_from_a_gradient_mask() {
@@ -239,7 +241,7 @@ fn a_translucent_cmyk_luminosity_mask_stays_a_patch() {
 
 #[cfg(windows)]
 #[test]
-fn a_gradient_mask_patch_plays_back_like_the_raster() {
+fn a_gradient_mask_plays_back_like_the_raster() {
     let bytes = masked("/S /Luminosity", PAGE, GRADIENT, false);
     let (reference, emf) = export(&bytes, true);
     let (bad, worst) = playback_against_raster("mask-gradient", &reference, &emf.emf, ROUNDING);

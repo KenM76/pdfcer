@@ -5657,8 +5657,10 @@ impl<'a> Interpreter<'a> {
         // clip's device rectangle, gradient space → device = the CTM.
         // Before `refuse`, so it is counted as a gradient, not a raster.
         if canvas.exporting()
-            && let Some(spec) = shading.gradient_spec(ctm, alpha)
+            && let Some(mut spec) = shading.gradient_spec(ctm, alpha)
         {
+            spec.overprint = self.gs.current.overprint_fill;
+            spec.blend = self.gs.current.blend_mode;
             #[allow(clippy::cast_precision_loss)]
             let rect = tiny_skia::Rect::from_ltrb(
                 region.0 as f32,
@@ -6056,9 +6058,13 @@ impl<'a> Interpreter<'a> {
         // recorder's scratch with the same evaluator and harvested as a
         // raster under the clip in force. `refuse` above already counted
         // it (`ExportTally::shadings_rasterised`).
-        let source = canvas
-            .exporting()
-            .then(|| crate::gouraud::ShadingSource::new(&shading, to_target, region, None, alpha));
+        let source = canvas.exporting().then(|| {
+            let mut s =
+                crate::gouraud::ShadingSource::new(&shading, to_target, region, None, alpha);
+            s.overprint = self.gs.current.overprint_fill;
+            s.blend = self.gs.current.blend_mode;
+            s
+        });
         if let Some(scratch) = canvas.export_shading_scratch(self.gs.current.clip_ref().id, source)
         {
             if shading
@@ -7501,8 +7507,12 @@ impl<'a> Interpreter<'a> {
         if !stroking
             && canvas.exporting()
             && let Some(inv) = ctm.invert()
-            && let Some(spec) = shading.gradient_spec(inv.pre_concat(to_device), alpha)
-            && canvas.record_gradient(path, spec, rule, ctm, self.gs.current.clip_ref())
+            && let Some(mut spec) = shading.gradient_spec(inv.pre_concat(to_device), alpha)
+            && {
+                spec.overprint = self.gs.current.overprint_fill;
+                spec.blend = self.gs.current.blend_mode;
+                canvas.record_gradient(path, spec, rule, ctm, self.gs.current.clip_ref())
+            }
         {
             self.diag.shading.painted += 1;
             return true;
@@ -7616,7 +7626,11 @@ impl<'a> Interpreter<'a> {
         // raster has, so it is not offered as geometry.
         let source = (canvas.exporting() && !stroking).then(|| {
             let area = path.clone().transform(ctm).map(|p| (Arc::new(p), rule));
-            crate::gouraud::ShadingSource::new(&shading, to_target, region, area, alpha)
+            let mut s =
+                crate::gouraud::ShadingSource::new(&shading, to_target, region, area, alpha);
+            s.overprint = self.gs.current.overprint_fill;
+            s.blend = self.gs.current.blend_mode;
+            s
         });
         if let Some(scratch) = canvas.export_shading_scratch(self.gs.current.clip_ref().id, source)
         {
