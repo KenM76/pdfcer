@@ -4,6 +4,19 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-11-13 (1566th filing) — `v0.151.0` PUBLISHED
+
+**Filed (engineer-reported; no shell here, nothing checked from here):**
+- Tag `v0.151.0` (annotated) on `64fbfea19d22553c20eb92c4d278b519f6603181` (the 1565th filing commit); CI green there (run 43548425251) and on the 1564th filing (run 43547035843). Pre-push audits 36 of 36 clean; `check-commits-filed` and `check-suite-name-absent` clean. Carries `21aaf142` (`Pass 700.23` mesh remainder, `Pass 700.18` close).
+- Scoped pre-tag tests: `pdfcer-render`, `pdfcer-emf`, `pdfcer-cli`, `pdfcer-print` pass; `cargo doc` with `-D broken_intra_doc_links` clean.
+- Package `D:\builds\pdfcer-20261113-2202-64fbfea` (`pdfcer.exe` 51,090,432 bytes, total 67,033,466). The exe was compiled at `a872d3fb` (the bump; tree code-identical to the tag, which adds docs only), so `--version` reports revision `v0.150.0-4-ga872d3fb`. Smoke: `--version` 0.151.0, `inspect` rc 0, `export-image --format emf --vector-shadings --patch-approximations` rc 0 (440,180-byte EMF).
+- GitHub release: 8 assets (zip 32,339,885 bytes + 3 OCR add-ons, each with `.sha256`); `gh-release.py` PASS. `verify-release.py`: all ok except "working tree clean" (27 uncommitted paths, all the never-commit set: agent-memory, `docs/research` request files, a stray `-` file), the same known exception as earlier releases.
+- OneDrive `pdfcer2` written (6 items, 86,656,485 bytes); `pdfcer1` keeps 0.150.0; next release writes `pdfcer1`.
+- crates.io: 16 of 16 published at 0.151.0, spot-checked (model, emf, core, render) through the crates.io API; publish worktree removed.
+- GUI-channel notice `open/notice_2026-11-13_release_v0.151.0.md` written (no API change).
+
+**Open:** work PAUSED again at Ken's request; the 30-minute request loop stays stopped. ROADMAP: new Shipped entry. FEATURES: `Engine crates on crates.io` row advanced to 0.151.0. No decision, no rule.
+
 ## 2026-11-13 (1565th filing) — `a872d3fb` `v0.151.0` version bump (not yet published)
 
 **Filed (engineer-reported; no shell here, nothing checked from here):**

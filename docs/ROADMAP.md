@@ -112,6 +112,19 @@ wherever it appears.*
 
 ## Shipped
 
+### `64fbfea1` `v0.151.0` PUBLISHED, 2026-11-13 (1566th filing)
+
+Engineer-reported measurements; no shell here, nothing checked from here. Bump `a872d3fb`, filed by `64fbfea1` (1565th). Annotated tag `v0.151.0` is on `64fbfea19d22553c20eb92c4d278b519f6603181`; CI green there (run 43548425251) and on the 1564th filing (run 43547035843). Pre-push audits 36 of 36 clean; `check-commits-filed` and `check-suite-name-absent` clean.
+- **Carries:** `21aaf142` (`Pass 700.23` mesh remainder, `Pass 700.18` close: opaque meshes on a CMYK-blending page print as vector).
+- **Pre-tag tests:** `pdfcer-render`, `pdfcer-emf`, `pdfcer-cli`, `pdfcer-print` pass; `cargo doc` with `-D broken_intra_doc_links` clean.
+- **Package:** `D:\builds\pdfcer-20261113-2202-64fbfea`, `pdfcer.exe` 51,090,432 bytes, folder total 67,033,466. The exe was compiled at `a872d3fb` (tree code-identical to the tag, which adds docs only), so `--version` reports revision `v0.150.0-4-ga872d3fb`. Fresh-folder smoke: `--version` 0.151.0; `inspect` rc 0; `export-image --format emf --vector-shadings --patch-approximations` rc 0 (440,180-byte EMF).
+- **GitHub release:** 8 assets (zip 32,339,885 bytes + 3 OCR add-ons, each with `.sha256`); `gh-release.py` PASS. `verify-release.py` all ok except "working tree clean" (27 uncommitted paths, all the never-commit set), the same known exception as earlier releases.
+- **OneDrive:** wrote `pdfcer2` (6 items, 86,656,485 bytes); `pdfcer1` keeps 0.150.0; the next release writes `pdfcer1`.
+- **crates.io:** all 16 crates live at 0.151.0, spot-checked (model, emf, core, render) through the crates.io API; publish worktree removed.
+- **Channel:** notice `open/notice_2026-11-13_release_v0.151.0.md` written (no API change).
+- **Work paused** again at Ken's request; the 30-minute request loop stays stopped.
+- **FEATURES:** `Engine crates on crates.io` row advanced to 0.151.0. No decision, no rule. Supersedes the "NOT yet published" status of the `a872d3fb` note below.
+
 ### `a872d3fb` `chore(release): v0.151.0`, 2026-11-13: version bump filed, release NOT yet published (1565th filing)
 
 Engineer-reported; no shell here, git, tag, push, CI, crates.io and backup state not checked from here. `a872d3fb7240b81c0fba323236e4721dc06ad155` on `main` bumps the workspace version and the 16 engine-crate pins from 0.150.0 to 0.151.0 in `Cargo.toml`, plus `Cargo.lock` and `fuzz/Cargo.lock`. Version bump only: no code change, no dependency change.
