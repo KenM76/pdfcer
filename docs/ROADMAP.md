@@ -112,6 +112,14 @@ wherever it appears.*
 
 ## Shipped
 
+### `a872d3fb` `chore(release): v0.151.0`, 2026-11-13: version bump filed, release NOT yet published (1565th filing)
+
+Engineer-reported; no shell here, git, tag, push, CI, crates.io and backup state not checked from here. `a872d3fb7240b81c0fba323236e4721dc06ad155` on `main` bumps the workspace version and the 16 engine-crate pins from 0.150.0 to 0.151.0 in `Cargo.toml`, plus `Cargo.lock` and `fuzz/Cargo.lock`. Version bump only: no code change, no dependency change.
+- **Planned contents of `v0.151.0`** (already filed, 1564th): `21aaf142` (`Pass 700.23` mesh remainder, `Pass 700.18` close: opaque meshes on a CMYK-blending page print as vector; print parity met on all six pages of the licensed print test file).
+- **Pre-tag local gates (engineer-reported):** scoped tests `pdfcer-render`, `pdfcer-emf`, `pdfcer-cli`, `pdfcer-print` all pass, 0 failures; `cargo doc --workspace --no-deps` with `-D rustdoc::broken_intra_doc_links` clean; pre-push audits 36 of 36 clean.
+- **Not published.** Not yet tagged. Still to come, filed separately: tag, GitHub release, OneDrive (`pdfcer2` is next in the alternation), crates.io (16 crates). A later filing records PUBLISHED.
+- **FEATURES:** no change; the `Engine crates on crates.io` row stays at 0.150.0 until publication.
+
 ### `21aaf142` `Pass 700.23` (mesh remainder) and `Pass 700.18` CLOSE: opaque meshes on a CMYK-blending page stay smooth vector, 2026-11-13 (1564th filing)
 
 Engineer-reported; no shell here, git, push and CI state not checked from here. `21aaf1427c6a4d38daa83a363e41001322fc0556` `feat(emf): opaque meshes on a CMYK-blending page stay smooth vector`. Reasoning is in the commit message. Unreleased at filing time.

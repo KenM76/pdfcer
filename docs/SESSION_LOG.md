@@ -4,6 +4,15 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-11-13 (1565th filing) — `a872d3fb` `v0.151.0` version bump (not yet published)
+
+**Filed (engineer-reported; no shell here, nothing checked from here):**
+- `a872d3fb7240b81c0fba323236e4721dc06ad155` `chore(release): v0.151.0`: workspace version and the 16 engine-crate pins 0.150.0 to 0.151.0 in `Cargo.toml`; `Cargo.lock` and `fuzz/Cargo.lock` updated. Version bump only.
+- Carries, already filed: `21aaf142` (1564th; `Pass 700.23` mesh remainder, `Pass 700.18` close).
+- Pre-tag local gates (engineer-reported): scoped tests `pdfcer-render`, `pdfcer-emf`, `pdfcer-cli`, `pdfcer-print` pass, 0 failures; `cargo doc --workspace --no-deps` with `-D rustdoc::broken_intra_doc_links` clean; pre-push audits 36 of 36 clean.
+
+**Open:** NOT yet tagged or published. Tag, GitHub release, OneDrive `pdfcer2`, crates.io (16 crates) filed separately afterwards. ROADMAP: new Shipped note. FEATURES: no change (crates.io row stays 0.150.0). No decision, no rule.
+
 ## 2026-11-13 (1564th filing) — `21aaf142` opaque meshes on a CMYK-blending page stay smooth vector (`Pass 700.23` mesh remainder, `Pass 700.18` closes)
 
 **Filed (engineer-reported; no shell here, nothing checked from here):**
