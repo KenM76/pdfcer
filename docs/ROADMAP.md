@@ -112,6 +112,17 @@ wherever it appears.*
 
 ## Shipped
 
+### `21aaf142` `Pass 700.23` (mesh remainder) and `Pass 700.18` CLOSE: opaque meshes on a CMYK-blending page stay smooth vector, 2026-11-13 (1564th filing)
+
+Engineer-reported; no shell here, git, push and CI state not checked from here. `21aaf1427c6a4d38daa83a363e41001322fc0556` `feat(emf): opaque meshes on a CMYK-blending page stay smooth vector`. Reasoning is in the commit message. Unreleased at filing time.
+- **Cause (correction to earlier notes):** page 1 of the licensed print test file is CMYK-blending (`/Group /CS /DeviceCMYK`); earlier notes did not say so. On such a page every non-solid paint counted as compositing, so its two opaque type-7 tensor meshes went to the vectoriser and the patch planner (`BlendingSpace` site), were banded into about 260k pieces, overran the flattener ceilings (`TooComplex(Work)`, `NotFlat(Shading)`) and were patched as pixels.
+- **Fix:** with `vector_shadings` on, a harvested shading that is opaque, SourceOver, with no overprint and no spot inks is exempt from compositing (`patch::composites_on`, used by both the patch planner and the vectoriser's `page_needs`); the triangle route writes it as `EMR_GRADIENTFILL`.
+- **Also:** meshes band as flat pieces (new `gouraud/mesh_bands.rs`), merged by 8-bit colour across the whole mesh when no two pieces cover one pixel centre (new `gouraud/mesh_cover.rs`), else only within one mesh triangle so a fold keeps paint order; this is the route for a mesh under real transparency. `quads_shape` drops a triangle-as-quad's repeated corner. `tools/print-parity-report.py` now counts every declined shading (`shading_declined_*`) as a vector gap.
+- **Measured (release parity report, licensed print test file):** the close condition is now MET on all six pages. Page 1 was the last (`NOT MET: shading 2` to met): bitmaps 23 to 21, bitmap area 8.194% to 7.802%, `not_flat` 40 to 38; pages 2-6 unchanged.
+- **Test:** `an_opaque_mesh_on_a_cmyk_blending_page_is_triangles_not_a_patch` (`crates/pdfcer-emf/tests/export_emf_shading.rs`), sabotage-verified. `pdfcer-emf` `all` 106 pass (1 ignored); `pdfcer-render` all pass; fmt, clippy `-D warnings`, `check-code-structure` clean. No manifest change, no new dependency (`cargo tree` unaffected).
+- **Status:** `Pass 700.18` (print parity on the licensed print test file) CLOSES: every page prints vector apart from genuinely raster content. `Pass 700.23` mesh remainder CLOSES; its other remainders (steep two-circle radial GDI error, older native gradient route, type 1 ink/overprint route, tight mask patches into the print route) stay open under the *Planned* row. `700.22` gradient-mask remainder unchanged.
+- **FEATURES:** the shading row (core+cli ticked, gui unticked, now covers opaque meshes) and the *Planned* "EMF vector-gap remainders" row (mesh item removed, parity-met noted). No decision, no rule.
+
 ### `b8f6649f` `v0.150.0` PUBLISHED, 2026-11-13 (1563rd filing)
 
 Engineer-reported measurements; no shell here, nothing checked from here. Bump `0fbc28b3`, filed by `b8f6649f` (1562nd). Annotated tag `v0.150.0` (tag object `88bb6e18`) is on `b8f6649f`; CI green at that commit. Pre-push audits 36 of 36 clean; `check-commits-filed` and `check-suite-name-absent` clean.
@@ -27165,6 +27176,8 @@ closes out the *prior* filing's business rather than opening this one's.
 > - **Approach to evaluate:** decompose a smooth-shading-driven mask into constant-alpha pieces or gradient triangles.
 > - **Acceptance:** `soft_mask_varying` falls on a file that has such a mask; synthetic fixtures show GDI playback matching the raster. No test file currently has one, so a synthetic fixture comes first.
 > - FEATURES: *Planned* row "Gradient-driven soft masks as vector in EMF", unticked.
+
+> **`Pass 700.18` CLOSED and `Pass 700.23` mesh remainder CLOSED (1564th filing), `21aaf142`; see its *Shipped* entry.** Print parity met on all 6 pages of the licensed print test file. Remaining `700.23` items below, minus mesh banding, stay open.
 
 > **`Pass 700.23`: PARTIAL (1550th filing), `69e26bed` (spot/DeviceN shadings band on ink pages) on top of `01692479`, `e7d6d124`, `0ea71339`, `670b2130` and `cc97eed5`. REMAINDER OPEN: mesh banding for type 4-7 shadings (p1's 2 patches are type 7), type 1 shadings and its ink/overprint route, steep two-circle radial GDI error, wiring `tight_mask_patches` into the print route (gradient-band soft masks stay `700.22`).**
 > - **1550th, SHIPPED `69e26bed` (spot/DeviceN shadings band as flat spot fills on ink pages).** Shadings the EMF vector route refused (cause Spot) now band through the flattener's existing spot path; no second spot path. Per-plate rules match the raster under separation simulation; a shading the raster does not plate is still refused. New render-internal types `SpotRamp`, `SpotTints` and fields `GradientSpec::spots`, `ShadingSource::spots`, `FlatBand::authored`, used by `pdfcer-emf`; not on the GUI-facing surface, so `docs/core-api` is unchanged. No dependency change.

@@ -4,6 +4,16 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-11-13 (1564th filing) — `21aaf142` opaque meshes on a CMYK-blending page stay smooth vector (`Pass 700.23` mesh remainder, `Pass 700.18` closes)
+
+**Filed (engineer-reported; no shell here, nothing checked from here):**
+- `21aaf1427c6a4d38daa83a363e41001322fc0556`: on a `/Group /CS /DeviceCMYK` page every non-solid paint counted as compositing, so page 1's two opaque type-7 meshes were banded into about 260k pieces, overran the flattener ceilings and were patched as pixels. With `vector_shadings` on, an opaque, SourceOver, no-overprint, no-spot harvested shading is exempt (`patch::composites_on`), and the triangle route writes it as `EMR_GRADIENTFILL`. Meshes under real transparency band as flat pieces (`gouraud/mesh_bands.rs`, `mesh_cover.rs`). `tools/print-parity-report.py` counts declined shadings as vector gaps.
+- Correction recorded: page 1 is CMYK-blending; earlier notes did not say so.
+- Measured (release parity report, licensed print test file): close condition MET on all six pages; page 1 bitmaps 23 to 21, bitmap area 8.194% to 7.802%, `not_flat` 40 to 38; pages 2-6 unchanged.
+- Test `an_opaque_mesh_on_a_cmyk_blending_page_is_triangles_not_a_patch`, sabotage-verified; `pdfcer-emf` 106 pass (1 ignored); fmt, clippy, structure clean; no manifest change.
+
+**Open:** `700.23` other remainders (steep two-circle radial GDI error, older native gradient route, type 1 ink/overprint, tight mask patches into print) and `700.22`. gui box unticked. ROADMAP: new Shipped entry plus a closing banner in Next up. FEATURES: shading row and *Planned* remainders row. No decision, no rule.
+
 ## 2026-11-13 (1563rd filing) — `v0.150.0` PUBLISHED
 
 **Filed (engineer-reported; no shell here, nothing checked from here):**
