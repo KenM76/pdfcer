@@ -21,11 +21,21 @@ pub(super) fn mesh_triangles(
         return Err(Decline::IncompleteRamp);
     }
     let mut out = Gouraud::default();
+    each_triangle(mesh, to_device, |p, s| shaded(&mut out, p, s, ramp, 0, max))?;
+    Ok(out)
+}
+
+/// Every triangle of `mesh` in device space with its corner shades, in
+/// paint order: a triangle mesh's own, or each patch's grid cut in two.
+pub(super) fn each_triangle(
+    mesh: &Mesh,
+    to_device: Transform,
+    mut f: impl FnMut([[f32; 2]; 3], [Shade; 3]) -> Result<(), Decline>,
+) -> Result<(), Decline> {
     match &mesh.data {
         MeshData::Triangles(tris) => {
             for tri in tris {
-                let dev = tri.xy.map(|p| map(to_device, p));
-                shaded(&mut out, dev, tri.shade, ramp, 0, max)?;
+                f(tri.xy.map(|p| map(to_device, p)), tri.shade)?;
             }
         }
         MeshData::Patches(patches) => {
@@ -50,14 +60,14 @@ pub(super) fn mesh_triangles(
                         else {
                             continue;
                         };
-                        shaded(&mut out, [a.0, b.0, c.0], [a.1, b.1, c.1], ramp, 0, max)?;
-                        shaded(&mut out, [b.0, c.0, d.0], [b.1, c.1, d.1], ramp, 0, max)?;
+                        f([a.0, b.0, c.0], [a.1, b.1, c.1])?;
+                        f([b.0, c.0, d.0], [b.1, c.1, d.1])?;
                     }
                 }
             }
         }
     }
-    Ok(out)
+    Ok(())
 }
 
 /// Emit one mesh triangle, splitting a parametric one until the ramp is

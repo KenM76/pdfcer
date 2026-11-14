@@ -30,7 +30,8 @@ Each patched op's cause is classified:
     rasterise these too.
   * vector gap: every other cause, `patched_too_complex` and
     `patched_unrecorded`, including `soft_mask_varying` (a gradient or
-    shading mask that could not be cut into constant bands).
+    shading mask that could not be cut into constant bands), and every
+    shading `emf-shadings:` declined (left as a bitmap).
 
 A page meets the close condition when its route is `vector` and it has no
 vector-gap patches.
@@ -192,6 +193,10 @@ def classify(lines: dict) -> dict:
     for k in ("patched_too_complex", "patched_unrecorded"):
         if v.get(k):
             gaps[k] = v[k]
+    sh = lines.get("emf-shadings", {})
+    for k in ("declined_translucent", "declined_too_many", "declined_other"):
+        if sh.get(k):
+            gaps[f"shading_{k}"] = sh[k]
     return {"genuinely_raster": genuine, "vector_gap": gaps,
             "beneath": nf.get("beneath", 0)}
 

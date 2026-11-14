@@ -18,10 +18,13 @@
 //! force, rules the process plates as above; the blend mode is ignored, as
 //! there.
 //!
-//! Left to the patch, as [`Cause::Shading`]: type 1 and the meshes, and a
-//! radial whose bands overlap (circles that do not nest) under a constant
-//! alpha or a blend, which would composite the overlap twice. A gradient
-//! spot shading on an ink page the raster does not plate is [`Cause::Spot`];
+//! A mesh (types 4–7) bands as flat pieces of its own triangles, each
+//! within about a level of the smooth shade (§8.7.4.5.5–8).
+//!
+//! Left to the patch, as [`Cause::Shading`]: type 1, and a radial whose
+//! bands overlap (circles that do not nest) or a mesh whose pieces overlap
+//! (a fold) under a constant alpha or a blend, which would composite the
+//! overlap twice. A gradient spot shading on an ink page the raster does not plate is [`Cause::Spot`];
 //! a shading on a CMYK page without process ink is [`Cause::Cmyk`].
 
 use pdfcer_flatten::{
@@ -275,6 +278,8 @@ fn quads_shape(quads: &[[[f32; 2]; 4]]) -> Shape {
                 .iter()
                 .map(|p| [f64::from(p[0]), f64::from(p[1])])
                 .collect();
+            // A triangle rides as a quad with its last corner repeated.
+            c.dedup();
             if area2(&c) < 0.0 {
                 c.reverse();
             }

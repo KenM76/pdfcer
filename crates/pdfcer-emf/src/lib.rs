@@ -512,15 +512,22 @@ fn flatten_and_plan(
     EmfVectorised,
 ) {
     let (vectorised, left) = if emf.vector_transparency {
-        vector::vectorise(rec, render, emf.background, emf.tight_mask_patches)
+        vector::vectorise(
+            rec,
+            render,
+            emf.background,
+            emf.tight_mask_patches,
+            emf.vector_shadings,
+        )
     } else {
         (EmfVectorised::default(), Vec::new())
     };
     let patching = emf.patch_approximations || emf.vector_transparency;
     let before = patching && rec.subtractive_page;
     let tight = emf.tight_mask_patches;
+    let native = emf.vector_shadings;
     let mut plan = if before {
-        patch::plan(rec, view, page, render, scale, &left, tight)
+        patch::plan(rec, view, page, render, scale, &left, tight, native)
     } else {
         None
     };
@@ -533,7 +540,7 @@ fn flatten_and_plan(
         emf.underlay_blends,
     );
     if patching && !before {
-        plan = patch::plan(rec, view, page, render, scale, &left, tight);
+        plan = patch::plan(rec, view, page, render, scale, &left, tight, native);
     }
     (flattened, plan, vectorised)
 }

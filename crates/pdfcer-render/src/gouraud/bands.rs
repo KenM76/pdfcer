@@ -62,12 +62,20 @@ impl Bands {
 ///
 /// # Errors
 ///
-/// [`Decline::FunctionBased`] for type 1, [`Decline::Unpaintable`] for a
-/// mesh (types 4–7) or degenerate geometry, [`Decline::IncompleteRamp`],
-/// and [`Decline::TooManyTriangles`] past `max`.
+/// [`Decline::FunctionBased`] for type 1, [`Decline::Unpaintable`] for
+/// degenerate geometry, [`Decline::IncompleteRamp`], and
+/// [`Decline::TooManyTriangles`] past `max`.
+///
+/// A mesh (types 4–7) bands as flat pieces of its own triangles
+/// (`mesh_bands`), merged by colour; `max` then counts the merged bands,
+/// and they are flagged overlapping when two pieces cover one pixel.
 pub fn band(src: &ShadingSource, max: usize) -> Result<Bands, Decline> {
     let to_device = src.to_target.invert().ok_or(Decline::Unpaintable)?;
     let sh = &*src.shading;
+    if let Some(mesh) = sh.mesh.as_ref() {
+        let spots = src.spots.len();
+        return super::mesh_bands::mesh_bands(mesh, sh.ramp.as_ref(), to_device, spots, max);
+    }
     #[allow(clippy::cast_precision_loss)]
     let region = [
         src.region.0 as f32,

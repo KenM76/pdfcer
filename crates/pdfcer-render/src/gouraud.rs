@@ -44,6 +44,8 @@ use tiny_skia::{FillRule, Path, Transform};
 
 mod bands;
 mod mesh;
+mod mesh_bands;
+mod mesh_cover;
 
 pub use bands::{BAND_STEP, Bands, FlatBand, band, band_gradient};
 

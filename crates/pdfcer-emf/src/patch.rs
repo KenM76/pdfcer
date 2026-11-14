@@ -96,6 +96,7 @@ impl Plan {
 /// paints ([`crate::EmfOptions::tight_mask_patches`]). `None` when there is
 /// nothing to patch or the raster could not be made; then nothing is
 /// changed.
+#[allow(clippy::too_many_arguments)] // each is a distinct input of one plan
 pub(super) fn plan(
     rec: &mut ExportRecording,
     view: &DocumentView<'_>,
@@ -104,9 +105,10 @@ pub(super) fn plan(
     scale: f32,
     extra: &[DeviceBounds],
     tight: bool,
+    native: bool,
 ) -> Option<Plan> {
     let (w, h) = rec.page_size;
-    let sites = sites(rec, tight);
+    let sites = sites(rec, tight, native);
     let rects = merge(
         sites
             .iter()
@@ -157,13 +159,13 @@ pub(super) fn plan(
 
 /// Every approximated region: the recorder's, plus what only the finished
 /// op list shows.
-fn sites(rec: &ExportRecording, tight: bool) -> Vec<Site> {
+fn sites(rec: &ExportRecording, tight: bool, native: bool) -> Vec<Site> {
     let mut out = rec.sites.clone();
     for op in &rec.ops {
         let Some(bounds) = reach(op, rec.page_size, tight) else {
             continue;
         };
-        if rec.subtractive_page && composites(op) {
+        if rec.subtractive_page && composites_on(op, rec, native) {
             out.push(Site {
                 cause: SiteCause::BlendingSpace,
                 bounds,
@@ -228,6 +230,32 @@ pub(super) fn composites(op: &Op) -> bool {
         Op::Layer { .. } => true,
         Op::Text { ops, .. } => ops.iter().any(composites),
     }
+}
+
+/// [`composites`], except that with `native` shadings
+/// ([`crate::EmfOptions::vector_shadings`]) a harvested shading the
+/// triangle route draws on its own does not: opaque, `Normal`, with no
+/// overprint and no spot inks, it paints the same over any backdrop.
+pub(super) fn composites_on(op: &Op, rec: &ExportRecording, native: bool) -> bool {
+    composites(op) && !(native && opaque_shading(op, &rec.shadings))
+}
+
+fn opaque_shading(op: &Op, shadings: &[(Arc<Pixmap>, ShadingSource)]) -> bool {
+    let Op::Fill { brush, .. } = op else {
+        return false;
+    };
+    let Brush::Image { texels, .. } = &brush.brush else {
+        return false;
+    };
+    brush.blend == BlendMode::SourceOver
+        && brush.spots.is_empty()
+        && shadings.iter().any(|(t, s)| {
+            Arc::ptr_eq(t, texels)
+                && s.alpha >= 1.0 - 1e-6
+                && s.blend == BlendMode::SourceOver
+                && s.overprint.is_none()
+                && s.spots.is_empty()
+        })
 }
 
 /// Whether the writer would draw a blend in `op` as `Normal`.

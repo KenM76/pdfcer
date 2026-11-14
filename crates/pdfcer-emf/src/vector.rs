@@ -573,6 +573,7 @@ pub(super) fn vectorise(
     render: &RenderOptions,
     background: Option<Rgb>,
     tight: bool,
+    native: bool,
 ) -> (EmfVectorised, Vec<DeviceBounds>) {
     let mut out = EmfVectorised::default();
     let boxes: Vec<DeviceBounds> = rec
@@ -580,7 +581,7 @@ pub(super) fn vectorise(
         .iter()
         .map(|op| op_box(op).unwrap_or(UNKNOWN))
         .collect();
-    let needs = page_needs(rec, &boxes);
+    let needs = page_needs(rec, &boxes, native);
     if !needs.iter().any(Needs::any) {
         return (out, Vec::new());
     }
@@ -634,14 +635,16 @@ pub(super) fn vectorise(
     (out, left)
 }
 
-/// What each op of the page needs vectorised for.
-fn page_needs(rec: &ExportRecording, boxes: &[DeviceBounds]) -> Vec<Needs> {
+/// What each op of the page needs vectorised for; `native` as
+/// [`crate::patch::composites_on`].
+fn page_needs(rec: &ExportRecording, boxes: &[DeviceBounds], native: bool) -> Vec<Needs> {
     rec.ops
         .iter()
         .zip(boxes)
         .map(|(op, b)| {
             let mut n = needs(op, *b, rec);
-            n.alpha |= rec.subtractive_page && crate::patch::composites(op) && !n.any();
+            n.alpha |=
+                rec.subtractive_page && crate::patch::composites_on(op, rec, native) && !n.any();
             n
         })
         .collect()

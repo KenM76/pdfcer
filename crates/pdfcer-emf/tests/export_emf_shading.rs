@@ -411,3 +411,74 @@ fn with_the_switch_off_the_metafile_is_unchanged() {
     );
     assert_eq!(off.outcome.shadings, pdfcer_emf::EmfShadings::default());
 }
+
+/// `/Sh0` under a clip: an unclipped `sh` has no box to patch.
+const CLIPPED: &str = "q 10 10 80 60 re W n /Sh0 sh Q\n";
+
+/// Type 4 in `DeviceCMYK` on a page whose group blends in `DeviceCMYK`.
+fn cmyk_group_mesh() -> Vec<u8> {
+    // Flag, x, y, then C M Y K: cyan, magenta and yellow corners.
+    let data = "000000FF000000 00FF0000FF0000 0000FF0000FF00>";
+    build(&[
+        (1, "<< /Type /Catalog /Pages 2 0 R >>".into()),
+        (
+            2,
+            "<< /Type /Pages /Kids [3 0 R] /Count 1 /MediaBox [0 0 100 80] \
+             /Resources << /Shading << /Sh0 5 0 R >> >> >>"
+                .into(),
+        ),
+        (
+            3,
+            "<< /Type /Page /Parent 2 0 R /Contents 4 0 R \
+             /Group << /S /Transparency /CS /DeviceCMYK >> >>"
+                .into(),
+        ),
+        (
+            4,
+            format!(
+                "<< /Length {} >>\nstream\n{CLIPPED}endstream",
+                CLIPPED.len()
+            ),
+        ),
+        (
+            5,
+            format!(
+                "<< /ShadingType 4 /ColorSpace /DeviceCMYK /BitsPerCoordinate 8 \
+                 /BitsPerComponent 8 /BitsPerFlag 8 \
+                 /Decode [0 100 0 80 0 1 0 1 0 1 0 1] \
+                 /Filter /ASCIIHexDecode /Length {} >>\nstream\n{data}\nendstream",
+                data.len()
+            ),
+        ),
+    ])
+}
+
+/// On a page blending in CMYK every non-solid paint is patched, as its
+/// compositing would be done in RGB; an opaque mesh the triangle route
+/// draws is exempt, since it paints the same over any backdrop.
+#[test]
+fn an_opaque_mesh_on_a_cmyk_blending_page_is_triangles_not_a_patch() {
+    let bytes = cmyk_group_mesh();
+    let doc = Document::from_bytes(bytes).unwrap();
+    let p = page_tree::pages(&doc).unwrap().remove(0);
+    let base = EmfOptions::default()
+        .with_raster_dpi(DPI)
+        .with_patch_approximations(true)
+        .with_vector_transparency(true);
+    let run = |o: &EmfOptions| export_emf(&doc, &p, &RenderOptions::default(), o).unwrap();
+    let off = run(&base);
+    assert_eq!(
+        off.outcome.patches.blending_space, 1,
+        "{:?}",
+        off.outcome.patches
+    );
+    let on = run(&base.clone().with_vector_shadings(true));
+    assert_well_formed(&on.emf);
+    let o = &on.outcome;
+    assert_eq!((o.shadings.vector, o.shadings.declined()), (1, 0));
+    assert_eq!(o.patches.rasters, 0, "{:?}", o.patches);
+    let v = &o.vectorised;
+    assert_eq!((v.patched_not_flat, v.patched_too_complex), (0, 0));
+    assert_eq!(records(&on.emf), (1, 0));
+    assert_eq!(o.print_fallback(), None);
+}

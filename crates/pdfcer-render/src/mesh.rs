@@ -452,7 +452,7 @@ impl Shade {
     /// This is the same contract [`ColorRamp::at_cmyk`] states, for the same
     /// reason, and the two are worded alike deliberately.
     #[must_use]
-    fn resolve_cmyk(self, ramp: Option<&ColorRamp>) -> Option<[f32; 4]> {
+    pub(crate) fn resolve_cmyk(self, ramp: Option<&ColorRamp>) -> Option<[f32; 4]> {
         match self {
             Self::Ink { cmyk, .. } | Self::Spot { cmyk, .. } => Some(cmyk),
             Self::Parametric(t) => ramp?.at_cmyk(t),
@@ -466,7 +466,10 @@ impl Shade {
     /// at a ramp hole; the no-conversion contract of [`Self::resolve_cmyk`]
     /// applies.
     #[must_use]
-    fn resolve_authored(self, ramp: Option<&ColorRamp>) -> Option<([f32; 4], [f32; MAX_SPOTS])> {
+    pub(crate) fn resolve_authored(
+        self,
+        ramp: Option<&ColorRamp>,
+    ) -> Option<([f32; 4], [f32; MAX_SPOTS])> {
         match self {
             Self::Spot { process, spots, .. } => Some((process, spots)),
             Self::Parametric(t) => {
