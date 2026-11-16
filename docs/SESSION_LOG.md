@@ -4,6 +4,16 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-11-16 (1567th filing) — `530a6ffc` `Pass 713.0` (`G277`/`G278`/`G279`) and `427571a7` `Pass 714.0` (`G276`)
+
+**Filed (engineer-reported; no shell here, nothing checked from here):** one filing covers both commits; both in `main`, not in a release (ride `v0.152.0`, not yet cut).
+- `530a6ffc` `Pass 713.0`: ce dimensions honour page `/UserUnit` (new public field `DimensionStyle::user_unit` breaks out-of-crate struct literals); `FeetInches` fractions reduce to lowest terms by default (CLI test pin `4/8` changed to `1/2`); extract, split and insert carry the ce-dimension sidecar. Core + cli; gui none.
+- `427571a7` `Pass 714.0`: sheet composition moved from the CLI into `pdfcer_print::compose` (features `compose`, `svg-import`); `print --pdf-direct` output byte-identical. Library + cli; gui none.
+- Verification: `cargo test --workspace --no-fail-fast` 10,569 passed, 1 failed (fixed, re-run green), 10 ignored; fmt, clippy `-D warnings`, doc, wasm32, 36 of 36 audits, `check-code-structure` (544 baseline, none new) clean; `cargo tree` invariant holds.
+- **Gotcha:** the first two full test runs were invalid: one raced a mid-flight edit, one died with `rustc-LLVM ERROR: IO failure on output stream: no space on device` (D: full). Removing `target/debug/incremental` (17 GB) and `CARGO_INCREMENTAL=0` fixed it.
+
+**Open:** `Pass 713.1` (merge and insert-into-target carry no ce-dimension sidecar) filed in Backlog, not started. `pdfcer-gui` has not adopted `format_measurement_on` or `pdfcer_print::compose`. ROADMAP: two Shipped entries, one Backlog entry. FEATURES: four rows (groups, `/UserUnit`, new extract/split row, imposition-in-GUI). No decision, no rule.
+
 ## 2026-11-13 (1566th filing) — `v0.151.0` PUBLISHED
 
 **Filed (engineer-reported; no shell here, nothing checked from here):**
