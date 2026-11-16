@@ -4,6 +4,15 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-11-16 (1571st filing) — `cdfbc01f` `Pass 716.0` (`G282`): live preview of a text box
+
+**Filed (engineer-reported; no shell here, nothing checked from here):**
+- `cdfbc01f` `Pass 716.0`: new `annot_author::free_text_preview`, `EditSession::free_text_note_preview` (410 public EditSession verbs, was 409), `pdfcer-render` `paint_text_annotation_preview`, `TextLayout::needed_height`/`needed_width`. Core and render; no CLI (a live preview has no batch meaning); gui none. On `main`, unpushed at dispatch, rides `v0.153.0`.
+- Verification: 12 new tests (8 core, 2 render pixel-equality at rotations 0/90/270, 2 fonts unit); core integration 3,276, render integration 672 passed; clippy `-D warnings`, fmt, `check-code-structure` (544 baseline, none new), core-api verbs gate (410) clean. No manifest change.
+- Limits: baker clips, never grows the box or shrinks the font; left-to-right horizontal standard-14 only; non-WinAnsi draws as `?`.
+
+**Open:** request `G280`; `Pass 717.0` is the next free ID (not filed). ROADMAP: new Shipped entry, Next-up banner. FEATURES: new row in *Annotations & markup* (core only). No decision, no rule.
+
 ## 2026-11-16 (1570th filing) — `99235b6f` `Pass 715.0` (`G281`): markup annotations are snap targets
 
 **Filed (engineer-reported; no shell here, nothing checked from here):**

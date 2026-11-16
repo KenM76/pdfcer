@@ -112,6 +112,18 @@ wherever it appears.*
 
 ## Shipped
 
+### `cdfbc01f` `Pass 716.0`: live preview of a text box, 2026-11-16 (1571st filing)
+
+Engineer-reported; no shell here, git, push and CI state not checked from here. `cdfbc01f` `feat(annot): live preview of a text box (Pass 716.0, G282)`. Answers `pdfcer-gui` request `G282`. Reasoning is in the commit message. In `main`, not pushed at dispatch time (engineer-reported), rides `v0.153.0`. Delivered **core and render**: a live preview has no batch meaning, so no CLI subcommand; gui none.
+- **`annot_author::free_text_preview(&TextAnnotSpec) -> Result<Option<FreeTextPreview>, VarTextError>`** (new `crates/pdfcer-core/src/annot_author/text_preview.rs`): `FreeTextPreview { spec, authored: AuthoredTextAnnot, layout: vartext::TextLayout }`, `#[non_exhaustive]`, with `needed_height()`, `needed_width()`, `clips()`, `rect_grown_downward()`. `Ok(None)` for a spec that is not FreeText. `annot_author::free_text_da` (`pub(crate)`) factored out of `free_text` so preview and baker share one `/DA`.
+- **`EditSession::free_text_note_preview(&self, annot_id, new_text) -> Result<Option<FreeTextPreview>, EditError>`** (new `crates/pdfcer-core/src/edit/free_text_preview.rs`): read-only, no undo entry; previews what `set_markup_note` would paint. `Ok(None)` when not a `/FreeText`, the style is unreadable, or the appearance is not pdfcer's own (the commit would not repaint). Rich text (`/RC`, `/DS`) previews flattened, as the commit writes it. 410 public EditSession verbs (was 409).
+- **`pdfcer-render` `edit_preview::paint_text_annotation_preview(doc, &AuthoredTextAnnot, &RenderOptions, page_to_device, &mut Pixmap) -> Diagnostics`**, sharing a private `paint_appearance` helper with `paint_dimension_preview`. **`pdfcer-fonts`** `vartext::TextLayout::needed_height()` / `needed_width()`.
+- **Known limits:** the baker clips, never grows the box, never shrinks the font; layout is left-to-right horizontal standard-14 only (no vertical writing, no RTL, no shaping); non-WinAnsi characters draw as `?` and are counted in `unencodable_chars`.
+- **Verification (engineer-reported):** 8 new tests in `crates/pdfcer-core/tests/free_text_preview.rs`, 2 in `crates/pdfcer-render/tests/text_annotation_preview_paint.rs` (preview pixels equal the saved page's render at pages rotated 0/90/270, new and retyped box, zero pixels differing by more than 2), 2 unit tests in `crates/pdfcer-fonts/src/vartext/layout.rs`; test files registered in `tests/all.rs`. Totals after: core integration 3,276 passed / 2 ignored, core unit 2,368 / 2 ignored, render integration 672 / 2 ignored, render unit 590. `cargo fmt --check`, clippy `-D warnings` on fonts/core/render all-targets, `cargo check --workspace --all-targets` clean; `check-code-structure.py` clean (544 baseline, none new); `check-core-api-verbs.py` PASS (410). `docs/core-api/` updated in the same commit (02 verb row and counts, 03 new section 3.5.1, index counts). **Invariant:** no manifest change, so no `cargo tree` or licence work.
+- **Channel:** reply `open/reply_G282_text_box_preview_painter_SHIPPED.md` written.
+- **Still open of this round:** `G280`; `Pass 717.0` is the next free ID (not filed).
+- **FEATURES:** new row "Live preview of a text box (FreeText) before commit" in *Annotations & markup* (core `[x]`, cli `—`, gui `[ ]`). No decision, no rule.
+
 ### `99235b6f` `Pass 715.0`: markup annotations are snap targets, 2026-11-16 (1570th filing)
 
 Engineer-reported; no shell here, git, push and CI state not checked from here. `99235b6f` `feat(snap): markup annotations are snap targets (Pass 715.0, G281)`. Answers `pdfcer-gui` request `G281` (`request_G281_snap_candidates_ignore_annotations.md`). Reasoning is in the commit message. In `main`, not in a release (rides `v0.153.0`). Delivered **core only**: no CLI command snaps, so there is no CLI caller; gui none.
@@ -27208,7 +27220,7 @@ closes out the *prior* filing's business rather than opening this one's.
 
 ## Next up
 
-> **1570th filing: open `pdfcer-gui` requests of this round are `G280` and `G282` (not yet Passes; `Pass 716.0` and `Pass 717.0` are the next free IDs). `G281` SHIPPED as `Pass 715.0` (`99235b6f`; see *Shipped*).**
+> **1571st filing: the only open `pdfcer-gui` request of this round is `G280` (not yet a Pass; `Pass 717.0` is the next free ID). `G281` SHIPPED as `Pass 715.0` (`99235b6f`), `G282` as `Pass 716.0` (`cdfbc01f`); see *Shipped*.**
 
 > **1512th filing: `X071` (operator, crates consumer; `D:\Dev\FeatureRequests\pdfce_FeatureRequests\open\request_X071_down_rollover_rich_text_and_signature_appearances.md`) filed as three Passes, all OPEN, none started. The request asked to start only after the release carrying `X069`/`X070`; `v0.145.0` was tagged at `9077e43aafd40cd07effef67dd0031f9bd36ab52` on 2026-11-11 (operator-reported; not checked from here, no shell), so `X071` is active. `700.8`, `700.9`, `700.10` had zero hits across `docs/*.md` by grep (no shell; not run through `tools/check-ledger-numbers.py`). Engine read named in the request: v0.144.0 (`5eb04866`). The three Parts are independent; each acceptance test must fail with its change reverted.**
 >
