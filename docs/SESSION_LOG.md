@@ -4,6 +4,18 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-11-16 (1569th filing) — `v0.152.0` PUBLISHED
+
+**Filed (engineer-reported; no shell here, nothing checked from here):**
+- Tag `v0.152.0` on `e4ab6497219829ba23b2c8c706cde5f34c1568c9` (the 1568th filing commit), pushed; `origin/main` contains it. **The tag is LIGHTWEIGHT** (earlier release tags were annotated); nothing depends on it (`git describe --tags` resolves it; `verify-release.py` passed). CI green at the tagged commit (run 43921720401). Carries `530a6ffc` (`Pass 713.0`: `G277` page `/UserUnit` for ce dimensions, `G278` lowest-terms fractions, `G279` ce-dimension sidecar carried on extract/split) and `427571a7` (`Pass 714.0`: `G276` sheet composition for PDF-direct printing as `pdfcer_print::compose`). Bump `b96b0f7e`, filed by `e4ab6497` (1568th).
+- GitHub release "pdfcer v0.152.0": 8 assets (portable zip `pdfcer-v0.152.0-windows-x64.zip` 32,331,994 bytes + 3 OCR add-on zips, each with `.sha256`). `verify-release.py v0.152.0`: every check ok except "working tree clean" (uncommitted agent-memory files and in-progress `G281` work; known, deliberate).
+- Fresh-folder smoke test passed: `pdfcer 0.152.0`; `dimension-add` then `extract-pages` printed `ce_dims_carried`; `dimension-list` on the result showed 1 group, 1 ce dimension.
+- OneDrive `pdfcer1` written; `pdfcer2` keeps 0.151.0; the next release writes `pdfcer2`.
+- crates.io: all 16 engine crates published at 0.152.0 in order model, color, pkix, vec3, json, jpeg-remux, 3d, 3d-nav, image-codec, fonts, function, text, core, render, flatten, emf; no 429. Published from the tagged tree (the in-progress `G281` work was stashed first).
+- GUI-channel notice `open/notice_2026-11-16_release_v0.152.0.md` written.
+
+**Open:** `Pass 713.1` (Backlog); requests `G280`, `G281` (in work, will be `Pass 715.0`), `G282`. ROADMAP: new Shipped entry. FEATURES: only the `Engine crates on crates.io` row advanced to 0.152.0; a release adds no capability. No decision, no rule. No new code commit is filed here.
+
 ## 2026-11-16 (1568th filing) — `b96b0f7e` `v0.152.0` version bump (not yet published)
 
 **Filed (engineer-reported; no shell here, nothing checked from here):**
