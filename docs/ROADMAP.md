@@ -112,6 +112,13 @@ wherever it appears.*
 
 ## Shipped
 
+### `9526b9d9` `chore(release): v0.153.0`, 2026-11-16: version bump filed, release NOT yet published (1574th filing)
+
+Engineer-reported; no shell here, git, tag, push, CI, crates.io and backup state not checked from here. `9526b9d9` on `main` bumps the workspace version and the 16 engine-crate pins from 0.152.0 to 0.153.0 in `Cargo.toml`, plus `Cargo.lock` and `fuzz/Cargo.lock`. Version bump only: no code change, no dependency change.
+- **Planned contents of `v0.153.0`** (already filed, 1570th to 1573rd): `99235b6f` (`Pass 715.0`), `cdfbc01f` (`Pass 716.0`), `7ec18b00` (`Pass 717.0`), `011b78b0` (`Pass 718.0`), `7d8a7bf3` (`Pass 718.1`); plus docs-only `f1ace7c1` (README subcommand count 248 to 252, recorded in the session log). Requests answered: `pdfcer-gui` `G280` to `G287` (`G286` counts only; carry is Backlog `Pass 718.2`).
+- **Not published.** Not yet tagged. Still to come, filed separately: tag, GitHub release, OneDrive (`pdfcer2` is next in the alternation), crates.io (16 crates). A later filing records PUBLISHED.
+- **FEATURES:** no change; the `Engine crates on crates.io` row stays at 0.152.0 until publication.
+
 ### `7d8a7bf3` `Pass 718.1`: report how many ce dimensions arrive as plain lines, 2026-11-16 (1573rd filing)
 
 Engineer-reported; no shell here, git, push and CI state not checked from here. `7d8a7bf3` `feat(dimension): count the ce dimensions that arrive as plain lines (Pass 718.1, G286)`. Answers `pdfcer-gui` request `G286` **ask 2 only** (ask 1 is `Pass 718.2`, Backlog). Reasoning is in the commit message. Core and CLI; gui none. Rule 4 (fuzzy, never sneaky): merge and the in-session insert routes copy a ce dimension's annotation WITHOUT its sidecar record, so it arrives as a plain line annotation and nothing said so.

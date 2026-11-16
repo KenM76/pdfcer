@@ -4,6 +4,15 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-11-16 (1574th filing) — `9526b9d9` `v0.153.0` version bump (not yet published)
+
+**Filed (engineer-reported; no shell here, nothing checked from here):**
+- `9526b9d9` `chore(release): v0.153.0`: workspace version and the 16 engine-crate pins 0.152.0 to 0.153.0 in `Cargo.toml`; `Cargo.lock` and `fuzz/Cargo.lock` updated. Version bump only.
+- Carries, already filed: `99235b6f` (`Pass 715.0`, 1570th), `cdfbc01f` (`Pass 716.0`, 1571st), `7ec18b00` (`Pass 717.0`, 1572nd), `011b78b0` (`Pass 718.0`) and `7d8a7bf3` (`Pass 718.1`) (both 1573rd). Requests `G280` to `G287` answered (`G286` counts only; carry is Backlog `Pass 718.2`).
+- `f1ace7c1` `docs(readme)`: README subcommand count 248 to 252 (the four group verbs of `Pass 717.0`); docs-only, found by `check-clap-help` in the pre-push audit sweep. It has no filing of its own, so it is recorded here.
+
+**Open:** NOT yet tagged or published. Tag, GitHub release, OneDrive `pdfcer2`, crates.io (16 crates) filed separately afterwards; `Pass 718.2` and `Pass 717.1` in Backlog. ROADMAP: new Shipped note. FEATURES: no change (crates.io row stays 0.152.0). No decision, no rule.
+
 ## 2026-11-16 (1573rd filing) — `011b78b0` `Pass 718.0` (`G283`/`G284`/`G285`/`G287`) and `7d8a7bf3` `Pass 718.1` (`G286` ask 2)
 
 **Filed (engineer-reported; no shell here, nothing checked from here):** one filing covers both commits; both in `main`.
