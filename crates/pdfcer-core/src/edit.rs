@@ -155,6 +155,7 @@ mod form_paint;
 mod form_transform;
 mod group_unit;
 mod insert_fields;
+mod markup_snap;
 mod node_shape;
 mod ocr_layer_write;
 mod page_import;

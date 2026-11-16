@@ -251,7 +251,8 @@ Geometry the canvas needs comes from `pdfcer_core::vector`:
 `decompose_page(&DocumentView, &Page, Matrix) -> Result<PageObjects, ContentError>`
 (`vector/decompose.rs`), then
 `snap_candidates(Point, &SnapConfig, &PageObjects) -> Vec<SnapCandidate>`
-(`vector/snap.rs`) and
+(`vector/snap.rs`; `snap_candidates_with_markups` to include the page's
+markups, `01-reading-and-model.md` §10.4) and
 `linepick::pick_line_in_page(&PageObjects, Point, tolerance) -> Option<PickedLine>`
 (`vector/linepick.rs`).
 

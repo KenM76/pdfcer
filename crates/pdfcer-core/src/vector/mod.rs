@@ -65,6 +65,7 @@ mod restack;
 mod restack_reset;
 mod restack_state;
 pub mod snap;
+mod snap_annot;
 mod stroke_style;
 pub mod text_locate;
 
@@ -114,6 +115,9 @@ pub use snap::{
     AxisConstraint, MAX_CANDIDATES, MAX_NEIGHBOURHOOD_SEGMENTS, SNAP_FLATTEN_STEPS, SnapCandidate,
     SnapConfig, SnapKind, constrained_second_point, measured_length, polygon_area, polyline_length,
     snap_candidates,
+};
+pub use snap_annot::{
+    MAX_MARKUP_SNAP_POINTS, MarkupSnapGeometry, markup_snap_geometry, snap_candidates_with_markups,
 };
 pub use stroke_style::{Dash, StrokeStyle, StrokeUnits};
 pub use text_locate::{TextRunRef, locate_text_run, locate_text_runs};

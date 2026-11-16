@@ -138,6 +138,7 @@ builds `--no-default-features`, so both configurations compile.
 | **Marquee-select a region** | **`vector::hit_test_rect_deep(&PageObjects, Bounds, MarqueeMode, FormMarquee)`** — `vector/hit.rs`. `hit_test_rect` still exists and is **shallow**: it cannot see inside a form, so a rubber band and a click disagree about what is selectable | §10.3 |
 | Drill into which text run / subpath was clicked | `vector::hit_test_text_runs` / `hit_test_text_runs_of(&TextObject, ..)` — `hit.rs`; `vector::hit_test_subpaths` / `hit_test_subpaths_of(&PathObject, ..)` — `hit.rs`. The `_of` forms take the object, so they work on a `FormLeaf::object` | §10.3 |
 | Snap a point to geometry | `vector::snap_candidates(Point, &SnapConfig, &PageObjects)` — `vector/snap.rs` | §10.4 |
+| Snap to markups as well | `EditSession::markup_snap_geometry(page_index, &hidden_layers)` then `vector::snap_candidates_with_markups(Point, &SnapConfig, Option<&PageObjects>, &[MarkupSnapGeometry])` — `vector/snap_annot.rs` | §10.4 |
 | Pick a straight edge (CAD-style measuring) | `vector::linepick::pick_line_in_page` — `vector/linepick.rs` | §10.5 |
 | Classify two picked edges as parallel/angled | `vector::linepick::classify_two_lines` — `vector/linepick.rs` | §10.5 |
 | Decode a stream through its `/Filter` chain | `filters::decode_stream(&Dict, &[u8])` — `filters/mod.rs` | §11.1 |
@@ -2700,7 +2701,7 @@ let cfg = SnapConfig::new(tol_in_page_units)      // snap.rs
     .with_grid(grid)                               // snap.rs
     .with_axes(true);                              // snap.rs
 let cands: Vec<SnapCandidate> = snap_candidates(query_point, &cfg, &model); // snap.rs
-// SnapCandidate: snap.rs — {point (page space), kind, source_object}
+// SnapCandidate: snap.rs — {point (page space), kind, source_object, source_annotation}
 // SnapKind: snap.rs variants; priority() (0 = highest);
 //           is_derived() — TRUE only for DerivedCenterline.
 
@@ -2711,6 +2712,43 @@ let len = measured_length(first, p2, AxisConstraint::Horizontal);               
 
 Guards: `SNAP_FLATTEN_STEPS` 16, `MAX_NEIGHBOURHOOD_SEGMENTS` 256
 , `MAX_CANDIDATES` 4096.
+
+**Markups are snap targets too.** `snap_candidates` sees page content only.
+To include the page's markups:
+
+```rust
+use pdfcer_core::vector::{snap_candidates_with_markups, MarkupSnapGeometry};
+
+// Once per page, and again after any edit to the page's annotations.
+let markups: Vec<MarkupSnapGeometry> =
+    session.markup_snap_geometry(page_index, &hidden_layers)?;   // edit/markup_snap.rs
+// Per pointer move. `None` for a page with no content of its own.
+let cands = snap_candidates_with_markups(query_point, &cfg, Some(&model), &markups);
+```
+
+- One list, one order: the same kinds and priority as page paths. With an
+  empty `markups` the answer is `snap_candidates`' own.
+- A candidate from a markup has `source_annotation: Some(ObjId)` and
+  `source_object: None`. **`SnapCandidate` gained the public field
+  `source_annotation`**; a struct literal must name it.
+- What a markup gives: `/Square` and `/FreeText` box corners (`Node`), edge
+  middles, the centre, and the nearest point on an edge; `/Circle` its
+  centre, four axis ends (`Node`) and the nearest point on the ellipse;
+  `/Line` its two ends and middle; `/PolyLine` and `/Polygon` their vertices
+  and edges; `/Ink` each stroke's two ends and the nearest point on it; a
+  `/FreeText` callout as a polyline.
+- The box is the one drawn: `/Rect` less `/RD`, inset by half the border
+  width. A cloudy border snaps to the box under the scallops.
+- A `/Line` with leader lines (`/LL`) or a caption (`/Cap`) gives its two
+  `/L` points only.
+- Left out: ce dimensions (the session excludes them), popups, widgets and
+  every other subtype, anything `/F` Hidden or NoView, anything on a layer
+  in `hidden_layers`, and an annotation written directly in `/Annots`.
+- No intersections are found with a markup edge.
+- `vector::markup_snap_geometry(&graph, page_id, &hidden_layers, &exclude)`
+  is the same reader without a session; `exclude` is yours to fill.
+- `MarkupSnapGeometry::annotation()` and `bounds()` let you skip a markup
+  far from the pointer. Guard: `MAX_MARKUP_SNAP_POINTS` 4096 per markup.
 
 `SnapKind::is_derived()` is your rule-4 hook: a `DerivedCenterline`
 candidate is something pdfcer **inferred** — there is no such line in the

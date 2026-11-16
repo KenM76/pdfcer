@@ -286,6 +286,11 @@ pub struct SnapCandidate {
     /// or grid candidate, or a segment–segment intersection between two
     /// different objects).
     pub source_object: Option<usize>,
+    /// The markup annotation this candidate came from; `None` for anything
+    /// off the page's own content. Only
+    /// [`snap_candidates_with_markups`](super::snap_candidates_with_markups)
+    /// sets it.
+    pub source_annotation: Option<crate::object::ObjId>,
 }
 
 /// The engine's per-query configuration — everything the fixed target list
@@ -590,11 +595,42 @@ pub fn snap_candidates(
     config: &SnapConfig,
     model: &PageObjects,
 ) -> Vec<SnapCandidate> {
+    collect_candidates(query, config, Some(model)).map_or_else(Vec::new, |c| finalize(c, query))
+}
+
+/// Every candidate within tolerance, unsorted; `None` for an unusable query
+/// or tolerance. An absent `model` leaves only the axis and grid targets.
+pub(super) fn collect_candidates(
+    query: Point,
+    config: &SnapConfig,
+    model: Option<&PageObjects>,
+) -> Option<Vec<SnapCandidate>> {
     if !query.is_finite() || !config.tolerance_ok() {
-        return Vec::new();
+        return None;
     }
     let tol = config.tolerance;
     let mut out: Vec<SnapCandidate> = Vec::new();
+    if let Some(model) = model {
+        collect_model_targets(model, query, config, &mut out);
+    }
+    // Page axes / optional grid — the lowest-priority fallback.
+    if config.axes {
+        collect_axis_targets(query, tol, &mut out);
+    }
+    if let Some(spacing) = config.grid {
+        collect_grid_target(query, tol, spacing, &mut out);
+    }
+    Some(out)
+}
+
+/// The page objects' own targets: paths, derived centerlines, intersections.
+fn collect_model_targets(
+    model: &PageObjects,
+    query: Point,
+    config: &SnapConfig,
+    out: &mut Vec<SnapCandidate>,
+) {
+    let tol = config.tolerance;
 
     // Pass 9a's derived filled-quad centerlines, computed once (cheap: one
     // pass over objects, only filled quads qualify). A future caller that
@@ -616,7 +652,7 @@ pub fn snap_candidates(
             // bbox-corner category, explicitly OUT — module docs).
             continue;
         };
-        collect_path_targets(i, path, query, tol, &mut out);
+        collect_path_targets(i, path, query, tol, out);
     }
 
     // Derived centerlines (Pass 9a fuzzy inference) — projected onto the
@@ -624,7 +660,7 @@ pub fn snap_candidates(
     // it distinctly and gates it behind the two-click confirm (module docs).
     for c in &centerlines {
         push_if_near(
-            &mut out,
+            out,
             project_onto_segment(query, c.start, c.end),
             SnapKind::DerivedCenterline,
             Some(c.object_index),
@@ -635,18 +671,8 @@ pub fn snap_candidates(
 
     // Intersections — OFF by default, neighbourhood-bounded (Z4, module docs).
     if config.intersections {
-        collect_intersections(model, query, tol, &mut out);
+        collect_intersections(model, query, tol, out);
     }
-
-    // Page axes / optional grid — the lowest-priority fallback.
-    if config.axes {
-        collect_axis_targets(query, tol, &mut out);
-    }
-    if let Some(spacing) = config.grid {
-        collect_grid_target(query, tol, spacing, &mut out);
-    }
-
-    finalize(out, query)
 }
 
 /// Enumerate a path object's node / endpoint / center / midpoint /
@@ -791,6 +817,7 @@ fn project_cubic(
             point: proj,
             kind: SnapKind::SegmentCenterline,
             source_object: Some(obj_index),
+            source_annotation: None,
         });
     }
 }
@@ -859,6 +886,7 @@ fn collect_intersections(
                     point: p,
                     kind: SnapKind::Intersection,
                     source_object: source,
+                    source_annotation: None,
                 });
             }
         }
@@ -980,6 +1008,7 @@ fn push_if_near(
             point,
             kind,
             source_object: source,
+            source_annotation: None,
         });
     }
 }
@@ -987,7 +1016,7 @@ fn push_if_near(
 /// The point on segment `a`–`b` nearest to `p` (the perpendicular projection,
 /// clamped to the segment ends). A degenerate segment (`a == b`) reduces to
 /// `a`.
-fn project_onto_segment(p: Point, a: Point, b: Point) -> Point {
+pub(super) fn project_onto_segment(p: Point, a: Point, b: Point) -> Point {
     let vx = b.x - a.x;
     let vy = b.y - a.y;
     let len2 = vx * vx + vy * vy;
@@ -1023,7 +1052,7 @@ fn segment_intersection(a0: Point, a1: Point, b0: Point, b1: Point) -> Option<Po
 /// Sort by (priority, distance to `query`), dedup coincident points keeping
 /// the higher-priority/nearer one, and cap the list — the deterministic final
 /// ordering the GUI cycles through (module docs on [`snap_candidates`]).
-fn finalize(mut cands: Vec<SnapCandidate>, query: Point) -> Vec<SnapCandidate> {
+pub(super) fn finalize(mut cands: Vec<SnapCandidate>, query: Point) -> Vec<SnapCandidate> {
     // Total, deterministic order: priority, then distance (total_cmp handles
     // any stray non-finite deterministically), then coordinates and source so
     // the order never depends on insertion order.
@@ -1035,6 +1064,7 @@ fn finalize(mut cands: Vec<SnapCandidate>, query: Point) -> Vec<SnapCandidate> {
             .then_with(|| a.point.x.total_cmp(&b.point.x))
             .then_with(|| a.point.y.total_cmp(&b.point.y))
             .then_with(|| a.source_object.cmp(&b.source_object))
+            .then_with(|| a.source_annotation.cmp(&b.source_annotation))
     });
     cands.truncate(MAX_CANDIDATES);
 

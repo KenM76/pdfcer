@@ -611,7 +611,11 @@ pub enum SpecReadError {
 /// `rect` shrunk by `/RD` (ISO 32000-1 §12.5.6.8 Table 180: left, top,
 /// right, bottom, each ≥ 0). An absent or unusable `/RD`, or one that would
 /// leave no area, returns `rect` unchanged.
-fn inset_by_rect_differences<G: ObjectGraph + ?Sized>(graph: &G, annot: &Dict, rect: Rect) -> Rect {
+pub(crate) fn inset_by_rect_differences<G: ObjectGraph + ?Sized>(
+    graph: &G,
+    annot: &Dict,
+    rect: Rect,
+) -> Rect {
     let rd = read_numbers(graph, annot, b"RD");
     let [left, top, right, bottom] = rd.as_slice() else {
         return rect;
@@ -1401,7 +1405,11 @@ fn read_line_endings<G: ObjectGraph + ?Sized>(graph: &G, annot: &Dict) -> (LineE
 /// element is skipped, which the callers then catch as a wrong-length
 /// result rather than silently shifting coordinates — hence the exact
 /// length matches at every call site.
-fn read_numbers<G: ObjectGraph + ?Sized>(graph: &G, annot: &Dict, key: &[u8]) -> Vec<f64> {
+pub(crate) fn read_numbers<G: ObjectGraph + ?Sized>(
+    graph: &G,
+    annot: &Dict,
+    key: &[u8],
+) -> Vec<f64> {
     match annot.get(key).map(|o| graph.resolve(o)) {
         Some(Object::Array(items)) => items
             .iter()
