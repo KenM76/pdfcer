@@ -42,6 +42,7 @@ mod gray_icc_through_the_output_intent;
 mod grey_image_into_a_cmyk_group;
 mod grey_overprint;
 mod group_spot_planes;
+mod group_ungroup;
 mod hairline_minimum;
 mod huge_content_streams_draw;
 mod icc_rgb;

@@ -34,6 +34,7 @@
 
 mod frame;
 mod inline;
+pub(crate) use inline::{ResourceUse, rewrite_with};
 
 use std::collections::BTreeSet;
 

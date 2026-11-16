@@ -96,7 +96,7 @@ impl EditSession {
     }
 
     /// `n` distinct `/ExtGState` names unused on the page.
-    fn free_names(&self, resources: &Dict, n: usize) -> Vec<Vec<u8>> {
+    pub(super) fn free_names(&self, resources: &Dict, n: usize) -> Vec<Vec<u8>> {
         let graph = self.graph();
         let present = resources
             .get(b"ExtGState")
@@ -154,7 +154,11 @@ impl EditSession {
 }
 
 /// The `/ExtGState` named `name` in a page's resources.
-fn ext_gstate<G: ObjectGraph + ?Sized>(graph: &G, resources: &Dict, name: &[u8]) -> Option<Dict> {
+pub(super) fn ext_gstate<G: ObjectGraph + ?Sized>(
+    graph: &G,
+    resources: &Dict,
+    name: &[u8],
+) -> Option<Dict> {
     let table = graph
         .resolve(resources.get(b"ExtGState")?)
         .as_dict()?

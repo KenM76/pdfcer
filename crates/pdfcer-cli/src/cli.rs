@@ -12921,6 +12921,144 @@ pub(crate) enum Command {
         #[arg(long)]
         verify_undo: bool,
     },
+    /// Group page objects into one object that moves, restacks and deletes
+    /// as a unit, without changing how the page looks.
+    ///
+    /// Pick objects by the `index=` `object-list` prints for the page. The
+    /// group takes the front-most member's place in paint order, so a
+    /// member that was behind an object the front-most member is in front
+    /// of now covers it. Each member keeps its colours, line style, opacity
+    /// and position. The group is a form XObject with a marker saying
+    /// pdfcer made it; `ungroup-form` turns it back into loose objects.
+    ///
+    /// Prints one `group-objects` line: `index=` the group's index for the
+    /// next `object-list`, `form=` its object number and `members=` how
+    /// many objects went in.
+    ///
+    /// Exit 9 when an index is out of range or an object cannot join: one
+    /// under a different clip, layer or tagged-structure element than the
+    /// front-most member, or whose own bytes set one. Nothing is changed.
+    GroupObjects {
+        /// Input PDF.
+        input: PathBuf,
+        /// 1-based page number.
+        #[arg(long, default_value_t = 1)]
+        page: u32,
+        /// 0-based paint-order object indices, comma-separated.
+        #[arg(long, value_delimiter = ',', required = true)]
+        objects: Vec<usize>,
+        /// Output path.
+        #[arg(short, long)]
+        output: PathBuf,
+        /// Save mode.
+        #[arg(long, value_enum, default_value_t = SaveMode::Incremental)]
+        mode: SaveMode,
+        /// Reload and verify the edit undoes byte-identically.
+        #[arg(long)]
+        verify_undo: bool,
+    },
+    /// Replace a form XObject on a page with the objects inside it,
+    /// without changing how the page looks.
+    ///
+    /// Works on a group `group-objects` made and on a form that came with
+    /// the document. The objects stay clipped to the form's box unless it
+    /// is a pdfcer group whose contents fit inside it. A form drawn more
+    /// than once is replaced at this one place only. Fonts, images and
+    /// graphics states the form used are added to the page, under a new
+    /// name where the page already uses the name for something else.
+    ///
+    /// Prints one `ungroup-form` line: `indices=A..B` the objects that
+    /// replaced the form (B exclusive, valid for the next `object-list`),
+    /// `clipped=` whether the form's box was kept as a clip and `renamed=`
+    /// how many resources took a new name.
+    ///
+    /// Exit 9 when the object is not a form, or the form is a transparency
+    /// group, belongs to a layer, or holds content that cannot be moved.
+    /// Nothing is changed.
+    UngroupForm {
+        /// Input PDF.
+        input: PathBuf,
+        /// 1-based page number.
+        #[arg(long, default_value_t = 1)]
+        page: u32,
+        /// 0-based paint-order index of the form.
+        #[arg(long)]
+        object: usize,
+        /// Output path.
+        #[arg(short, long)]
+        output: PathBuf,
+        /// Save mode.
+        #[arg(long, value_enum, default_value_t = SaveMode::Incremental)]
+        mode: SaveMode,
+        /// Reload and verify the edit undoes byte-identically.
+        #[arg(long)]
+        verify_undo: bool,
+    },
+    /// Group markup annotations so that viewers treat them as one: moving,
+    /// copying or deleting one applies to all.
+    ///
+    /// The group's text, author, date, colour and pop-up are the primary's;
+    /// the members keep their own in the file and get them back on
+    /// `ungroup-annotations`. Pick annotations by the `index=`
+    /// `list-annotations` prints for the page.
+    ///
+    /// Prints one `group-annotations` line: `primary=` and `members=` as
+    /// object numbers, `count=` how many joined. A member already in the
+    /// group is skipped.
+    ///
+    /// Exit 9 when an annotation is not markup (a link, a form field), is
+    /// on another page, is a reply, is already in another group, or is a
+    /// ce dimension. Nothing is changed.
+    GroupAnnotations {
+        /// Input PDF.
+        input: PathBuf,
+        /// 1-based page number.
+        #[arg(long, default_value_t = 1)]
+        page: u32,
+        /// 0-based `/Annots` index of the annotation the group is named by.
+        #[arg(long)]
+        primary: usize,
+        /// 0-based `/Annots` indices of the annotations to join, comma-separated.
+        #[arg(long, value_delimiter = ',', required = true)]
+        members: Vec<usize>,
+        /// Output path.
+        #[arg(short, long)]
+        output: PathBuf,
+        /// Save mode.
+        #[arg(long, value_enum, default_value_t = SaveMode::Incremental)]
+        mode: SaveMode,
+        /// Reload and verify the edit undoes byte-identically.
+        #[arg(long)]
+        verify_undo: bool,
+    },
+    /// Dissolve an annotation group, named by any annotation in it.
+    ///
+    /// Every member becomes an annotation of its own again, with its own
+    /// text, author and colour. Replies are not group links and stay.
+    ///
+    /// Prints one `ungroup-annotations` line: `primary=` and `members=` as
+    /// object numbers, `count=` how many were released.
+    ///
+    /// Exit 9 when the annotation is in no group. Nothing is changed.
+    UngroupAnnotations {
+        /// Input PDF.
+        input: PathBuf,
+        /// 1-based page number.
+        #[arg(long, default_value_t = 1)]
+        page: u32,
+        /// 0-based `/Annots` index of any annotation in the group.
+        #[arg(long)]
+        index: usize,
+        /// Output path.
+        #[arg(short, long)]
+        output: PathBuf,
+        /// Save mode.
+        #[arg(long, value_enum, default_value_t = SaveMode::Incremental)]
+        mode: SaveMode,
+        /// Reload and verify the edit undoes byte-identically.
+        #[arg(long)]
+        verify_undo: bool,
+    },
     /// Edit a layer's properties: rename it, set whether it is visible when
     /// the document opens, lock it, and set whether it prints or exports.
     ///

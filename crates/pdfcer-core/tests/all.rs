@@ -9,6 +9,7 @@ mod annot_ap_cascade_streams;
 mod annot_delete_structural;
 mod annot_deletion;
 mod annot_gates;
+mod annot_group;
 mod annot_move;
 mod annot_reshape;
 mod annot_resize;

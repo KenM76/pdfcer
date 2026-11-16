@@ -701,6 +701,8 @@ mod annot_restyle_cmd;
 mod stroke_style_cmd;
 use annot_restyle_cmd::*;
 use stroke_style_cmd::*;
+mod group_cmd;
+use group_cmd::*;
 mod restack_cmd;
 use restack_cmd::*;
 mod text_annot_style_cmd;

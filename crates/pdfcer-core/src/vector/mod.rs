@@ -54,6 +54,7 @@ pub mod clip;
 pub mod decompose;
 pub mod edit;
 pub mod geometry;
+mod group;
 pub mod hit;
 mod image_hit;
 /// Picking a straight LINE (two endpoints) rather than a point, and deciding
@@ -71,6 +72,7 @@ pub mod text_locate;
 
 // Re-export the primary surface at `crate::vector::…` so callers do not
 // reach through the submodule paths for the everyday types.
+pub use crate::edit::is_group_form;
 pub use centerline::{
     CENTERLINE_ASPECT_THRESHOLD, CenterlineCandidate, derive_from_path, page_candidates,
 };
@@ -102,6 +104,11 @@ pub use edit::{
     text_split_refusal,
 };
 pub use geometry::{Bounds, Matrix, Point, Rgb, cubic_from_v, cubic_from_y, rect_corners};
+pub use group::GroupError;
+pub(crate) use group::{
+    MARKER_KEY, ResourceKey, form_box, inlined, is_marker, marker, marker_date, paint_outset,
+    plan_group, used_resources,
+};
 pub use hit::{
     FLATTEN_STEPS, FormMarquee, HitTarget, MarqueeMode, hit_test_point, hit_test_point_all,
     hit_test_point_all_with, hit_test_point_deep, hit_test_point_deep_with, hit_test_point_with,

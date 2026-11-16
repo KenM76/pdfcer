@@ -287,6 +287,18 @@ fn num(v: f64) -> String {
     }
 }
 
+/// One resource name a content stream uses, as [`rewrite_with`] reports it.
+pub(crate) struct ResourceUse<'a> {
+    /// The resource category (`Font`, `XObject`, …).
+    pub category: &'static [u8],
+    /// The name, decoded.
+    pub name: &'a [u8],
+    /// The name as written after its `/`, escapes intact.
+    pub raw: &'a [u8],
+    /// Inside an inline image's parameters, where it cannot be renamed.
+    pub inline: bool,
+}
+
 /// The form's content with its own resource names prefixed, balanced so it
 /// cannot leak graphics, text or marked-content state into the page.
 fn rewrite(
@@ -294,15 +306,49 @@ fn rewrite(
     own: Option<(&Dict, &[u8])>,
     graph: &dyn ObjectGraph,
 ) -> Result<Vec<u8>, &'static str> {
+    rewrite_with(content, &mut |u: ResourceUse<'_>| {
+        let (own, prefix) = own?;
+        if u.inline {
+            return Some(Vec::new());
+        }
+        own.get(u.category)
+            .map(|o| graph.resolve(o))
+            .and_then(Object::as_dict)
+            .and_then(|d| d.get(u.name))?;
+        Some([prefix, u.raw].concat())
+    })
+}
+
+/// `content` with each resource name `rename` answers replaced by the
+/// answer (written after a `/`, so it must already be escaped), closed so
+/// it cannot leak graphics or marked-content state into what follows.
+///
+/// # Errors
+///
+/// Why the content cannot stand in another stream: unbalanced `Q`, `ET` or
+/// `EMC`, an unterminated text object, or an inline image whose colour
+/// space `rename` wants replaced.
+pub(crate) fn rewrite_with(
+    content: &ContentStream,
+    rename: &mut dyn FnMut(ResourceUse<'_>) -> Option<Vec<u8>>,
+) -> Result<Vec<u8>, &'static str> {
     let buf = &content.buf;
-    let mut renames: Vec<usize> = Vec::new();
-    let (mut q, mut bt, mut mc) = (0usize, 0usize, 0usize);
+    let mut edits: Vec<(ByteSpan, Vec<u8>)> = Vec::new();
+    let mut depth = Depth::default();
     let mut run_start = 0usize;
     for (i, tok) in content.tokens.iter().enumerate() {
         match &tok.kind {
             ContentTokenKind::Operand(_) => continue,
             ContentTokenKind::InlineImage { params, .. } => {
-                if own.is_some() && named_colour_space(params) {
+                let named = named_colour_space(params).and_then(|name| {
+                    rename(ResourceUse {
+                        category: b"ColorSpace",
+                        name,
+                        raw: name,
+                        inline: true,
+                    })
+                });
+                if named.is_some() {
                     return Err("an inline image in it names a colour space resource");
                 }
             }
@@ -310,63 +356,73 @@ fn rewrite(
                 let op = buf
                     .get(tok.span.start..tok.span.start + tok.span.len)
                     .unwrap_or(&[]);
-                match op {
-                    b"q" => q += 1,
-                    b"Q" => q = q.checked_sub(1).ok_or("its q/Q operators are unbalanced")?,
-                    b"BT" => bt += 1,
-                    b"ET" => {
-                        bt = bt
-                            .checked_sub(1)
-                            .ok_or("its BT/ET operators are unbalanced")?
-                    }
-                    b"BMC" | b"BDC" => mc += 1,
-                    b"EMC" => {
-                        mc = mc
-                            .checked_sub(1)
-                            .ok_or("its marked content is unbalanced")?
-                    }
-                    _ => {}
-                }
-                if let Some((own, _)) = own
-                    && let Some(at) = rename_target(content, op, run_start, i, own, graph)
+                depth.step(op)?;
+                if let Some((at, category)) = resource_operand(content, op, run_start, i)
+                    && let Some(operand) = content.tokens.get(at)
+                    && let ContentTokenKind::Operand(Object::Name(name)) = &operand.kind
                 {
-                    renames.push(at);
+                    let raw = buf
+                        .get(operand.span.start + 1..operand.span.start + operand.span.len)
+                        .unwrap_or(&[]);
+                    let used = ResourceUse {
+                        category,
+                        name: name.as_bytes(),
+                        raw,
+                        inline: false,
+                    };
+                    if let Some(new) = rename(used) {
+                        edits.push((operand.span, [&b"/"[..], &new].concat()));
+                    }
                 }
             }
         }
         run_start = i + 1;
     }
-    if bt != 0 {
+    if depth.bt != 0 {
         return Err("it ends inside a text object");
     }
-    let prefix = own.map_or(&[][..], |(_, p)| p);
-    let mut edits: Vec<(ByteSpan, Vec<u8>)> = renames
-        .iter()
-        .filter_map(|&at| content.tokens.get(at))
-        .map(|tok| {
-            let name = buf
-                .get(tok.span.start + 1..tok.span.start + tok.span.len)
-                .unwrap_or(&[]);
-            let mut new = vec![b'/'];
-            new.extend_from_slice(prefix);
-            new.extend_from_slice(name);
-            (tok.span, new)
-        })
-        .collect();
     let mut out = splice(buf, &mut edits);
-    out.extend(std::iter::repeat_n(&b"\nEMC"[..], mc).flatten());
-    out.extend(std::iter::repeat_n(&b"\nQ"[..], q).flatten());
+    out.extend(std::iter::repeat_n(&b"\nEMC"[..], depth.mc).flatten());
+    out.extend(std::iter::repeat_n(&b"\nQ"[..], depth.q).flatten());
     Ok(out)
 }
 
-/// Whether an inline image's `/ColorSpace` is a resource name rather than a
+/// Open `q`, `BT` and marked-content levels.
+#[derive(Default)]
+struct Depth {
+    q: usize,
+    bt: usize,
+    mc: usize,
+}
+
+impl Depth {
+    fn step(&mut self, op: &[u8]) -> Result<(), &'static str> {
+        let down = |n: &mut usize, why: &'static str| -> Result<(), &'static str> {
+            *n = n.checked_sub(1).ok_or(why)?;
+            Ok(())
+        };
+        match op {
+            b"q" => self.q += 1,
+            b"Q" => down(&mut self.q, "its q/Q operators are unbalanced")?,
+            b"BT" => self.bt += 1,
+            b"ET" => down(&mut self.bt, "its BT/ET operators are unbalanced")?,
+            b"BMC" | b"BDC" => self.mc += 1,
+            b"EMC" => down(&mut self.mc, "its marked content is unbalanced")?,
+            _ => {}
+        }
+        Ok(())
+    }
+}
+
+/// An inline image's `/ColorSpace` when it is a resource name rather than a
 /// device space (§8.9.7: a name other than a device space is looked up in
 /// the `/ColorSpace` resources).
-fn named_colour_space(params: &Dict) -> bool {
+fn named_colour_space(params: &Dict) -> Option<&[u8]> {
     params
         .get(b"ColorSpace")
         .and_then(Object::as_name)
-        .is_some_and(|n| !is_device_space(n.as_bytes()))
+        .map(Name::as_bytes)
+        .filter(|n| !is_device_space(n))
 }
 
 fn is_device_space(name: &[u8]) -> bool {
@@ -376,19 +432,17 @@ fn is_device_space(name: &[u8]) -> bool {
     )
 }
 
-/// The token index of the resource-name operand of operator `op` (tokens
-/// `start..op_at` are its operands), if that name is in the form's own
-/// resources.
-fn rename_target(
+/// The token index and category of the resource-name operand of operator
+/// `op` (tokens `start..op_at` are its operands); `None` for an operator
+/// taking none, or one naming a device colour space.
+fn resource_operand(
     content: &ContentStream,
     op: &[u8],
     start: usize,
     op_at: usize,
-    own: &Dict,
-    graph: &dyn ObjectGraph,
-) -> Option<usize> {
+) -> Option<(usize, &'static [u8])> {
     let last = op_at.checked_sub(1).filter(|&l| l >= start);
-    let (at, category): (Option<usize>, &[u8]) = match op {
+    let (at, category): (Option<usize>, &'static [u8]) = match op {
         b"Tf" => (Some(start).filter(|&s| s < op_at), b"Font"),
         b"Do" => (last, b"XObject"),
         b"gs" => (last, b"ExtGState"),
@@ -405,11 +459,7 @@ fn rename_target(
     if category == b"ColorSpace" && is_device_space(name.as_bytes()) {
         return None;
     }
-    own.get(category)
-        .map(|o| graph.resolve(o))
-        .and_then(Object::as_dict)
-        .and_then(|d| d.get(name.as_bytes()))
-        .map(|_| at)
+    Some((at, category))
 }
 
 /// Copy the form's resources into the page's under `prefix`.

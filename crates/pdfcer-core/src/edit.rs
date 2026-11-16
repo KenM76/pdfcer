@@ -170,6 +170,10 @@ mod page_boxes;
 mod printer_marks;
 mod redact_outside;
 pub use page_boxes::{PageBox, PageBoxChange, PageBoxEdit};
+mod annot_group;
+pub use annot_group::{AnnotationGroupChange, AnnotationGroupError};
+mod group;
+pub use group::{GroupOutcome, UngroupOutcome, is_group_form};
 mod restack;
 mod running_text;
 #[cfg(feature = "signing")]
@@ -1287,6 +1291,14 @@ pub enum CommandKind {
     SetObjectStrokeStyle,
     /// [`EditSession::restack_objects`].
     RestackObjects,
+    /// [`EditSession::group_objects`].
+    GroupObjects,
+    /// [`EditSession::ungroup_form`].
+    UngroupForm,
+    /// [`EditSession::group_annotations`].
+    GroupAnnotations,
+    /// [`EditSession::ungroup_annotations`].
+    UngroupAnnotations,
     /// One anchor **node** of a path object was dragged (Pass 9c-min,
     /// decision 011 §2.5): exactly one coordinate pair was rewritten in an
     /// `m`/`l`/`c`/`v`/`y` operand list (surgery, R46/§5.7). ONE undoable
@@ -9784,6 +9796,15 @@ pub enum EditError {
     /// [`crate::vector::VectorEditError`] names which.
     #[error(transparent)]
     VectorEdit(#[from] crate::vector::VectorEditError),
+    /// Objects could not be grouped, or a form could not be ungrouped
+    /// ([`EditSession::group_objects`], [`EditSession::ungroup_form`]).
+    #[error(transparent)]
+    Group(#[from] crate::vector::GroupError),
+    /// Annotations could not be grouped or ungrouped
+    /// ([`EditSession::group_annotations`],
+    /// [`EditSession::ungroup_annotations`]).
+    #[error(transparent)]
+    AnnotationGroup(#[from] AnnotationGroupError),
     /// A clipboard copy or paste was refused (`Pass 120.0`) — an unresolvable
     /// resource on the source page, a payload from a newer build, or an
     /// inconsistent one. The inner [`crate::vector::ClipError`] names which.

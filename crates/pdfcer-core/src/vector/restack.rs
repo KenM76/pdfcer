@@ -170,6 +170,104 @@ pub(crate) fn plan_restack(
     finish(&ctx, &plans, &full, selected)
 }
 
+/// Objects gathered at one position, for [`super::group`].
+pub(super) struct Gathered {
+    /// The offset just after the front-most member, where they gather.
+    pub dest: usize,
+    /// The CTM there.
+    pub dest_ctm: Matrix,
+    /// Each member's byte span and the state changes standing in for it.
+    pub removals: Vec<((usize, usize), Vec<u8>)>,
+    /// Each member wrapped to paint at `dest` as it painted in place, in
+    /// paint order.
+    pub wraps: Vec<Vec<u8>>,
+    /// The `/ExtGState`s the wrappers name.
+    pub bind: Vec<(Vec<u8>, Dict)>,
+}
+
+/// Gather `members` (ascending, distinct, non-empty) just after the last
+/// of them; the inner `Err` names the first member that cannot go there
+/// without rendering differently.
+///
+/// # Errors
+///
+/// As [`plan_restack`].
+pub(super) fn gather(
+    content: &ContentStream,
+    objects: &[VectorObject],
+    members: &[usize],
+    res: &GsResources<'_>,
+) -> Result<Result<Gathered, RestackLimit>, VectorEditError> {
+    let spans = validate(objects, members)?;
+    let mut bounds: Vec<(usize, Option<Fingerprint>)> = Vec::new();
+    let w = walk(content, |off, w| bounds.push((off, w.fingerprint())));
+    let gs: Vec<GsParams> = w
+        .gs_names
+        .iter()
+        .map(|n| (res.ext_gstate)(n).map(|d| params(&d)))
+        .collect();
+    let ctx = Ctx {
+        gs: &gs,
+        free_names: res.free_names,
+        buf: &content.buf,
+        objects,
+        spans: &spans,
+        unselected: &[],
+        bounds: &bounds,
+        walk: &w,
+    };
+    let span = |m: usize| spans.get(m).copied().unwrap_or_default();
+    let dest = members.last().map_or(0, |&m| span(m).1);
+    let needed: HashSet<usize> = members
+        .iter()
+        .flat_map(|&m| [ctx.start_of(span(m).0), span(m).1])
+        .collect();
+    let full = full_states(content, &needed);
+    Ok(ctx.gather(members, dest, &full))
+}
+
+impl Ctx<'_> {
+    fn gather(
+        &self,
+        members: &[usize],
+        dest: usize,
+        full: &HashMap<usize, State>,
+    ) -> Result<Gathered, RestackLimit> {
+        let top = members.last().copied().unwrap_or_default();
+        let d = full
+            .get(&dest)
+            .filter(|d| d.insertable)
+            .ok_or(limit(top, RestackLimitReason::Entangled))?;
+        let mut out = Gathered {
+            dest,
+            dest_ctm: d.frame.ctm,
+            removals: Vec::new(),
+            wraps: Vec::new(),
+            bind: Vec::new(),
+        };
+        for (n, &m) in members.iter().enumerate() {
+            let span = self.spans.get(m).copied().unwrap_or_default();
+            let entangled = limit(m, RestackLimitReason::Entangled);
+            let scope = limit(m, RestackLimitReason::Scope);
+            let s = full.get(&self.start_of(span.0)).ok_or(entangled)?;
+            let e = full.get(&span.1).ok_or(entangled)?;
+            let removal = removal_delta(self.walk, self.buf, s, e).ok_or(entangled)?;
+            if s.frame.opaque != d.frame.opaque || s.mc != d.mc {
+                return Err(scope);
+            }
+            let name = self.free_names.get(n).map_or(&b""[..], Vec::as_slice);
+            let kind = self.objects.get(m).map_or(Kind::Form, kind_of);
+            let (wrap, reset) = wrapper(self, s, d, kind, &span, name).ok_or(scope)?;
+            out.removals.push((span, removal));
+            out.wraps.push(wrap);
+            if let Some(reset) = reset {
+                out.bind.push((name.to_vec(), reset));
+            }
+        }
+        Ok(out)
+    }
+}
+
 /// One mover's old position and destination candidates, before the full
 /// states are known.
 struct Plan {
@@ -197,13 +295,7 @@ struct Ctx<'a> {
 impl Ctx<'_> {
     fn plan_one(&self, a: usize, how: StackMove, needed: &mut HashSet<usize>) -> Plan {
         let (lo, hi) = self.spans.get(a).copied().unwrap_or_default();
-        // The last boundary at or before the object's first byte.
-        let start = self
-            .bounds
-            .partition_point(|b| b.0 <= lo)
-            .checked_sub(1)
-            .and_then(|i| self.bounds.get(i))
-            .map_or(0, |b| b.0);
+        let start = self.start_of(lo);
         needed.insert(start);
         needed.insert(hi);
         let (ideal, gaps) = self.search(a, how);
@@ -229,6 +321,15 @@ impl Ctx<'_> {
             candidates,
             ideal,
         }
+    }
+
+    /// The last boundary at or before byte `lo`.
+    fn start_of(&self, lo: usize) -> usize {
+        self.bounds
+            .partition_point(|b| b.0 <= lo)
+            .checked_sub(1)
+            .and_then(|i| self.bounds.get(i))
+            .map_or(0, |b| b.0)
     }
 
     fn fingerprint_at(&self, off: usize) -> Option<Fingerprint> {
@@ -573,6 +674,9 @@ fn wrapper(
         }
         match want {
             Some(op) => replay.op(buf, op),
+            // No font in force: a text object that shows anything sets its
+            // own (§9.3.1), so the destination's cannot reach it.
+            None if matches!(key, Key::Font) => {}
             None => replay.lit(key.reset()?),
         }
     }

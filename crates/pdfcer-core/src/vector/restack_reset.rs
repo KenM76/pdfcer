@@ -185,6 +185,8 @@ impl<'a> Restore<'a> {
             match src {
                 Source::Replayed(_) => {}
                 Source::Shared(v, ..) => out.reset.insert(Name(p.to_vec()), v),
+                // No font in force: text that shows anything sets its own.
+                Source::Initial if matches!(key, Key::Font) => {}
                 Source::Initial => out.lits.push(key.reset()?),
             }
         }
