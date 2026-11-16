@@ -971,3 +971,140 @@ fn every_ce_dimension_group_verb_refuses_an_id_that_does_not_exist() {
         "and the input document is untouched after all of them"
     );
 }
+
+/// `group-add --like` copies another group's scale and unit.
+#[test]
+fn group_add_like_copies_the_setup() {
+    let dir = std::env::temp_dir();
+    let tag = std::process::id();
+    let src = fixture();
+    let a = dir.join(format!("pdfcer_like_{tag}_1.pdf"));
+    let b = dir.join(format!("pdfcer_like_{tag}_2.pdf"));
+    let (code, _, err) = run(&[
+        "group-set-scale",
+        src.to_str().unwrap(),
+        "--real-length",
+        "5m",
+        "--drawn",
+        "200",
+        "-o",
+        a.to_str().unwrap(),
+    ]);
+    assert_eq!(code, 0, "{err}");
+    let (code, out, err) = run(&[
+        "group-add",
+        a.to_str().unwrap(),
+        "--name",
+        "Copy",
+        "--like",
+        "0",
+        "-o",
+        b.to_str().unwrap(),
+    ]);
+    assert_eq!(code, 0, "{err}");
+    assert!(out.contains("unit=m ") && out.contains("group=1 "), "{out}");
+    let s = pdfcer_core::edit::EditSession::new(
+        pdfcer_core::document::Document::from_bytes(std::fs::read(&b).unwrap()).unwrap(),
+    );
+    let model = s.dimension_model();
+    let (from, copy) = (
+        model.group(pdfcer_core::dimension::GroupId(0)).unwrap(),
+        model.group(pdfcer_core::dimension::GroupId(1)).unwrap(),
+    );
+    assert_eq!((copy.scale, copy.format), (from.scale, from.format));
+    let (code, _, _) = run(&[
+        "group-add",
+        b.to_str().unwrap(),
+        "--name",
+        "X",
+        "--like",
+        "9",
+        "-o",
+        a.to_str().unwrap(),
+    ]);
+    assert_eq!(code, 9);
+}
+
+/// A scale calibrated with `--drawn-page` on a `/UserUnit 2` page reads the
+/// stated length there; without it the same line reads double.
+#[test]
+fn calibrating_on_a_user_unit_page_reads_the_stated_length() {
+    let bodies = [
+        "<< /Type /Catalog /Pages 2 0 R >>",
+        "<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
+        "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 400 400] /UserUnit 2 /Resources << >> >>",
+    ];
+    let mut buf = b"%PDF-1.7\n".to_vec();
+    let mut offsets = Vec::new();
+    for (i, body) in bodies.iter().enumerate() {
+        offsets.push(buf.len());
+        buf.extend_from_slice(format!("{} 0 obj\n{body}\nendobj\n", i + 1).as_bytes());
+    }
+    let xref_at = buf.len();
+    buf.extend_from_slice(b"xref\n0 4\n0000000000 65535 f \n");
+    for off in &offsets {
+        buf.extend_from_slice(format!("{off:010} 00000 n \n").as_bytes());
+    }
+    buf.extend_from_slice(
+        format!("trailer\n<< /Size 4 /Root 1 0 R >>\nstartxref\n{xref_at}\n%%EOF\n").as_bytes(),
+    );
+    let src = temp_out("uu-src.pdf");
+    std::fs::write(&src, buf).unwrap();
+
+    let reading = |page_flag: &[&str], tag: &str| {
+        let scaled = temp_out(&format!("uu-{tag}-scaled.pdf"));
+        let dimmed = temp_out(&format!("uu-{tag}-dim.pdf"));
+        let mut args = vec![
+            "group-set-scale",
+            src.to_str().unwrap(),
+            "--real-length",
+            "5m",
+            "--drawn",
+            "100",
+            "--precision",
+            "2",
+        ];
+        args.extend_from_slice(page_flag);
+        args.extend_from_slice(&["-o", scaled.to_str().unwrap()]);
+        let (code, out, err) = run(&args);
+        assert_eq!(code, 0, "{err}");
+        let (code, _, err) = run(&[
+            "dimension-add",
+            scaled.to_str().unwrap(),
+            "--page",
+            "1",
+            "--kind",
+            "linear",
+            "--points",
+            "100,200 200,200",
+            "-o",
+            dimmed.to_str().unwrap(),
+        ]);
+        assert_eq!(code, 0, "{err}");
+        (out, list(&dimmed))
+    };
+    let (out, listed) = reading(&["--drawn-page", "1"], "on");
+    assert!(
+        out.contains("user unit 2") && out.contains("200 pt"),
+        "{out}"
+    );
+    assert!(listed.contains("5.00 m"), "{listed}");
+    let (out, listed) = reading(&[], "off");
+    assert!(!out.contains("user unit"), "{out}");
+    assert!(listed.contains("10.00 m"), "{listed}");
+
+    let (code, _, err) = run(&[
+        "group-set-scale",
+        src.to_str().unwrap(),
+        "--real-length",
+        "5m",
+        "--drawn",
+        "100",
+        "--drawn-page",
+        "7",
+        "-o",
+        temp_out("uu-bad.pdf").to_str().unwrap(),
+    ]);
+    assert_eq!(code, EDIT_REFUSED);
+    assert!(err.contains("is not a page"), "{err}");
+}

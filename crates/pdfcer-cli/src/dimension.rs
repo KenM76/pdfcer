@@ -2645,11 +2645,12 @@ pub(crate) fn format_fraction(f: pdfcer_core::dimension::FractionMode) -> String
 pub(crate) fn cmd_group_add(
     input: &Path,
     name: &str,
-    unit_str: &str,
+    setup: (&str, Option<u32>),
     output: &Path,
     mode: SaveMode,
     verify_undo: bool,
 ) -> u8 {
+    let (unit_str, like) = setup;
     let Some(unit) = pdfcer_core::dimension::Unit::parse(unit_str) else {
         eprintln!(
             "pdfcer: {}: unknown --unit `{unit_str}` (mm|cm|m|in|ft|ft-in)",
@@ -2661,10 +2662,18 @@ pub(crate) fn cmd_group_add(
         Ok(pair) => pair,
         Err(code) => return code,
     };
-    let group = match session.add_dimension_group(name, unit) {
+    let made = match like {
+        Some(id) => session.add_dimension_group_like(name, pdfcer_core::dimension::GroupId(id)),
+        None => session.add_dimension_group(name, unit),
+    };
+    let group = match made {
         Ok(id) => id,
         Err(err) => return report_edit_error(input, &err),
     };
+    let unit = session
+        .dimension_model()
+        .group(group)
+        .map_or(unit, |g| g.format.unit);
     let outcome = match save_edited(
         &mut session,
         &source,
@@ -2699,6 +2708,7 @@ pub(crate) struct GroupSetScaleArgs<'a> {
     pub(crate) group: u32,
     pub(crate) real_length: Option<&'a str>,
     pub(crate) drawn: Option<f64>,
+    pub(crate) drawn_page: Option<u32>,
     pub(crate) ratio: Option<&'a str>,
     pub(crate) unit: &'a str,
     pub(crate) one_to_one: bool,
@@ -2709,8 +2719,43 @@ pub(crate) struct GroupSetScaleArgs<'a> {
     pub(crate) verify_undo: bool,
 }
 
+/// `--drawn` in points: multiplied by the user unit of `--drawn-page`.
+fn drawn_points(
+    session: &pdfcer_core::edit::EditSession,
+    args: &GroupSetScaleArgs<'_>,
+) -> Result<Option<f64>, u8> {
+    let (Some(drawn), Some(page)) = (args.drawn, args.drawn_page) else {
+        return Ok(args.drawn);
+    };
+    let pages = session.pages().unwrap_or_default();
+    let Some(found) = (page as usize).checked_sub(1).and_then(|i| pages.get(i)) else {
+        eprintln!(
+            "pdfcer: {}: --drawn-page {page} is not a page (the document has {})",
+            args.input.display(),
+            pages.len()
+        );
+        return Err(exit::EDIT_REFUSED);
+    };
+    if (found.user_unit - 1.0).abs() > f64::EPSILON {
+        println!(
+            "group-set-scale: page {page} has user unit {}; --drawn {drawn} counted as {} pt",
+            found.user_unit,
+            drawn * found.user_unit
+        );
+    }
+    Ok(Some(drawn * found.user_unit))
+}
+
 /// `group-set-scale` — set a group's scale + units and regenerate members.
 pub(crate) fn cmd_group_set_scale(args: &GroupSetScaleArgs<'_>) -> u8 {
+    let (source, mut session) = match open_for_edit(args.input) {
+        Ok(pair) => pair,
+        Err(code) => return code,
+    };
+    let drawn = match drawn_points(&session, args) {
+        Ok(drawn) => drawn,
+        Err(code) => return code,
+    };
     use pdfcer_core::dimension::{
         GroupId, NumberFormat, ScaleEntry, ScaleState, Unit, parse_length, preview_group_scale,
     };
@@ -2770,7 +2815,7 @@ pub(crate) fn cmd_group_set_scale(args: &GroupSetScaleArgs<'_>) -> u8 {
                 return exit::EDIT_REFUSED;
             }
         }
-    } else if let (Some(real_text), Some(drawn)) = (args.real_length, args.drawn) {
+    } else if let (Some(real_text), Some(drawn)) = (args.real_length, drawn) {
         // Parsed with the SAME function the GUI field uses, so `55 5/8"` means
         // one thing in this product rather than two. A second, CLI-local
         // number parser would be a duplicated predicate and would drift (R92)
@@ -2827,10 +2872,6 @@ pub(crate) fn cmd_group_set_scale(args: &GroupSetScaleArgs<'_>) -> u8 {
         None => unit.default_format(),
     };
 
-    let (source, mut session) = match open_for_edit(args.input) {
-        Ok(pair) => pair,
-        Err(code) => return code,
-    };
     let members = match session.set_group_scale(GroupId(args.group), scale, format) {
         Ok(n) => n,
         Err(err) => return report_edit_error(args.input, &err),

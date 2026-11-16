@@ -3,7 +3,7 @@
 
 use super::{Command, CommandKind, EditError, EditSession};
 use crate::crypto::PermissionBit;
-use crate::dimension::{FractionMode, GroupId, NumberFormat, Unit};
+use crate::dimension::{FractionMode, Group, GroupId, NumberFormat, ScaleState, Unit};
 
 impl EditSession {
     /// Show `group`'s ce dimensions in `unit`, keeping the calibration: the
@@ -58,6 +58,56 @@ impl EditSession {
         name: &str,
         format: NumberFormat,
     ) -> Result<GroupId, EditError> {
+        self.add_group_set_up(name, format, |_| {})
+    }
+
+    /// [`Self::add_dimension_group_with_format`] with the group's scale set
+    /// in the same command: one undo entry for "a new group at this scale".
+    ///
+    /// # Errors
+    ///
+    /// As [`Self::add_dimension_group_with_format`].
+    pub fn add_dimension_group_with_scale(
+        &mut self,
+        name: &str,
+        scale: ScaleState,
+        format: NumberFormat,
+    ) -> Result<GroupId, EditError> {
+        self.add_group_set_up(name, format, |g| g.scale = scale)
+    }
+
+    /// Create a new group named `name` set up like `template`: its scale,
+    /// number format, drafting standard and style are copied. Its ce
+    /// dimensions are not; the new group is empty and visible. One undo
+    /// entry.
+    ///
+    /// # Errors
+    ///
+    /// [`EditError::DimensionGroupNotFound`] for an unknown `template`, then
+    /// as [`Self::add_dimension_group_with_format`].
+    pub fn add_dimension_group_like(
+        &mut self,
+        name: &str,
+        template: GroupId,
+    ) -> Result<GroupId, EditError> {
+        let model = self.read_dimension_model();
+        let like = model
+            .group(template)
+            .ok_or(EditError::DimensionGroupNotFound { id: template.0 })?
+            .clone();
+        self.add_group_set_up(name, like.format, |g| {
+            g.scale = like.scale;
+            g.standard = like.standard;
+            g.style = like.style;
+        })
+    }
+
+    fn add_group_set_up(
+        &mut self,
+        name: &str,
+        format: NumberFormat,
+        set_up: impl FnOnce(&mut Group),
+    ) -> Result<GroupId, EditError> {
         if crate::encryption_gate::forbids(&self.base, &[PermissionBit::ModifyContents]) {
             return Err(EditError::DocumentEncrypted);
         }
@@ -65,6 +115,9 @@ impl EditSession {
         self.check_dimension_sidecar()?;
         let mut model = self.read_dimension_model();
         let id = model.add_group_with_format(name, format);
+        if let Some(group) = model.group_mut(id) {
+            set_up(group);
+        }
         let catalog_write = self.catalog_dimension_write(&model)?;
         self.commit(Command {
             kind: CommandKind::AddDimension,

@@ -142,6 +142,53 @@ fn the_default_feet_inches_format_reduces() {
     );
 }
 
+/// A group made with a scale, or like another group, is one undo entry.
+#[test]
+fn a_group_is_created_with_its_scale_in_one_undo_entry() {
+    let mut s = EditSession::new(Document::from_bytes(minimal_pdf()).unwrap());
+    let format = NumberFormat::fractional(16, true);
+    assert_eq!(format.unit, Unit::Inch);
+    assert_ne!(format, NumberFormat::inch_fraction(16));
+    assert_eq!(
+        NumberFormat::fractional(16, false),
+        NumberFormat::inch_fraction(16)
+    );
+    assert_eq!(
+        Unit::Inch.default_format(),
+        NumberFormat::decimal(Unit::Inch, 2)
+    );
+
+    let scale = ScaleState::Calibrated { scale: 0.5 };
+    let a = s
+        .add_dimension_group_with_scale("A", scale, format)
+        .unwrap();
+    assert_eq!(s.undo_depth(), 1);
+    let model = s.dimension_model();
+    let made = model.group(a).unwrap();
+    assert_eq!((made.scale, made.format), (scale, format));
+
+    s.set_group_standard(a, pdfcer_core::dimension::DimStandard::Iso)
+        .unwrap();
+    let depth = s.undo_depth();
+    let b = s.add_dimension_group_like("B", a).unwrap();
+    assert_eq!(s.undo_depth(), depth + 1);
+    let model = s.dimension_model();
+    let (from, copy) = (model.group(a).unwrap(), model.group(b).unwrap());
+    assert_eq!(copy.name, "B");
+    assert_eq!(
+        (copy.scale, copy.format, copy.standard, &copy.style),
+        (from.scale, from.format, from.standard, &from.style)
+    );
+    assert!(copy.visible && copy.ocg.is_none());
+
+    assert!(matches!(
+        s.add_dimension_group_like("C", GroupId(99)),
+        Err(EditError::DimensionGroupNotFound { id: 99 })
+    ));
+    s.undo().unwrap();
+    assert!(s.dimension_model().group(b).is_none());
+}
+
 /// A unit change keeps the group's fraction where the new unit shows one,
 /// and drops it where it cannot.
 #[test]

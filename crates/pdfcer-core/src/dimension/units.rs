@@ -393,6 +393,21 @@ impl NumberFormat {
         }
     }
 
+    /// An inch format shown as a nearest-`1/denominator` fraction; `reduce`
+    /// prints lowest terms (`1/2"`), without it the denominator is kept
+    /// (`8/16"`). [`Self::inch_fraction`] is this with `reduce` false.
+    #[must_use]
+    pub const fn fractional(denominator: u32, reduce: bool) -> Self {
+        Self {
+            unit: Unit::Inch,
+            fraction: FractionMode::Fraction {
+                denominator,
+                reduce,
+            },
+            decimal_marker: DecimalMarker::Point,
+        }
+    }
+
     /// A feet-inches format: whole feet + inches rounded to nearest
     /// `1/denominator`. `reduce` prints lowest terms (`3/4"`); without it the
     /// denominator is kept (`6/8"`). [`Unit::default_format`] reduces.
@@ -800,7 +815,9 @@ pub enum ScaleEntry {
     /// Back-calc: `scale = real_length / drawn_pdf_length` (decision 011 §2.4,
     /// spec-confirmed as `/X` first `/C`).
     RealLength {
-        /// The drawn reference line's length in PDF points.
+        /// The drawn reference line's length in points (1/72 inch): its
+        /// length in the page's user space times the page's `/UserUnit`.
+        /// [`ScaleEntry::real_length_on`] does that multiplication.
         drawn_pdf_length: f64,
         /// The operator-typed real-world length, in `unit`.
         real_length: f64,
@@ -819,6 +836,57 @@ pub enum ScaleEntry {
         /// The paper-unit basis (default [`Unit::Inch`]).
         basis: Unit,
     },
+}
+
+impl ScaleEntry {
+    /// The real-length entry for a reference line measured on `page`.
+    ///
+    /// `measured_user_units` is the line's length in the page's user space,
+    /// which is what `DimensionKind::measured_points` returns. A group's
+    /// scale is real units per point (1/72 inch) of paper, and every label
+    /// is `length in user space x /UserUnit x scale` (ISO 32000-1 Table 30,
+    /// `UserUnit`), so one scale reads the same real length on pages whose
+    /// `/UserUnit` differ. Calibrating therefore has to count the reference
+    /// line in points too; passing the user-space length straight to
+    /// [`ScaleEntry::RealLength`] is right only where `/UserUnit` is 1.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use pdfcer_core::dimension::{
+    ///     NumberFormat, ScaleEntry, ScaleState, Unit, format_measurement_on,
+    ///     preview_group_scale,
+    /// };
+    /// use pdfcer_core::object::ObjId;
+    /// use pdfcer_core::page_tree::{Page, Rect};
+    ///
+    /// let media = Rect::from_corners(0.0, 0.0, 306.0, 396.0);
+    /// let mut page = Page::with_boxes(ObjId::new(3, 0), media, media, 0);
+    /// page.user_unit = 2.0;
+    /// // A 100-unit line on this page is stated to be 5 m.
+    /// let entry = ScaleEntry::real_length_on(&page, 100.0, 5.0, Unit::Meter);
+    /// let scale = preview_group_scale(entry).unwrap().scale;
+    /// let shown = format_measurement_on(
+    ///     &page,
+    ///     100.0,
+    ///     ScaleState::Calibrated { scale },
+    ///     NumberFormat::decimal(Unit::Meter, 2),
+    /// );
+    /// assert_eq!(shown.text, "5.00 m");
+    /// ```
+    #[must_use]
+    pub fn real_length_on(
+        page: &crate::page_tree::Page,
+        measured_user_units: f64,
+        real_length: f64,
+        unit: Unit,
+    ) -> Self {
+        Self::RealLength {
+            drawn_pdf_length: measured_user_units * page.user_unit,
+            real_length,
+            unit,
+        }
+    }
 }
 
 /// The live preview of a scale entry (ui-spec §4.2: "→ scale = 25.0 ft /

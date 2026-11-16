@@ -12292,6 +12292,10 @@ pub(crate) enum Command {
         verify_undo: bool,
     },
     /// Create a named dimension group. Prints the new group id.
+    ///
+    /// A new group has no scale set and shows its unit's usual number
+    /// format: decimals, except feet-inches which shows eighths in lowest
+    /// terms. With `--like` it starts as a copy of another group's setup.
     GroupAdd {
         /// Input PDF.
         input: PathBuf,
@@ -12301,6 +12305,11 @@ pub(crate) enum Command {
         /// The display unit: `mm|cm|m|km|in|ft|ft-in|yd|mi`.
         #[arg(long, default_value = "mm")]
         unit: String,
+        /// Copy the scale, number format, drafting standard and style of
+        /// this group id (0 = default group) instead of using `--unit`.
+        /// The group's ce dimensions are not copied.
+        #[arg(long, conflicts_with = "unit")]
+        like: Option<u32>,
         /// Output path.
         #[arg(short, long)]
         output: PathBuf,
@@ -12329,9 +12338,16 @@ pub(crate) enum Command {
         /// produce the same result from the same text.
         #[arg(long)]
         real_length: Option<String>,
-        /// Real-length path: the drawn reference line's length in points.
+        /// Real-length path: the drawn reference line's length in points
+        /// (1/72 inch), or in a page's own units with `--drawn-page`.
         #[arg(long)]
         drawn: Option<f64>,
+        /// The page (1-based) `--drawn` was measured on, in that page's
+        /// units. Needed only where the page sets a user unit other than 1:
+        /// the length is multiplied by it, so the scale reads the stated
+        /// length on that page and on every other page.
+        #[arg(long, requires = "drawn")]
+        drawn_page: Option<u32>,
         /// Direct-ratio path, e.g. `1:100` (paper:real; inch paper-unit basis).
         #[arg(long)]
         ratio: Option<String>,

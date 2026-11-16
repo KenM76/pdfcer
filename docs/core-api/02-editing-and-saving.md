@@ -18,7 +18,7 @@ answers *"I want to do X — what do I call, in what order, and what will bite m
 | **Date** | 2026-08-29 |
 | **Verified against** | `5c37c7c` (`git rev-parse --short HEAD`) — *"he gave no reason" was a claim, and it has been corrected* |
 | **Primary subject** | `crates/pdfcer-core/src/edit.rs` (35655) |
-| **Covers** | `EditSession` end to end: construction, the command/undo/redo model, **all 414 public methods**, the `EditError` taxonomy, the save path (incremental vs full rewrite), the guard/refusal model (encryption, certification, sidecar version, `/Size` suppression), object allocation and byte staging |
+| **Covers** | `EditSession` end to end: construction, the command/undo/redo model, **all 416 public methods**, the `EditError` taxonomy, the save path (incremental vs full rewrite), the guard/refusal model (encryption, certification, sidecar version, `/Size` suppression), object allocation and byte staging |
 | **Does NOT cover** | Document loading and the read-only object model → **`01-reading-and-model.md`**. Per-feature capability guides (ce dimensions, forms, annotations, redaction, OCR, printing) → **`03-capabilities.md`**. This document covers the *session mechanics* those features flow through; part 3 covers the features. |
 | **Terminology** | Project rule 15. **ce dimensions** = the dimension objects pdfcer authors (`/Line` + `/IT /LineDimension` + baked `/AP` + `/PieceInfo` sidecar). **pdf dimensions** = dimensions already present in the page content, exported by CAD. Never bare "dimension". This document only concerns ce dimensions. |
 
@@ -69,9 +69,9 @@ Five consequences a GUI author must internalise before writing any code:
 
 ---
 
-## 1. Verb index — all 414 public `EditSession` methods
+## 1. Verb index — all 416 public `EditSession` methods
 
-**Count: 414.** Established by brace-matched extraction of the
+**Count: 416.** Established by brace-matched extraction of the
 `impl EditSession` blocks in `edit.rs` and its `edit/` child modules, matching `pub fn` / `pub const fn`, and checked
 on every run by `tools/check-core-api-verbs.py` — which is what caught this
 figure at 120 when `add_outline_item` landed, and caught it again at 227 when
@@ -4401,8 +4401,10 @@ constructed, then committed, under one `&mut`.
 |---|---|---|
 | Read the sidecar model | `dimension_model(&self) -> DimensionModel` | Overlay-aware; a fresh model if none stored. |
 | Author a ce dimension | `add_dimension(&mut self, page_index, group: GroupId, kind: DimensionKind) -> Result<(ObjId, DimensionId), EditError>` | Annotation id + model id. ONE undo entry. ⚠️ **Refuses an unknown `group` since `Pass 178.1`** — it used to author into the DEFAULT group silently and return success, and the group carries the scale, so the ce dimension was measured at a scale nobody chose. |
-| Create a group | `add_dimension_group(&mut self, name, unit: Unit) -> Result<GroupId, EditError>` | Scale-never-set, visible, OCG allocated lazily. Format = `unit.default_format()`; for `Inch` and `FeetInches` that is sixteenths / eighths **reduced to lowest terms** (`1/2"`, never `8/16"`). |
-| Create a group with a chosen number format | `add_dimension_group_with_format(&mut self, name, format: NumberFormat) -> Result<GroupId, EditError>` | Request G278. The same group, with `format` as given: `NumberFormat::fractional(16, false)` or `NumberFormat::feet_inches(8, false)` keeps every reading on one denominator (`8/16"`). The unit is `format`'s. One undo entry. |
+| Create a group | `add_dimension_group(&mut self, name, unit: Unit) -> Result<GroupId, EditError>` | Scale-never-set, visible, OCG allocated lazily. Format = `unit.default_format()`: decimals for every unit (`Inch` is 2 places, `49.21 in`) except `FeetInches`, which is eighths **reduced to lowest terms** (`1/2"`, never `4/8"`). An inch group reads a fraction only when asked: `add_dimension_group_with_format(name, NumberFormat::fractional(16, true))`. |
+| Create a group with a chosen number format | `add_dimension_group_with_format(&mut self, name, format: NumberFormat) -> Result<GroupId, EditError>` | Request G278. The same group, with `format` as given: `NumberFormat::fractional(denominator, reduce)` is the inch fraction and `NumberFormat::feet_inches(denominator, reduce)` the feet-inches one; `reduce = false` keeps every reading on one denominator (`8/16"`), `true` prints lowest terms (`1/2"`). `NumberFormat::inch_fraction(d)` is `fractional(d, false)`. The unit is `format`'s. One undo entry. |
+| Create a group with its scale | `add_dimension_group_with_scale(&mut self, name, scale: ScaleState, format: NumberFormat) -> Result<GroupId, EditError>` | Request G285. `add_dimension_group_with_format` with the scale set in the same command, so a new group at a chosen scale is ONE undo entry (`CommandKind::AddDimension`). The group is empty, so nothing is regenerated. The drafting standard and style start at their defaults; use `add_dimension_group_like` to carry them. |
+| Create a group like another | `add_dimension_group_like(&mut self, name, template: GroupId) -> Result<GroupId, EditError>` | Request G285. A new, empty, visible group named `name` with `template`'s scale, number format (decimal marker included), drafting standard and `GroupStyle` copied. Its ce dimensions, layer and visibility are not copied. One undo entry. `EditError::DimensionGroupNotFound` for an unknown template. CLI: `pdfcer group-add --name B --like 0`. |
 | Change a group's unit, keeping what it measures | `set_group_unit(&mut self, group, unit: Unit) -> Result<usize, EditError>` | **Count of members regenerated.** Converts the calibration with `ScaleState::in_unit`; format = `unit.default_format()` with the group's decimal marker, and for `Inch` / `FeetInches` the group's fraction denominator and reduce choice are kept when it already read in fractions. Refuses an unknown `group`. CLI `group-set-unit`. |
 | Set a group's scale + number format | `set_group_scale(&mut self, group, scale: ScaleState, format: NumberFormat) -> Result<usize, EditError>` | **Count of members regenerated.** ⚠️ **Refuses an unknown `group` since `Pass 178.2`** — it used to return `Ok` and change nothing. ⚠️ **Can also return `CarrierIsNotAStream` (`Pass 191.1`)** — it regenerates through the shared path that overwrites each member's attacker-supplied sidecar `/Ap` wholesale. §6.8. |
 | Toggle a group's layer | `toggle_dimension_layer(&mut self, group, visible) -> Result<bool, EditError>` | Resulting visibility. The default group is un-hideable. |
