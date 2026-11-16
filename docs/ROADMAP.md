@@ -112,6 +112,13 @@ wherever it appears.*
 
 ## Shipped
 
+### `b96b0f7e` `chore(release): v0.152.0`, 2026-11-16: version bump filed, release NOT yet published (1568th filing)
+
+Engineer-reported; no shell here, git, tag, push, CI, crates.io and backup state not checked from here. `b96b0f7e` on `main` bumps the workspace version and the 16 engine-crate pins from 0.151.0 to 0.152.0 in `Cargo.toml`, plus `Cargo.lock` and `fuzz/Cargo.lock`. Version bump only: no code change, no dependency change.
+- **Planned contents of `v0.152.0`** (already filed, 1567th): `530a6ffc` (`Pass 713.0`) and `427571a7` (`Pass 714.0`).
+- **Not published.** Not yet tagged. Still to come, filed separately: tag, GitHub release, OneDrive (`pdfcer1` is next in the alternation), crates.io (16 crates). A later filing records PUBLISHED.
+- **FEATURES:** no change; the `Engine crates on crates.io` row stays at 0.151.0 until publication.
+
 ### `427571a7` `Pass 714.0`: PDF-direct sheet composition moves into `pdfcer-print`, 2026-11-16 (1567th filing, with `530a6ffc`)
 
 Engineer-reported; no shell here, git, push and CI state not checked from here. `427571a7` `feat(print): sheet composition for PDF-direct printing moves into pdfcer-print`. Answers `pdfcer-gui` request `G276`. Reasoning is in the commit message. In `main`, not in a release (rides `v0.152.0`, not yet cut).
