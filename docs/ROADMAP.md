@@ -112,6 +112,19 @@ wherever it appears.*
 
 ## Shipped
 
+### `99235b6f` `Pass 715.0`: markup annotations are snap targets, 2026-11-16 (1570th filing)
+
+Engineer-reported; no shell here, git, push and CI state not checked from here. `99235b6f` `feat(snap): markup annotations are snap targets (Pass 715.0, G281)`. Answers `pdfcer-gui` request `G281` (`request_G281_snap_candidates_ignore_annotations.md`). Reasoning is in the commit message. In `main`, not in a release (rides `v0.153.0`). Delivered **core only**: no CLI command snaps, so there is no CLI caller; gui none.
+- **`vector::markup_snap_geometry(&graph, page_id, &hidden_layers, &exclude) -> Vec<MarkupSnapGeometry>`** (new `crates/pdfcer-core/src/vector/snap_annot.rs`): drawn geometry of Square, Circle, Line, PolyLine, Polygon (cloudy or not), Ink and FreeText (box plus `/CL` callout). Box = `/Rect` less `/RD`, inset to the stroke centreline unless the border is cloudy. A `/Line` with `/LL` or `/Cap` yields only its two `/L` points (ISO 32000-1 §12.5.6.7: the drawn line is offset). Skips popups, widgets and other subtypes, `/F` Hidden/NoView, hidden `/OC`, excluded ids, direct (id-less) `/Annots` entries.
+- **`vector::snap_candidates_with_markups(query, &SnapConfig, Option<&PageObjects>, &[MarkupSnapGeometry])`**: one list, same kinds and priority order as page paths; with no markups identical to `snap_candidates`.
+- **`EditSession::markup_snap_geometry(page_index, &hidden_layers) -> Result<Vec<MarkupSnapGeometry>, EditError>`** (new `crates/pdfcer-core/src/edit/markup_snap.rs`): excludes the session's ce dimensions; reads only.
+- **API break:** `SnapCandidate` gained `pub source_annotation: Option<ObjId>`; out-of-crate struct literals break. Guard `MAX_MARKUP_SNAP_POINTS` = 4096 per markup.
+- **Known limits:** no intersections with markup edges; the geometry is a snapshot the caller rebuilds after annotation edits; ink interior sample points are not targets.
+- **Verification (engineer-reported):** 8 new tests in `crates/pdfcer-core/tests/markup_snap.rs` (registered in `tests/all.rs`). `cargo test -p pdfcer-core --no-fail-fast`: lib 2,368 passed, integration 3,268 passed, doctests 284 passed, 0 failed. `cargo clippy -p pdfcer-core --all-targets -- -D warnings`, `cargo fmt --check`, `cargo check --workspace --all-targets` clean; `check-code-structure.py` clean (544 baseline, none new). `docs/core-api/` updated in the same commit (01 §10.4, 02 verb row, 03 pointer, index counts); `check-core-api-verbs.py` PASS, 409 public EditSession verbs (was 408). **Invariant:** no manifest change, so no `cargo tree` or licence work. No new untrusted-input parser (reads through existing annotation readers), so no new fuzz target.
+- **Channel:** reply `open/reply_G281_snap_candidates_ignore_annotations_SHIPPED.md` written.
+- **Still open of this round:** `G280`, `G282`. `Pass 716.0` and `Pass 717.0` are the next free IDs (not filed).
+- **FEATURES:** new row "Markup annotations are snap targets" in *Vector objects* (core `[x]`, cli `—`, gui `[ ]`). No decision, no rule.
+
 ### `e4ab6497` `v0.152.0` PUBLISHED, 2026-11-16 (1569th filing)
 
 Engineer-reported measurements; no shell here, nothing checked from here. Bump `b96b0f7e`, filed by `e4ab6497` (1568th). Tag `v0.152.0` is on `e4ab6497219829ba23b2c8c706cde5f34c1568c9`, pushed, contained in `origin/main`. **The tag is lightweight** (earlier release tags were annotated); nothing depends on it, `git describe --tags` resolves it and `verify-release.py` passed. CI green at the tagged commit (run 43921720401).
@@ -27194,6 +27207,8 @@ closes out the *prior* filing's business rather than opening this one's.
 ---
 
 ## Next up
+
+> **1570th filing: open `pdfcer-gui` requests of this round are `G280` and `G282` (not yet Passes; `Pass 716.0` and `Pass 717.0` are the next free IDs). `G281` SHIPPED as `Pass 715.0` (`99235b6f`; see *Shipped*).**
 
 > **1512th filing: `X071` (operator, crates consumer; `D:\Dev\FeatureRequests\pdfce_FeatureRequests\open\request_X071_down_rollover_rich_text_and_signature_appearances.md`) filed as three Passes, all OPEN, none started. The request asked to start only after the release carrying `X069`/`X070`; `v0.145.0` was tagged at `9077e43aafd40cd07effef67dd0031f9bd36ab52` on 2026-11-11 (operator-reported; not checked from here, no shell), so `X071` is active. `700.8`, `700.9`, `700.10` had zero hits across `docs/*.md` by grep (no shell; not run through `tools/check-ledger-numbers.py`). Engine read named in the request: v0.144.0 (`5eb04866`). The three Parts are independent; each acceptance test must fail with its change reverted.**
 >

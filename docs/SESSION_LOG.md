@@ -4,6 +4,15 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-11-16 (1570th filing) — `99235b6f` `Pass 715.0` (`G281`): markup annotations are snap targets
+
+**Filed (engineer-reported; no shell here, nothing checked from here):**
+- `99235b6f` `Pass 715.0`: new `vector::markup_snap_geometry`, `vector::snap_candidates_with_markups` and `EditSession::markup_snap_geometry` (409 public EditSession verbs, was 408); `SnapCandidate::source_annotation` is a new public field and breaks out-of-crate struct literals. Core only (no CLI command snaps; gui none). In `main`, rides `v0.153.0`.
+- Verification: `pdfcer-core` lib 2,368, integration 3,268, doctests 284 passed, 0 failed; 8 new tests in `markup_snap.rs`; clippy `-D warnings`, fmt, `check-code-structure` (544 baseline, none new), core-api verbs gate clean. No manifest change; no new parser, so no fuzz target.
+- Limits: no intersections with markup edges; geometry is a snapshot rebuilt after annotation edits; ink interior sample points are not targets.
+
+**Open:** requests `G280`, `G282`; `Pass 716.0` and `Pass 717.0` are the next free IDs (not filed). ROADMAP: new Shipped entry, Next-up banner. FEATURES: new "Markup annotations are snap targets" row (core only). No decision, no rule.
+
 ## 2026-11-16 (1569th filing) — `v0.152.0` PUBLISHED
 
 **Filed (engineer-reported; no shell here, nothing checked from here):**
