@@ -12344,6 +12344,10 @@ pub(crate) enum Command {
         /// Decimal precision (decimal units) or fraction denominator (ft-in).
         #[arg(long)]
         precision: Option<u32>,
+        /// With a ft-in `--precision`, keep the denominator (`6/8"`) instead
+        /// of printing lowest terms (`3/4"`).
+        #[arg(long, requires = "precision")]
+        keep_denominator: bool,
         /// Output path.
         #[arg(short, long)]
         output: PathBuf,

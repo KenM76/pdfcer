@@ -18,7 +18,7 @@ answers *"I want to do X — what do I call, in what order, and what will bite m
 | **Date** | 2026-08-29 |
 | **Verified against** | `5c37c7c` (`git rev-parse --short HEAD`) — *"he gave no reason" was a claim, and it has been corrected* |
 | **Primary subject** | `crates/pdfcer-core/src/edit.rs` (35655) |
-| **Covers** | `EditSession` end to end: construction, the command/undo/redo model, **all 405 public methods**, the `EditError` taxonomy, the save path (incremental vs full rewrite), the guard/refusal model (encryption, certification, sidecar version, `/Size` suppression), object allocation and byte staging |
+| **Covers** | `EditSession` end to end: construction, the command/undo/redo model, **all 408 public methods**, the `EditError` taxonomy, the save path (incremental vs full rewrite), the guard/refusal model (encryption, certification, sidecar version, `/Size` suppression), object allocation and byte staging |
 | **Does NOT cover** | Document loading and the read-only object model → **`01-reading-and-model.md`**. Per-feature capability guides (ce dimensions, forms, annotations, redaction, OCR, printing) → **`03-capabilities.md`**. This document covers the *session mechanics* those features flow through; part 3 covers the features. |
 | **Terminology** | Project rule 15. **ce dimensions** = the dimension objects pdfcer authors (`/Line` + `/IT /LineDimension` + baked `/AP` + `/PieceInfo` sidecar). **pdf dimensions** = dimensions already present in the page content, exported by CAD. Never bare "dimension". This document only concerns ce dimensions. |
 
@@ -69,9 +69,9 @@ Five consequences a GUI author must internalise before writing any code:
 
 ---
 
-## 1. Verb index — all 405 public `EditSession` methods
+## 1. Verb index — all 408 public `EditSession` methods
 
-**Count: 405.** Established by brace-matched extraction of the
+**Count: 408.** Established by brace-matched extraction of the
 `impl EditSession` blocks in `edit.rs` and its `edit/` child modules, matching `pub fn` / `pub const fn`, and checked
 on every run by `tools/check-core-api-verbs.py` — which is what caught this
 figure at 120 when `add_outline_item` landed, and caught it again at 227 when
@@ -3448,6 +3448,27 @@ page showed.
 `insert-pages --labels source|continue`); its `AssembleReport` carries
 `page_label_ranges` and `page_labels_dropped` with the same meanings.
 
+**ce dimensions travel with their pages** (request G279). `extract` and
+`split` carry the ce-dimension sidecar for the ce dimensions whose
+annotation was copied, and `insert_with` keeps the target's (the source
+the catalog is taken from, `AssembleOptions::catalog_from`); ce dimensions
+on the inserted pages arrive as plain line annotations. `merge` takes no
+source's catalog, so it carries no sidecar and reports zero for both
+counts: every merged ce dimension is a plain line annotation in the
+result. What is carried: every group of the source
+(its layer remapped when the layer came across, otherwise none), and each
+record with its annotation and appearance ids remapped, so the result's
+ce dimensions stay editable and deletable. `AssembleOptions::
+with_dimension_sidecar(false)` leaves the sidecar behind (the annotations
+still copy, as plain line annotations). `AssembleReport::
+ce_dimensions_carried` counts the records written and
+`ce_dimensions_left` those not (their page was not copied, or the
+source's sidecar is a newer schema than this build reads, in which case
+none is carried and `ce_dimension_sidecar_newer` is `true`: say so, the
+copied ce dimensions are plain line annotations in the result). The CLI
+prints the counts as `ce_dims_carried=` and `ce_dims_left=` on the report
+line and a sentence on stderr for the newer-schema case.
+
 Every assembled file (extract, split, merge, insert to a new file) drops
 the structure tree (`struct_tree_dropped`), so a link, bookmark or GoTo
 that named a structure element names that element's page instead,
@@ -4374,8 +4395,9 @@ constructed, then committed, under one `&mut`.
 |---|---|---|
 | Read the sidecar model | `dimension_model(&self) -> DimensionModel` | Overlay-aware; a fresh model if none stored. |
 | Author a ce dimension | `add_dimension(&mut self, page_index, group: GroupId, kind: DimensionKind) -> Result<(ObjId, DimensionId), EditError>` | Annotation id + model id. ONE undo entry. ⚠️ **Refuses an unknown `group` since `Pass 178.1`** — it used to author into the DEFAULT group silently and return success, and the group carries the scale, so the ce dimension was measured at a scale nobody chose. |
-| Create a group | `add_dimension_group(&mut self, name, unit: Unit) -> Result<GroupId, EditError>` | Scale-never-set, visible, OCG allocated lazily. |
-| Change a group's unit, keeping what it measures | `set_group_unit(&mut self, group, unit: Unit) -> Result<usize, EditError>` | **Count of members regenerated.** Converts the calibration with `ScaleState::in_unit`; format = `unit.default_format()` with the group's decimal marker. Refuses an unknown `group`. CLI `group-set-unit`. |
+| Create a group | `add_dimension_group(&mut self, name, unit: Unit) -> Result<GroupId, EditError>` | Scale-never-set, visible, OCG allocated lazily. Format = `unit.default_format()`; for `Inch` and `FeetInches` that is sixteenths / eighths **reduced to lowest terms** (`1/2"`, never `8/16"`). |
+| Create a group with a chosen number format | `add_dimension_group_with_format(&mut self, name, format: NumberFormat) -> Result<GroupId, EditError>` | Request G278. The same group, with `format` as given: `NumberFormat::fractional(16, false)` or `NumberFormat::feet_inches(8, false)` keeps every reading on one denominator (`8/16"`). The unit is `format`'s. One undo entry. |
+| Change a group's unit, keeping what it measures | `set_group_unit(&mut self, group, unit: Unit) -> Result<usize, EditError>` | **Count of members regenerated.** Converts the calibration with `ScaleState::in_unit`; format = `unit.default_format()` with the group's decimal marker, and for `Inch` / `FeetInches` the group's fraction denominator and reduce choice are kept when it already read in fractions. Refuses an unknown `group`. CLI `group-set-unit`. |
 | Set a group's scale + number format | `set_group_scale(&mut self, group, scale: ScaleState, format: NumberFormat) -> Result<usize, EditError>` | **Count of members regenerated.** ⚠️ **Refuses an unknown `group` since `Pass 178.2`** — it used to return `Ok` and change nothing. ⚠️ **Can also return `CarrierIsNotAStream` (`Pass 191.1`)** — it regenerates through the shared path that overwrites each member's attacker-supplied sidecar `/Ap` wholesale. §6.8. |
 | Toggle a group's layer | `toggle_dimension_layer(&mut self, group, visible) -> Result<bool, EditError>` | Resulting visibility. The default group is un-hideable. |
 | **The page's vector objects, memoised** | `page_objects(&mut self, page_index) -> Result<Arc<PageObjects>, EditError>` | ⚡ **Use this instead of `vector::decompose_page`** (`Pass 181.0`). The editing verbs share the same cache, so a shell that decomposes to get object indices does not pay for the identical parse again inside `move_objects` — measured **385 ms → 0 ms** on a 130k-object CAD page. `&mut self` because populating a cache is a mutation; see below. |
@@ -4385,6 +4407,8 @@ constructed, then committed, under one `&mut`.
 | **Drag** a ce dimension | `place_dimension(&mut self, dimension, offset: f64, text_along: f64) -> Result<(), EditError>` | ✅ **This, not `move_dimension`, is what dragging does.** Value-preserving by construction. Per kind: linear = standoff + slide; angular = arc radius + degrees along the arc from its midpoint, positive anticlockwise (`Pass 385.0`, G064: the value is drawn there, just outside the arc, and `label_anchor` returns the arc point); perimeter = page +y/+x from the centroid; **circular** (`Pass 370.0`) = text distance past the rim (negative inside, clamped at the centre / far rim) + leader angle in degrees CCW from page +x, stored in `DimensionKind::Circular { leader_angle, text_distance }` (`None` = the legacy half-radius spot; `circular_text_distance()` returns the effective, clamped value). `placement_from_point` inverts it for a live drag, for every kind including angular (`(distance from the apex, degrees in [-180, 180))`; on the apex `text_along` is kept). |
 | **Set one end's extension-line gap** on a linear ce dimension | `set_dimension_extension_gap(&mut self, dimension, end: DimensionEnd, gap: Option<f64>) -> Result<(), EditError>` | `Pass 369.0`, request `G050`. `Some(g)` sets the distance (pt) from the measured point to where that end's extension line STARTS; `None` returns the end to the standard's gap. Stored on `DimensionKind::Linear::extension_gap: [Option<f64>; 2]`, so placement, vertex moves, rotate, translate and `dimension_preview` all carry it; the sidecar writes `/GapA` / `/GapB` only when set (no version bump). Refuses a non-linear kind (`NoExtensionLines`) and a gap that is non-finite, negative, or ≥ `DimensionKind::extension_reach(end, style)` — the point-to-dimension-line distance minus the overshoot — as `ExtensionGapOutOfRange { id, gap, reach }`: any gap it accepts is drawn. `DimensionKind::extension_segments(style)` returns both drawn segments for a panel. One undo entry. |
 | **Live-preview** a ce dimension drag | `dimension_preview(&self, id: DimensionId, moved: &DimensionKind) -> Result<DimensionPreview, EditError>` | **`Pass 368.0`**, pdfcer-gui request G049. Bakes `moved` through the commit's own path (the ce dimension's resolved style cascade and text override, `author_dimension_with_label`); stages nothing, no undo entry, `&self`. `DimensionPreview { appearance: AuthoredDimension }`: `appearance.ap_content` is page-space (`/BBox` = `/Rect`, identity matrix). `appearance.label_quad: [Point; 4]` is the value text's box (descender to cap line, in the text's own frame, so rotated for an ISO-aligned label), and `label_rect()` gives its upright bounds; hit-test a press there to set `text_along` only, and elsewhere to set `offset`. `moved` is not validated; the committing verb applies its own refusals. Paint: `pdfcer_render::edit_preview::paint_dimension_preview(&view, &preview, &RenderOptions, page_to_device: Transform, &mut Pixmap) -> Diagnostics`. It runs the same interpreter as the committed `/AP`, and its pixels are tested equal to the committed page render. Pass a transparent pixmap to composite it over the page. A drag that SHORTENS the ce dimension adds no ink over the committed one, so re-render the region under it with `RenderOptions::with_omit_annotations([record.annot])` first (§7.2 of `03-capabilities.md`, G052). `Errors`: `DimensionNotFound`, `DimensionGroupNotFound`. No CLI (interactive only). |
+| **Read a ce dimension's value** | `dimension_display(&self, id: DimensionId) -> Option<MeasurementDisplay>` | Request G277. The label's own number: the measured length in the page's units times the page's `/UserUnit` (ISO 32000-1 §14.11.2 Table 30; squared for an area, not applied to an angle), then the group's scale and format. `None` for an unknown id. **Use this, not `dimension_model().display(id)`**, which has no page and reads 1/72 inch units. |
+| **Preview a ce dimension before it exists, on a page** | `new_dimension_preview_on(&self, page_index, group: GroupId, kind: &DimensionKind) -> Result<DimensionPreview, EditError>` | Request G277. `new_dimension_preview` with the page's `/UserUnit` applied, so the placing preview is byte-identical to what `add_dimension(page_index, group, kind)` writes on a page whose `/UserUnit` is not 1. Refuses a page index out of range. |
 | **Preview a ce dimension before it exists** (the placing preview) | `new_dimension_preview(&self, group: GroupId, kind: &DimensionKind) -> Result<DimensionPreview, EditError>` | **`Pass 384.0`**, pdfcer-gui request G063. Bakes `kind` with `group`'s style, derived exactly as `add_dimension` derives it (a new ce dimension has no per-dimension overrides or text override), through `author_dimension`; stages nothing, no undo entry, `&self`. `appearance.ap_content` is byte-identical to the `/AP` the placing `add_dimension(page, group, kind)` writes (tested, in a group whose scale, format and standard all differ from the factory defaults), so paint it with `paint_dimension_preview` as for a drag and drop the shell's own segment/label drawing. The page does not enter the appearance. `Errors`: `DimensionGroupNotFound` for an unknown `group` (as `add_dimension` refuses it). No CLI (interactive only). |
 | Toggle radius ↔ diameter | `set_dimension_display(&mut self, dimension, show_diameter: bool) -> Result<(), EditError>` | ⚠️ **Commits even when nothing changes** (opposite of `set_info_field`). |
 | **Switch a closed perimeter ↔ its enclosed AREA** | `set_dimension_area(&mut self, dimension, area: bool) -> Result<(), EditError>` | `Pass 447.0`, G098. Sets `DimensionKind::Perimeter::area`; the vertices are untouched, the label and `/Measure` are re-baked. An area reads in the group's unit squared (`12.96 m²`), the scale applied squared; `/A` carries factor 1 because ISO 32000-1 §12.9 Table 262 applies it to `/X`'s units squared. Refuses a kind with no vertices (`DimensionHasNoVertices`), an open path (`AreaNeedsClosedOutline`) and fewer than three vertices (`AreaNeedsThreeVertices { vertices }`), all before mutating. ⚠️ **1 entry even on a no-op**, like `set_dimension_display`. `add_dimension` with `area: true` applies the same two outline refusals. A document holding an area writes sidecar version 5. |

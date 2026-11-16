@@ -119,9 +119,21 @@ pub struct DimensionStyle {
     /// Constant opacity, written as the annotation's `/CA` (§12.5.2 Table
     /// 166) when below 1; an opaque ce dimension carries no `/CA`.
     pub opacity: f64,
+    /// The `/UserUnit` (ISO 32000-1 §14.11.2, Table 30) of the page the ce
+    /// dimension sits on; `1.0` when the page states none. Multiplies the
+    /// measured value and the `/Measure` `/C`, never the drawn geometry.
+    pub user_unit: f64,
 }
 
 impl DimensionStyle {
+    /// This style for a ce dimension on a page whose `/UserUnit` is
+    /// `user_unit`.
+    #[must_use]
+    pub const fn on_user_unit(mut self, user_unit: f64) -> Self {
+        self.user_unit = user_unit;
+        self
+    }
+
     /// A style with the factory appearance defaults and the caller's
     /// measurement fields — the constructor every test and doc example uses,
     /// so adding a sixth appearance property does not touch a dozen struct
@@ -148,6 +160,7 @@ impl DimensionStyle {
             tolerance_places: f.tolerance_places,
             dash: f.dash,
             opacity: f.opacity,
+            user_unit: 1.0,
         }
     }
 }
@@ -460,7 +473,7 @@ pub fn author_dimension_with_label(
     // ce dimension must not be run through the length formatter, and this
     // baked label is the copy that outlives the session. See
     // `DimensionKind::display_with`.
-    let display = kind.display_with(scale, format);
+    let display = kind.display_on(style.user_unit, scale, format);
     // The label, nominal + tolerance, built in ONE place (Pass 69.1).
     //
     // `Pass 68.0` shipped a defect whose entire cause was two independent
@@ -841,9 +854,13 @@ pub fn author_dimension_with_label(
         Name::from(b"Contents"),
         Object::String(crate::textstring::encode_text_string(&label)),
     );
-    // The portable /Measure scale mirror (only when a scale is set).
+    // The portable /Measure scale mirror (only when a scale is set). §12.9
+    // measures in default user space, so the page's unit composes into /C.
     if let Some(s) = scale.effective_scale(format.unit) {
-        annot.insert(Name::from(b"Measure"), build_measure_dict(s, format));
+        annot.insert(
+            Name::from(b"Measure"),
+            build_measure_dict(s * style.user_unit, format),
+        );
     }
 
     AuthoredDimension {

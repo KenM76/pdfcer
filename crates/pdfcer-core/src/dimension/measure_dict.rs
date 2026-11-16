@@ -11,8 +11,8 @@
 //! The first `/C` of the `/X` NumberFormat array **is** the group scale:
 //! `C = real_length_in_top_unit ÷ drawn_length_in_points`. `/R` ("1:100") is
 //! DISPLAY-ONLY (parse-nothing); pdfcer sets `/R` and `/C` consistently. All
-//! measurement is in **default user space** (any non-default `/UserUnit` is
-//! folded into `/C` by the caller — the beta measures in points).
+//! measurement is in **default user space**; a page's non-default `/UserUnit`
+//! reaches `/C` through [`super::DimensionStyle::user_unit`].
 //!
 //! ## Feet-inches (§12.9 Table 263, verbatim from the RAG)
 //!

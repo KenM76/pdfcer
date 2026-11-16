@@ -146,6 +146,7 @@ pub use history_transfer::{HistoryError, HistoryImport};
 pub use regroup::WidgetRegroup;
 mod content_mark;
 mod decoration_refresh;
+mod dimension_unit;
 mod editable_source;
 mod emf;
 mod foreign_button;
@@ -51556,7 +51557,8 @@ impl EditSession {
         let group = model
             .group(record.group)
             .ok_or(EditError::DimensionGroupNotFound { id: record.group.0 })?;
-        let style = crate::dimension::resolve_style(group, &record.style);
+        let style = crate::dimension::resolve_style(group, &record.style)
+            .on_user_unit(self.dimension_user_unit(record));
         let appearance = crate::dimension::author_dimension_with_label(
             moved,
             style,
@@ -51715,6 +51717,7 @@ impl EditSession {
             },
             DimensionStyle::from,
         );
+        let style = style.on_user_unit(self.page_user_unit(page_id));
 
         // Author the /Line + baked /AP from the geometry and the group style.
         let authored = author_dimension(&kind, style);
@@ -51787,21 +51790,7 @@ impl EditSession {
     /// Encryption / enforced-certification guards, as the other dimension
     /// operations.
     pub fn add_dimension_group(&mut self, name: &str, unit: Unit) -> Result<GroupId, EditError> {
-        if crate::encryption_gate::forbids(&self.base, &[PermissionBit::ModifyContents]) {
-            return Err(EditError::DocumentEncrypted);
-        }
-        self.check_certification()?;
-        self.check_dimension_sidecar()?;
-        let mut model = self.read_dimension_model();
-        let id = model.add_group(name, unit);
-        let catalog_write = self.catalog_dimension_write(&model)?;
-        self.commit(Command {
-            kind: CommandKind::AddDimension,
-            objects: vec![catalog_write],
-            removals: Vec::new(),
-            trailer: None,
-        });
-        Ok(id)
+        self.add_dimension_group_with_format(name, unit.default_format())
     }
 
     /// Register an **existing** widget annotation as a form field in
@@ -56924,7 +56913,8 @@ impl EditSession {
         // here. `Pass 68.0`'s defect was two independent derivations of a
         // display value, and a disclosure that disagreed with the page would
         // be that same defect wearing a different hat.
-        let style = crate::dimension::resolve_style(group, &record.style);
+        let style = crate::dimension::resolve_style(group, &record.style)
+            .on_user_unit(self.dimension_user_unit(record));
         let measured = crate::dimension::author_dimension(&record.kind, style).label;
         let printed =
             crate::dimension::author_dimension_with_label(&record.kind, style, label).label;
@@ -57998,8 +57988,12 @@ impl EditSession {
         // The label BEFORE, taken through the same single producer the baked
         // `/AP` will use (`display_with`), so the disclosure and the file
         // cannot disagree about what the ce dimension used to say.
-        let style = crate::dimension::resolve_style(group, &record.style);
-        let previous_label = record.kind.display_with(style.scale, style.format).text;
+        let style = crate::dimension::resolve_style(group, &record.style)
+            .on_user_unit(self.dimension_user_unit(record));
+        let previous_label = record
+            .kind
+            .display_on(style.user_unit, style.scale, style.format)
+            .text;
 
         let after = vertex_edited_kind(dimension, &record.kind, edit)?;
         let (vertices, closed) = after
@@ -58008,7 +58002,9 @@ impl EditSession {
             // closed. Reported rather than refused so a shell can drive one
             // handle model over both kinds.
             .map_or((2, false), |(p, c)| (p.len(), c));
-        let label = after.display_with(style.scale, style.format).text;
+        let label = after
+            .display_on(style.user_unit, style.scale, style.format)
+            .text;
         Ok((
             VertexOutcome {
                 vertices,
@@ -58056,7 +58052,8 @@ impl EditSession {
             // can be honoured — and the only place one can be silently
             // dropped. A `From<&Group>` here would make every override work in
             // the panel and vanish in the saved file.
-            let style = crate::dimension::resolve_style(group, &record.style);
+            let style = crate::dimension::resolve_style(group, &record.style)
+                .on_user_unit(self.dimension_user_unit(record));
             // The text override rides through the SAME single regeneration
             // path, for the identical reason the style cascade does: this is
             // the only place a ce dimension's appearance is rebuilt after

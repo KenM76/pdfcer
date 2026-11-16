@@ -866,6 +866,13 @@ annotations themselves were kept.",
             report.dangling_references
         );
     }
+    if report.ce_dimension_sidecar_newer {
+        eprintln!(
+            "pdfcer: {}: the source's {} ce dimension(s) were written by a newer pdfcer than this one reads, so they were copied as plain line annotations and are no longer editable as ce dimensions in this file.",
+            output.display(),
+            report.ce_dimensions_left
+        );
+    }
     if report.outline_items_dropped > 0 {
         eprintln!(
             "pdfcer: {}: {} bookmark(s) were dropped because their destination page was not \
@@ -1134,7 +1141,7 @@ pub(crate) fn assemble_metrics(
         "pages={} objects={} dangling={} outline_kept={} outline_dropped={} \
 outline_relinked={} fields_renamed={} fields_dropped={} dests_dropped={} labels_dropped={} \
 labels_stale={} label_ranges={} struct_tree_dropped={} struct_links={} struct_links_first_page={} \
-ocg_carried={} {} out_bytes={out_bytes}",
+ocg_carried={} ce_dims_carried={} ce_dims_left={} {} out_bytes={out_bytes}",
         report.pages,
         report.objects_copied,
         report.dangling_references,
@@ -1151,6 +1158,8 @@ ocg_carried={} {} out_bytes={out_bytes}",
         report.structure_links_to_pages,
         report.structure_links_to_first_page,
         u32::from(report.optional_content_carried),
+        report.ce_dimensions_carried,
+        report.ce_dimensions_left,
         separation_metrics(&report.separations),
     )
 }

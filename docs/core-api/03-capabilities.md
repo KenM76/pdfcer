@@ -210,6 +210,7 @@ document. Every persistent change goes through an `EditSession` verb below.
 |---|---|
 | `add_dimension(page_index, group: GroupId, kind: DimensionKind)` | `Result<(ObjId, DimensionId), EditError>` |
 | `add_dimension_group(name: &str, unit: Unit)` | `Result<GroupId, EditError>` |
+| `add_dimension_group_with_format(name: &str, format: NumberFormat)` | `Result<GroupId, EditError>` — the group's unit and fraction style as given (`reduce: false` keeps one denominator) |
 | `set_group_scale(group, scale: ScaleState, format: NumberFormat)` | `Result<usize, EditError>` — members **regenerated** |
 | `set_group_unit(group, unit: Unit)` | `Result<usize, EditError>` — members **regenerated**; the calibration is converted (1000 mm reads 3.28 ft), the format becomes the unit's default with the decimal marker kept |
 | `set_group_standard(group, …)` | `Result<usize, EditError>` |
@@ -220,6 +221,8 @@ document. Every persistent change goes through an `EditSession` verb below.
 | `place_dimension(dimension, offset: f64, text_along: f64)` | `Result<(), EditError>` |
 | `set_dimension_extension_gap(dimension, end: DimensionEnd, gap: Option<f64>)` | `Result<(), EditError>` — linear only; `None` = the standard's gap |
 | `dimension_preview(&self, id, moved: &DimensionKind)` | `Result<DimensionPreview, EditError>` — read-only |
+| `new_dimension_preview_on(&self, page_index, group: GroupId, kind: &DimensionKind)` | `Result<DimensionPreview, EditError>` — read-only; the placing preview on a page, its `/UserUnit` applied |
+| `dimension_display(&self, id: DimensionId)` | `Option<MeasurementDisplay>` — read-only; the value as the label states it, the page's `/UserUnit` applied |
 | `new_dimension_preview(&self, group: GroupId, kind: &DimensionKind)` | `Result<DimensionPreview, EditError>` — read-only; the `/AP` `add_dimension` would write |
 | `move_dimension(dimension, dx, dy)` | `Result<(), EditError>` |
 | `toggle_dimension_layer(group, visible: bool)` | `Result<bool, EditError>` |
@@ -233,6 +236,9 @@ document. Every persistent change goes through an `EditSession` verb below.
 - `DimDash::new(&[f64]) -> Option<DimDash>`, `DimDash::SOLID`, `pattern()`, `is_solid()`; `opacity_in_range(f64) -> bool` — `dash.rs`
 - `preview_group_scale(ScaleEntry) -> Option<ScalePreview>` — `units.rs`
 - `format_measurement(points, ScaleState, NumberFormat) -> MeasurementDisplay` — `units.rs`
+- `format_measurement_on(&Page, measured_user_units, ScaleState, NumberFormat) -> MeasurementDisplay` — `units.rs`. A length measured on a page: user units times the page's `/UserUnit` (`Page::user_unit`, ISO 32000-1 §14.11.2 Table 30), then `format_measurement`. Use it for any length a tool measures on a page (G277); `format_measurement` alone under-reads a page whose `/UserUnit` is 2 by half.
+- `DimensionKind::display_on(user_unit: f64, ScaleState, NumberFormat) -> MeasurementDisplay` — `group.rs`. `display_with` for a page whose `/UserUnit` is `user_unit`: a length times it, an area times its square, an angle unchanged. `display_with` is this at 1.0.
+- `DimensionStyle::user_unit: f64` (default 1.0) and `DimensionStyle::on_user_unit(f64) -> DimensionStyle` — `author.rs`. The page's `/UserUnit` the label and `/Measure` are baked with; `EditSession` sets it from the ce dimension's page, so a caller of `author_dimension` directly sets it itself. **A new public field: a `DimensionStyle { .. }` literal outside the crate needs it** (or start from `DimensionStyle::new()` / `resolve_style`). The `/Measure` `/X` conversion factor carries it, because §12.9 states that factor per default user space unit.
 - `ScaleState::in_unit(from: Unit, to: Unit) -> ScaleState` — the same calibration for a different top unit. A `Calibrated { scale }` is real units **in the group's unit** per point, so it must be converted whenever the unit it is read in changes; `resolve_style` does this for a per-ce-dimension unit override and `set_group_unit` for the group. A front end that converts on its own should call this instead.
 - `format_angle_degrees(degrees, NumberFormat) -> String` — `units.rs`
 - `format_area_measurement(square_points, ScaleState, NumberFormat) -> MeasurementDisplay` — `area.rs`; `area_unit_label(NumberFormat)` (`"m²"`) and `area_places(NumberFormat)` (a fraction or feet-inches format falls back to 2 decimals)
@@ -3707,10 +3713,56 @@ that reports honestly.
 
 `Print`: `core [x] · cli [x] · gui [x]` (`FEATURES.md`).
 **`Imposition`: `core — · cli [x] · gui [ ]`** (`FEATURES.md`) — *"N-up,
-booklet, poster; mutually exclusive, refused in combination. **No GUI surface
-at all.**"* `FEATURES.md` names the planned work: *"needs the sheet
-composition extracted into `pdfcer-print` so both shells share one
-implementation."*
+booklet, poster; mutually exclusive, refused in combination."*
+
+**Composing a job as a PDF** (`pdfcer_print::compose`, feature `compose`;
+request G276). For a printer that reads PDF, the sheets are laid out as a
+new PDF and sent at actual size; this is what `pdfcer print --pdf-direct`
+sends when the job needs it, and a shell calls the same function.
+
+- Cargo: `pdfcer-print = { features = ["compose"] }`; add `svg-import` for
+  cut marks and n-up cell borders (without it a job asking for either is
+  refused with `ComposeError::StrokesUnavailable`, never printed without
+  them). `compose` is what makes `pdfcer-print` depend on `pdfcer-core`.
+- `compose(source: &mut EditSession, sequence: &[usize], &Request) ->
+  Result<Composed, ComposeError>`. `sequence` is 0-based source pages in
+  print order (selection, odd/even subset and reversal already applied);
+  an index past the last page is skipped.
+- **`source` is consumed as a scratch session.** Its printable
+  annotations are burned into their pages and poster tiles change its
+  crop boxes. Open a session for the job and never save it.
+- `Request { paper: Paper, shape: Shape, mode: ScaleMode, orientation:
+  Orientation, label: &str }` — `mode` places a page on its sheet for
+  `Shape::Pages` only; `label` is the file name on poster tile labels.
+- `Paper { physical_pt, printable_pt, offset_pt }`, portrait, in points;
+  `Paper::portrait(physical, printable, offset)` takes a driver's
+  `PrinterCaps` fields and turns a landscape report to portrait.
+- `Shape::{Pages, NUp(NUpSpec), Booklet(BookletSpec), Poster(PosterSpec)}`;
+  `Shape::for_job(n_up: Option<(u32, bool)>, booklet: Option<(Binding,
+  BookletSubset)>, poster: Option<PosterSpec>)` builds it with the planner
+  settings the driver route uses. `Shape::needs_composing(paper_chosen,
+  mode)` says whether the job must be composed at all (anything but whole
+  pages, a chosen paper, or `ScaleMode::Custom`); when false, send the
+  document's own bytes.
+- `Composed { pdf, pages, notes }` (`#[non_exhaustive]`): `pages` is sides
+  of paper; set the IPP job's `print-scaling` to `none` and leave its
+  orientation unset, because the sheets are already final.
+- `ComposeError` (`#[non_exhaustive]`, `thiserror`, each a plain sentence):
+  `MixedRotations(&'static str)` (n-up or a booklet over pages whose
+  `/Rotate` differ), `Imposition(ImpositionError)`, `NoPages`,
+  `StrokesUnavailable`, `Engine(Box<dyn Error + Send + Sync>)`.
+- `pdfcer_print::pdf_direct::FallbackReason::{DriverOnlyOption,
+  NoNetworkAddress, NoPdf, Unreachable, CannotCompose}`
+  (`#[non_exhaustive]`, not feature-gated); `keyword()` and `Display` give
+  the CLI's `fallback=` word (`driver-only-option`, `no-network-address`,
+  `no-pdf`, `unreachable`, `cannot-compose`).
+
+**★ What the UI must disclose.** Every string in `Composed::notes`: each
+names something left off the sheets (form fields that do not all print,
+an annotation that could not be drawn) or pages that lose their edges at
+the chosen scale. And that the sheets are composed for `Paper`, so that
+paper must be loaded. When the job falls back to the driver, say why,
+with the `FallbackReason`.
 
 **This is the largest greenfield opportunity in the document.**
 `grep -rn "imposition::" crates/` finds hits **only** in

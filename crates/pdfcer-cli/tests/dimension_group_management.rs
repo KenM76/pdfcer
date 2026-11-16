@@ -616,16 +616,10 @@ fn a_unit_named_in_real_length_reaches_the_label_and_not_only_the_scale() {
         ("5m", "m", "5.000 m"),
         // Names inches via the double-prime, with a vulgar fraction.
         ("55 5/8\"", "in", "55.62 in"),
-        // Architectural feet-and-inches picks the feet-inches FORMAT too.
-        //
-        // `4/8` and not `1/2` is CORRECT and is not a rounding artefact: the
-        // feet-inches format defaults to `reduce = false`, the architectural
-        // convention that keeps the denominator (ISO 32000-1's `/FD`), so a
-        // drawing dimensioned in eighths reads in eighths throughout. See
-        // `NumberFormat::feet_inches`. Asserted in its unreduced form
-        // deliberately -- a future change that started reducing would be a
-        // visible behaviour change and should fail here.
-        ("4'-7 1/2\"", "ft-in", "4'-7 4/8\""),
+        // Architectural feet-and-inches picks the feet-inches FORMAT too,
+        // in eighths reduced to lowest terms (the default; pass
+        // `--keep-denominator` for `4/8`).
+        ("4'-7 1/2\"", "ft-in", "4'-7 1/2\""),
         // A BARE number still falls back to --unit's default. The contrast
         // case: without it, "always use the parsed unit" would pass every
         // other row here and break the documented fallback.

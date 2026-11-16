@@ -107,6 +107,7 @@
 //! cited inline at each decision they informed.
 
 pub mod assemble;
+mod dimension_carry;
 pub mod outline;
 pub mod references;
 pub mod region;
@@ -556,6 +557,7 @@ pub fn merge(
         // than defaulted, so that a future partial-merge does not inherit
         // this answer by accident.
         separations: SeparationPolicy::Repair,
+        carry_dimension_sidecar: true,
     };
     assemble(sources, &order, &options)
 }
@@ -759,6 +761,7 @@ pub fn insert_with(
         // source, so a set is split only if the CALLER selected part of
         // one — which the repair then handles.
         separations: SeparationPolicy::Repair,
+        carry_dimension_sidecar: true,
     };
     let (bytes, mut report) = assemble(
         &[target.clone_view(), source.clone_view()],

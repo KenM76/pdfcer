@@ -108,5 +108,6 @@ pub use tolerance::{Tolerance, ToleranceError};
 pub use two_lines::{TwoLineAuthoring, TwoLinePlacement, TwoLineRefusal, author_from_two_lines};
 pub use units::{
     DecimalMarker, FractionMode, MeasurementDisplay, NO_SCALE_DISCLOSURE, NumberFormat, ScaleEntry,
-    ScalePreview, ScaleState, Unit, format_angle_degrees, format_measurement, preview_group_scale,
+    ScalePreview, ScaleState, Unit, format_angle_degrees, format_measurement,
+    format_measurement_on, preview_group_scale,
 };

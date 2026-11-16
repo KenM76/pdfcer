@@ -456,6 +456,20 @@ impl DimensionKind {
     /// number would arrive carrying no disclosure that anything was odd.
     #[must_use]
     pub fn display_with(&self, scale: ScaleState, format: NumberFormat) -> MeasurementDisplay {
+        self.display_on(1.0, scale, format)
+    }
+
+    /// [`Self::display_with`] for a ce dimension on a page whose `/UserUnit`
+    /// (ISO 32000-1 §14.11.2, Table 30) is `user_unit`: a length is
+    /// multiplied by it and an area by its square before the scale applies,
+    /// so the value is physical. An angle is unaffected.
+    #[must_use]
+    pub fn display_on(
+        &self,
+        user_unit: f64,
+        scale: ScaleState,
+        format: NumberFormat,
+    ) -> MeasurementDisplay {
         if self.is_angular() {
             return MeasurementDisplay {
                 text: format_angle_degrees(self.measured_points(), format),
@@ -463,9 +477,10 @@ impl DimensionKind {
             };
         }
         if self.is_area() {
-            return format_area_measurement(self.measured_points(), scale, format);
+            let area = self.measured_points() * user_unit * user_unit;
+            return format_area_measurement(area, scale, format);
         }
-        format_measurement(self.measured_points(), scale, format)
+        format_measurement(self.measured_points() * user_unit, scale, format)
     }
 
     /// The dimension line's own frame: the unit vector along the axis being
@@ -1277,6 +1292,20 @@ impl DimensionModel {
         let id = GroupId(self.next_group);
         self.next_group += 1;
         self.groups.push(Group::new(id, name, unit));
+        id
+    }
+
+    /// [`Self::add_group`] with an explicit number format (its unit is the
+    /// group's unit).
+    pub fn add_group_with_format(
+        &mut self,
+        name: impl Into<String>,
+        format: NumberFormat,
+    ) -> GroupId {
+        let id = self.add_group(name, format.unit);
+        if let Some(g) = self.group_mut(id) {
+            g.format = format;
+        }
         id
     }
 

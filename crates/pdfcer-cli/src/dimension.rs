@@ -569,15 +569,13 @@ pub(crate) fn cmd_dimension_group(
     };
     let id = pdfcer_core::dimension::DimensionId(dimension);
     let before = session
-        .dimension_model()
-        .display(id)
+        .dimension_display(id)
         .map_or_else(String::new, |m| m.text);
     if let Err(err) = session.set_dimension_group(id, pdfcer_core::dimension::GroupId(group)) {
         return report_edit_error(input, &err);
     }
     let after = session
-        .dimension_model()
-        .display(id)
+        .dimension_display(id)
         .map_or_else(String::new, |m| m.text);
     let outcome = match save_edited(
         &mut session,
@@ -1394,8 +1392,7 @@ pub(crate) fn cmd_dimension_rotate(
     let id = pdfcer_core::dimension::DimensionId(dimension);
 
     let before = session
-        .dimension_model()
-        .display(id)
+        .dimension_display(id)
         .map(|d| d.text)
         .unwrap_or_default();
 
@@ -1412,8 +1409,7 @@ pub(crate) fn cmd_dimension_rotate(
     }
 
     let after = session
-        .dimension_model()
-        .display(id)
+        .dimension_display(id)
         .map(|d| d.text)
         .unwrap_or_default();
     if after != before {
@@ -2412,7 +2408,9 @@ pub(crate) fn cmd_dimension_list(input: &Path, show_style: bool) -> u8 {
         }
     }
     for d in model.dimensions() {
-        let value = model.display(d.id).map_or_else(String::new, |m| m.text);
+        let value = session
+            .dimension_display(d.id)
+            .map_or_else(String::new, |m| m.text);
         let kind = match d.kind {
             DimensionKind::Linear { .. } => "linear",
             DimensionKind::Circular {
@@ -2705,6 +2703,7 @@ pub(crate) struct GroupSetScaleArgs<'a> {
     pub(crate) unit: &'a str,
     pub(crate) one_to_one: bool,
     pub(crate) precision: Option<u32>,
+    pub(crate) keep_denominator: bool,
     pub(crate) output: &'a Path,
     pub(crate) mode: SaveMode,
     pub(crate) verify_undo: bool,
@@ -2823,7 +2822,7 @@ pub(crate) fn cmd_group_set_scale(args: &GroupSetScaleArgs<'_>) -> u8 {
     // architectural notation gets architectural output without also passing
     // `--unit ft-in`.
     let format = match args.precision {
-        Some(p) if unit == Unit::FeetInches => NumberFormat::feet_inches(p, false),
+        Some(p) if unit == Unit::FeetInches => NumberFormat::feet_inches(p, !args.keep_denominator),
         Some(p) => NumberFormat::decimal(unit, p),
         None => unit.default_format(),
     };

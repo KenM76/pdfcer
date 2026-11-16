@@ -186,7 +186,7 @@ impl Unit {
     /// | in, ft | 2 | 0.25 mm, 3 mm |
     /// | **yd** | **3** | **0.9 mm** |
     /// | **mi** | **4** | **0.16 m** |
-    /// | ft-in | nearest 1/8" | architectural convention |
+    /// | ft-in | nearest 1/8", lowest terms | `3/4"`, not `6/8"` |
     ///
     /// `G013` flagged this as *"the one number in this request we would not
     /// want to guess at on your behalf"* and suggested 4 for both km and mi.
@@ -199,7 +199,7 @@ impl Unit {
         match self {
             Unit::Meter | Unit::Yard => NumberFormat::decimal(self, 3),
             Unit::Kilometer | Unit::Mile => NumberFormat::decimal(self, 4),
-            Unit::FeetInches => NumberFormat::feet_inches(8, false),
+            Unit::FeetInches => NumberFormat::feet_inches(8, true),
             _ => NumberFormat::decimal(self, 2),
         }
     }
@@ -394,8 +394,8 @@ impl NumberFormat {
     }
 
     /// A feet-inches format: whole feet + inches rounded to nearest
-    /// `1/denominator` (default `reduce = false`, the architectural
-    /// convention that keeps the denominator).
+    /// `1/denominator`. `reduce` prints lowest terms (`3/4"`); without it the
+    /// denominator is kept (`6/8"`). [`Unit::default_format`] reduces.
     #[must_use]
     pub const fn feet_inches(denominator: u32, reduce: bool) -> Self {
         Self {
@@ -699,6 +699,37 @@ pub fn format_measurement(
             raw_page_units: false,
         },
     }
+}
+
+/// [`format_measurement`] for a length measured in `page`'s user space:
+/// the length is first multiplied by the page's `/UserUnit` (ISO 32000-1
+/// §14.11.2, Table 30), so the raw readout is physical points and a scaled
+/// one is the same for the same printed distance on any page.
+///
+/// # Examples
+///
+/// ```
+/// use pdfcer_core::dimension::{format_measurement_on, NumberFormat, ScaleState, Unit};
+/// use pdfcer_core::page_tree::Page;
+///
+/// use pdfcer_core::object::ObjId;
+/// use pdfcer_core::page_tree::Rect;
+///
+/// let half_box = Rect::from_corners(0.0, 0.0, 306.0, 396.0);
+/// let mut page = Page::with_boxes(ObjId::new(3, 0), half_box, half_box, 0);
+/// page.user_unit = 2.0;
+/// let fmt = NumberFormat::decimal(Unit::Millimeter, 1);
+/// let shown = format_measurement_on(&page, 306.0, ScaleState::NeverSet, fmt);
+/// assert_eq!(shown.text, "612.00 pt");
+/// ```
+#[must_use]
+pub fn format_measurement_on(
+    page: &crate::page_tree::Page,
+    measured_user_units: f64,
+    scale_state: ScaleState,
+    format: NumberFormat,
+) -> MeasurementDisplay {
+    format_measurement(measured_user_units * page.user_unit, scale_state, format)
 }
 
 /// Format an ANGLE, in degrees, for a ce-dimension label.

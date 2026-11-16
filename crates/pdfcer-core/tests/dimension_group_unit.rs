@@ -10,7 +10,8 @@
 )]
 
 use pdfcer_core::dimension::{
-    DEFAULT_GROUP_ID, DimensionKind, GroupId, NumberFormat, ScaleState, StyleOverrides, Unit,
+    DEFAULT_GROUP_ID, DimensionKind, FractionMode, GroupId, NumberFormat, ScaleState,
+    StyleOverrides, Unit,
 };
 use pdfcer_core::document::Document;
 use pdfcer_core::edit::{EditError, EditSession};
@@ -122,4 +123,60 @@ fn an_unknown_group_is_refused() {
         s.set_group_unit(GroupId(99), Unit::Inch),
         Err(EditError::DimensionGroupNotFound { id: 99 })
     ));
+}
+
+/// The default feet-inches format prints lowest terms (pdfcer-gui G278).
+#[test]
+fn the_default_feet_inches_format_reduces() {
+    let f = Unit::FeetInches.default_format();
+    assert_eq!(f.format(5.0 + 2.75 / 12.0), "5'-2 3/4\"");
+    assert_eq!(f.format(0.5 / 12.0), "0'-0 1/2\"");
+    let mut s = EditSession::new(Document::from_bytes(minimal_pdf()).unwrap());
+    let g = s.add_dimension_group("Arch", Unit::FeetInches).unwrap();
+    assert_eq!(
+        s.dimension_model().group(g).unwrap().format.fraction,
+        FractionMode::Fraction {
+            denominator: 8,
+            reduce: true
+        }
+    );
+}
+
+/// A unit change keeps the group's fraction where the new unit shows one,
+/// and drops it where it cannot.
+#[test]
+fn a_unit_change_keeps_a_fraction_setting() {
+    let mut s = EditSession::new(Document::from_bytes(minimal_pdf()).unwrap());
+    let kept = NumberFormat::feet_inches(16, false);
+    let g = s.add_dimension_group_with_format("Arch", kept).unwrap();
+    assert_eq!(s.dimension_model().group(g).unwrap().format, kept);
+
+    s.set_group_unit(g, Unit::FeetInches).unwrap();
+    assert_eq!(s.dimension_model().group(g).unwrap().format, kept);
+
+    s.set_group_unit(g, Unit::Inch).unwrap();
+    let inch = s.dimension_model().group(g).unwrap().format;
+    assert_eq!((inch.unit, inch.fraction), (Unit::Inch, kept.fraction));
+
+    s.set_group_unit(g, Unit::Millimeter).unwrap();
+    assert_eq!(
+        s.dimension_model().group(g).unwrap().format,
+        Unit::Millimeter.default_format()
+    );
+    s.set_group_unit(g, Unit::FeetInches).unwrap();
+    assert_eq!(
+        s.dimension_model().group(g).unwrap().format,
+        Unit::FeetInches.default_format()
+    );
+}
+
+/// `add_dimension_group_with_format` is one undo entry.
+#[test]
+fn a_group_added_with_a_format_undoes_in_one_step() {
+    let mut s = EditSession::new(Document::from_bytes(minimal_pdf()).unwrap());
+    let before = s.dimension_model().groups().len();
+    s.add_dimension_group_with_format("Arch", NumberFormat::feet_inches(32, true))
+        .unwrap();
+    s.undo().unwrap();
+    assert_eq!(s.dimension_model().groups().len(), before);
 }

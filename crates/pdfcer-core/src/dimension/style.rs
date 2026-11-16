@@ -546,6 +546,7 @@ pub fn resolve_style(group: &Group, over: &StyleOverrides) -> DimensionStyle {
             .or(f.tolerance_places),
         dash: over.dash.or(group.style.dash).unwrap_or(f.dash),
         opacity: over.opacity.or(group.style.opacity).unwrap_or(f.opacity),
+        user_unit: 1.0,
     }
 }
 

@@ -120,7 +120,7 @@ use crate::settings::{TrailingEol, XrefEntryEol};
 use crate::span::ByteSpan;
 use crate::writer::encoder::IdentityEncoder;
 use crate::writer::{fileid, serialize, xref_out};
-use crate::{PdfVersion, pageops::PageOpError, pageops::outline};
+use crate::{PdfVersion, pageops::PageOpError, pageops::dimension_carry, pageops::outline};
 
 /// Maximum nesting depth followed while transforming one object's value
 /// tree (pdfcer policy, `ARCHITECTURE.md` §10).
@@ -258,6 +258,11 @@ pub struct AssembleOptions {
     /// why refusing is not the default and why this is a product policy
     /// rather than a spec ambiguity.
     pub separations: SeparationPolicy,
+    /// Whether the catalog source's ce-dimension sidecar (`/PieceInfo`
+    /// `pdfcer`, §14.5) is carried, subset to the ce dimensions on copied
+    /// pages. On by default; off leaves those ce dimensions as plain line
+    /// annotations in the output.
+    pub carry_dimension_sidecar: bool,
 }
 
 impl Default for AssembleOptions {
@@ -274,6 +279,7 @@ impl Default for AssembleOptions {
             page_labels: None,
             rename_duplicate_fields: false,
             separations: SeparationPolicy::Repair,
+            carry_dimension_sidecar: true,
         }
     }
 }
@@ -299,6 +305,23 @@ impl AssembleOptions {
     #[must_use]
     pub const fn with_separations(mut self, policy: SeparationPolicy) -> Self {
         self.separations = policy;
+        self
+    }
+
+    /// Choose whether the ce-dimension sidecar is carried
+    /// ([`Self::carry_dimension_sidecar`]).
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use pdfcer_core::pageops::AssembleOptions;
+    ///
+    /// let options = AssembleOptions::default().with_dimension_sidecar(false);
+    /// assert!(!options.carry_dimension_sidecar);
+    /// ```
+    #[must_use]
+    pub const fn with_dimension_sidecar(mut self, carry: bool) -> Self {
+        self.carry_dimension_sidecar = carry;
         self
     }
 }
@@ -428,6 +451,16 @@ pub struct AssembleReport {
     /// non-conforming file, so the repair it reports is a correctness fix,
     /// not a courtesy.
     pub separations: SeparationImpact,
+    /// ce dimensions whose sidecar record was carried
+    /// ([`AssembleOptions::carry_dimension_sidecar`]).
+    pub ce_dimensions_carried: usize,
+    /// ce-dimension records left behind: their page was not copied, or the
+    /// sidecar was written by a newer pdfcer than this build can rewrite.
+    pub ce_dimensions_left: usize,
+    /// The source's sidecar is a newer schema than this build reads, so
+    /// none of it was carried: the copied ce dimensions are plain line
+    /// annotations in the result. A shell says so.
+    pub ce_dimension_sidecar_newer: bool,
 }
 
 /// One page to place in the assembled document: which source, and which
@@ -670,6 +703,23 @@ pub fn assemble(
         }
     }
 
+    if options.carry_dimension_sidecar
+        && let Some(index) = options.catalog_from
+        && let Some(view) = sources.get(index)
+        && let Some(source_catalog) = view.graph().catalog_dict()
+    {
+        // Drained first: an annotation reached through an indirect `/Annots`
+        // array has no output number until then.
+        copier.drain(sources)?;
+        dimension_carry::carry(
+            &mut copier,
+            view,
+            index,
+            source_catalog,
+            &mut catalog,
+            &mut report,
+        )?;
+    }
     copier.store(catalog_num, Object::Dict(catalog));
     copier.drain(sources)?;
     report.objects_copied = copier.objects.len();
@@ -1070,6 +1120,12 @@ impl Copier {
         let number = self.reserve();
         self.mapping.insert((source_index, id), number);
         number
+    }
+
+    /// The output number `id` of source `source_index` was copied to, if it
+    /// was reached.
+    pub(super) fn mapped(&self, source_index: usize, id: ObjId) -> Option<u32> {
+        self.mapping.get(&(source_index, id)).copied()
     }
 
     /// Record an output object's final value.
