@@ -4,6 +4,22 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-11-16 (1573rd filing) — `011b78b0` `Pass 718.0` (`G283`/`G284`/`G285`/`G287`) and `7d8a7bf3` `Pass 718.1` (`G286` ask 2)
+
+**Filed (engineer-reported; no shell here, nothing checked from here):** one filing covers both commits; both in `main`.
+- `011b78b0` `Pass 718.0`: `add_dimension_group_with_scale`, `add_dimension_group_like` (CLI `group-add --like`), `NumberFormat::fractional`, and `ScaleEntry::real_length_on` (CLI `group-set-scale --drawn-page`): a calibration on a `/UserUnit` page no longer reads double. `G284` is a documentation correction: an inch group reads two decimals, only feet-inches defaults to a fraction. core-api verbs 414 to 416. Core and CLI; gui none.
+- `7d8a7bf3` `Pass 718.1`: `ce_dimensions_as_lines` on `AssembleReport`, `InsertOutcome`, `MergeOutcome`; CLI `ce_dims_as_lines=` plus a stderr sentence. A rule-4 disclosure; merge and insert still do NOT carry the ce dimensions. Core and CLI; gui none.
+- Verification: core lib 2,368, core integration 3,281, CLI integration 1,101 (2 ignored), CLI bin 122 passed; fmt, clippy `-D warnings`, `check-code-structure`, `check-core-api-verbs` green. No manifest change.
+
+**Corrections made (the record of `Pass 713.0` was wrong):** the 1567th filing and the `713.0` commit said an inch group reduces fractions "already"; it does not (two decimals). Corrected by a dated note in the `Pass 713.0` Shipped entry and by editing the FEATURES default-fractions row. The 1567th entry above is left as filed.
+
+**Lessons (not escalated: project-internal, none is a PDF-domain or ecosystem finding beyond what is stated):**
+1. A contract row named a constructor that did not exist (`G283`), and a commit message claimed inch behaved "as" feet-inches without that being measured (`G284`). Both were found by the consuming project, not by a gate. A claim about behaviour in a commit message is a claim; test it or do not make it.
+2. A count field added to a function sitting exactly at the 80-line structure limit trips the gate; put the computation in the struct literal.
+3. Inserting a helper before `pub(crate) fn report_assemble` orphaned that function's doc comment onto the helper. Caught by reading the result; this is a recurring failure, so read the lines around any insertion point.
+
+**Open:** `Pass 718.2` (`G286` ask 1) in Backlog; it is the same gap as `Pass 713.1`, so one should absorb the other when shipped. ROADMAP: two Shipped entries, a Next-up banner, one Backlog entry, a correction note. FEATURES: one new row, two rows edited. No decision, no rule.
+
 ## 2026-11-16 (1572nd filing) — `7ec18b00` `Pass 717.0` (`G280`): group and ungroup page objects and markup annotations
 
 **Filed (engineer-reported; no shell here, nothing checked from here):**
