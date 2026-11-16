@@ -4,6 +4,16 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-11-16 (1572nd filing) — `7ec18b00` `Pass 717.0` (`G280`): group and ungroup page objects and markup annotations
+
+**Filed (engineer-reported; no shell here, nothing checked from here):**
+- `7ec18b00` `Pass 717.0`: `EditSession::group_objects`, `ungroup_form`, `group_annotations`, `ungroup_annotations`, `edit::is_group_form`; four CLI subcommands (`group-objects`, `ungroup-form`, `group-annotations`, `ungroup-annotations`, all `--in-place`). Public EditSession verbs 410 to 414, `EditError` variants 197 to 199. Core and CLI; gui none.
+- Divergence from the request: `ungroup_form` does not refuse a shared form (only the one `Do` is inlined); the request asked for a refusal pointing at `unshare_form`.
+- Found on the way: restack refused an object painted with no font in force (`RestackLimitReason::Scope`); fixed in `vector/restack.rs` and `restack_reset.rs`.
+- Verification: 9 new tests (render 4, core 3, CLI 2); core lib 3,279, render 676, CLI integration 1,098, CLI bin 122 passed; fmt, clippy `-D warnings`, `check-code-structure`, `check-core-api-verbs` green. No manifest change.
+
+**Open:** `Pass 717.1` (`_in_form` twins) filed in Backlog next to `Pass 713.1`. ROADMAP: new Shipped entry, Next-up banner, one Backlog entry. FEATURES: two new rows (objects in *Vector objects*, annotations in *Annotations & markup*), core and cli ticked, gui open. No decision, no rule.
+
 ## 2026-11-16 (1571st filing) — `cdfbc01f` `Pass 716.0` (`G282`): live preview of a text box
 
 **Filed (engineer-reported; no shell here, nothing checked from here):**

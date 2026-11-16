@@ -112,6 +112,21 @@ wherever it appears.*
 
 ## Shipped
 
+### `7ec18b00` `Pass 717.0`: group and ungroup page objects and markup annotations, 2026-11-16 (1572nd filing)
+
+Engineer-reported; no shell here, git, push and CI state not checked from here. `7ec18b00` `feat(group): group and ungroup page objects and markup annotations (Pass 717.0, G280)`. Answers `pdfcer-gui` request `G280`. Reasoning is in the commit message. Delivered **core and CLI**; gui none (separate `pdfcer-gui` project). Filed straight to Shipped (no prior Next-up entry).
+- **`EditSession::group_objects(page_index, &[usize]) -> GroupOutcome { index, form, members }`**: the objects become one form XObject at the front-most member's paint position; each member is rebuilt with its painted state (restack wrapper); the form carries only the resources its members use, `/BBox` = painted bounds plus stroke outset, `/PieceInfo /pdfcer` marker; bound as `pdfcerG<n>`. Refusals: `GroupError::{NoObjects, MemberCannotJoin { object, reason: Scope | Entangled }, NotInvertible, ObjectOutOfRange}`. `CommandKind::GroupObjects`.
+- **`EditSession::ungroup_form(page_index, object_index) -> UngroupOutcome { indices, form, clipped, renamed }`**: inlines one `Do` as `q Matrix cm [BBox re W n] content Q`. The clip is dropped only for a pdfcer group whose paint fits the box. Resources merge into the page; clashing names are renamed `pdfcerU<n>` (reported in `renamed`). Refusals: `NotAForm`, `TransparencyGroup`, `OptionalContent`, `Unportable`. `CommandKind::UngroupForm`. **Deliberate divergence from the request:** a shared form is NOT refused (only this `Do` is inlined); the request asked for a refusal pointing at `unshare_form`.
+- **`edit::is_group_form(graph, form) -> bool`** (also `vector::is_group_form`): tells a pdfcer group from an imported form.
+- **`EditSession::group_annotations(primary, &[ObjId])` and `ungroup_annotations(annotation) -> AnnotationGroupChange { primary, members }`**: writes `/IRT` + `/RT /Group` (ISO 32000-1 §12.5.6.2). `AnnotationGroupError`: `NoMembers`, `MemberIsPrimary`, `NotMarkup`, `CeDimension` (a ce dimension groups through its dimension group), `DifferentPage`, `AlreadyLinked`, `MemberHasGroup`, `NotGrouped`. `CommandKind::GroupAnnotations` / `UngroupAnnotations`.
+- **Restack fix (found on the way):** an object painted with no font in force was refused with `RestackLimitReason::Scope`; fixed in `vector/restack.rs` (wrapper) and `vector/restack_reset.rs` (`Restore::run`).
+- **CLI:** `group-objects`, `ungroup-form`, `group-annotations`, `ungroup-annotations`, all with `--in-place`.
+- **Contract:** `docs/core-api/02-editing-and-saving.md` four rows; public EditSession verbs 410 to 414; `EditError` variants 197 to 199 (committed in `7ec18b00`).
+- **Not shipped:** `_in_form` twins (group/ungroup inside a form being edited), filed as `Pass 717.1` (Backlog). Mixed page-object plus annotation groups were not asked for; not filed.
+- **Verification (engineer-reported):** tests `crates/pdfcer-render/tests/group_ungroup.rs` (4), `crates/pdfcer-core/tests/annot_group.rs` (3), `crates/pdfcer-cli/tests/group_cmds.rs` (2). Crates changed: core lib 3,279 passed, render 676 passed, CLI integration 1,098 passed, CLI bin 122 passed. `cargo fmt --check`, clippy `-D warnings` (workspace, all targets), `check-code-structure`, `check-core-api-verbs` green. **Invariant:** no manifest changed, no new dependency; `cargo tree` invariant unaffected.
+- **Still open of this round:** none known from `pdfcer-gui` (`G280` now answered; `G281`, `G282` shipped above). Reply to the channel not confirmed written from here.
+- **FEATURES:** two new rows, "Group page objects into one form XObject, and ungroup a form" in *Vector objects* and "Group and ungroup markup annotations" in *Annotations & markup* (core `[x]`, cli `[x]`, gui `[ ]`). No decision, no rule.
+
 ### `cdfbc01f` `Pass 716.0`: live preview of a text box, 2026-11-16 (1571st filing)
 
 Engineer-reported; no shell here, git, push and CI state not checked from here. `cdfbc01f` `feat(annot): live preview of a text box (Pass 716.0, G282)`. Answers `pdfcer-gui` request `G282`. Reasoning is in the commit message. In `main`, not pushed at dispatch time (engineer-reported), rides `v0.153.0`. Delivered **core and render**: a live preview has no batch meaning, so no CLI subcommand; gui none.
@@ -27220,7 +27235,7 @@ closes out the *prior* filing's business rather than opening this one's.
 
 ## Next up
 
-> **1571st filing: the only open `pdfcer-gui` request of this round is `G280` (not yet a Pass; `Pass 717.0` is the next free ID). `G281` SHIPPED as `Pass 715.0` (`99235b6f`), `G282` as `Pass 716.0` (`cdfbc01f`); see *Shipped*.**
+> **1572nd filing: `G280` SHIPPED as `Pass 717.0` (`7ec18b00`); `G281` as `Pass 715.0` (`99235b6f`), `G282` as `Pass 716.0` (`cdfbc01f`); see *Shipped*. No open `pdfcer-gui` request of this round is known from here. `Pass 717.1` (Backlog) is the owed `_in_form` twin; `Pass 717.2` is the next free ID.**
 
 > **1512th filing: `X071` (operator, crates consumer; `D:\Dev\FeatureRequests\pdfce_FeatureRequests\open\request_X071_down_rollover_rich_text_and_signature_appearances.md`) filed as three Passes, all OPEN, none started. The request asked to start only after the release carrying `X069`/`X070`; `v0.145.0` was tagged at `9077e43aafd40cd07effef67dd0031f9bd36ab52` on 2026-11-11 (operator-reported; not checked from here, no shell), so `X071` is active. `700.8`, `700.9`, `700.10` had zero hits across `docs/*.md` by grep (no shell; not run through `tools/check-ledger-numbers.py`). Engine read named in the request: v0.144.0 (`5eb04866`). The three Parts are independent; each acceptance test must fail with its change reverted.**
 >
@@ -38485,6 +38500,10 @@ overrides the image dictionary; `/ColorSpace` optional,
 Grouped by rough Acrobat Pro feature area. Each bucket gets scoped into
 real Pass entries as the engineer reaches it — this list exists so
 nothing gets forgotten, not as a commitment to build in this order.
+
+### `Pass 717.1`: `group_objects_in_form` / `ungroup_form_in_form` (OPEN, NOT STARTED; filed 1572nd filing, owed by `Pass 717.0`)
+
+`group_objects_in_form` / `ungroup_form_in_form` — `G280` ask 3; groups already nest at page level.
 
 ### `Pass 713.1`: `merge` and insert-into-target carry no ce-dimension sidecar (OPEN, NOT STARTED; filed 1567th filing, known gap of `Pass 713.0`)
 
