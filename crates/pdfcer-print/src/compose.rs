@@ -1,10 +1,11 @@
-//! Compose a print job's sheets into a new PDF for `print --pdf-direct`, so
-//! a printer that reads PDF receives sheets that are already final: paper,
-//! scale, n-up, booklet and poster laid out with the same imposition
-//! geometry (`pdfcer_print::imposition`) the driver route uses.
+//! Compose a print job's sheets into a new PDF, so a printer that reads PDF
+//! receives sheets that are already final: paper, scale, n-up, booklet and
+//! poster laid out with the same imposition geometry ([`crate::imposition`])
+//! the driver route uses. Both shells call [`compose`]; the bytes it returns
+//! are what is sent, at actual size.
 //!
 //! Each source page is drawn as a form XObject
-//! ([`EditSession::place_page_content`]), which maps its crop box onto a
+//! (`EditSession::place_page_content`), which maps its crop box onto a
 //! rectangle without turning it. A page that must turn is therefore placed
 //! upright on a sheet whose media box is turned, and the sheet's `/Rotate`
 //! (ISO 32000-1 §7.7.3.3 Table 30) turns the whole sheet back onto the
@@ -13,13 +14,47 @@
 
 use pdfcer_core::edit::{CropBoxEdit, EditSession, PageBox, PageBoxEdit};
 use pdfcer_core::page_tree::Rect as PdfRect;
-use pdfcer_print::imposition::{self, BookletSpec, NUpSpec, PosterSpec, Rect};
-use pdfcer_print::{Orientation, ScaleMode};
+
+use crate::imposition::{
+    self, Binding, BookletSpec, BookletSubset, ImpositionError, NUpGrid, NUpSpec, PageOrder,
+    PosterSpec, Rect,
+};
+use crate::{Orientation, ScaleMode};
+
+/// Why a job could not be composed into a PDF. Each prints as a plain
+/// sentence fit for a report line.
+#[derive(Debug, thiserror::Error)]
+#[non_exhaustive]
+pub enum ComposeError {
+    /// N-up or a booklet over pages whose `/Rotate` differ: one sheet has
+    /// one `/Rotate`, so they cannot share it. Holds the layout's name.
+    #[error("{0} over pages with different rotations cannot be composed into a PDF")]
+    MixedRotations(&'static str),
+    /// The imposition planner refused the layout.
+    #[error(transparent)]
+    Imposition(#[from] ImpositionError),
+    /// The sequence named no page of the document.
+    #[error("no pages left to print")]
+    NoPages,
+    /// Cut marks or cell borders were asked for in a build without the
+    /// `svg-import` feature, which draws them.
+    #[error("cut marks and borders need a build with the svg-import feature")]
+    StrokesUnavailable,
+    /// The engine refused an edit while drawing the sheets.
+    #[error("{0}")]
+    Engine(#[source] Box<dyn std::error::Error + Send + Sync + 'static>),
+}
+
+fn engine<E: std::error::Error + Send + Sync + 'static>(e: E) -> ComposeError {
+    ComposeError::Engine(Box::new(e))
+}
 
 /// The paper the sheets are composed for, portrait, in points.
 #[derive(Clone, Copy, Debug, PartialEq)]
-pub(crate) struct Paper {
+pub struct Paper {
+    /// The whole sheet, width then height.
     pub physical_pt: (f64, f64),
+    /// The area the printer can mark, width then height.
     pub printable_pt: (f64, f64),
     /// The printable area's top-left corner, from the paper's.
     pub offset_pt: (f64, f64),
@@ -27,13 +62,21 @@ pub(crate) struct Paper {
 
 impl Paper {
     /// The paper as given, turned to portrait if it was reported landscape.
-    // Only the Windows driver-caps path and the tests construct one.
-    #[cfg_attr(not(windows), allow(dead_code))]
-    pub(crate) fn portrait(
-        physical: (f64, f64),
-        printable: (f64, f64),
-        offset: (f64, f64),
-    ) -> Self {
+    /// The arguments are a driver's `physical_pt`, `printable_pt` and
+    /// `offset_pt` ([`crate::PrinterCaps`]).
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use pdfcer_print::compose::Paper;
+    ///
+    /// // Landscape Letter, printable area inset 10 pt left and 20 pt top.
+    /// let p = Paper::portrait((792.0, 612.0), (752.0, 552.0), (10.0, 20.0));
+    /// assert_eq!(p.physical_pt, (612.0, 792.0));
+    /// assert_eq!(p.printable_pt, (552.0, 752.0));
+    /// ```
+    #[must_use]
+    pub fn portrait(physical: (f64, f64), printable: (f64, f64), offset: (f64, f64)) -> Self {
         if physical.0 <= physical.1 {
             return Self {
                 physical_pt: physical,
@@ -51,7 +94,8 @@ impl Paper {
     /// The media box size of a sheet whose `/Rotate` is `turn`, and the
     /// printable area within it (top-left origin, y down), such that the
     /// sheet turned clockwise by `turn` lies on this portrait paper.
-    pub(crate) fn frame(&self, turn: u16) -> ((f64, f64), Rect) {
+    #[must_use]
+    pub fn frame(&self, turn: u16) -> ((f64, f64), Rect) {
         let (w, h) = self.physical_pt;
         let (ox, oy) = self.offset_pt;
         let (pw, ph) = self.printable_pt;
@@ -66,35 +110,107 @@ impl Paper {
 
 /// How the job's pages become sheets.
 #[derive(Clone, Copy, Debug, PartialEq)]
-pub(crate) enum Shape {
+pub enum Shape {
     /// One page per sheet, placed by the scale mode.
     Pages,
+    /// Several pages to a sheet.
     NUp(NUpSpec),
+    /// Pages paired and ordered to fold into a booklet.
     Booklet(BookletSpec),
+    /// Each page tiled across several sheets.
     Poster(PosterSpec),
 }
 
+impl Shape {
+    /// The shape of a job from its options, with the planner settings the
+    /// driver route uses: `n_up` is pages per sheet and whether each cell
+    /// is bordered; the first option given wins, and [`Shape::Pages`] when
+    /// none is.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use pdfcer_print::compose::Shape;
+    ///
+    /// assert_eq!(Shape::for_job(None, None, None), Shape::Pages);
+    /// assert!(matches!(Shape::for_job(Some((4, true)), None, None), Shape::NUp(_)));
+    /// ```
+    #[must_use]
+    pub fn for_job(
+        n_up: Option<(u32, bool)>,
+        booklet: Option<(Binding, BookletSubset)>,
+        poster: Option<PosterSpec>,
+    ) -> Self {
+        if let Some((count, border)) = n_up {
+            return Self::NUp(NUpSpec {
+                grid: NUpGrid::Count(count),
+                order: PageOrder::Horizontal,
+                border,
+                auto_rotate: true,
+            });
+        }
+        if let Some((binding, subset)) = booklet {
+            return Self::Booklet(BookletSpec {
+                binding,
+                subset,
+                sheets: None,
+                auto_rotate: true,
+            });
+        }
+        poster.map_or(Self::Pages, Self::Poster)
+    }
+
+    /// Whether a job of this shape must be composed before a printer that
+    /// reads PDF can print it as asked: anything but whole pages, a paper
+    /// other than the printer's own (`paper_chosen`), or a percentage
+    /// scale. A job needing none of these is sent as it is.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use pdfcer_print::compose::Shape;
+    /// use pdfcer_print::ScaleMode;
+    ///
+    /// assert!(!Shape::Pages.needs_composing(false, ScaleMode::Fit));
+    /// assert!(Shape::Pages.needs_composing(false, ScaleMode::Custom(0.5)));
+    /// ```
+    #[must_use]
+    pub fn needs_composing(self, paper_chosen: bool, mode: ScaleMode) -> bool {
+        self != Self::Pages || paper_chosen || matches!(mode, ScaleMode::Custom(_))
+    }
+}
+
 /// What to compose.
-pub(crate) struct Request<'a> {
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct Request<'a> {
+    /// The paper to compose for.
     pub paper: Paper,
+    /// How pages become sheets.
     pub shape: Shape,
+    /// How a page is scaled into its sheet; [`Shape::Pages`] only.
     pub mode: ScaleMode,
+    /// Whether pages print portrait, landscape, or as each is shaped.
     pub orientation: Orientation,
     /// The file name, for poster tile labels.
     pub label: &'a str,
 }
 
 /// The composed PDF and what composing it decided.
-pub(crate) struct Composed {
+#[derive(Clone, Debug, PartialEq)]
+#[non_exhaustive]
+pub struct Composed {
+    /// The PDF to send, to be printed at actual size.
     pub pdf: Vec<u8>,
     /// Pages in the composed PDF: one per side of paper.
     pub pages: usize,
+    /// What was left out or clipped, one plain sentence each, for the
+    /// shell to print or show.
     pub notes: Vec<String>,
 }
 
 /// One source page placed on a sheet.
 #[derive(Clone, Copy, Debug, PartialEq)]
-pub(crate) struct Item {
+struct Item {
     /// 0-based page of the source document.
     pub source: usize,
     /// Where its crop box lands, in media points (top-left origin, y down).
@@ -106,7 +222,7 @@ pub(crate) struct Item {
 
 /// One page of the composed PDF.
 #[derive(Clone, Debug, Default, PartialEq)]
-pub(crate) struct Sheet {
+struct Sheet {
     /// `/Rotate`: 0, 90, 180 or 270.
     pub rotate: u16,
     pub items: Vec<Item>,
@@ -131,23 +247,51 @@ impl Src {
     }
 }
 
-/// Compose `sequence` (0-based pages of `source`, in print order) into a
-/// new PDF. `source` is the job's own never-saved session; its printable
-/// annotations are burned in and its crop boxes are changed for poster
-/// tiles.
+/// Compose `sequence` (0-based pages of `source`, in print order; an index
+/// past the last page is skipped) into a new PDF.
+///
+/// `source` must be a session opened for this job and never saved: its
+/// printable annotations are burned into their pages and its crop boxes
+/// are changed for poster tiles.
 ///
 /// # Errors
 ///
-/// A plain sentence when the job cannot be expressed as a PDF: n-up or a
-/// booklet over pages with different `/Rotate`, an imposition error, or an
-/// edit the engine refused.
-pub(crate) fn compose(
+/// [`ComposeError`] when the job cannot be expressed as a PDF: n-up or a
+/// booklet over pages with different `/Rotate`, a layout the imposition
+/// planner refuses, no page to print, or an edit the engine refused.
+///
+/// # Examples
+///
+/// ```
+/// use pdfcer_core::edit::EditSession;
+/// use pdfcer_core::page_tree::Rect;
+/// use pdfcer_core::text_edit::blank_document;
+/// use pdfcer_print::compose::{compose, Paper, Request, Shape};
+/// use pdfcer_print::{Orientation, ScaleMode};
+///
+/// # fn main() -> Result<(), Box<dyn std::error::Error>> {
+/// let letter = Rect::from_corners(0.0, 0.0, 612.0, 792.0);
+/// let mut job = EditSession::new(blank_document(letter, 3)?);
+/// let request = Request {
+///     paper: Paper::portrait((612.0, 792.0), (576.0, 756.0), (18.0, 18.0)),
+///     shape: Shape::for_job(Some((2, false)), None, None),
+///     mode: ScaleMode::Fit,
+///     orientation: Orientation::Auto,
+///     label: "report.pdf",
+/// };
+/// let composed = compose(&mut job, &[0, 1, 2], &request)?;
+/// assert_eq!(composed.pages, 2);
+/// assert!(composed.pdf.starts_with(b"%PDF-"));
+/// # Ok(())
+/// # }
+/// ```
+pub fn compose(
     source: &mut EditSession,
     sequence: &[usize],
     req: &Request<'_>,
-) -> Result<Composed, String> {
+) -> Result<Composed, ComposeError> {
     let mut notes = burn_annotations(source, sequence);
-    let pages = source.pages().map_err(|e| e.to_string())?;
+    let pages = source.pages().map_err(engine)?;
     let srcs: Vec<Src> = pages
         .iter()
         .map(|p| Src {
@@ -241,7 +385,7 @@ fn plan_pages(
         };
         let rotate = (src.rotate + turn) % 360;
         let (_, area) = req.paper.frame(rotate);
-        let placed = pdfcer_print::place_page((w, h), (area.width, area.height), req.mode);
+        let placed = crate::place_page((w, h), (area.width, area.height), req.mode);
         clipped += usize::from(placed.clipped);
         let rect = Rect::new(
             area.x + placed.offset_x_pt,
@@ -268,16 +412,18 @@ fn plan_pages(
 }
 
 /// The one `/Rotate` every page of `sequence` shares.
-fn common_rotate(srcs: &[Src], sequence: &[usize], what: &str) -> Result<u16, String> {
+fn common_rotate(
+    srcs: &[Src],
+    sequence: &[usize],
+    what: &'static str,
+) -> Result<u16, ComposeError> {
     let mut turns = sequence
         .iter()
         .filter_map(|&i| srcs.get(i))
         .map(|s| s.rotate);
     let first = turns.next().unwrap_or(0);
     if turns.any(|t| t != first) {
-        return Err(format!(
-            "{what} over pages with different rotations cannot be composed into a PDF"
-        ));
+        return Err(ComposeError::MixedRotations(what));
     }
     Ok(first)
 }
@@ -305,7 +451,7 @@ fn plan_n_up(
     sequence: &[usize],
     req: &Request<'_>,
     spec: NUpSpec,
-) -> Result<Vec<Sheet>, String> {
+) -> Result<Vec<Sheet>, ComposeError> {
     let base = common_rotate(srcs, sequence, "n-up")?;
     let sizes: Vec<(f64, f64)> = sequence
         .iter()
@@ -316,7 +462,7 @@ fn plan_n_up(
         let (_, area) = req.paper.frame(turn);
         imposition::plan_n_up((area.width, area.height), &sizes, spec)
             .map(|l| (l, area))
-            .map_err(|e| e.to_string())
+            .map_err(ComposeError::from)
     };
     let first = sheet_turn(base, req, false);
     let (mut layout, mut area) = plan(first, &spec)?;
@@ -360,7 +506,7 @@ fn plan_booklet(
     sequence: &[usize],
     req: &Request<'_>,
     spec: BookletSpec,
-) -> Result<Vec<Sheet>, String> {
+) -> Result<Vec<Sheet>, ComposeError> {
     let base = common_rotate(srcs, sequence, "a booklet")?;
     let sizes: Vec<(f64, f64)> = sequence
         .iter()
@@ -371,7 +517,7 @@ fn plan_booklet(
         let (_, area) = req.paper.frame(turn);
         imposition::plan_booklet((area.width, area.height), &sizes, spec)
             .map(|l| (l, area))
-            .map_err(|e| e.to_string())
+            .map_err(ComposeError::from)
     };
     let first = sheet_turn(base, req, false);
     let (mut layout, mut area) = plan(first, &spec)?;
@@ -426,7 +572,7 @@ fn plan_poster(
     req: &Request<'_>,
     spec: PosterSpec,
     notes: &mut Vec<String>,
-) -> Result<Vec<Sheet>, String> {
+) -> Result<Vec<Sheet>, ComposeError> {
     let mut sheets = Vec::new();
     for &i in sequence {
         let Some(&src) = srcs.get(i) else { continue };
@@ -440,8 +586,7 @@ fn plan_poster(
             sheets.extend(plan_pages(srcs, &[i], &one, notes));
             continue;
         }
-        let layout =
-            imposition::plan_poster(printable, src.size(), &spec).map_err(|e| e.to_string())?;
+        let layout = imposition::plan_poster(printable, src.size(), &spec)?;
         for tile in &layout.tiles {
             sheets.push(tile_sheet(&layout, tile, i, src, area, req.label));
         }
@@ -486,17 +631,20 @@ fn tile_sheet(
 }
 
 /// Write `sheets` as a new PDF drawn from `source`.
-fn build(source: &mut EditSession, sheets: &[Sheet], paper: &Paper) -> Result<Vec<u8>, String> {
+fn build(
+    source: &mut EditSession,
+    sheets: &[Sheet],
+    paper: &Paper,
+) -> Result<Vec<u8>, ComposeError> {
     use pdfcer_core::text_edit::blank_document;
-    let err = |e: &dyn std::fmt::Display| e.to_string();
     let media = |turn: u16| {
         let (w, h) = paper.frame(turn).0;
         PdfRect::from_corners(0.0, 0.0, w, h)
     };
-    let first = sheets.first().ok_or("no pages left to print")?;
-    let mut target = EditSession::new(blank_document(media(first.rotate), 1).map_err(|e| err(&e))?);
-    let upright = blank_document(media(0), 1).map_err(|e| err(&e))?;
-    let turned = blank_document(media(90), 1).map_err(|e| err(&e))?;
+    let first = sheets.first().ok_or(ComposeError::NoPages)?;
+    let mut target = EditSession::new(blank_document(media(first.rotate), 1).map_err(engine)?);
+    let upright = blank_document(media(0), 1).map_err(engine)?;
+    let turned = blank_document(media(90), 1).map_err(engine)?;
     for sheet in sheets.iter().skip(1) {
         let blank = if sheet.rotate % 180 == 0 {
             &upright
@@ -509,7 +657,7 @@ fn build(source: &mut EditSession, sheets: &[Sheet], paper: &Paper) -> Result<Ve
                 &[0],
                 pdfcer_core::pageops::InsertPosition::End,
             )
-            .map_err(|e| err(&e))?;
+            .map_err(engine)?;
     }
     for (index, sheet) in sheets.iter().enumerate() {
         place_sheet(
@@ -523,7 +671,7 @@ fn build(source: &mut EditSession, sheets: &[Sheet], paper: &Paper) -> Result<Ve
     target
         .to_full_bytes(&pdfcer_core::writer::SaveOptions::default())
         .map(|(bytes, _)| bytes)
-        .map_err(|e| err(&e))
+        .map_err(engine)
 }
 
 /// Draw one sheet's pages, marks, borders and label on `target`'s page
@@ -534,22 +682,21 @@ fn place_sheet(
     index: usize,
     sheet: &Sheet,
     media: (f64, f64),
-) -> Result<(), String> {
-    let err = |e: &dyn std::fmt::Display| e.to_string();
+) -> Result<(), ComposeError> {
     let pdf = |r: Rect| PdfRect::from_corners(r.x, media.1 - r.bottom(), r.right(), media.1 - r.y);
     if sheet.rotate != 0 {
         target
             .set_page_rotation(index, i32::from(sheet.rotate))
-            .map_err(|e| err(&e))?;
+            .map_err(engine)?;
     }
     for item in &sheet.items {
         if let Some(crop) = item.crop {
             let edit = PageBoxEdit::new(item.source, PageBox::Crop, CropBoxEdit::Set(crop));
-            source.set_page_boxes(&[edit]).map_err(|e| err(&e))?;
+            source.set_page_boxes(&[edit]).map_err(engine)?;
         }
         target
             .place_page_content(&source.view(), item.source, index, pdf(item.rect))
-            .map_err(|e| err(&e))?;
+            .map_err(engine)?;
     }
     if let Some(svg) = strokes_svg(sheet, media) {
         place_strokes(target, index, &svg, media)?;
@@ -561,7 +708,7 @@ fn place_sheet(
             text.clone(),
         );
         req.size = (r.height * 0.8).max(4.0);
-        target.add_text(&req).map_err(|e| err(&e))?;
+        target.add_text(&req).map_err(engine)?;
     }
     Ok(())
 }
@@ -573,13 +720,13 @@ fn place_strokes(
     index: usize,
     svg: &str,
     media: (f64, f64),
-) -> Result<(), String> {
-    let imported = pdfcer_core::svg_import::import(svg.as_bytes()).map_err(|e| e.to_string())?;
+) -> Result<(), ComposeError> {
+    let imported = pdfcer_core::svg_import::import(svg.as_bytes()).map_err(engine)?;
     let whole = PdfRect::from_corners(0.0, 0.0, media.0, media.1);
     target
         .add_svg(index, whole, &imported)
         .map(|_| ())
-        .map_err(|e| e.to_string())
+        .map_err(engine)
 }
 
 /// Without SVG import the marks cannot be placed, so the layout is refused
@@ -590,13 +737,13 @@ fn place_strokes(
     _index: usize,
     _svg: &str,
     _media: (f64, f64),
-) -> Result<(), String> {
-    Err("cut marks and borders need a build with the svg-import feature".into())
+) -> Result<(), ComposeError> {
+    Err(ComposeError::StrokesUnavailable)
 }
 
 /// The sheet's cut marks and borders as one SVG over the whole media box,
 /// or `None` when it has neither.
-pub(crate) fn strokes_svg(sheet: &Sheet, media: (f64, f64)) -> Option<String> {
+fn strokes_svg(sheet: &Sheet, media: (f64, f64)) -> Option<String> {
     if sheet.lines.is_empty() && sheet.boxes.is_empty() {
         return None;
     }
@@ -623,4 +770,4 @@ pub(crate) fn strokes_svg(sheet: &Sheet, media: (f64, f64)) -> Option<String> {
 }
 
 #[cfg(test)]
-pub(crate) mod tests;
+mod tests;

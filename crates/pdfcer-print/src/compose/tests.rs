@@ -3,11 +3,12 @@
 
 use pdfcer_core::document::Document;
 use pdfcer_core::object::Object;
+use pdfcer_core::text_edit::blank_document;
 
 use super::*;
 
 /// Letter with a 18 pt margin on every side.
-pub(crate) fn letter() -> Paper {
+fn letter() -> Paper {
     Paper::portrait((612.0, 792.0), (576.0, 756.0), (18.0, 18.0))
 }
 
@@ -59,7 +60,7 @@ fn strokes_become_one_path_and_none_without_any() {
 }
 
 /// The `a d e f` of every `a 0 0 d e f cm` in `page`'s content streams.
-pub(crate) fn placements(session: &EditSession, page: usize) -> Vec<[f64; 4]> {
+fn placements(session: &EditSession, page: usize) -> Vec<[f64; 4]> {
     let pages = session.pages().unwrap();
     let view = session.view();
     let mut out = Vec::new();
@@ -81,8 +82,8 @@ pub(crate) fn placements(session: &EditSession, page: usize) -> Vec<[f64; 4]> {
 }
 
 fn source(pages: usize) -> EditSession {
-    let bytes = crate::print_remote::tests::pages_pdf(pages);
-    EditSession::new(Document::from_bytes(bytes).unwrap())
+    let letter = PdfRect::from_corners(0.0, 0.0, 612.0, 792.0);
+    EditSession::new(blank_document(letter, pages).unwrap())
 }
 
 #[test]
@@ -168,7 +169,8 @@ fn mixed_rotations_cannot_be_composed_into_n_up() {
         label: "a.pdf",
     };
     let err = compose(&mut src, &[0, 1], &req).err().unwrap();
-    assert!(err.contains("different rotations"), "{err}");
+    assert!(matches!(err, ComposeError::MixedRotations("n-up")), "{err}");
+    assert!(err.to_string().contains("different rotations"), "{err}");
 }
 
 #[test]

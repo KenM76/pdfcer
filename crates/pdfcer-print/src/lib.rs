@@ -138,6 +138,13 @@ pub mod ipp;
 /// Staple, punch, fold and output bin. Pure, not gated.
 pub mod finishing;
 
+/// Why a job goes through the driver instead of to the printer as a PDF.
+pub mod pdf_direct;
+
+/// Compose a job's sheets into a new PDF for a printer that reads PDF.
+#[cfg(feature = "compose")]
+pub mod compose;
+
 // The `DEVMODE` model — the driver's own settings structure, sourced
 // from the driver rather than synthesised. Also deliberately NOT
 // `cfg`-gated: the amend-a-DEVMODE logic is where the bugs are, it is

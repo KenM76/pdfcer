@@ -8,15 +8,16 @@
 //! `application/pdf` in `document-format-supported` gets a Print-Job
 //! (§4.2.1). A job shape the printer cannot be asked for (n-up, booklet,
 //! poster, a paper or percentage scale) is composed into a new PDF first
-//! ([`crate::print_compose`]). Nothing touches the network unless the
+//! ([`pdfcer_print::compose`]). Nothing touches the network unless the
 //! operator ran `print` with `auto` or `on`.
 
 use std::path::Path;
 
+use pdfcer_print::compose::{Composed, Paper, Request, Shape};
 use pdfcer_print::ipp::{self, PortSource, QueuePort};
+use pdfcer_print::pdf_direct::FallbackReason;
 
 use super::*;
-use crate::print_compose::{Composed, Paper, Request, Shape};
 use crate::print_output::PrintOutput;
 use crate::print_remote::{Prepared, RemoteJob, Staged};
 
@@ -54,31 +55,15 @@ pub(crate) fn shape(
     booklet: Option<(BindingArg, BookletSubsetArg)>,
     poster: Option<pdfcer_print::imposition::PosterSpec>,
 ) -> Shape {
-    use pdfcer_print::imposition::{BookletSpec, NUpGrid, NUpSpec, PageOrder};
-    if let Some((count, border)) = n_up {
-        return Shape::NUp(NUpSpec {
-            grid: NUpGrid::Count(count),
-            order: PageOrder::Horizontal,
-            border,
-            auto_rotate: true,
-        });
-    }
-    if let Some((binding, subset)) = booklet {
-        return Shape::Booklet(BookletSpec {
-            binding: binding.to_binding(),
-            subset: subset.to_subset(),
-            sheets: None,
-            auto_rotate: true,
-        });
-    }
-    poster.map_or(Shape::Pages, Shape::Poster)
+    let booklet = booklet.map(|(binding, subset)| (binding.to_binding(), subset.to_subset()));
+    Shape::for_job(n_up, booklet, poster)
 }
 
 /// Why the job is not sent straight to the printer.
 #[derive(Debug, PartialEq, Eq)]
 pub(crate) struct Fallback {
-    /// The `fallback=` keyword on the report line.
-    pub keyword: &'static str,
+    /// Named by its keyword as `fallback=` on the report line.
+    pub reason: FallbackReason,
     /// A plain sentence.
     pub why: String,
     /// The exit code under `--pdf-direct on`.
@@ -86,8 +71,8 @@ pub(crate) struct Fallback {
 }
 
 impl Fallback {
-    fn new(keyword: &'static str, why: String, code: u8) -> Self {
-        Self { keyword, why, code }
+    fn new(reason: FallbackReason, why: String, code: u8) -> Self {
+        Self { reason, why, code }
     }
 }
 
@@ -155,7 +140,7 @@ pub(crate) fn direct_to(
         return fall_back(
             input,
             job,
-            Fallback::new("driver-only-option", why, exit::EDIT_REFUSED),
+            Fallback::new(FallbackReason::DriverOnlyOption, why, exit::EDIT_REFUSED),
             driver,
         );
     }
@@ -213,7 +198,8 @@ fn find_pdf_printer(
     name: &str,
     queue: &dyn Fn() -> Result<QueuePort, String>,
 ) -> Result<(String, ipp::PrinterOffer, PortSource), Fallback> {
-    let no_address = |why: String| Fallback::new("no-network-address", why, exit::EDIT_REFUSED);
+    let no_address =
+        |why: String| Fallback::new(FallbackReason::NoNetworkAddress, why, exit::EDIT_REFUSED);
     let port =
         queue().map_err(|e| no_address(format!("{name:?}'s port could not be read: {e}")))?;
     let found =
@@ -238,14 +224,22 @@ fn find_pdf_printer(
             .unwrap_or_default();
         let why =
             format!("the printer at {uri}{model} does not list PDF among the formats it reads");
-        return Err(Fallback::new("no-pdf", why, exit::EDIT_REFUSED));
+        return Err(Fallback::new(
+            FallbackReason::NoPdf,
+            why,
+            exit::EDIT_REFUSED,
+        ));
     }
     let why = format!(
         "no printer answered at {}: {}",
         found.uris.join(", "),
         failures.join("; ")
     );
-    Err(Fallback::new("unreachable", why, exit::PRINTER_UNREACHABLE))
+    Err(Fallback::new(
+        FallbackReason::Unreachable,
+        why,
+        exit::PRINTER_UNREACHABLE,
+    ))
 }
 
 /// Refuse under `on`; print through the driver under `auto`, saying why.
@@ -264,7 +258,7 @@ fn fall_back(
     }
     eprintln!("pdfcer: printing through the driver: {}.", fb.why);
     let mut output = job.remote.output.clone();
-    output.route = Some(format!("route=driver fallback={}", fb.keyword));
+    output.route = Some(format!("route=driver fallback={}", fb.reason.keyword()));
     driver(input, &output)
 }
 
@@ -377,8 +371,11 @@ fn compose_sheets(
         orientation: job.remote.orientation.to_orientation(),
         label: &staged.name,
     };
-    let composed = crate::print_compose::compose(&mut staged.session, order, &req)
-        .map_err(|why| Stop::Fallback(Fallback::new("cannot-compose", why, exit::EDIT_REFUSED)))?;
+    let composed =
+        pdfcer_print::compose::compose(&mut staged.session, order, &req).map_err(|why| {
+            let (reason, code) = (FallbackReason::CannotCompose, exit::EDIT_REFUSED);
+            Stop::Fallback(Fallback::new(reason, why.to_string(), code))
+        })?;
     composed.notes.iter().for_each(|n| eprintln!("pdfcer: {n}"));
     let (w, h) = paper.physical_pt;
     eprintln!(

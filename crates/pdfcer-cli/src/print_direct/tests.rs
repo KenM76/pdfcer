@@ -8,9 +8,31 @@ use pdfcer_core::edit::EditSession;
 use pdfcer_print::ipp::{IppAttribute, IppGroup, IppValue, group, tag};
 
 use super::*;
-use crate::print_compose::tests::placements;
 use crate::print_presets::Requested;
 use crate::print_remote::tests::{pdf_printer, serve, temp_pdf};
+
+/// The `a d e f` of every `a 0 0 d e f cm` in `page`'s content streams.
+fn placements(session: &EditSession, page: usize) -> Vec<[f64; 4]> {
+    use pdfcer_core::object::Object;
+    let pages = session.pages().unwrap();
+    let view = session.view();
+    let mut out = Vec::new();
+    for id in &pages[page].contents {
+        let Some(Object::Stream(s)) = view.graph().value(*id) else {
+            continue;
+        };
+        let text =
+            String::from_utf8_lossy(view.slice(s.data_span).unwrap_or_default()).into_owned();
+        let words: Vec<&str> = text.split_whitespace().collect();
+        for (i, w) in words.iter().enumerate() {
+            if *w == "cm" && i >= 6 {
+                let n = |k: usize| words[i - k].parse::<f64>().unwrap();
+                out.push([n(6), n(3), n(2), n(1)]);
+            }
+        }
+    }
+    out
+}
 
 /// A printer that answers Get-Printer-Attributes with PostScript only.
 fn postscript_printer(_request: &[u8]) -> Vec<u8> {

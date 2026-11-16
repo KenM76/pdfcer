@@ -604,7 +604,6 @@ mod listing;
 use listing::*;
 mod hand_sig_cmd;
 mod print;
-mod print_compose;
 mod print_direct;
 mod print_finishing;
 mod print_icc;

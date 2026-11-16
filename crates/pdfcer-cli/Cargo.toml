@@ -41,7 +41,7 @@ signing = ["pdfcer-core/signing"]
 # `3d-mesh` refuses by name; `3d-list` / `3d-extract` need no decoding.
 3d = ["dep:pdfcer-3d", "pdfcer-core/3d"]
 # SVG import (`add-svg`, decision 186). Without it `add-svg` refuses by name.
-svg-import = ["pdfcer-core/svg-import"]
+svg-import = ["pdfcer-core/svg-import", "pdfcer-print/svg-import"]
 
 # `download` — operator-initiated fetching of pinned artefacts, currently the
 # OCR model weights (`fetch-ocr-models`).
@@ -107,7 +107,7 @@ clap = { version = "4", features = ["derive"] }
 pdfcer-core.workspace = true
 # Runs OCR models of every kind, including program add-ons (decision 184).
 pdfcer-ocr-host.workspace = true
-pdfcer-print.workspace = true
+pdfcer-print = { workspace = true, features = ["compose"] }
 # pdfcer-render: added at Pass 1, the Pass that first needs it — `render-page`
 # rasterizes through exactly the same headless code path `pdfce-gui` displays
 # from and the future WASM fork will reuse (docs/ARCHITECTURE.md §3/§7). This

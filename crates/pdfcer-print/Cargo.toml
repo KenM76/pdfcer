@@ -8,7 +8,15 @@ authors.workspace = true
 publish.workspace = true
 license.workspace = true
 
+[features]
+# `compose`: lay a job's sheets out as a new PDF. Optional because it is the
+# one part of this crate that needs the engine.
+compose = ["dep:pdfcer-core"]
+# Cut marks and n-up borders on composed sheets.
+svg-import = ["compose", "pdfcer-core/svg-import"]
+
 [dependencies]
+pdfcer-core = { workspace = true, optional = true }
 # Declared here rather than inherited: the workspace root deliberately
 # declares only the internal path dependencies, and each member names its
 # own external crates (root manifest, "Internal path dependencies").
