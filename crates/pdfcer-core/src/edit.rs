@@ -153,6 +153,7 @@ mod foreign_button;
 mod form_copy;
 mod form_paint;
 mod form_transform;
+mod free_text_preview;
 mod group_unit;
 mod insert_fields;
 mod markup_snap;

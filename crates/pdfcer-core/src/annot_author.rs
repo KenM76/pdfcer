@@ -2259,7 +2259,7 @@ fn build_appearance_inner(spec: &MarkupSpec, opts: &AppearanceOptions) -> Author
 /// Force a rectangle to strictly positive width and height (WF4). A
 /// degenerate axis is expanded by [`MIN_EXTENT`] about its own coordinate;
 /// corners are normalised min→max (§7.9.5) first.
-fn positive_rect(mut r: Rect) -> Rect {
+pub(crate) fn positive_rect(mut r: Rect) -> Rect {
     if r.urx < r.llx {
         std::mem::swap(&mut r.llx, &mut r.urx);
     }
@@ -3326,10 +3326,12 @@ pub use button_icon::{CaptionPosition, IconFit, IconScaleWhen, IconScaling};
 
 mod derived;
 mod list_box;
+mod text_preview;
 pub use derived::{
     DERIVED_SUBTYPES, DerivedAppearance, FreeTextC, NotDerived, PlacedAppearance, derive_appearance,
 };
 pub(crate) use list_box::build_list_box_appearance;
+pub use text_preview::{FreeTextPreview, free_text_preview};
 
 /// The resource name pdfcer authors its standard-14 font under, inside a
 /// text appearance's own `/Resources` `/Font` (FreeText has no `/DR`, so
@@ -5336,16 +5338,7 @@ fn free_text(
         ury: h,
     };
 
-    let da = vartext::default_appearance_string(TEXT_FONT_RESOURCE, font_size, color);
-    let resources = [FontResource {
-        name: TEXT_FONT_RESOURCE.to_vec(),
-        font,
-        widths: None,
-        ascent: None,
-        descent: None,
-        codes: None,
-        cid: None,
-    }];
+    let (da, resources) = free_text_da(font, font_size, color);
     let va = vartext::build_variable_text(bbox, text, &da, quadding, multiline, &resources)?;
 
     // The frame is drawn OUTSIDE the /Tx text block (so the text clip does
@@ -5385,6 +5378,25 @@ fn free_text(
         stamp_label_fit: None,
         unencodable_chars: va.unencodable_chars,
     })
+}
+
+/// The `/DA` a `/FreeText` is baked with and the one font it names.
+pub(crate) fn free_text_da(
+    font: Std14,
+    font_size: f64,
+    color: TextColor,
+) -> (Vec<u8>, [FontResource; 1]) {
+    let da = vartext::default_appearance_string(TEXT_FONT_RESOURCE, font_size, color);
+    let resources = [FontResource {
+        name: TEXT_FONT_RESOURCE.to_vec(),
+        font,
+        widths: None,
+        ascent: None,
+        descent: None,
+        codes: None,
+        cid: None,
+    }];
+    (da, resources)
 }
 
 /// The key a `/FreeText`'s fill is written under and read back from.

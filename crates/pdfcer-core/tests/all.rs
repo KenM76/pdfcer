@@ -120,6 +120,7 @@ mod forms_rich_appearance;
 mod forms_richtext;
 mod free_text_frame_style;
 mod free_text_note_rebake;
+mod free_text_preview;
 mod free_text_restyle;
 mod freetext_newline;
 mod hand_signature;

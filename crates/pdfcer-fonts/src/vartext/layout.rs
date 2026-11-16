@@ -186,6 +186,32 @@ fn face_for<'a>(da: &[u8], resources: &'a [FontResource]) -> Result<Face<'a>, Va
         })
 }
 
+impl TextLayout {
+    /// The box height that shows every line: the baselines' span plus one
+    /// line's ascent and descent and the builder's padding top and bottom.
+    /// A multiline box shorter than this clips its last lines.
+    #[must_use]
+    pub fn needed_height(&self) -> f64 {
+        let span = match (self.lines.first(), self.lines.last()) {
+            (Some(first), Some(last)) => first.baseline - last.baseline,
+            _ => 0.0,
+        };
+        span + self.ascent + self.descent + 2.0 * TEXT_PAD
+    }
+
+    /// The box width that shows the widest line whole: its drawn width plus
+    /// the builder's padding left and right.
+    #[must_use]
+    pub fn needed_width(&self) -> f64 {
+        let widest = self
+            .lines
+            .iter()
+            .map(|l| l.x1 - l.x0)
+            .fold(0.0_f64, f64::max);
+        widest + 2.0 * TEXT_PAD
+    }
+}
+
 impl CharSpan {
     /// A span from its offsets and edges.
     #[must_use]
@@ -488,6 +514,46 @@ mod tests {
         assert_eq!((nl.offset, nl.x0, nl.x1), (2, nl.x1, laid.lines[0].x1));
         assert_eq!(laid.lines[1].start, 3);
         assert!(laid.lines[1].baseline < laid.lines[0].baseline);
+    }
+
+    #[test]
+    fn a_box_of_the_needed_height_puts_the_last_descent_on_the_padding() {
+        let text = "one two three four five six seven eight nine ten";
+        let lay = |h: f64| {
+            layout_variable_text(
+                bbox(60.0, h),
+                text,
+                b"/Helv 12 Tf",
+                Quadding::Left,
+                true,
+                &helv(),
+            )
+            .unwrap()
+        };
+        let short = lay(20.0);
+        assert!(short.lines.len() > 3);
+        let need = short.needed_height();
+        assert!(need > 20.0);
+        let fitted = lay(need);
+        assert_eq!(fitted.lines.len(), short.lines.len());
+        let bottom = fitted.lines.last().unwrap().baseline - fitted.descent;
+        assert!((bottom - TEXT_PAD).abs() < 1e-9, "{bottom}");
+        assert!((fitted.needed_height() - need).abs() < 1e-9);
+    }
+
+    #[test]
+    fn needed_width_is_the_widest_line_plus_padding() {
+        let laid = layout_variable_text(
+            bbox(20.0, 20.0),
+            "Hello",
+            b"/Helv 12 Tf",
+            Quadding::Left,
+            false,
+            &helv(),
+        )
+        .unwrap();
+        let width = crate::vartext::text_width(Std14::Helvetica, 12.0, "Hello");
+        assert!((laid.needed_width() - width - 2.0 * TEXT_PAD).abs() < 1e-9);
     }
 
     #[test]

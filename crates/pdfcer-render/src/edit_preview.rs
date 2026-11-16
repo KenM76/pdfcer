@@ -185,14 +185,96 @@ pub fn paint_dimension_preview(
     pixmap: &mut tiny_skia::Pixmap,
 ) -> crate::Diagnostics {
     let ap = &preview.appearance;
-    let Ok(content) = pdfcer_core::content::ContentStream::parse(ap.ap_content.clone()) else {
+    paint_appearance(
+        doc,
+        (&ap.ap_dict, &ap.ap_content),
+        "ce dimension preview",
+        options,
+        page_to_device,
+        pixmap,
+    )
+}
+
+/// Paint a text annotation that is not in the document yet, or a text box
+/// being retyped, onto `pixmap`: the `authored` field of a
+/// [`pdfcer_core::annot_author::FreeTextPreview`], or any
+/// [`build_text_annotation`](pdfcer_core::annot_author::build_text_annotation)
+/// result whose appearance box is the size of its rectangle.
+///
+/// `page_to_device` maps PDF page user space to `pixmap` pixels, as for the
+/// page render, so it carries the page rotation and the scale. The
+/// appearance is placed at `authored.rect` (its `/BBox` is the rectangle's
+/// size under an identity `/Matrix`, so §12.5.5 placement is a translation)
+/// and run through the interpreter that paints the committed `/AP`, with its
+/// own `/Resources`, so the preview's pixels are the commit's. Paints over
+/// whatever `pixmap` holds.
+///
+/// Returns the interpreter's diagnostics, as [`paint_dimension_preview`]
+/// does.
+#[must_use]
+pub fn paint_text_annotation_preview(
+    doc: &DocumentView<'_>,
+    authored: &pdfcer_core::annot_author::AuthoredTextAnnot,
+    options: &crate::RenderOptions,
+    page_to_device: Transform,
+    pixmap: &mut tiny_skia::Pixmap,
+) -> crate::Diagnostics {
+    let (bx, by) = bbox_origin(&authored.ap_dict);
+    #[allow(clippy::cast_possible_truncation)] // tiny-skia is f32 throughout.
+    let placed = page_to_device.pre_translate(
+        (authored.rect.llx - bx) as f32,
+        (authored.rect.lly - by) as f32,
+    );
+    paint_appearance(
+        doc,
+        (&authored.ap_dict, &authored.ap_content),
+        "text annotation preview",
+        options,
+        placed,
+        pixmap,
+    )
+}
+
+/// The lower-left corner of a form's `/BBox`; the origin when it has none.
+fn bbox_origin(ap_dict: &pdfcer_core::object::Dict) -> (f64, f64) {
+    use pdfcer_core::object::Object;
+    let num = |o: Option<&Object>| match o {
+        #[allow(clippy::cast_precision_loss)] // a coordinate, far below 2^53.
+        Some(Object::Integer(i)) => *i as f64,
+        Some(Object::Real(r)) => *r,
+        _ => 0.0,
+    };
+    let bbox = ap_dict
+        .get(b"BBox")
+        .and_then(Object::as_array)
+        .unwrap_or(&[]);
+    let (x0, y0, x1, y1) = (
+        num(bbox.first()),
+        num(bbox.get(1)),
+        num(bbox.get(2)),
+        num(bbox.get(3)),
+    );
+    (x0.min(x1), y0.min(y1))
+}
+
+/// Run a baked appearance (`/AP` form dictionary, content bytes) through the
+/// page interpreter under `transform`. `what` names it in the diagnostic for
+/// content the parser refuses.
+fn paint_appearance(
+    doc: &DocumentView<'_>,
+    (ap_dict, ap_content): (&pdfcer_core::object::Dict, &[u8]),
+    what: &str,
+    options: &crate::RenderOptions,
+    transform: Transform,
+    pixmap: &mut tiny_skia::Pixmap,
+) -> crate::Diagnostics {
+    let Ok(content) = pdfcer_core::content::ContentStream::parse(ap_content.to_vec()) else {
         let mut diag = crate::Diagnostics::default();
         diag.sample_ops
-            .push("ce dimension preview: appearance did not parse".to_owned());
+            .push(format!("{what}: appearance did not parse"));
         return diag;
     };
-    let resources = ap
-        .ap_dict
+    let resources = ap_dict
         .get(b"Resources")
         .and_then(pdfcer_core::object::Object::as_dict)
         .cloned()
@@ -202,7 +284,7 @@ pub fn paint_dimension_preview(
         &content,
         &resources,
         &options.fonts,
-        crate::gstate::GraphicsState::default_with_ctm(page_to_device),
+        crate::gstate::GraphicsState::default_with_ctm(transform),
         pixmap,
         None,
         options.policy(),

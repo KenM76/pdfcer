@@ -2360,6 +2360,61 @@ fn comments(session: &EditSession, page_id: pdfcer_core::object::ObjId) {
 
 ---
 
+### 3.5.1 Live preview of a text box (request G282)
+
+A `/FreeText` can be painted and measured before it is committed, through the
+baker and the interpreter the commit uses, so the preview's pixels are the
+saved page's.
+
+```rust
+use pdfcer_core::annot_author::{free_text_preview, FreeTextPreview};
+use pdfcer_render::edit_preview::paint_text_annotation_preview;
+
+// A box not in the document yet.
+let preview: FreeTextPreview = free_text_preview(&spec)?.expect("a FreeText spec");
+// A placed box being retyped; None = the commit would not repaint it.
+let preview = session.free_text_note_preview(annot_id, new_text)?;
+
+let (w, h, page_to_device) = pdfcer_render::page_device_geometry(&page, scale);
+let diag = paint_text_annotation_preview(
+    &session.view(), &preview.authored, &options, page_to_device, &mut pixmap);
+```
+
+| Item | Contract |
+|---|---|
+| `FreeTextPreview::authored` | the `AuthoredTextAnnot` the commit writes (`rect`, `ap_dict`, `ap_content`, `unencodable_chars`) |
+| `FreeTextPreview::layout` | `vartext::TextLayout`: `font_size`, `ascent`, `descent`, `lines` top to bottom |
+| `LineLayout` | `start`, `end` (byte offsets into the text), `baseline` (y), `x0`, `x1` (drawn extent), `chars` |
+| `CharSpan` | `offset`, `end` (bytes), `x0`, `x1`; a caret before the character sits at `x0`, after it at `x1` |
+| Coordinates | the appearance's own box: origin at the lower-left of `authored.rect`, y up, points. Add `rect.llx`, `rect.lly` for page space, then `page_to_device` |
+| Characters not drawn | a space swallowed at a wrap, `\n`, `\r`: present in `chars` with `x0 == x1`, so every byte of the text belongs to exactly one line |
+| `needed_height()`, `needed_width()` | the box size that shows every line / the widest line whole, padding included |
+| `clips()` | whether the box hides any text |
+| `rect_grown_downward()` | `authored.rect` with its bottom lowered to `needed_height()`; top and width kept |
+| `paint_text_annotation_preview` | paints `authored` at its rectangle over whatever the pixmap holds; `page_to_device` is the page render's, so rotation and scale are carried. Returns the interpreter's `Diagnostics` |
+
+**Overflow is clipped, never grown.** The baker clips to the box and does not
+shrink the font. A shell that wants a growing box re-bakes with
+`rect_grown_downward()` (or its own rectangle) and commits that rectangle.
+
+**Retyping.** `free_text_note_preview` previews exactly what
+`set_markup_note` writes. It returns `None` for a box whose appearance pdfcer
+did not draw, because the commit then changes `/Contents` and leaves the page
+as it is (`MarkupNoteChange::appearance_rebaked == false`). A box carrying
+rich text (`/RC`, `/DS`) is not refused: the commit drops both keys and
+reports them in `rich_text_dropped`, and the preview shows the plain result.
+The old box is still on the page; hide it (render with the annotation
+excluded) and paint the preview in its place.
+
+**What the layout does not have.** Left to right and horizontal only, in one
+standard-14 face: no vertical writing, no right-to-left runs, no shaping. A
+character outside WinAnsi is drawn as `?`, keeps its byte range and advance,
+and is counted in `authored.unencodable_chars`. A single-line box draws
+`\n` as nothing rather than breaking.
+
+**★ What the UI must disclose:** `unencodable_chars > 0` and `clips()` are
+both things the saved page will show; say so off-canvas (rule 4).
+
 ## 3.6 Restyling existing text — **the capability-shaped answer**
 
 **Added 2026-08-27 because it was missing, and its absence cost a consuming
