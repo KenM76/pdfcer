@@ -3475,6 +3475,21 @@ copied ce dimensions are plain line annotations in the result). The CLI
 prints the counts as `ce_dims_carried=` and `ce_dims_left=` on the report
 line and a sentence on stderr for the newer-schema case.
 
+**ce dimensions that arrive as plain lines are counted on every route.**
+`AssembleReport::ce_dimensions_as_lines: Vec<usize>` has one entry per
+source, in order: the ce dimensions whose annotation was copied without
+its sidecar record. For `merge` that is every ce dimension copied; for
+extract, split and insert-to-a-new-file it is `0` for the source whose
+sidecar was carried (unless `ce_dimension_sidecar_newer`) and the copied
+count for any other. `InsertOutcome::ce_dimensions_as_lines` and
+`MergeOutcome::ce_dimensions_as_lines` (`usize`) are the same count for
+`insert_pages`, `insert_pages_with` and `merge_document`, which bring no
+dimension groups across. Such an annotation keeps its appearance, is not
+in `dimension_model()`, and does not follow a group. A non-zero count is a
+disclosure the shell owes. The CLI prints `ce_dims_as_lines=` and a
+sentence on stderr. Carrying the groups and records on these routes is
+not shipped.
+
 Every assembled file (extract, split, merge, insert to a new file) drops
 the structure tree (`struct_tree_dropped`), so a link, bookmark or GoTo
 that named a structure element names that element's page instead,

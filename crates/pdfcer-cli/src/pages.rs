@@ -96,10 +96,8 @@ pub(crate) fn cmd_merge(inputs: &[PathBuf], output: &Path, bookmarks: bool) -> u
         Vec::new()
     };
 
-    // The file NAME of each source, so a bookmark that opens another of
-    // these files can be re-pointed at it (`Pass 258.3`). Distinct from
-    // `titles`, which is what to CALL each source in the generated
-    // heading: a `/Launch` says `chapter1.pdf`, not `chapter1`.
+    // File names, so a bookmark that opens another of these files can be
+    // re-pointed at it: a `/Launch` says `chapter1.pdf`, not `chapter1`.
     let files: Vec<Vec<u8>> = inputs
         .iter()
         .map(|path| {
@@ -776,7 +774,7 @@ pub(crate) fn cmd_page_paste(args: &PagePasteArgs<'_>) -> u8 {
     };
     let r = &outcome.report;
     println!(
-        "page-paste {} clip={} at={} pages={} fields_carried={} fields_renamed={} fields_split={} orphaned_widgets={} orphaned_unrecoverable={} outline_dropped={} mode={} -> {}; changed={} objects={} appended={} out_bytes={}",
+        "page-paste {} clip={} at={} pages={} fields_carried={} fields_renamed={} fields_split={} orphaned_widgets={} orphaned_unrecoverable={} outline_dropped={} ce_dims_as_lines={} mode={} -> {}; changed={} objects={} appended={} out_bytes={}",
         args.input.display(),
         args.clip.display(),
         args.at,
@@ -787,6 +785,7 @@ pub(crate) fn cmd_page_paste(args: &PagePasteArgs<'_>) -> u8 {
         pasted.orphaned_widgets,
         pasted.orphaned_widgets_unrecoverable,
         u32::from(pasted.source_outline_dropped),
+        pasted.ce_dimensions_as_lines,
         args.mode.name(),
         args.output.display(),
         outcome.changed,
@@ -794,5 +793,6 @@ pub(crate) fn cmd_page_paste(args: &PagePasteArgs<'_>) -> u8 {
         r.bytes_appended,
         r.bytes_written,
     );
+    crate::sign::report_ce_dimensions_as_lines(args.input, pasted.ce_dimensions_as_lines);
     finish_edit(args.input, &outcome)
 }

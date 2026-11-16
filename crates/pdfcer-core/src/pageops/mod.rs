@@ -107,7 +107,7 @@
 //! cited inline at each decision they informed.
 
 pub mod assemble;
-mod dimension_carry;
+pub(crate) mod dimension_carry;
 pub mod outline;
 pub mod references;
 pub mod region;

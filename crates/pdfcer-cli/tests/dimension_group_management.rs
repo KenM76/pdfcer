@@ -1108,3 +1108,63 @@ fn calibrating_on_a_user_unit_page_reads_the_stated_length() {
     assert_eq!(code, EDIT_REFUSED);
     assert!(err.contains("is not a page"), "{err}");
 }
+
+/// Merge, insert and merge-document bring no dimension groups across; each
+/// says how many ce dimensions arrived as plain line annotations (G286).
+#[test]
+fn merge_and_insert_say_how_many_ce_dimensions_arrived_as_lines() {
+    let dimensioned = two_groups("as-lines");
+    let (dim, plain) = (dimensioned.to_str().unwrap(), fixture());
+    let plain = plain.to_str().unwrap();
+    let told = |out: &str, err: &str| {
+        assert!(out.contains("ce_dims_as_lines=1"), "{out}");
+        assert!(
+            err.contains("1 ce dimension(s) arrived as plain line annotations"),
+            "{err}"
+        );
+    };
+
+    let merged = temp_out("as-lines-merged.pdf");
+    let (code, out, err) = run(&["merge", plain, dim, "-o", merged.to_str().unwrap()]);
+    assert_eq!(code, 0, "{err}");
+    told(&out, &err);
+    assert!(err.contains("per source: [0, 1]"), "{err}");
+
+    let inserted = temp_out("as-lines-inserted.pdf");
+    let (code, out, err) = run(&[
+        "insert-pages",
+        plain,
+        "--source",
+        dim,
+        "-o",
+        inserted.to_str().unwrap(),
+    ]);
+    assert_eq!(code, 0, "{err}");
+    told(&out, &err);
+
+    let joined = temp_out("as-lines-joined.pdf");
+    let (code, out, err) = run(&[
+        "merge-document",
+        plain,
+        "--source",
+        dim,
+        "--output",
+        joined.to_str().unwrap(),
+    ]);
+    assert_eq!(code, 0, "{err}");
+    told(&out, &err);
+
+    // The carried route says nothing.
+    let extracted = temp_out("as-lines-extracted.pdf");
+    let (code, out, err) = run(&[
+        "extract-pages",
+        dim,
+        "--pages",
+        "1",
+        "-o",
+        extracted.to_str().unwrap(),
+    ]);
+    assert_eq!(code, 0, "{err}");
+    assert!(out.contains("ce_dims_as_lines=0"), "{out}");
+    assert!(!err.contains("arrived as plain line"), "{err}");
+}

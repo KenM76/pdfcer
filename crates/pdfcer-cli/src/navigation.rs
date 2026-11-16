@@ -1642,7 +1642,7 @@ pub(crate) fn cmd_merge_document(
         "merge-document {} + {} mode={} -> {}; \
 pages={} fields={} renamed={} acroform_created={} dests={} dests_renamed={} \
 outline_items={} page_label_ranges={} layers={} layer_configs_dropped={} \
-tags_dropped={} struct_links={} struct_links_first_page={} \
+tags_dropped={} struct_links={} struct_links_first_page={} ce_dims_as_lines={} \
 changed={} objects={} \
 verbatim={} reserialized={} appended={} out_bytes={} undo_verified={} \
 undo_identical={} delinearized={}",
@@ -1668,6 +1668,7 @@ undo_identical={} delinearized={}",
         u32::from(outcome.source_tags_dropped),
         outcome.structure_links_to_pages,
         outcome.structure_links_to_first_page,
+        outcome.ce_dimensions_as_lines,
         saved.changed,
         r.objects_written,
         r.objects_verbatim,
@@ -1693,6 +1694,7 @@ undo_identical={} delinearized={}",
             outcome.named_destinations_renamed,
         );
     }
+    crate::sign::report_ce_dimensions_as_lines(input, outcome.ce_dimensions_as_lines);
     if outcome.source_tags_dropped {
         eprintln!(
             "pdfcer: {}: {} was tagged; its structure tree (/StructTreeRoot) was NOT carried, \

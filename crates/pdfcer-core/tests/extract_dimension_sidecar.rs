@@ -41,6 +41,10 @@ fn two_page_pdf() -> Vec<u8> {
     buf
 }
 
+fn view_of(d: &Document) -> DocumentView<'_> {
+    DocumentView::new(d, d.bytes(), d.version())
+}
+
 fn linear(y: f64) -> DimensionKind {
     DimensionKind::Linear {
         a: Point::new(100.0, y),
@@ -134,4 +138,36 @@ fn a_newer_sidecar_is_left_behind_and_said_so() {
         (0, 3)
     );
     assert!(!bytes.windows(9).any(|w| w == b"PieceInfo"));
+}
+
+/// Merge and insert do not carry the sidecar; each says how many ce
+/// dimensions arrived as plain line annotations (pdfcer-gui G286).
+#[test]
+fn merge_and_insert_count_the_ce_dimensions_that_arrive_as_lines() {
+    let source = dimensioned();
+    let plain = Document::from_bytes(two_page_pdf()).unwrap();
+    let of = view_of;
+    let (view, plain_view) = (of(&source), of(&plain));
+
+    let (_, report) = pageops::merge(&[of(&source), of(&plain), of(&source)], &[], &[]).unwrap();
+    assert_eq!(report.ce_dimensions_as_lines, [3, 0, 3]);
+    assert_eq!(report.ce_dimensions_carried, 0);
+
+    let (_, report) = pageops::extract(&view, &[1]).unwrap();
+    assert_eq!(report.ce_dimensions_as_lines, [0]);
+
+    let mut s = EditSession::new(Document::from_bytes(two_page_pdf()).unwrap());
+    let out = s
+        .insert_pages(&view, &[1], pageops::InsertPosition::Start)
+        .unwrap();
+    assert_eq!(out.ce_dimensions_as_lines, 2);
+    let out = s
+        .insert_pages(&plain_view, &[0], pageops::InsertPosition::Start)
+        .unwrap();
+    assert_eq!(out.ce_dimensions_as_lines, 0);
+    let out = s
+        .merge_document(&view, pageops::InsertPosition::Start)
+        .unwrap();
+    assert_eq!(out.ce_dimensions_as_lines, 3);
+    assert!(s.dimension_model().dimensions().is_empty());
 }

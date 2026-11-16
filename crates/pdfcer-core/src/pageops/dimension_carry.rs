@@ -12,6 +12,27 @@ use crate::object::{Dict, Name, ObjId, Object};
 use crate::pageops::PageOpError;
 use crate::pageops::assemble::{AssembleReport, Copier, DocumentView};
 
+/// `view`'s sidecar: the `/PieceInfo` `pdfcer` dictionary and its `/Private`.
+fn sidecar(view: &DocumentView<'_>) -> Option<(Dict, Object)> {
+    let graph = view.graph();
+    let entry = |dict: &Dict, key: &[u8]| dict.get(key).map(|v| graph.resolve(v).clone());
+    let piece = entry(graph.catalog_dict()?, b"PieceInfo")?;
+    let Object::Dict(data) = entry(piece.as_dict()?, b"pdfcer")? else {
+        return None;
+    };
+    let private = entry(&data, b"Private")?;
+    Some((data, private))
+}
+
+/// The annotation of every ce-dimension record in `view`'s sidecar. One
+/// copied without its record arrives as a plain line annotation.
+pub(crate) fn record_annots(view: &DocumentView<'_>) -> Vec<ObjId> {
+    sidecar(view)
+        .and_then(|(_, private)| deserialize_model(&private))
+        .map(|model| model.dimensions().iter().filter_map(|r| r.annot).collect())
+        .unwrap_or_default()
+}
+
 /// Write the subset sidecar into `catalog`. Call after the copier has
 /// drained, so every annotation on a copied page already has its number.
 ///
@@ -22,20 +43,10 @@ pub(super) fn carry(
     copier: &mut Copier,
     view: &DocumentView<'_>,
     source_index: usize,
-    source_catalog: &Dict,
     catalog: &mut Dict,
     report: &mut AssembleReport,
 ) -> Result<(), PageOpError> {
-    let graph = view.graph();
-    let entry = |dict: &Dict, key: &[u8]| dict.get(key).map(|v| graph.resolve(v).clone());
-    let Some(Object::Dict(data)) = entry(source_catalog, b"PieceInfo")
-        .as_ref()
-        .and_then(Object::as_dict)
-        .and_then(|piece| entry(piece, b"pdfcer"))
-    else {
-        return Ok(());
-    };
-    let Some(private) = entry(&data, b"Private") else {
+    let Some((data, private)) = sidecar(view) else {
         return Ok(());
     };
     if sidecar_version(&private).is_some_and(|v| v > SIDECAR_VERSION) {

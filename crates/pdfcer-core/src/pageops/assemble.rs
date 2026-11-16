@@ -461,6 +461,13 @@ pub struct AssembleReport {
     /// none of it was carried: the copied ce dimensions are plain line
     /// annotations in the result. A shell says so.
     pub ce_dimension_sidecar_newer: bool,
+    /// Per source, in `sources` order: ce dimensions copied without their
+    /// sidecar record, so they are plain line annotations in the result
+    /// and no longer follow a dimension group. A merge carries no sidecar,
+    /// so this counts every ce dimension it copied; elsewhere it is the
+    /// sources other than the one whose sidecar was carried, and that one
+    /// too when [`Self::ce_dimension_sidecar_newer`]. A shell says so.
+    pub ce_dimensions_as_lines: Vec<usize>,
 }
 
 /// One page to place in the assembled document: which source, and which
@@ -703,23 +710,30 @@ pub fn assemble(
         }
     }
 
+    // Drained first: an annotation reached through an indirect `/Annots`
+    // array has no output number until then.
+    copier.drain(sources)?;
+    let mut carried_from = None;
     if options.carry_dimension_sidecar
         && let Some(index) = options.catalog_from
         && let Some(view) = sources.get(index)
-        && let Some(source_catalog) = view.graph().catalog_dict()
     {
-        // Drained first: an annotation reached through an indirect `/Annots`
-        // array has no output number until then.
-        copier.drain(sources)?;
-        dimension_carry::carry(
-            &mut copier,
-            view,
-            index,
-            source_catalog,
-            &mut catalog,
-            &mut report,
-        )?;
+        dimension_carry::carry(&mut copier, view, index, &mut catalog, &mut report)?;
+        carried_from = (!report.ce_dimension_sidecar_newer).then_some(index);
     }
+    report.ce_dimensions_as_lines = sources
+        .iter()
+        .enumerate()
+        .map(|(index, view)| {
+            if carried_from == Some(index) {
+                return 0;
+            }
+            dimension_carry::record_annots(view)
+                .into_iter()
+                .filter(|id| copier.mapped(index, *id).is_some())
+                .count()
+        })
+        .collect();
     copier.store(catalog_num, Object::Dict(catalog));
     copier.drain(sources)?;
     report.objects_copied = copier.objects.len();

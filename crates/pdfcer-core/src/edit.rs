@@ -4578,12 +4578,30 @@ pub struct InsertOutcome {
     /// `/StructParents` dropped so they cannot name an element of this
     /// document's own structure tree.
     pub source_tags_dropped: bool,
+    /// ce dimensions on the inserted pages that arrived as plain line
+    /// annotations: the source's dimension groups are not brought across,
+    /// so they keep their look and no longer follow a group. A shell says
+    /// so, naming the count.
+    pub ce_dimensions_as_lines: usize,
+}
+
+/// How many of `source`'s ce dimensions `mapping` copied. Their sidecar
+/// records stay in the source, so each is a plain line annotation here.
+fn ce_dimensions_copied(source: &DocumentView<'_>, mapping: &BTreeMap<ObjId, ObjId>) -> usize {
+    crate::pageops::dimension_carry::record_annots(source)
+        .iter()
+        .filter(|id| mapping.contains_key(id))
+        .count()
 }
 
 /// What [`EditSession::merge_document`] did.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 #[non_exhaustive]
 pub struct MergeOutcome {
+    /// ce dimensions that arrived as plain line annotations: the source's
+    /// dimension groups are not merged, so they keep their look and no
+    /// longer follow a group. A shell says so, naming the count.
+    pub ce_dimensions_as_lines: usize,
     /// Pages brought across. Every page of the source, by definition.
     pub pages_merged: usize,
     /// Top-level form fields carried into this document's `/AcroForm`.
@@ -49838,6 +49856,7 @@ impl EditSession {
         let page_label_ranges =
             self.merge_page_labels(source, target_count, source_count, at, &mut scratch);
         let layers = self.merge_optional_content(source, &mut mapping, &mut scratch)?;
+        let ce_dimensions_as_lines = ce_dimensions_copied(source, &mapping);
         let (guard, source_tags_dropped) = self.page_import_report(source);
 
         let objects: Vec<ObjectWrite> = scratch
@@ -49870,6 +49889,7 @@ impl EditSession {
             structure_links_to_pages: guard.structure_links_to_pages,
             structure_links_to_first_page: guard.structure_links_to_first_page,
             source_tags_dropped,
+            ce_dimensions_as_lines,
         })
     }
 
@@ -50795,9 +50815,8 @@ impl EditSession {
         };
         let added = new_page_ids.len();
 
-        // `Pass 102.1`: carry every field whose widgets all arrived. After the
-        // page copy, so `mapping` already holds the widgets and a field's
-        // `/Kids` resolve to them rather than to duplicates.
+        // After the page copy, so `mapping` already holds the widgets and a
+        // field's `/Kids` resolve to them rather than to duplicates.
         let carry = self.carry_inserted_fields(source, &mut mapping, &mut scratch)?;
         let (orphaned_widgets, orphaned_widgets_unrecoverable) =
             insert_fields::count_orphans(&new_page_ids, &carry.claimed, &scratch);
@@ -50853,6 +50872,7 @@ impl EditSession {
             structure_links_to_pages: guard.structure_links_to_pages,
             structure_links_to_first_page: guard.structure_links_to_first_page,
             source_tags_dropped,
+            ce_dimensions_as_lines: ce_dimensions_copied(source, &mapping),
         })
     }
 
