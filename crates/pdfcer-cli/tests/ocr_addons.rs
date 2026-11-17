@@ -145,10 +145,14 @@ fn a_hash_mismatch_is_refused() {
     assert!(out.contains("verified=FAILED"), "{out}");
     assert!(err.contains(ABC_SHA256), "{err}");
 
-    let (code, _, err) = ocr_with(&root, &["--ocr-model", "tampered"]);
-    assert_eq!(code, Some(1), "{err}");
-    assert!(err.contains("OCR model `tampered` refused"), "{err}");
-    assert!(err.contains("the manifest says"), "{err}");
+    // Without the engine the run is refused before the hash is looked at.
+    #[cfg(feature = "paddle")]
+    {
+        let (code, _, err) = ocr_with(&root, &["--ocr-model", "tampered"]);
+        assert_eq!(code, Some(1), "{err}");
+        assert!(err.contains("OCR model `tampered` refused"), "{err}");
+        assert!(err.contains("the manifest says"), "{err}");
+    }
 }
 
 /// An unknown name, an engine pdfcer lacks and a contradicting
