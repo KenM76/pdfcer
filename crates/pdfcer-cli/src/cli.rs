@@ -3334,6 +3334,11 @@ pub(crate) enum Command {
     /// physical strength and otherwise as a relative figure, with a note
     /// saying which and why.
     ///
+    /// `--measure-surfaces X1,Y1,X2,Y2` measures between the surfaces
+    /// drawn at two image positions: the distance between them when they
+    /// are parallel within `--measure-parallel-tolerance`, the angle
+    /// between them otherwise.
+    ///
     /// `--360` draws the whole sphere around the camera as an
     /// equirectangular panorama (2048 x 1024 unless a size is given); a
     /// `.jpg` output carries the Google Photo Sphere (GPano) XMP tag, so
@@ -3488,6 +3493,8 @@ pub(crate) enum Command {
         light: crate::threed_cmd::LightArgs,
         #[command(flatten)]
         meter: crate::threed_cmd::MeterArgs,
+        #[command(flatten)]
+        surface: crate::threed_cmd::SurfaceArgs,
         /// Draw without ambient occlusion. By default creases, corners and
         /// contacts are darkened by how much nearby surface rises around
         /// them, read from the depth of the finished picture; an unlit

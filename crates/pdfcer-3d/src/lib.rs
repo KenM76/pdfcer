@@ -46,6 +46,8 @@ mod prc;
 mod render;
 #[cfg(feature = "render")]
 mod shadow;
+#[cfg(feature = "render")]
+mod surface_measure;
 mod texture;
 /// Vector arithmetic on `[f64; 3]`: the `pdfcer-vec3` crate.
 pub use pdfcer_vec3 as vec3;
@@ -172,6 +174,11 @@ pub use shadow::cast::{DEFAULT_SHADOW_CUTOFF, ShadowAlpha, ShadowCasters};
 pub use shadow::lamp::{DEFAULT_LAMP_SHADOW_MAP_SIZE, MAX_LAMP_SHADOW_MAP_SIZE};
 #[cfg(feature = "render")]
 pub use shadow::{DEFAULT_SHADOW_MAP_SIZE, LightSense, MAX_SHADOW_MAP_SIZE, ShadowLight};
+#[cfg(feature = "render")]
+pub use surface_measure::{
+    DEFAULT_FLAT_DEGREES, DEFAULT_PARALLEL_DEGREES, SurfaceMeasure, SurfaceMeasureError,
+    SurfacePatch, SurfacePick, SurfaceRelation, SurfaceTolerance, measure_surfaces, surface_at,
+};
 pub use texture::{MAX_TEXTURE_PIXELS, Texture, TextureFunction, TextureOrigin, TextureWrap};
 pub use write::{
     MAX_DEPTH, MeshScene, PrcWriteError, PrcWriteReport, SceneMaterial, SceneMesh, SceneNode,

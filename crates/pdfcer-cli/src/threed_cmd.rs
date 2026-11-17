@@ -17,6 +17,7 @@ mod pick;
 mod picture;
 #[cfg(feature = "3d")]
 mod shadow_note;
+mod surface;
 mod tree;
 mod view_measures;
 mod views;
@@ -29,6 +30,7 @@ pub(crate) use lights::{LightArg, parse_light};
 pub(crate) use meter::MeterArgs;
 pub(crate) use mode::RenderModeArgs;
 pub(crate) use picture::picture_size;
+pub(crate) use surface::SurfaceArgs;
 pub(crate) use tree::cmd_tree_3d;
 pub(crate) use view_measures::{ViewMeasuresArgs, cmd_view_measures_3d};
 pub(crate) use views::{ViewsThreeDArgs, cmd_views_3d};
@@ -480,6 +482,7 @@ pub(crate) struct RenderThreeDArgs<'a> {
     pub(crate) mode: RenderModeArgs,
     pub(crate) light: LightArgs,
     pub(crate) meter: &'a MeterArgs,
+    pub(crate) surface: &'a SurfaceArgs,
     pub(crate) shadow_map_size: u32,
     pub(crate) ambient_occlusion: bool,
     pub(crate) artwork_headlight: bool,
@@ -724,6 +727,7 @@ fn render_from_bytes(
     pick::print_picks(a, &model.meshes, &camera);
     pick::print_projects(a, &camera);
     a.meter.print(&model, &camera, &options);
+    a.surface.print(&model, &camera, &options);
     if model.overridden > 0 {
         println!(
             "note: {} placement(s) drawn in a colour an enclosing assembly overrides them with \

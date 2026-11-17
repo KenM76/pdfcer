@@ -623,3 +623,58 @@ fn illuminance_is_lux_under_a_stated_lamp_and_relative_otherwise() {
     let miss = read(&["--illuminance", "2,2"]);
     assert!(miss.contains("illuminance x=2 y=2 miss"), "{miss}");
 }
+
+/// `--measure-surfaces`: the distance between two parallel surfaces, with
+/// a line per side; a miss and a tolerance out of range are said by name.
+#[test]
+fn measure_surfaces_reports_the_distance_between_parallel_surfaces() {
+    let s = Scratch::new("surf");
+    std::fs::write(s.path("m.glb"), floor_and_square()).unwrap();
+    let pdf = format!(
+        "{}/../../fixtures/synthetic/minimal.pdf",
+        env!("CARGO_MANIFEST_DIR")
+    );
+    let (m, out, png) = (s.path("m.glb"), s.path("out.pdf"), s.path("x.png"));
+    let args = ["3d-embed", &pdf, "--model", &m, "--page", "1"];
+    stdout(&run(&[
+        &args[..],
+        &["--rect", "10,10,190,190", "--apply", "-o", &out],
+    ]
+    .concat()));
+    let read = |extra: &[&str]| {
+        let mut args = vec!["3d-render", &out, "--index", "0", "--eye=1,-3,4"];
+        args.extend_from_slice(&["--width", "120", "--height", "80", "-o", &png]);
+        args.extend_from_slice(extra);
+        stdout(&run(&args))
+    };
+    // Mid-picture is the square; left of it the floor, one unit below.
+    let both = read(&["--measure-surfaces", "60,40,20,40"]);
+    assert!(
+        both.contains(
+            "measure-surfaces a=60,40 b=20,40 relation=parallel distance=1.000000 (999.999995 mm) \
+             forced=no off_parallel=0.000000"
+        ),
+        "{both}"
+    );
+    assert!(
+        both.contains("measure-surface side=a mesh=1 triangle=1 face=0 whole_face=yes triangles=2"),
+        "{both}"
+    );
+    assert!(
+        both.contains("measure-surface side=b mesh=0 triangle=1 face=0 whole_face=yes triangles=2"),
+        "{both}"
+    );
+    assert!(!both.contains("note: measure-surfaces"), "{both}");
+    let miss = read(&["--measure-surfaces", "2,2,60,40"]);
+    assert!(miss.contains("a=2,2 b=60,40 miss at 2,2"), "{miss}");
+    let bad = read(&[
+        "--measure-surfaces",
+        "60,40,20,40",
+        "--measure-parallel-tolerance",
+        "95",
+    ]);
+    assert!(
+        bad.contains("refused: the parallel tolerance must be from 0 to 90 degrees"),
+        "{bad}"
+    );
+}

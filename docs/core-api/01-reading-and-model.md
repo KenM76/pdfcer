@@ -3549,6 +3549,44 @@ let image = render_coloured(&meshes, &colours, &camera, &RenderOptions { width: 
   `illuminance-light x= y= name= direct=` per light, `illuminance x= y=
   miss` or `refused: <why>`, then `note: illuminance: ...` lines for the
   reasons and notes.
+- **Measure between two surfaces** (`pdfcer-3d`, feature `render`):
+  `measure_surfaces(&model.meshes, &a, &b, &tolerance) ->
+  Result<SurfaceMeasure, SurfaceMeasureError>` with `a`, `b` a
+  `SurfacePick { mesh, triangle, point }` (`SurfacePick::from(&hit)` from
+  `pick`). `SurfaceMeasure { a, b: SurfacePatch, angle_degrees (0-90, how
+  far off parallel), normals_degrees (0-180, between the outward normals;
+  180 is the two sides of a plate), relation, pick_distance, delta }`;
+  `relation` is `SurfaceRelation::Parallel { distance, forced }` when
+  `angle_degrees <= tolerance.parallel_degrees` or
+  `tolerance.force_parallel` (then `forced` says the pair was wider),
+  otherwise `Angled { degrees }`. `distance` is from `b.point` to the
+  plane of `a`'s surface, in model units (multiply by
+  `AssembledModel::units` for a real length).
+  `SurfaceTolerance { parallel_degrees (0.5), force_parallel (false),
+  flat_degrees (0.5) }` is `#[non_exhaustive]`: start from `default()` and
+  assign; `DEFAULT_PARALLEL_DEGREES`, `DEFAULT_FLAT_DEGREES`.
+  A model keeps triangles, not planes, so a surface is fitted:
+  `surface_at(&meshes, &pick, flat_degrees) -> SurfacePatch { mesh, face:
+  Option<usize>, whole_face, triangles, area, centroid, normal,
+  flatness_degrees }` gathers the triangles of the picked triangle's face
+  (`TriangleMesh::faces`, else `triangle_faces`, else the whole mesh) that
+  face within `flat_degrees` of it and lie in its plane, and fits an
+  area-weighted plane. `whole_face == false` means the patch is only the
+  flat part round the pick (a curved or stepped face, or a file that
+  separates no faces): disclose it (rule 4). No cylinders, edges or
+  points yet: a curved face measures as the flat patch at the pick.
+  Refusals: `SurfaceMeasureError::{NoSuchTriangle { mesh, triangle },
+  Degenerate, BadTolerance("parallel tolerance" | "flat tolerance"),
+  BadPoint}`.
+  CLI: `3d-render ... --measure-surfaces X1,Y1,X2,Y2` (repeatable; with
+  `--measure-parallel-tolerance DEG`, `--measure-force-parallel`,
+  `--measure-flat-tolerance DEG`) prints `measure-surfaces a= b=
+  relation=parallel distance= forced=yes|no` or `relation=angled angle=`,
+  then `off_parallel= normals_angle= point_distance= delta=`, a
+  `measure-surface side=a|b mesh= triangle= face= whole_face= triangles=
+  area= flatness= point= normal=` line per side, `miss at X,Y` or
+  `refused: <why>`, and `note: measure-surfaces: ...` when a patch is not
+  a whole face.
 - `Placement::colour: Option<[f64; 4]>` is the part's colour from its tree
   (style inheritance and father/son heritage resolved, material diffuse and
   transparency applied), straight RGBA 0–1. `None`: no style reaches it or it
