@@ -104,7 +104,7 @@ impl<'m> LightMeter<'m> {
         let basis = camera.basis()?;
         let plan = plan::Plan::of(model, options, settings);
         let shader = Shader::for_frame(&plan.options, &plan.lights, &basis)?;
-        let artwork = !plan.lights.is_empty();
+        let artwork = crate::lighting::model_lit(&plan.options, &plan.lights);
         let all = frame_lamps(&shader, &plan.options, artwork, camera, &basis);
         let names = plan::names(&plan, all.len());
         let indirect = plan.options.indirect;

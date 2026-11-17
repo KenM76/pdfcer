@@ -3506,6 +3506,11 @@ pub(crate) enum Command {
         /// facing the viewer dark. A model without lights always has it.
         #[arg(long)]
         artwork_headlight: bool,
+        /// With artwork lighting, draw a model that has no lights of its
+        /// own with no lamp light instead of the light at the camera:
+        /// surfaces show only what they emit.
+        #[arg(long)]
+        dark_without_lights: bool,
         /// With artwork lighting, light the model with its own lights even
         /// when the view it opens on carries lights of its own. By default
         /// that view's lights are used in their place, as when the model

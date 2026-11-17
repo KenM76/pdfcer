@@ -3754,7 +3754,21 @@ let image = render_coloured(&meshes, &colours, &camera, &RenderOptions { width: 
   draw them, point and spot lights per pixel, so a lamp makes a pool of
   light on a large face; `RenderOptions::artwork_headlight: bool` (default
   false) adds the camera light too, for a model whose lights leave the
-  viewer's side dark. The brightest directional light is the shadow key;
+  viewer's side dark.
+  **An empty light list (`G290`).** `RenderOptions::empty_artwork:
+  EmptyArtwork` says what `Artwork` draws with when `lights` is empty.
+  `Headlight` (the default): the file carries no lights, so the light at
+  the camera. `Dark`: the model has lamps and the caller left every one
+  out, so no lamp light: surfaces show what they emit, plus
+  `artwork_headlight`, an aimed sun and the bounce's sky when those are
+  asked for. A list with any light in it is drawn the same under either.
+  The switch is the caller's because an empty list alone cannot say which
+  it is: to switch lamps off, leave them out of `lights` and set `Dark`.
+  `LightMeter` follows it: under `Dark` an empty list reads 0 with no
+  light listed, and is not a reason for a relative figure
+  (`RelativeReason::PictureLights` is the headlight's). `BounceStats`,
+  `LampStats`, shadows and the GPU frame take the same decision. CLI:
+  `3d-render --dark-without-lights`. The brightest directional light is the shadow key;
   under `ShadowCasters::EveryLight` (the default) the others cast too. Show the list off-canvas: `3d-render` prints one
   `light index=… kind=… name=… [position=… direction=… attenuation=…
   angle=… exponent=…] colour=… intensity=… [specular=…] [node=N]` line per light

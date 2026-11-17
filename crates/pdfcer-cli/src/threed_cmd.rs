@@ -16,6 +16,8 @@ mod mode;
 mod pick;
 mod picture;
 #[cfg(feature = "3d")]
+mod scheme;
+#[cfg(feature = "3d")]
 mod shadow_note;
 mod surface;
 mod tree;
@@ -30,6 +32,8 @@ pub(crate) use lights::{LightArg, parse_light};
 pub(crate) use meter::MeterArgs;
 pub(crate) use mode::RenderModeArgs;
 pub(crate) use picture::picture_size;
+#[cfg(feature = "3d")]
+use scheme::render_lighting;
 pub(crate) use surface::SurfaceArgs;
 pub(crate) use tree::cmd_tree_3d;
 pub(crate) use view_measures::{ViewMeasuresArgs, cmd_view_measures_3d};
@@ -486,6 +490,7 @@ pub(crate) struct RenderThreeDArgs<'a> {
     pub(crate) shadow_map_size: u32,
     pub(crate) ambient_occlusion: bool,
     pub(crate) artwork_headlight: bool,
+    pub(crate) dark_without_lights: bool,
     pub(crate) view_lights: bool,
     pub(crate) light_sense: LightSenseArg,
     pub(crate) shadow_light: ShadowLightArg,
@@ -498,81 +503,6 @@ pub(crate) struct RenderThreeDArgs<'a> {
     pub(crate) pick: &'a [[f64; 2]],
     /// Model points to report the image position of (`--project`).
     pub(crate) project: &'a [[f64; 3]],
-}
-
-/// The scheme `3d-render` lights with, and where it came from.
-#[cfg(feature = "3d")]
-struct RenderLighting {
-    scheme: pdfcer_3d::LightingScheme,
-    source: &'static str,
-}
-
-#[cfg(feature = "3d")]
-fn render_lighting(
-    arg: RenderLightingArg,
-    saved: Option<&pdfcer_core::threed::ThreeDSavedView>,
-) -> RenderLighting {
-    let (scheme, source) = match (arg.scheme(), saved.and_then(|v| v.lighting)) {
-        (Some(scheme), _) => (scheme, "--lighting"),
-        (None, Some(lighting)) => (lighting.into(), "the opening view's"),
-        (None, None) => (
-            pdfcer_3d::LightingScheme::Artwork,
-            "the default; the opening view names none",
-        ),
-    };
-    RenderLighting { scheme, source }
-}
-
-#[cfg(feature = "3d")]
-impl RenderLighting {
-    /// The lighting note, then, under artwork lighting, one `light` line
-    /// per model light.
-    fn print_note(&self, model: &pdfcer_3d::AssembledModel, headlight: bool) {
-        use pdfcer_3d::LightingScheme as S;
-        let lights = &model.lights;
-        let whose = match model.lights_view {
-            Some(i) => format!(
-                "the default view {i}'s {} light(s), in place of the model's \
-                 (--no-view-lights uses the model's)",
-                lights.len()
-            ),
-            None => format!("the model's {} light(s)", lights.len()),
-        };
-        let how = match self.scheme {
-            S::Artwork if lights.is_empty() => {
-                "the model has no lights, so it is lit from the camera".to_owned()
-            }
-            S::Artwork => format!(
-                "{whose}{}",
-                if headlight {
-                    ", plus the light at the camera (--artwork-headlight)"
-                } else {
-                    "; --artwork-headlight adds the light at the camera"
-                }
-            ),
-            S::None => "no lights, every surface in its own colour".to_owned(),
-            _ => "the scheme's fixed lights (ISO 32000-1 Table 310)".to_owned(),
-        };
-        println!(
-            "note: lighting: {} ({}): {how}",
-            self.scheme.name(),
-            self.source
-        );
-        if self.scheme == S::Artwork {
-            lights::print_model_lights(lights);
-        }
-        if !model.view_lights.is_empty() {
-            println!(
-                "note: lighting: {} view(s) carry their own lights, listed as view-light \
-                 lines; only a default view's are drawn, and only under artwork",
-                model.view_lights.len()
-            );
-            let used = (self.scheme == S::Artwork)
-                .then_some(model.lights_view)
-                .flatten();
-            lights::print_view_lights(&model.view_lights, used);
-        }
-    }
 }
 
 /// `3d-render` — draw one PRC model to a PNG or JPEG from a camera.
@@ -655,6 +585,11 @@ fn render_from_bytes(
         shadow_alpha: shadow_note::alpha(a.shadow_alpha, a.shadow_cutoff),
         threads: a.threads,
         artwork_headlight: a.artwork_headlight,
+        empty_artwork: if a.dark_without_lights {
+            pdfcer_3d::EmptyArtwork::Dark
+        } else {
+            pdfcer_3d::EmptyArtwork::Headlight
+        },
         shininess: lights::shininess_scale(a.shininess_scale),
         light_gain: a.light.light_gain,
         lamp_cost: a.light.lamp_cost(),
@@ -706,7 +641,7 @@ fn render_from_bytes(
          tree gives it ({translucent} translucent); {uncoloured} mesh(es) had none and are \
          drawn grey"
     );
-    lighting.print_note(&model, a.artwork_headlight);
+    lighting.print_note(&model, a.artwork_headlight, a.dark_without_lights);
     a.light.print_note(&model, &camera, &options);
     mode.print_note();
     shadow_note::print(a, &model, &camera, &options);

@@ -81,7 +81,7 @@ impl Plan {
 }
 
 fn artwork(lights: &[ModelLight], options: &RenderOptions) -> bool {
-    options.lighting == LightingScheme::Artwork && !lights.is_empty()
+    crate::lighting::model_lit(options, lights)
 }
 
 /// The candela of a point or spot light; 0 for any other light.

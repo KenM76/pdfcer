@@ -15,6 +15,28 @@ mod lamp_view_tests;
 pub(crate) mod shade;
 pub(crate) mod sun;
 
+/// What [`LightingScheme::Artwork`] lights a model with when its light list
+/// ([`crate::AssembledModel::lights`]) is empty, as
+/// [`crate::RenderOptions::empty_artwork`].
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
+#[non_exhaustive]
+pub enum EmptyArtwork {
+    /// [`Lights::Headlight`]: the file carries no lights. The default.
+    #[default]
+    Headlight,
+    /// No lamp light: the model has lamps and a caller left every one out.
+    /// Surfaces show what they emit, plus
+    /// [`crate::RenderOptions::artwork_headlight`], an aimed sun and the
+    /// bounce's sky when those are asked for.
+    Dark,
+}
+
+/// Whether `lights` light the picture, rather than the scheme's.
+pub(crate) fn model_lit(options: &crate::RenderOptions, lights: &[crate::ModelLight]) -> bool {
+    options.lighting == LightingScheme::Artwork
+        && (!lights.is_empty() || options.empty_artwork == EmptyArtwork::Dark)
+}
+
 /// A lighting scheme: the `Subtype` of a `/3DLightingScheme` dictionary
 /// (ISO 32000-1 Table 309), as [`crate::RenderOptions::lighting`].
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
@@ -22,7 +44,8 @@ pub(crate) mod sun;
 pub enum LightingScheme {
     /// `/Artwork`: the model's own lights ([`crate::AssembledModel::lights`]),
     /// drawn by [`crate::render_model`] and [`crate::PreparedModel::render`];
-    /// [`Lights::Headlight`] when the model has none, and for the mesh-only
+    /// [`Lights::Headlight`] when the model has none (see [`EmptyArtwork`]),
+    /// and for the mesh-only
     /// [`crate::render`]. The default.
     #[default]
     Artwork,

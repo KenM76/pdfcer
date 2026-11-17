@@ -1520,6 +1520,23 @@ fn render_lighting_is_reported_and_threads_draw_the_same_image() {
     );
     let (_, many) = render("night0", &["--lighting", "night", "--threads", "0"]);
     assert_eq!(one, many, "the thread count changes no pixel");
+    // A model with no lights: the light at the camera, unless asked not to.
+    assert!(
+        default.contains("the model has no lights, so it is lit from the camera"),
+        "{default}"
+    );
+    let (lit, _) = render("lit", &[]);
+    let (dark, unlit) = render("dark", &["--dark-without-lights"]);
+    assert!(
+        dark.contains("drawn with no lamp light (--dark-without-lights)"),
+        "{dark}"
+    );
+    let (_, with) = render("lit2", &[]);
+    assert_ne!(unlit, with, "the flag changes the picture");
+    assert!(
+        lit.contains("--dark-without-lights draws it unlit"),
+        "{lit}"
+    );
 }
 
 /// `3d-render --lens` with `--width 160 --height 100` and `extra`.

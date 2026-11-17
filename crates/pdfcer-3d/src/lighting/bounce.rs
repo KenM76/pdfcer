@@ -196,7 +196,7 @@ impl BounceStats {
     ) -> Result<BounceStats, RenderError> {
         let basis = camera.basis()?;
         let shader = Shader::for_frame(options, lights, &basis)?;
-        let artwork = !lights.is_empty();
+        let artwork = crate::lighting::model_lit(options, lights);
         let count = |bounce: Bounce| {
             let mut o = *options;
             o.indirect.bounce = bounce;
@@ -237,7 +237,8 @@ pub(crate) fn frame_bounce(
     }
     let basis = camera.basis()?;
     let shader = Shader::for_frame(options, model_lights, &basis)?;
-    let lamps = bouncing(&shader, options, !model_lights.is_empty(), camera, &basis);
+    let artwork = crate::lighting::model_lit(options, model_lights);
+    let lamps = bouncing(&shader, options, artwork, camera, &basis);
     if lamps.is_empty() {
         return Ok(None);
     }

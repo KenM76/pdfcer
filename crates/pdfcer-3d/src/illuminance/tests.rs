@@ -322,3 +322,34 @@ fn colour_counts_only_when_asked() {
     assert!(m.notes().contains(&IlluminanceNote::TintApplied));
     assert!((m.read(&at([0.0; 3])).unwrap().total - 25.0 * 0.2126).abs() < 1e-9);
 }
+
+#[test]
+fn a_model_with_every_lamp_left_out_reads_nothing() {
+    let model = floor(Vec::new());
+    // By default an empty list is a file with no lights: the headlight.
+    let m = meter(&model, &direct(), &MeterSettings::default());
+    assert_eq!(m.reasons(), [RelativeReason::PictureLights]);
+    assert!(m.read(&at([0.0; 3])).unwrap().total > 0.0);
+    // Asked to stay dark, there is no lamp to count and nothing in the way
+    // of lux.
+    let dark = RenderOptions {
+        empty_artwork: crate::EmptyArtwork::Dark,
+        ..direct()
+    };
+    let m = meter(&model, &dark, &MeterSettings::default());
+    assert_eq!(m.unit(), IlluminanceUnit::Lux);
+    assert!(m.reasons().is_empty());
+    let r = m.read(&at([0.0; 3])).unwrap();
+    assert_eq!((r.total, r.lights.len()), (0.0, 0));
+    // Nothing follows the camera either, where the headlight does.
+    let lamps = |empty_artwork| {
+        let o = RenderOptions {
+            empty_artwork,
+            ..RenderOptions::default()
+        };
+        let s = crate::BounceStats::for_model(&camera(), &o, &[]).unwrap();
+        (s.bouncing, s.camera_lights)
+    };
+    assert_eq!(lamps(crate::EmptyArtwork::Dark), (0, 0));
+    assert_eq!(lamps(crate::EmptyArtwork::Headlight), (0, 1));
+}

@@ -59,6 +59,10 @@ pub struct RenderOptions {
     /// a model's own lights (off by default): for a model whose lights
     /// leave the side facing the viewer dark.
     pub artwork_headlight: bool,
+    /// What [`LightingScheme::Artwork`] draws with when the model's light
+    /// list is empty: the light at the camera (the default), or nothing,
+    /// for a model whose lamps a caller has all left out.
+    pub empty_artwork: crate::EmptyArtwork,
     /// The frame a scheme's light directions are in.
     pub light_frame: LightFrame,
     /// Threads to draw with: 1 (the default) draws on the caller's thread,
@@ -155,6 +159,7 @@ impl Default for RenderOptions {
             colour: [190, 192, 200],
             lighting: LightingScheme::Artwork,
             artwork_headlight: false,
+            empty_artwork: crate::EmptyArtwork::Headlight,
             light_frame: LightFrame::Camera,
             threads: 1,
             shadows: true,

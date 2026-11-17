@@ -133,7 +133,7 @@ pub use lighting::shade::LampCut;
 #[cfg(feature = "render")]
 pub use lighting::sun::{MAX_SUN_KELVIN, MIN_SUN_KELVIN, SunColour, SunLight, kelvin_rgb};
 #[cfg(feature = "render")]
-pub use lighting::{Light, LightFrame, LightSet, LightingScheme, Lights};
+pub use lighting::{EmptyArtwork, Light, LightFrame, LightSet, LightingScheme, Lights};
 pub use model::export::{to_obj, to_stl};
 pub use model::light::{ModelLight, ModelLightKind, Photometric, ViewLightUse, ViewLights};
 pub use model::named_view::{NamedView, UnknownName, UpAxis};

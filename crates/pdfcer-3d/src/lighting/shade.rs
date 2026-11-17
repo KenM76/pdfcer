@@ -1,5 +1,5 @@
 //! A model's own lights ([`ModelLight`]) as a [`Shader`], for
-//! [`LightingScheme::Artwork`]: the scheme ISO 32000-1 Table 310 defines as
+//! [`crate::LightingScheme::Artwork`]: the scheme ISO 32000-1 Table 310 defines as
 //! "lights specified in the 3D artwork".
 //!
 //! Lights are in model space whatever [`crate::LightFrame`] says: they are
@@ -9,7 +9,7 @@
 //! `cos(θ)^exponent` (PRC [WD 7.5.16, 7.5.19]; the exponent's reading is
 //! OpenGL's).
 
-use crate::lighting::{LightingScheme, Shader};
+use crate::lighting::Shader;
 use crate::model::light::unit;
 use crate::render::{RenderError, RenderOptions};
 use crate::vec3::{dot, length, sub};
@@ -112,7 +112,8 @@ pub(crate) fn add_local(
 
 impl Shader {
     /// The shader a frame uses: the model's lights for
-    /// [`LightingScheme::Artwork`] when it has any, else the scheme's.
+    /// [`crate::LightingScheme::Artwork`] when it has any or
+    /// [`RenderOptions::empty_artwork`] is dark, else the scheme's.
     ///
     /// Every light is times [`RenderOptions::light_gain`].
     ///
@@ -127,7 +128,7 @@ impl Shader {
         basis: &[[f64; 3]; 3],
     ) -> Result<Shader, RenderError> {
         let gain = crate::lighting::gain::checked_gain(options)?;
-        let shader = if options.lighting == LightingScheme::Artwork && !model.is_empty() {
+        let shader = if crate::lighting::model_lit(options, model) {
             let headlight = options.artwork_headlight;
             Shader::from_model(model, headlight, options.lamp_cut, gain)
         } else {
@@ -299,6 +300,7 @@ fn max3(c: [f64; 3]) -> f64 {
 #[allow(clippy::unwrap_used)] // Tests fail loudly by design.
 mod tests {
     use super::*;
+    use crate::{EmptyArtwork, LightingScheme};
 
     const BASIS: [[f64; 3]; 3] = [[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, -1.0]];
     const UP: [f64; 3] = [0.0, 0.0, 1.0];
@@ -452,5 +454,36 @@ mod tests {
         };
         let s = Shader::for_frame(&day, &[fill], &BASIS).unwrap();
         assert!(matches!(s, Shader::Set { ref local, .. } if local.is_empty()));
+    }
+
+    #[test]
+    fn every_lamp_left_out_is_dark_when_asked() {
+        let dark = RenderOptions {
+            empty_artwork: EmptyArtwork::Dark,
+            ..RenderOptions::default()
+        };
+        let s = Shader::for_frame(&dark, &[], &BASIS).unwrap();
+        assert!(close(s.shade([0.0; 3], UP, Some(UP)), [0.0; 3]));
+        // The light at the camera is still the caller's to add.
+        let with = RenderOptions {
+            artwork_headlight: true,
+            ..dark
+        };
+        let s = Shader::for_frame(&with, &[], &BASIS).unwrap();
+        assert!(s.shade([0.0; 3], UP, Some(UP)).iter().all(|&c| c > 0.0));
+        // A list with lamps in it is drawn the same either way.
+        let fill = [ModelLight::new(ModelLightKind::Ambient, [0.2; 3])];
+        let lit = |o: &RenderOptions| {
+            let s = Shader::for_frame(o, &fill, &BASIS).unwrap();
+            s.shade([0.0; 3], UP, None)
+        };
+        assert_eq!(lit(&dark), lit(&RenderOptions::default()));
+        // Another scheme has its own lights.
+        let day = RenderOptions {
+            lighting: LightingScheme::Day,
+            ..dark
+        };
+        let s = Shader::for_frame(&day, &[], &BASIS).unwrap();
+        assert!(matches!(s, Shader::Set { ref lights, .. } if !lights.is_empty()));
     }
 }
