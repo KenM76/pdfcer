@@ -112,6 +112,20 @@ wherever it appears.*
 
 ## Shipped
 
+### `3e65dc61` `Pass 717.2`: merge annotation groups, and ungroup one level at a time, 2026-11-17 (1581st filing)
+
+Engineer-reported; no shell here, git, push and CI state not checked from here. `3e65dc61` `feat(annot): merge annotation groups, and ungroup one level at a time (Pass 717.2)`. Answers the operator request "grouping within groups" (Ken, chat, 2026-11-17) for markup annotations. Reasoning is in the commit message. Core and CLI; gui none (GUI project told: `D:\Dev\FeatureRequests\pdfce_FeatureRequests\open\notice_2026-11-17_annotation_groups_of_groups.md`).
+- **Verb:** `EditSession::merge_annotation_groups(primary, others, nesting: GroupNesting) -> Result<AnnotationGroupChange, EditError>`. Each of `others` brings the whole group it is in, or itself; `primary` may be a member (its group's primary is kept). One undo entry, `CommandKind::GroupAnnotations`.
+- **Model decided:** ISO 32000-1 §12.5.6.2 has no group of groups, so the file always holds ONE flat `/IRT` + `/RT /Group` group. `GroupNesting::Recorded` (default, `#[non_exhaustive]`) also writes the pdfcer-private annotation entry `/pdfcer_Groups` (array of references to earlier primaries, outermost last) on every annotation of a merged group; `ungroup_annotations` pops one level per call and restores the earlier groups. `GroupNesting::Flat` records nothing and removes any record. (This settles the design point left open in the Next up item: both shipped, `Recorded` the default.)
+- **Outcome type:** `AnnotationGroupChange` gained `restored: Vec<ObjId>` and `disclosures: Vec<String>`. A recorded primary no longer in the document releases its annotation and is disclosed with a count. `group_annotations` removes a stale record from what it joins.
+- **CLI:** `group-annotations --merge [--flat]`; the `ungroup-annotations` line gains `restored=`; disclosures go to stderr as notes; `--flat` without `--merge` exits 2.
+- **Docs:** `docs/core-api` one new row; public verb count 418 to 419 (in the commit).
+- **Known limit (stated in docs/core-api):** the record is pdfcer's alone; another application that regroups the annotations leaves it stale, and it is then followed as written.
+- **Tests added (engineer-reported):** core: two groups held through merge and ungroup, three levels taken apart one at a time with four undos, flat mode, a deleted recorded primary, refusals; CLI: merge, ungroup, `--flat`, `--flat` without `--merge`.
+- **Gates (engineer-measured on this tree):** `cargo test --no-fail-fast -p pdfcer-core -p pdfcer-render -p pdfcer-cli` all green (largest binaries 3292, 2372, 1103, 286, 122 passed); `--no-default-features` core and CLI green (3202, 2313, 1015, 279, 117); fmt, clippy `-D warnings`, `check-code-structure.py` (543 baseline, none new), rustdoc broken-links deny, CI audit sweep 34 of 34 (one audit flagged an unrelated untracked file from the next Pass, fixed there), `check-core-api-verbs.py` PASS. No manifest touched, so the `cargo tree` invariant is unaffected.
+- **Still open:** `Pass 720.0` (in progress, uncommitted), `720.1` (Next up); `717.3` (Backlog). Next free IDs: `717.4`, `720.2`, `721.0`.
+- **FEATURES:** the markup-annotation grouping row names the group-of-groups capability (core and cli ticked, gui open, not wired). No decision, no rule.
+
 ### `b46412cc` `Pass 717.1`: group and ungroup inside a form XObject, 2026-11-17 (1580th filing)
 
 Engineer-reported; no shell here, git, push and CI state not checked from here. `b46412cc` `feat(group): group and ungroup inside a form XObject (Pass 717.1)`. Answers the operator request "grouping within groups" (Ken, chat, 2026-11-17) for page/vector objects; the `_in_form` twin owed by `Pass 717.0`. Reasoning is in the commit message. Core and CLI; gui none (GUI project told: `D:\Dev\FeatureRequests\pdfce_FeatureRequests\open\notice_2026-11-17_group_and_ungroup_inside_a_form.md`).
@@ -27357,7 +27371,7 @@ closes out the *prior* filing's business rather than opening this one's.
 >
 > **`Pass 717.1` SHIPPED 2026-11-17 (1580th filing), `b46412cc`; see its *Shipped* entry, removed from this list.** `Pass 717.3` (new, Backlog) is the residue; next free ID `Pass 717.4`.
 >
-> **`Pass 717.2` (OPEN; new): groups of groups for markup annotations.** ISO 32000-1 12.5.6.2 defines a FLAT group (`/IRT` plus `/RT /Group` to one primary), so there is no chained `/IRT`. Ship: adding an existing group to another group merges them under one primary (a `merge_annotation_groups`-style verb plus CLI), disclosed; the flat model stated in the verb docs and the CLI help. Open design point, decided inside the Pass by the engineer (ship both, pick the default, per the operator's standing preference): whether pdfcer also records nesting in its own private data.
+> **`Pass 717.2` SHIPPED 2026-11-17 (1581st filing), `3e65dc61`; see its *Shipped* entry, removed from this list.** Next free IDs: `Pass 717.4`, `Pass 720.2`, `Pass 721.0`.
 >
 > **`Pass 720.0` (OPEN; new): engine CLI clipboard paste and cut.** A `pdfcer` verb that reads the OS clipboard and pastes the best form it holds onto a page, ranked PDF, SVG, EMF, PNG, DIB, printing which format it took (rule 4); a cut counterpart for the copy verbs that put vectors on the clipboard; a raw-DIB reader; correct the stale `copy-page` help that omits EMF. **Scout finding (read-only reading of the GUI source at HEAD `28f82236`, not a measurement):** the bitmap paste the operator saw is two GUI defects (copy-as-vector places no PDF on the clipboard; paste never reads SVG or EMF) and there is no cut-as-vector. That fix belongs to `pdfcer-gui` and was handed over in `D:\Dev\FeatureRequests\pdfce_FeatureRequests\open\notice_2026-11-17_operator_asks_vector_paste_and_cut_as_vector.md`. The operator's test was on an older version; not retried on the newest.
 >

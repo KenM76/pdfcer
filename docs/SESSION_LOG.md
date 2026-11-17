@@ -4,6 +4,15 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-11-17 (1581st filing) — `3e65dc61` `Pass 717.2` (merge annotation groups, ungroup one level at a time)
+
+**Filed (engineer-reported; no shell here, nothing checked from here):**
+- `3e65dc61` `Pass 717.2`: `EditSession::merge_annotation_groups(primary, others, GroupNesting)`; the file keeps one flat `/IRT` + `/RT /Group` group (ISO 32000-1 §12.5.6.2 has no group of groups); default `Recorded` also writes pdfcer-private `/pdfcer_Groups` so `ungroup_annotations` restores one level per call, `Flat` records nothing. CLI `group-annotations --merge [--flat]`. Core and CLI; gui none, GUI project notified (`notice_2026-11-17_annotation_groups_of_groups.md`). Public verb count 418 to 419. Detail in the ROADMAP Shipped entry and the commit message.
+- Known limit: the record is pdfcer's alone; another application that regroups leaves it stale.
+- Gates measured by the engineer: full core, render and CLI sweep green (3292, 2372, 1103, 286, 122 largest), reduced-feature green, fmt, clippy, `check-code-structure` (543, none new), rustdoc, CI audit sweep 34 of 34, `check-core-api-verbs`. No manifest change.
+
+**Open:** Next up keeps `720.1` (NOT STARTED) and `720.0` (in progress, uncommitted); `717.3` Backlog. Next free IDs: `Pass 717.4`, `Pass 720.2`, `Pass 721.0`. FEATURES: annotation grouping row extended. No decision, no rule.
+
 ## 2026-11-17 (1580th filing) — `b46412cc` `Pass 717.1` (group and ungroup inside a form XObject)
 
 **Filed (engineer-reported; no shell here, nothing checked from here):**
