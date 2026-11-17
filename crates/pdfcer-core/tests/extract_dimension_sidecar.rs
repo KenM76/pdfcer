@@ -1,5 +1,6 @@
-//! Extract and split carry the ce-dimension sidecar for the copied pages
-//! (pdfcer-gui G279): a ce dimension stays an editable ce dimension.
+//! Extract, split, merge and insert carry the ce-dimension sidecar for the
+//! copied pages (pdfcer-gui G279, G286): a ce dimension stays an editable
+//! ce dimension.
 
 #![allow(
     clippy::unwrap_used,
@@ -11,6 +12,8 @@
 use pdfcer_core::dimension::{DEFAULT_GROUP_ID, DimensionKind, NumberFormat, ScaleState, Unit};
 use pdfcer_core::document::Document;
 use pdfcer_core::edit::EditSession;
+use pdfcer_core::graph::ObjectGraph;
+use pdfcer_core::object::Object;
 use pdfcer_core::pageops::{self, AssembleOptions, DocumentView};
 use pdfcer_core::vector::{AxisConstraint, Point};
 use pdfcer_core::writer::SaveOptions;
@@ -140,34 +143,258 @@ fn a_newer_sidecar_is_left_behind_and_said_so() {
     assert!(!bytes.windows(9).any(|w| w == b"PieceInfo"));
 }
 
-/// Merge and insert do not carry the sidecar; each says how many ce
-/// dimensions arrived as plain line annotations (pdfcer-gui G286).
+/// The bytes of `dimensioned()` with the sidecar version set to one this
+/// build does not read.
+fn newer() -> Document {
+    let mut bytes = dimensioned().bytes().to_vec();
+    let at = bytes
+        .windows(10)
+        .rposition(|w| w.starts_with(b"/Version ") && w[9].is_ascii_digit())
+        .expect("the sidecar is stored uncompressed");
+    bytes[at + 9] = b'9';
+    Document::from_bytes(bytes).unwrap()
+}
+
+/// The layers `bytes` registers in `/OCProperties` `/OCGs`, and whether
+/// each ce dimension's `/OC` names the layer of its group.
+fn layers(bytes: &[u8]) -> (usize, bool) {
+    let d = Document::from_bytes(bytes.to_vec()).unwrap();
+    let registered = d
+        .catalog_dict()
+        .and_then(|c| c.get(b"OCProperties"))
+        .and_then(|o| d.resolve(o).as_dict())
+        .and_then(|ocp| ocp.get(b"OCGs"))
+        .and_then(|o| d.resolve(o).as_array())
+        .map_or(0, <[Object]>::len);
+    let model = EditSession::new(Document::from_bytes(bytes.to_vec()).unwrap()).dimension_model();
+    let on_layer = model.dimensions().iter().all(|record| {
+        let layer = model.group(record.group).and_then(|g| g.ocg);
+        let oc = d
+            .resolve(&Object::Reference(record.annot.unwrap()))
+            .as_dict()
+            .and_then(|a| a.get(b"OC"))
+            .and_then(Object::as_reference);
+        layer.is_some() && oc == layer
+    });
+    (registered, on_layer)
+}
+
+fn reopened(s: &EditSession) -> EditSession {
+    let bytes = s.to_incremental_bytes(&SaveOptions::identity()).unwrap().0;
+    EditSession::new(Document::from_bytes(bytes).unwrap())
+}
+
 #[test]
-fn merge_and_insert_count_the_ce_dimensions_that_arrive_as_lines() {
+fn a_file_merge_combines_the_sidecars() {
     let source = dimensioned();
     let plain = Document::from_bytes(two_page_pdf()).unwrap();
     let of = view_of;
-    let (view, plain_view) = (of(&source), of(&plain));
+    let (bytes, report) =
+        pageops::merge(&[of(&source), of(&plain), of(&source)], &[], &[]).unwrap();
+    assert_eq!(report.ce_dimensions_as_lines, [0, 0, 0]);
+    assert_eq!(
+        (report.ce_dimensions_carried, report.ce_dimensions_left),
+        (6, 0)
+    );
+    assert_eq!(
+        (
+            report.ce_dimension_groups_carried,
+            report.ce_dimension_groups_matched,
+            report.ce_dimension_groups_renamed
+        ),
+        (1, 2, 0)
+    );
 
-    let (_, report) = pageops::merge(&[of(&source), of(&plain), of(&source)], &[], &[]).unwrap();
-    assert_eq!(report.ce_dimensions_as_lines, [3, 0, 3]);
-    assert_eq!(report.ce_dimensions_carried, 0);
+    // One layer per group: the second copy's layers are not kept.
+    assert_eq!(layers(&bytes), (2, true));
+    let mut s = EditSession::new(Document::from_bytes(bytes).unwrap());
+    let model = s.dimension_model();
+    assert_eq!(model.groups().len(), 2);
+    assert_eq!(model.dimensions().len(), 6);
+    let arch = model.groups().iter().find(|g| g.name == "Arch").unwrap();
+    assert_eq!(arch.scale, ScaleState::Calibrated { scale: 0.01 });
+    // Both copies follow the one group.
+    assert_eq!(s.set_group_unit(arch.id, Unit::Millimeter).unwrap(), 4);
+    let first = s.dimension_model().dimensions()[0].id;
+    s.delete_dimension(first).unwrap();
+    assert_eq!(reopened(&s).dimension_model().dimensions().len(), 5);
 
-    let (_, report) = pageops::extract(&view, &[1]).unwrap();
+    let (_, report) = pageops::extract(&of(&source), &[1]).unwrap();
     assert_eq!(report.ce_dimensions_as_lines, [0]);
+}
 
+#[test]
+fn a_file_merge_leaves_a_newer_sidecar_and_carries_the_rest() {
+    let (source, newer) = (dimensioned(), newer());
+    let (bytes, report) = pageops::merge(&[view_of(&newer), view_of(&source)], &[], &[]).unwrap();
+    assert!(report.ce_dimension_sidecar_newer);
+    assert_eq!(report.ce_dimensions_as_lines, [3, 0]);
+    assert_eq!(
+        (report.ce_dimensions_carried, report.ce_dimensions_left),
+        (3, 3)
+    );
+    let s = EditSession::new(Document::from_bytes(bytes).unwrap());
+    assert_eq!(s.dimension_model().dimensions().len(), 3);
+}
+
+#[test]
+fn insert_carries_the_ce_dimensions_as_one_undo_step() {
+    let source = dimensioned();
     let mut s = EditSession::new(Document::from_bytes(two_page_pdf()).unwrap());
     let out = s
-        .insert_pages(&view, &[1], pageops::InsertPosition::Start)
+        .insert_pages(&view_of(&source), &[1], pageops::InsertPosition::Start)
         .unwrap();
-    assert_eq!(out.ce_dimensions_as_lines, 2);
-    let out = s
-        .insert_pages(&plain_view, &[0], pageops::InsertPosition::Start)
-        .unwrap();
-    assert_eq!(out.ce_dimensions_as_lines, 0);
-    let out = s
-        .merge_document(&view, pageops::InsertPosition::Start)
-        .unwrap();
-    assert_eq!(out.ce_dimensions_as_lines, 3);
+    assert_eq!(
+        (out.ce_dimensions_carried, out.ce_dimensions_as_lines),
+        (2, 0)
+    );
+    assert_eq!(
+        (
+            out.ce_dimension_groups_carried,
+            out.ce_dimension_groups_matched,
+            out.ce_dimension_groups_renamed
+        ),
+        (1, 0, 0)
+    );
+    let model = s.dimension_model();
+    assert_eq!(model.groups().len(), 2);
+    let arch = model.groups().iter().find(|g| g.name == "Arch").unwrap().id;
+    assert!(model.dimensions().iter().all(|d| d.group == arch));
+
+    s.undo().unwrap();
     assert!(s.dimension_model().dimensions().is_empty());
+    assert!(
+        !reopened(&s)
+            .to_incremental_bytes(&SaveOptions::identity())
+            .unwrap()
+            .0
+            .windows(9)
+            .any(|w| w == b"PieceInfo")
+    );
+    s.redo().unwrap();
+
+    let mut again = reopened(&s);
+    assert_eq!(again.dimension_model().dimensions().len(), 2);
+    assert_eq!(again.set_group_unit(arch, Unit::Millimeter).unwrap(), 2);
+}
+
+#[test]
+fn a_plain_source_stages_no_sidecar() {
+    let plain = Document::from_bytes(two_page_pdf()).unwrap();
+    let mut s = EditSession::new(Document::from_bytes(two_page_pdf()).unwrap());
+    let out = s
+        .insert_pages(&view_of(&plain), &[0], pageops::InsertPosition::Start)
+        .unwrap();
+    assert_eq!(
+        (out.ce_dimensions_carried, out.ce_dimensions_as_lines),
+        (0, 0)
+    );
+    let out = s
+        .merge_document(&view_of(&plain), pageops::InsertPosition::End)
+        .unwrap();
+    assert_eq!(
+        (out.ce_dimensions_carried, out.ce_dimensions_as_lines),
+        (0, 0)
+    );
+    let bytes = s.to_incremental_bytes(&SaveOptions::identity()).unwrap().0;
+    assert!(!bytes.windows(9).any(|w| w == b"PieceInfo"));
+}
+
+#[test]
+fn a_merge_joins_a_group_of_the_same_settings() {
+    let source = dimensioned();
+    let mut s = EditSession::new(dimensioned());
+    let out = s
+        .merge_document(&view_of(&source), pageops::InsertPosition::End)
+        .unwrap();
+    assert_eq!(
+        (out.ce_dimensions_carried, out.ce_dimensions_as_lines),
+        (3, 0)
+    );
+    assert_eq!(
+        (
+            out.ce_dimension_groups_carried,
+            out.ce_dimension_groups_matched
+        ),
+        (0, 2)
+    );
+    let saved = s.to_incremental_bytes(&SaveOptions::identity()).unwrap().0;
+    assert_eq!(layers(&saved), (2, true));
+    let mut s = reopened(&s);
+    let model = s.dimension_model();
+    assert_eq!((model.groups().len(), model.dimensions().len()), (2, 6));
+    let arch = model.groups().iter().find(|g| g.name == "Arch").unwrap().id;
+    assert_eq!(s.set_group_unit(arch, Unit::Millimeter).unwrap(), 4);
+}
+
+#[test]
+fn a_merge_renames_a_group_whose_name_is_taken_by_other_settings() {
+    let source = dimensioned();
+    let mut s = EditSession::new(dimensioned());
+    let own = s.dimension_model().groups()[1].id;
+    s.set_group_scale(
+        own,
+        ScaleState::Calibrated { scale: 0.5 },
+        NumberFormat::feet_inches(16, true),
+    )
+    .unwrap();
+    let out = s
+        .merge_document(&view_of(&source), pageops::InsertPosition::End)
+        .unwrap();
+    assert_eq!(
+        (
+            out.ce_dimension_groups_carried,
+            out.ce_dimension_groups_matched,
+            out.ce_dimension_groups_renamed
+        ),
+        (1, 1, 1)
+    );
+    let saved = s.to_incremental_bytes(&SaveOptions::identity()).unwrap().0;
+    assert_eq!(layers(&saved), (3, true));
+    let mut s = reopened(&s);
+    let model = s.dimension_model();
+    let brought = model
+        .groups()
+        .iter()
+        .find(|g| g.name == "Arch (2)")
+        .unwrap();
+    assert_eq!(brought.scale, ScaleState::Calibrated { scale: 0.01 });
+    assert_eq!(
+        model.group(own).unwrap().scale,
+        ScaleState::Calibrated { scale: 0.5 }
+    );
+    let count = |group| {
+        model
+            .dimensions()
+            .iter()
+            .filter(|d| d.group == group)
+            .count()
+    };
+    assert_eq!((count(own), count(brought.id)), (2, 2));
+    assert_eq!(s.set_group_unit(brought.id, Unit::Millimeter).unwrap(), 2);
+}
+
+#[test]
+fn a_newer_sidecar_on_either_side_arrives_as_lines() {
+    let (source, newer) = (dimensioned(), newer());
+    let mut s = EditSession::new(Document::from_bytes(two_page_pdf()).unwrap());
+    let out = s
+        .insert_pages(&view_of(&newer), &[1], pageops::InsertPosition::Start)
+        .unwrap();
+    assert_eq!(
+        (out.ce_dimensions_carried, out.ce_dimensions_as_lines),
+        (0, 2)
+    );
+    assert!(out.ce_dimension_sidecar_newer);
+    assert!(s.dimension_model().dimensions().is_empty());
+
+    let mut s = EditSession::new(newer);
+    let out = s
+        .merge_document(&view_of(&source), pageops::InsertPosition::End)
+        .unwrap();
+    assert_eq!(
+        (out.ce_dimensions_carried, out.ce_dimensions_as_lines),
+        (0, 3)
+    );
+    assert!(out.ce_dimension_sidecar_newer);
 }

@@ -251,7 +251,6 @@ fn pdfcer-core/src/edit.rs::apply_markup_style
 fn pdfcer-core/src/edit.rs::attach_file
 fn pdfcer-core/src/edit.rs::build_button_states
 fn pdfcer-core/src/edit.rs::button_ap_plan
-fn pdfcer-core/src/edit.rs::catalog_dimension_write
 fn pdfcer-core/src/edit.rs::composite_font_codes
 fn pdfcer-core/src/edit.rs::copy_selection
 fn pdfcer-core/src/edit.rs::cut_selection

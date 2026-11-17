@@ -3454,41 +3454,49 @@ page showed.
 `insert-pages --labels source|continue`); its `AssembleReport` carries
 `page_label_ranges` and `page_labels_dropped` with the same meanings.
 
-**ce dimensions travel with their pages** (request G279). `extract` and
-`split` carry the ce-dimension sidecar for the ce dimensions whose
-annotation was copied, and `insert_with` keeps the target's (the source
-the catalog is taken from, `AssembleOptions::catalog_from`); ce dimensions
-on the inserted pages arrive as plain line annotations. `merge` takes no
-source's catalog, so it carries no sidecar and reports zero for both
-counts: every merged ce dimension is a plain line annotation in the
-result. What is carried: every group of the source
-(its layer remapped when the layer came across, otherwise none), and each
-record with its annotation and appearance ids remapped, so the result's
-ce dimensions stay editable and deletable. `AssembleOptions::
-with_dimension_sidecar(false)` leaves the sidecar behind (the annotations
-still copy, as plain line annotations). `AssembleReport::
-ce_dimensions_carried` counts the records written and
-`ce_dimensions_left` those not (their page was not copied, or the
-source's sidecar is a newer schema than this build reads, in which case
-none is carried and `ce_dimension_sidecar_newer` is `true`: say so, the
-copied ce dimensions are plain line annotations in the result). The CLI
-prints the counts as `ce_dims_carried=` and `ce_dims_left=` on the report
-line and a sentence on stderr for the newer-schema case.
+**ce dimensions travel with their pages** (requests G279, G286). Every
+route keeps a copied ce dimension an editable ce dimension: `extract` and
+`split` carry the source's sidecar for the ce dimensions whose annotation
+was copied; `merge` and `insert_with` (several sources) combine every
+source's sidecar into one; `insert_pages`, `insert_pages_with` and
+`merge_document` add the source's records and groups to the open
+document's, staged in the same undo step as the pages.
 
-**ce dimensions that arrive as plain lines are counted on every route.**
-`AssembleReport::ce_dimensions_as_lines: Vec<usize>` has one entry per
-source, in order: the ce dimensions whose annotation was copied without
-its sidecar record. For `merge` that is every ce dimension copied; for
-extract, split and insert-to-a-new-file it is `0` for the source whose
-sidecar was carried (unless `ce_dimension_sidecar_newer`) and the copied
-count for any other. `InsertOutcome::ce_dimensions_as_lines` and
-`MergeOutcome::ce_dimensions_as_lines` (`usize`) are the same count for
-`insert_pages`, `insert_pages_with` and `merge_document`, which bring no
-dimension groups across. Such an annotation keeps its appearance, is not
-in `dimension_model()`, and does not follow a group. A non-zero count is a
-disclosure the shell owes. The CLI prints `ce_dims_as_lines=` and a
-sentence on stderr. Carrying the groups and records on these routes is
-not shipped.
+**How groups combine.** A source group whose name, scale, number format,
+drafting standard and style all equal a group already present joins it
+(`*_groups_matched`), and its copied layer is retired so the result has
+one layer per group. A group whose name is free is brought with its
+settings and layer (`*_groups_carried`). A group whose name is taken by a
+group with different settings is brought under the first free
+`name (2)`, `name (3)`, ... (`*_groups_renamed`, also counted in
+carried): the name was chosen by pdfcer, so a non-zero count is a
+disclosure the shell owes. Each record is re-pointed at its group's layer
+(`/OC`) and its annotation and appearance ids are remapped.
+
+| Field | On | Meaning |
+|---|---|---|
+| `ce_dimensions_carried` | `AssembleReport`, `InsertOutcome`, `MergeOutcome` | records written; these are in `dimension_model()` |
+| `ce_dimensions_left` | `AssembleReport` | records not written: their page was not copied, or the sidecar could not be read |
+| `ce_dimensions_as_lines` | `AssembleReport` (`Vec<usize>`, one per source), `InsertOutcome`, `MergeOutcome` (`usize`) | ce dimensions whose annotation was copied without its record |
+| `ce_dimension_groups_carried` / `_matched` / `_renamed` | all three | as above |
+| `ce_dimension_sidecar_newer` | all three | a sidecar is a newer schema than this build reads |
+
+`ce_dimensions_as_lines` is zero except in two cases. (1) A sidecar is a
+newer schema than this build reads: on a file route that source's ce
+dimensions arrive as lines and the other sources still carry; on an
+edit-session route a newer sidecar on either side (the source, or the
+open document) leaves every copied ce dimension a line, because the open
+document's sidecar cannot be rewritten. (2) `AssembleOptions::
+with_dimension_sidecar(false)`, which leaves every sidecar behind. An
+annotation that arrives as a line keeps its appearance, is not in
+`dimension_model()`, and does not follow a group; a non-zero count is a
+disclosure the shell owes.
+
+The CLI prints `ce_dims_carried=`, `ce_dims_as_lines=`,
+`ce_dim_groups_carried=`, `ce_dim_groups_matched=` and
+`ce_dim_groups_renamed=` on the report line (`ce_dims_left=` too on the
+file routes), and a sentence on stderr for groups brought or joined,
+groups renamed, and ce dimensions that arrived as lines.
 
 Every assembled file (extract, split, merge, insert to a new file) drops
 the structure tree (`struct_tree_dropped`), so a link, bookmark or GoTo

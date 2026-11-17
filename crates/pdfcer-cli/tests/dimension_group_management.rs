@@ -1109,26 +1109,24 @@ fn calibrating_on_a_user_unit_page_reads_the_stated_length() {
     assert!(err.contains("is not a page"), "{err}");
 }
 
-/// Merge, insert and merge-document bring no dimension groups across; each
-/// says how many ce dimensions arrived as plain line annotations (G286).
+/// Merge, insert and merge-document bring the ce dimensions across with
+/// their groups, and none arrives as a plain line annotation (G286).
 #[test]
-fn merge_and_insert_say_how_many_ce_dimensions_arrived_as_lines() {
+fn merge_and_insert_carry_the_ce_dimensions() {
     let dimensioned = two_groups("as-lines");
     let (dim, plain) = (dimensioned.to_str().unwrap(), fixture());
     let plain = plain.to_str().unwrap();
     let told = |out: &str, err: &str| {
-        assert!(out.contains("ce_dims_as_lines=1"), "{out}");
-        assert!(
-            err.contains("1 ce dimension(s) arrived as plain line annotations"),
-            "{err}"
-        );
+        assert!(out.contains("ce_dims_carried=1"), "{out}");
+        assert!(out.contains("ce_dims_as_lines=0"), "{out}");
+        assert!(!err.contains("arrived as plain line"), "{err}");
     };
 
     let merged = temp_out("as-lines-merged.pdf");
     let (code, out, err) = run(&["merge", plain, dim, "-o", merged.to_str().unwrap()]);
     assert_eq!(code, 0, "{err}");
     told(&out, &err);
-    assert!(err.contains("per source: [0, 1]"), "{err}");
+    assert!(!err.contains("per source"), "{err}");
 
     let inserted = temp_out("as-lines-inserted.pdf");
     let (code, out, err) = run(&[
@@ -1154,7 +1152,25 @@ fn merge_and_insert_say_how_many_ce_dimensions_arrived_as_lines() {
     assert_eq!(code, 0, "{err}");
     told(&out, &err);
 
-    // The carried route says nothing.
+    // Into a file that has the same groups: they are joined, and said so.
+    let twice = temp_out("as-lines-twice.pdf");
+    let (code, out, err) = run(&[
+        "merge-document",
+        joined.to_str().unwrap(),
+        "--source",
+        dim,
+        "--output",
+        twice.to_str().unwrap(),
+    ]);
+    assert_eq!(code, 0, "{err}");
+    told(&out, &err);
+    assert!(out.contains("ce_dim_groups_carried=0"), "{out}");
+    assert!(
+        err.contains("joined a group of the same name and settings"),
+        "{err}"
+    );
+
+    // The single-source route says nothing.
     let extracted = temp_out("as-lines-extracted.pdf");
     let (code, out, err) = run(&[
         "extract-pages",

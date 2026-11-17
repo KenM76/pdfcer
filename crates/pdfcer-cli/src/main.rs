@@ -667,6 +667,7 @@ mod extract;
 mod extract_tags;
 use extract::*;
 use extract_tags::cmd_extract_tags;
+mod ce_dimension_report;
 mod sign;
 use sign::*;
 mod dimension;

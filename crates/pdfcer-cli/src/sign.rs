@@ -851,17 +851,6 @@ on it. Treat the signature as suspect.",
     }
 }
 
-/// Say on stderr that `count` ce dimensions arrived as plain line
-/// annotations; silent for zero.
-pub(crate) fn report_ce_dimensions_as_lines(path: &Path, count: usize) {
-    if count > 0 {
-        eprintln!(
-            "pdfcer: {}: {count} ce dimension(s) arrived as plain line annotations: the dimension groups they belonged to were not brought across, so they keep their look and no longer follow a group or re-measure.",
-            path.display()
-        );
-    }
-}
-
 /// Report an `AssembleReport`'s honesty counters to stderr.
 ///
 /// Every one of these is something the operator **cannot see by looking
@@ -877,23 +866,13 @@ annotations themselves were kept.",
             report.dangling_references
         );
     }
-    if report.ce_dimension_sidecar_newer {
+    crate::ce_dimension_report::CeCarry::from(report).report(output);
+    if report.ce_dimensions_as_lines.iter().sum::<usize>() > 0 {
         eprintln!(
-            "pdfcer: {}: the source's {} ce dimension(s) were written by a newer pdfcer than this one reads, so they were copied as plain line annotations and are no longer editable as ce dimensions in this file.",
+            "pdfcer: {}: per source: {:?}.",
             output.display(),
-            report.ce_dimensions_left
+            report.ce_dimensions_as_lines
         );
-    }
-    let as_lines: usize = report.ce_dimensions_as_lines.iter().sum();
-    if !report.ce_dimension_sidecar_newer {
-        report_ce_dimensions_as_lines(output, as_lines);
-        if as_lines > 0 {
-            eprintln!(
-                "pdfcer: {}: per source: {:?}.",
-                output.display(),
-                report.ce_dimensions_as_lines
-            );
-        }
     }
     if report.outline_items_dropped > 0 {
         eprintln!(
@@ -1163,7 +1142,7 @@ pub(crate) fn assemble_metrics(
         "pages={} objects={} dangling={} outline_kept={} outline_dropped={} \
 outline_relinked={} fields_renamed={} fields_dropped={} dests_dropped={} labels_dropped={} \
 labels_stale={} label_ranges={} struct_tree_dropped={} struct_links={} struct_links_first_page={} \
-ocg_carried={} ce_dims_carried={} ce_dims_left={} ce_dims_as_lines={} {} out_bytes={out_bytes}",
+ocg_carried={} ce_dims_carried={} ce_dims_left={} ce_dims_as_lines={} {} {} out_bytes={out_bytes}",
         report.pages,
         report.objects_copied,
         report.dangling_references,
@@ -1183,6 +1162,7 @@ ocg_carried={} ce_dims_carried={} ce_dims_left={} ce_dims_as_lines={} {} out_byt
         report.ce_dimensions_carried,
         report.ce_dimensions_left,
         report.ce_dimensions_as_lines.iter().sum::<usize>(),
+        crate::ce_dimension_report::CeCarry::from(report).group_tokens(),
         separation_metrics(&report.separations),
     )
 }

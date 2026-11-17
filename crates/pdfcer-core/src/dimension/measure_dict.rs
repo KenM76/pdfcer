@@ -406,6 +406,79 @@ fn filter_order(a: &[Object], keep: &dyn Fn(&Object) -> bool, depth: usize) -> V
         .collect()
 }
 
+/// A catalog's `/OCProperties` rebuilt for `groups`, each a ce-dimension
+/// group layer and whether it is shown; `None` when there is no layer to
+/// register and the entry stays as it is.
+///
+/// `existing` is the catalog's current entry. Section 7.3.10 lets it, its
+/// `/OCGs` and `/D`, and `/D`'s arrays each be indirect; `resolve` follows
+/// one reference. Every layer `existing` registers is kept, other than
+/// those in `retired`.
+#[must_use]
+pub(crate) fn rebuild_ocproperties(
+    existing: Option<&Object>,
+    groups: &[(ObjId, bool)],
+    retired: &[ObjId],
+    resolve: &dyn Fn(ObjId) -> Option<Object>,
+) -> Option<Object> {
+    let deref = |o: Option<&Object>| match o? {
+        Object::Reference(r) => resolve(*r),
+        other => Some(other.clone()),
+    };
+    let existing = match deref(existing) {
+        Some(Object::Dict(mut ocp)) => {
+            if let Some(Object::Array(a)) = deref(ocp.get(b"OCGs")) {
+                ocp.insert(Name::from(b"OCGs"), Object::Array(a));
+            }
+            if let Some(Object::Dict(mut d)) = deref(ocp.get(b"D")) {
+                for key in [&b"ON"[..], &b"OFF"[..], &b"Order"[..]] {
+                    if let Some(Object::Array(a)) = deref(d.get(key)) {
+                        d.insert(Name(key.to_vec()), Object::Array(a));
+                    }
+                }
+                ocp.insert(Name::from(b"D"), Object::Dict(d));
+            }
+            Some(ocp)
+        }
+        _ => None,
+    };
+    let foreign: Vec<ObjId> = existing
+        .as_ref()
+        .and_then(|ocp| ocp.get(b"OCGs"))
+        .and_then(Object::as_array)
+        .map(|a| {
+            a.iter()
+                .filter_map(Object::as_reference)
+                .filter(|r| !retired.contains(r) && !groups.iter().any(|(id, _)| id == r))
+                .collect()
+        })
+        .unwrap_or_default();
+    if groups.is_empty() && foreign.is_empty() {
+        return None;
+    }
+    Some(match &existing {
+        Some(existing) => merge_ocproperties(existing, groups, &foreign),
+        None => build_ocproperties(groups, &foreign),
+    })
+}
+
+/// Whether `value` holds a reference to `id`, at any nesting within it
+/// (depth-guarded; `ARCHITECTURE.md` section 10). References are not followed.
+#[must_use]
+pub(crate) fn mentions(value: &Object, id: ObjId, depth: usize) -> bool {
+    const MAX_DEPTH: usize = 64;
+    if depth > MAX_DEPTH {
+        return false;
+    }
+    match value {
+        Object::Reference(r) => *r == id,
+        Object::Array(a) => a.iter().any(|o| mentions(o, id, depth + 1)),
+        Object::Dict(d) => d.iter().any(|(_, o)| mentions(o, id, depth + 1)),
+        Object::Stream(s) => s.dict.iter().any(|(_, o)| mentions(o, id, depth + 1)),
+        _ => false,
+    }
+}
+
 #[cfg(test)]
 #[allow(
     clippy::unwrap_used,

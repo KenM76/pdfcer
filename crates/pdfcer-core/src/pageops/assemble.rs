@@ -258,10 +258,16 @@ pub struct AssembleOptions {
     /// why refusing is not the default and why this is a product policy
     /// rather than a spec ambiguity.
     pub separations: SeparationPolicy,
-    /// Whether the catalog source's ce-dimension sidecar (`/PieceInfo`
-    /// `pdfcer`, §14.5) is carried, subset to the ce dimensions on copied
-    /// pages. On by default; off leaves those ce dimensions as plain line
-    /// annotations in the output.
+    /// Whether ce-dimension sidecars (`/PieceInfo` `pdfcer`, §14.5) are
+    /// carried, so ce dimensions on copied pages stay ce dimensions. On by
+    /// default; off leaves them as plain line annotations in the output.
+    ///
+    /// With one source, its sidecar is carried subset to the copied pages,
+    /// group and ce-dimension ids unchanged. With several, the sidecars are
+    /// combined in source order: a group joins an earlier group of the same
+    /// name and the same scale, number format, drafting standard and
+    /// style, and otherwise arrives under its own name, suffixed ` (2)`
+    /// when the name is taken. Ids are reassigned.
     pub carry_dimension_sidecar: bool,
 }
 
@@ -463,11 +469,22 @@ pub struct AssembleReport {
     pub ce_dimension_sidecar_newer: bool,
     /// Per source, in `sources` order: ce dimensions copied without their
     /// sidecar record, so they are plain line annotations in the result
-    /// and no longer follow a dimension group. A merge carries no sidecar,
-    /// so this counts every ce dimension it copied; elsewhere it is the
-    /// sources other than the one whose sidecar was carried, and that one
-    /// too when [`Self::ce_dimension_sidecar_newer`]. A shell says so.
+    /// and no longer follow a dimension group. Non-zero for a source whose
+    /// sidecar this build cannot read
+    /// ([`Self::ce_dimension_sidecar_newer`]), for every source when
+    /// [`AssembleOptions::carry_dimension_sidecar`] is off, and for the
+    /// sources other than the catalog source when it is the only one whose
+    /// sidecar is carried. A shell says so.
     pub ce_dimensions_as_lines: Vec<usize>,
+    /// ce-dimension groups that arrived as groups of their own when several
+    /// sidecars were combined, renamed ones included.
+    pub ce_dimension_groups_carried: usize,
+    /// ce-dimension groups that joined an earlier source's group of the
+    /// same name and settings.
+    pub ce_dimension_groups_matched: usize,
+    /// Of [`Self::ce_dimension_groups_carried`], those whose name was taken
+    /// by a group of other settings and so carry a ` (2)`-style suffix.
+    pub ce_dimension_groups_renamed: usize,
 }
 
 /// One page to place in the assembled document: which source, and which
@@ -713,27 +730,7 @@ pub fn assemble(
     // Drained first: an annotation reached through an indirect `/Annots`
     // array has no output number until then.
     copier.drain(sources)?;
-    let mut carried_from = None;
-    if options.carry_dimension_sidecar
-        && let Some(index) = options.catalog_from
-        && let Some(view) = sources.get(index)
-    {
-        dimension_carry::carry(&mut copier, view, index, &mut catalog, &mut report)?;
-        carried_from = (!report.ce_dimension_sidecar_newer).then_some(index);
-    }
-    report.ce_dimensions_as_lines = sources
-        .iter()
-        .enumerate()
-        .map(|(index, view)| {
-            if carried_from == Some(index) {
-                return 0;
-            }
-            dimension_carry::record_annots(view)
-                .into_iter()
-                .filter(|id| copier.mapped(index, *id).is_some())
-                .count()
-        })
-        .collect();
+    dimension_carry::carry_for(&mut copier, sources, options, &mut catalog, &mut report)?;
     copier.store(catalog_num, Object::Dict(catalog));
     copier.drain(sources)?;
     report.objects_copied = copier.objects.len();
@@ -1145,6 +1142,27 @@ impl Copier {
     /// Record an output object's final value.
     pub fn store(&mut self, number: u32, value: Object) {
         self.objects.insert(number, value);
+    }
+
+    /// The output object stored under `number`.
+    pub(super) fn object(&self, number: u32) -> Option<&Object> {
+        self.objects.get(&number)
+    }
+
+    /// [`Self::object`], to change in place.
+    pub(super) fn object_mut(&mut self, number: u32) -> Option<&mut Object> {
+        self.objects.get_mut(&number)
+    }
+
+    /// Forget the output object stored under `number`; its number stays
+    /// reserved and is written as a free entry.
+    pub(super) fn discard(&mut self, number: u32) {
+        self.objects.remove(&number);
+    }
+
+    /// Every stored output object with its number.
+    pub(super) fn stored(&self) -> impl Iterator<Item = (u32, &Object)> {
+        self.objects.iter().map(|(number, value)| (*number, value))
     }
 
     /// Map a source reference to an output number, queueing the object

@@ -64,6 +64,8 @@
 /// scale squared (ISO 32000-1 §12.9 Table 262 `/A`).
 pub mod area;
 pub mod author;
+/// Folding one ce-dimension model into another, for merge and insert.
+pub(crate) mod combine;
 /// A ce dimension's stroke dash pattern (`Pass 541.0`).
 pub mod dash;
 pub mod fit;

@@ -146,6 +146,7 @@ pub use history_transfer::{HistoryError, HistoryImport};
 pub use regroup::WidgetRegroup;
 mod content_mark;
 mod decoration_refresh;
+mod dimension_merge;
 mod dimension_unit;
 mod editable_source;
 mod emf;
@@ -263,7 +264,7 @@ pub use crate::annot::{StampLabelParameters, StampSizeSource};
 use crate::dimension::{
     AUTHORED_ANNOT_KEYS, AUTHORED_MEASURE_KEY, DEFAULT_GROUP_ID, DimStandard, DimensionId,
     DimensionKind, DimensionModel, DimensionStyle, GroupId, NumberFormat, ScaleState, Unit,
-    author_dimension, build_ocg, build_ocproperties, deserialize_model, serialize_model,
+    author_dimension, build_ocg, deserialize_model, serialize_model,
 };
 use crate::document::Document;
 use crate::font_embed_missing::{self, EmbedPlan, EmbedRequest};
@@ -4579,14 +4580,30 @@ pub struct InsertOutcome {
     /// document's own structure tree.
     pub source_tags_dropped: bool,
     /// ce dimensions on the inserted pages that arrived as plain line
-    /// annotations: the source's dimension groups are not brought across,
-    /// so they keep their look and no longer follow a group. A shell says
-    /// so, naming the count.
+    /// annotations, keeping their look and following no group: their
+    /// sidecar record could not be brought across. A shell says so, naming
+    /// the count.
     pub ce_dimensions_as_lines: usize,
+    /// ce dimensions that arrived with their sidecar record, so they are
+    /// still ce dimensions here and follow a dimension group.
+    pub ce_dimensions_carried: usize,
+    /// Source dimension groups that arrived as groups of their own,
+    /// renamed ones included.
+    pub ce_dimension_groups_carried: usize,
+    /// Source dimension groups that joined a group already here: same name
+    /// and the same scale, number format, drafting standard and style.
+    pub ce_dimension_groups_matched: usize,
+    /// Of [`Self::ce_dimension_groups_carried`], those whose name was taken
+    /// here by a group of other settings, and so carry a ` (2)`-style
+    /// suffix. A shell says so.
+    pub ce_dimension_groups_renamed: usize,
+    /// Whether [`Self::ce_dimensions_as_lines`] is not zero because the
+    /// source's sidecar, or this document's, was written by a newer pdfcer
+    /// than this build reads.
+    pub ce_dimension_sidecar_newer: bool,
 }
 
-/// How many of `source`'s ce dimensions `mapping` copied. Their sidecar
-/// records stay in the source, so each is a plain line annotation here.
+/// How many of `source`'s ce dimensions `mapping` copied.
 fn ce_dimensions_copied(source: &DocumentView<'_>, mapping: &BTreeMap<ObjId, ObjId>) -> usize {
     crate::pageops::dimension_carry::record_annots(source)
         .iter()
@@ -4598,10 +4615,27 @@ fn ce_dimensions_copied(source: &DocumentView<'_>, mapping: &BTreeMap<ObjId, Obj
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 #[non_exhaustive]
 pub struct MergeOutcome {
-    /// ce dimensions that arrived as plain line annotations: the source's
-    /// dimension groups are not merged, so they keep their look and no
-    /// longer follow a group. A shell says so, naming the count.
+    /// ce dimensions that arrived as plain line annotations, keeping their
+    /// look and following no group: their sidecar record could not be
+    /// brought across. A shell says so, naming the count.
     pub ce_dimensions_as_lines: usize,
+    /// ce dimensions that arrived with their sidecar record, so they are
+    /// still ce dimensions here and follow a dimension group.
+    pub ce_dimensions_carried: usize,
+    /// Source dimension groups that arrived as groups of their own,
+    /// renamed ones included.
+    pub ce_dimension_groups_carried: usize,
+    /// Source dimension groups that joined a group already here: same name
+    /// and the same scale, number format, drafting standard and style.
+    pub ce_dimension_groups_matched: usize,
+    /// Of [`Self::ce_dimension_groups_carried`], those whose name was taken
+    /// here by a group of other settings, and so carry a ` (2)`-style
+    /// suffix. A shell says so.
+    pub ce_dimension_groups_renamed: usize,
+    /// Whether [`Self::ce_dimensions_as_lines`] is not zero because the
+    /// source's sidecar, or this document's, was written by a newer pdfcer
+    /// than this build reads.
+    pub ce_dimension_sidecar_newer: bool,
     /// Pages brought across. Every page of the source, by definition.
     pub pages_merged: usize,
     /// Top-level form fields carried into this document's `/AcroForm`.
@@ -49856,17 +49890,9 @@ impl EditSession {
         let page_label_ranges =
             self.merge_page_labels(source, target_count, source_count, at, &mut scratch);
         let layers = self.merge_optional_content(source, &mut mapping, &mut scratch)?;
-        let ce_dimensions_as_lines = ce_dimensions_copied(source, &mapping);
+        let dims = self.carry_ce_dimensions(source, &mapping, &mut scratch);
         let (guard, source_tags_dropped) = self.page_import_report(source);
-
-        let objects: Vec<ObjectWrite> = scratch
-            .into_iter()
-            .map(|(id, value)| ObjectWrite {
-                id,
-                before: self.state.get(&id).cloned(),
-                after: Some(value),
-            })
-            .collect();
+        let objects = self.staged_writes(scratch);
         self.commit(Command {
             kind: CommandKind::MergeDocument {
                 count: pages_merged,
@@ -49889,7 +49915,12 @@ impl EditSession {
             structure_links_to_pages: guard.structure_links_to_pages,
             structure_links_to_first_page: guard.structure_links_to_first_page,
             source_tags_dropped,
-            ce_dimensions_as_lines,
+            ce_dimensions_as_lines: dims.as_lines,
+            ce_dimensions_carried: dims.carried,
+            ce_dimension_groups_carried: dims.groups_carried,
+            ce_dimension_groups_matched: dims.groups_matched,
+            ce_dimension_groups_renamed: dims.groups_renamed,
+            ce_dimension_sidecar_newer: dims.sidecar_newer,
         })
     }
 
@@ -50841,15 +50872,9 @@ impl EditSession {
             &mut scratch,
         );
 
+        let dims = self.carry_ce_dimensions(source, &mapping, &mut scratch);
         let (guard, source_tags_dropped) = self.page_import_report(source);
-        let objects: Vec<ObjectWrite> = scratch
-            .into_iter()
-            .map(|(id, value)| ObjectWrite {
-                id,
-                before: self.state.get(&id).cloned(),
-                after: Some(value),
-            })
-            .collect();
+        let objects = self.staged_writes(scratch);
         self.commit(Command {
             kind: CommandKind::InsertPages { count: added },
             objects,
@@ -50872,7 +50897,12 @@ impl EditSession {
             structure_links_to_pages: guard.structure_links_to_pages,
             structure_links_to_first_page: guard.structure_links_to_first_page,
             source_tags_dropped,
-            ce_dimensions_as_lines: ce_dimensions_copied(source, &mapping),
+            ce_dimensions_as_lines: dims.as_lines,
+            ce_dimensions_carried: dims.carried,
+            ce_dimension_groups_carried: dims.groups_carried,
+            ce_dimension_groups_matched: dims.groups_matched,
+            ce_dimension_groups_renamed: dims.groups_renamed,
+            ce_dimension_sidecar_newer: dims.sidecar_newer,
         })
     }
 
@@ -58285,47 +58315,16 @@ impl EditSession {
             .iter()
             .filter_map(|g| g.ocg.map(|o| (o, g.visible)))
             .collect();
-        let mine_ids: std::collections::BTreeSet<ObjId> = mine.iter().map(|(id, _)| *id).collect();
-        // §7.3.10: `/OCProperties`, its `/OCGs` and `/D`, and `/D`'s arrays
-        // may each be indirect; resolve them all before merging, or an
-        // indirect layer list reads as empty and every foreign layer is lost.
-        let existing_ocp = self
-            .deref_dict(catalog.get(b"OCProperties"))
-            .map(|mut ocp| {
-                if let Some(Object::Array(a)) = self.deref_value(ocp.get(b"OCGs")) {
-                    ocp.insert(Name::from(b"OCGs"), Object::Array(a));
-                }
-                if let Some(mut d) = self.deref_dict(ocp.get(b"D")) {
-                    for key in [&b"ON"[..], &b"OFF"[..], &b"Order"[..]] {
-                        if let Some(Object::Array(a)) = self.deref_value(d.get(key)) {
-                            d.insert(Name(key.to_vec()), Object::Array(a));
-                        }
-                    }
-                    ocp.insert(Name::from(b"D"), Object::Dict(d));
-                }
-                ocp
-            });
-        let foreign: Vec<ObjId> = existing_ocp
-            .as_ref()
-            .and_then(|ocp| {
-                ocp.get(b"OCGs").and_then(Object::as_array).map(|a| {
-                    a.iter()
-                        .filter_map(Object::as_reference)
-                        .filter(|r| !mine_ids.contains(r))
-                        .collect()
-                })
-            })
-            .unwrap_or_default();
+        let ocp = crate::dimension::measure_dict::rebuild_ocproperties(
+            catalog.get(b"OCProperties"),
+            &mine,
+            &[],
+            &|id| self.value(id).cloned(),
+        );
 
         let mut cat2 = catalog.clone();
         cat2.insert(Name::from(b"PieceInfo"), Object::Dict(piece));
-        if !mine.is_empty() || !foreign.is_empty() {
-            let ocp = match &existing_ocp {
-                Some(existing) => {
-                    crate::dimension::measure_dict::merge_ocproperties(existing, &mine, &foreign)
-                }
-                None => build_ocproperties(&mine, &foreign),
-            };
+        if let Some(ocp) = ocp {
             cat2.insert(Name::from(b"OCProperties"), ocp);
         }
         Ok(ObjectWrite {
