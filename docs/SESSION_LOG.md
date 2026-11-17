@@ -4,6 +4,21 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-11-17 (1588th filing) — `Pass 721.1` SHIPPED (`0598d562`, 3D two-surface measure); `v0.156.0` HELD for the open-request round; four new Passes filed (`720.2`, `722.0`, `647.3g`, `722.1`)
+
+**Filed (engineer-reported; no shell here, git, push and CI state not checked from here):**
+- `0598d562` `feat(3d): measure between two picked surfaces (Pass 721.1)`: `measure_surfaces`, `surface_at`, `SurfacePick`, `SurfaceTolerance { parallel_degrees 0.5, force_parallel, flat_degrees 0.5 }`, `SurfaceRelation::{Parallel { distance, forced }, Angled { degrees }}` in `pdfcer-3d`; CLI `3d-render --measure-surfaces X1,Y1,X2,Y2` and three tuning flags. A partial-face fit is disclosed. Tests: 8 engine, 2 CLI unit, 1 CLI integration. Gates green as reported. Not done, stays `Pass 721.2`: cylinders, edges, points and the rest of the assembly-measure set. Full entry in ROADMAP *Shipped*.
+
+**Operator direction (Ken, chat, 2026-11-17):** *"don't just release the light meter. There's a bunch of other features that need to come with it. check the feature requests folder, and when all is complete, then release the next version."* `v0.156.0` is therefore HELD (supersedes the 1587th filing's "`721.0` alone, first"). A three-agent read-only triage of the `open\` request folder and the operator's wish list found every "not yet taken up" request already shipped or GUI-side except the items below; the gate lists the rest only because reply bodies cite the ID, not the exact request filename (a paperwork notice follows from the engineer).
+
+**New Passes (IDs chosen by grep: zero hits as Passes across `docs/*.md`; no shell; not run through `tools/check-ledger-numbers.py`):**
+- `Pass 720.2` (Next up, gates `v0.156.0`): copied text keeps its colour and text state (`item_prelude` in `vector/clip.rs` emits only `Tf`).
+- `Pass 722.0` (Next up, gates `v0.156.0`): continue an existing path, or open a closed one (new `EditSession` verbs, in-form twins, CLI, undo).
+- `Pass 647.3g` (Next up, NOT gating): XFA page-background fields bind per page (`X016` item 1); the `Pass 647.3` heading's stale "NOT STARTED" was corrected the same filing.
+- `Pass 722.1` (Backlog, needs an operator ruling): rich-text (`/RC` plus `/DS`) authoring for FreeText annotations.
+
+**Open:** the `paste-clipboard` rider (filed 1586th) still not reported done. Next free IDs: `Pass 717.4`, `Pass 720.3`, `Pass 721.3`, `Pass 722.2`, `Pass 647.3h`. ROADMAP: one Shipped entry, the `721.1` banner replaced, one hold banner and three Next up banners, one Backlog item, one amendment on the `721.0` entry. FEATURES: `721.1` Planned to Implemented (core, cli ticked); four Planned rows. No decision, no rule.
+
 ## 2026-11-17 (1587th filing) — `Pass 721.0` SHIPPED (`ce8fa9d2`, illuminance at a 3D surface point); new request filed as `Pass 721.1` (OPEN, next) and `Pass 721.2` (Backlog)
 
 **Filed (engineer-reported; no shell here, git, push and CI state not checked from here):**
