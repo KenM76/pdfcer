@@ -28,6 +28,22 @@ pub enum LightTint {
     Coloured,
 }
 
+/// What a meter does with the light of glowing surfaces: meshes whose
+/// [`MaterialFinish::emissive`](crate::MaterialFinish::emissive) is not
+/// black.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
+#[non_exhaustive]
+pub enum GlowLight {
+    /// A glowing surface lights what it faces, and that light bounces.
+    /// A glow has no physical strength, so a model with one reads
+    /// relative ([`RelativeReason::GlowingParts`]).
+    #[default]
+    Counted,
+    /// Glowing surfaces light nothing, as in a picture; a model with
+    /// one carries [`IlluminanceNote::GlowLeftOut`].
+    LeftOut,
+}
+
 /// How a [`LightMeter`](super::LightMeter) measures.
 #[derive(Debug, Clone, Copy, PartialEq)]
 #[non_exhaustive]
@@ -41,8 +57,11 @@ pub struct MeterSettings {
     /// uses the model's. Lux from a point or spot light needs one.
     pub mm_per_unit: Option<f64>,
     /// Rays cast from each sample to gather the bounced light (128; at
-    /// most 4096). More is steadier and slower.
+    /// most 4096). More is steadier and slower. The light of glowing
+    /// surfaces is gathered by the same rays.
     pub gather_rays: usize,
+    /// The light of glowing surfaces.
+    pub glow: GlowLight,
 }
 
 impl Default for MeterSettings {
@@ -52,6 +71,7 @@ impl Default for MeterSettings {
             tint: LightTint::Neutral,
             mm_per_unit: None,
             gather_rays: 128,
+            glow: GlowLight::Counted,
         }
     }
 }
@@ -145,6 +165,9 @@ pub enum RelativeReason {
     /// The bounce takes light from the picture's background colour, which
     /// has no physical strength.
     Sky,
+    /// This many of the model's meshes glow and are counted
+    /// ([`GlowLight::Counted`]); a glow has no physical strength.
+    GlowingParts(usize),
 }
 
 impl std::fmt::Display for RelativeReason {
@@ -163,6 +186,10 @@ impl std::fmt::Display for RelativeReason {
             }
             RelativeReason::NoUnits => f.write_str("the model's length unit is not known"),
             RelativeReason::Sky => f.write_str("the bounce takes light from the background colour"),
+            RelativeReason::GlowingParts(n) => write!(
+                f,
+                "{n} glowing surface(s) are counted, and a glow has no physical strength"
+            ),
         }
     }
 }
@@ -195,6 +222,12 @@ pub enum IlluminanceNote {
     /// The bounced part is multiplied by this bounce strength, which is
     /// not 1.
     BounceStrength(f64),
+    /// This many of the model's meshes glow, and their light is left out
+    /// ([`GlowLight::LeftOut`]).
+    GlowLeftOut(usize),
+    /// Light from glowing surfaces is counted only where it arrives
+    /// straight from them: bounce is off, so none of it is reflected.
+    GlowNotBounced,
 }
 
 impl std::fmt::Display for IlluminanceNote {
@@ -217,6 +250,12 @@ impl std::fmt::Display for IlluminanceNote {
             IlluminanceNote::BounceEstimated => f.write_str("the bounced part is an estimate"),
             IlluminanceNote::BounceStrength(s) => {
                 write!(f, "the bounced part is multiplied by bounce strength {s}")
+            }
+            IlluminanceNote::GlowLeftOut(n) => {
+                write!(f, "the light of {n} glowing surface(s) is left out")
+            }
+            IlluminanceNote::GlowNotBounced => {
+                f.write_str("the light of glowing surfaces is counted where it falls, not bounced")
             }
         }
     }
@@ -243,12 +282,17 @@ pub struct LightShare {
 pub struct Illuminance {
     /// What the numbers are in.
     pub unit: IlluminanceUnit,
-    /// [`Self::direct`] + [`Self::bounced`] + [`Self::ambient`].
+    /// [`Self::direct`] + [`Self::bounced`] + [`Self::ambient`] +
+    /// [`Self::emitted`].
     pub total: f64,
     /// Straight from the lights, shadowed by the model.
     pub direct: f64,
-    /// Reflected off the model's other surfaces.
+    /// Reflected off the model's other surfaces, whether it came from a
+    /// light or from a glowing surface.
     pub bounced: f64,
+    /// Straight from the model's glowing surfaces, shadowed by the model
+    /// ([`GlowLight::Counted`]); zero when the glow is left out.
+    pub emitted: f64,
     /// The lights' ambient part, which falls everywhere alike and is not
     /// shadowed. Zero in lux unless a light states an ambient strength.
     pub ambient: f64,

@@ -3,7 +3,8 @@
 //!
 //! The figure is the light arriving on the surface, not the light it sends
 //! to the eye, so the surface's own colour plays no part in it; the colours
-//! of the surfaces light bounces off do.
+//! of the surfaces light bounces off do. Light comes from the lights and,
+//! unless left out ([`GlowLight`]), from the model's glowing surfaces.
 
 mod disc;
 mod plan;
@@ -13,12 +14,12 @@ mod types;
 mod tests;
 
 pub use types::{
-    Illuminance, IlluminanceError, IlluminanceNote, IlluminanceQuery, IlluminanceUnit, LightShare,
-    LightTint, MeterBasis, MeterSettings, RelativeReason,
+    GlowLight, Illuminance, IlluminanceError, IlluminanceNote, IlluminanceQuery, IlluminanceUnit,
+    LightShare, LightTint, MeterBasis, MeterSettings, RelativeReason,
 };
 
 use crate::camera::pick_index::PickIndex;
-use crate::indirect::{Lamp, Scene, Volume, for_chunks};
+use crate::indirect::{Lamp, Scene, Volume, for_chunks, glow_gather};
 use crate::lighting::Shader;
 use crate::lighting::bounce::{Bounce, BounceSky, Painted, frame_lamps};
 use crate::model::light::unit;
@@ -54,6 +55,8 @@ pub struct LightMeter<'m> {
     lamps: Vec<Lamp>,
     bouncing: Vec<Lamp>,
     names: Vec<(String, Option<usize>)>,
+    /// The radiance each mesh gives off; empty when no glow is counted.
+    glow: Vec<[f64; 3]>,
     volume: Option<Volume>,
     strength: f64,
     sky: [f64; 3],
@@ -86,9 +89,16 @@ impl<'m> LightMeter<'m> {
     /// that follows it.
     ///
     /// The figures are lux when every light in force has a
-    /// [`ModelLight::photometric`](crate::ModelLight::photometric) and the
-    /// model's unit is known; otherwise they are in the picture's own
-    /// shading units, and [`Self::reasons`] says why.
+    /// [`ModelLight::photometric`](crate::ModelLight::photometric), the
+    /// model's unit is known and no glowing surface is counted; otherwise
+    /// they are in the picture's own shading units, and [`Self::reasons`]
+    /// says why.
+    ///
+    /// A glowing surface ([`MeterSettings::glow`]) lights what it faces
+    /// with its emissive colour: a surface that sees nothing but emissive
+    /// white reads 1. That light is [`Illuminance::emitted`]; where bounce
+    /// is on, what other surfaces reflect of it is in
+    /// [`Illuminance::bounced`].
     ///
     /// # Errors
     ///
@@ -124,9 +134,10 @@ impl<'m> LightMeter<'m> {
                 [r * a, g * a, b * a]
             }
         };
-        let mut volume = match bouncing.is_empty() {
-            true => None,
-            false => Volume::new(meshes),
+        let glow = plan.glow;
+        let mut volume = match on && !(bouncing.is_empty() && glow.is_empty()) {
+            false => None,
+            true => Volume::new(meshes),
         };
         if let Some(volume) = &mut volume {
             let surfaces = Painted {
@@ -139,6 +150,7 @@ impl<'m> LightMeter<'m> {
                 surfaces: &surfaces,
                 lamps: &bouncing,
                 sky,
+                glow: &glow,
             };
             volume.build(&scene, options.threads);
         }
@@ -150,6 +162,7 @@ impl<'m> LightMeter<'m> {
             lamps,
             bouncing,
             names,
+            glow,
             volume,
             strength: indirect.strength(),
             sky,
@@ -185,7 +198,8 @@ impl<'m> LightMeter<'m> {
     fn rays_per_sample(&self) -> usize {
         let gather = match self.volume {
             Some(_) => self.gather_rays.saturating_mul(1 + self.bouncing.len()),
-            None => 0,
+            None if self.glow.is_empty() => 0,
+            None => self.gather_rays,
         };
         gather.saturating_add(self.lamps.len() + 2)
     }
@@ -253,6 +267,7 @@ impl<'m> LightMeter<'m> {
             surfaces: &surfaces,
             lamps,
             sky: self.sky,
+            glow: &self.glow,
         };
         let all = scene(&self.lamps);
         let direct = self
@@ -260,23 +275,33 @@ impl<'m> LightMeter<'m> {
             .iter()
             .map(|lamp| crate::indirect::lamp_direct(&all, lamp, p, n, self.far))
             .collect();
-        let bounced = self.volume.as_ref().map_or([0.0; 3], |v| {
-            let g = v.gathered(&scene(&self.bouncing), p, n, self.gather_rays);
-            scale(g, self.strength)
-        });
-        Sample { direct, bounced }
+        let rays = self.gather_rays;
+        let (bounced, emitted) = match &self.volume {
+            Some(v) => {
+                let (bounced, emitted) = v.gathered(&scene(&self.bouncing), p, n, rays);
+                (scale(bounced, self.strength), emitted)
+            }
+            None if self.glow.is_empty() => ([0.0; 3], [0.0; 3]),
+            None => ([0.0; 3], glow_gather(&scene(&[]), p, n, rays, self.far)),
+        };
+        Sample {
+            direct,
+            bounced,
+            emitted,
+        }
     }
 
     /// The mean of `samples` as a reading; `off_edge` samples were dropped.
     fn mean(&self, samples: &[Sample], off_edge: usize) -> Illuminance {
         let k = 1.0 / samples.len().max(1) as f64;
         let mut per_lamp = vec![[0.0; 3]; self.lamps.len()];
-        let mut bounced = [0.0; 3];
+        let (mut bounced, mut emitted) = ([0.0; 3], [0.0; 3]);
         for s in samples {
             for (sum, d) in per_lamp.iter_mut().zip(&s.direct) {
                 *sum = add(*sum, scale(*d, k));
             }
             bounced = add(bounced, scale(s.bounced, k));
+            emitted = add(emitted, scale(s.emitted, k));
         }
         let lights: Vec<LightShare> = per_lamp
             .iter()
@@ -289,11 +314,13 @@ impl<'m> LightMeter<'m> {
             .collect();
         let direct = lights.iter().map(|l| l.direct).sum();
         let (bounced, ambient) = (luminance(bounced), luminance(self.ambient));
+        let emitted = luminance(emitted);
         Illuminance {
             unit: self.unit,
-            total: direct + bounced + ambient,
+            total: direct + bounced + ambient + emitted,
             direct,
             bounced,
+            emitted,
             ambient,
             lights,
             on_surface: samples.len(),
@@ -302,9 +329,11 @@ impl<'m> LightMeter<'m> {
     }
 }
 
-/// One sample: each lamp's direct light, and the bounced light.
+/// One sample: each lamp's direct light, the bounced light, and the light
+/// straight from glowing surfaces.
 #[derive(Debug, Clone, Default)]
 struct Sample {
     direct: Vec<[f64; 3]>,
     bounced: [f64; 3],
+    emitted: [f64; 3],
 }

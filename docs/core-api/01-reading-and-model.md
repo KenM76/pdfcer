@@ -3506,9 +3506,10 @@ let image = render_coloured(&meshes, &colours, &camera, &RenderOptions { width: 
   `.over_disc(radius, samples)` averages over a disc of `radius` model
   units on the surface (sunflower samples; a sample is kept when it lands
   on mesh `mesh` within 60 degrees of the query's normal).
-  `Illuminance { unit, total, direct, bounced, ambient, lights:
+  `Illuminance { unit, total, direct, bounced, ambient, emitted, lights:
   Vec<LightShare { name, model_light: Option<usize>, direct }>,
-  on_surface, off_edge }`: `total = direct + bounced + ambient`, `direct`
+  on_surface, off_edge }`: `total = direct + bounced + ambient +
+  emitted`, `direct`
   is the sum of `lights`, shadows by the model's geometry counted;
   `on_surface` / `off_edge` count the disc's samples that landed and that
   fell off the picked mesh (`1` / `0` for a point). Numbers are scalar:
@@ -3518,16 +3519,33 @@ let image = render_coloured(&meshes, &colours, &camera, &RenderOptions { width: 
   white surface to full white) and `reasons(): &[RelativeReason]` says why:
   `Asked`, `PictureLights` (not lit by lights of the model), `Headlight`,
   `Sun`, `UnitlessLights(n)`, `NoUnits`, `Sky` (bounce sky is the
-  background colour). `meter.notes(): &[IlluminanceNote]` states what was
+  background colour), `GlowingParts(n)`. `meter.notes(): &[IlluminanceNote]` states what was
   assumed or left out (`PictureScaleUnused`, `AmbientFillLeftOut`,
   `UnitAssumed`, `UnitGiven`, `TintApplied`, `DirectOnly`,
-  `BounceEstimated`, `BounceStrength(s)`); both implement `Display`.
+  `BounceEstimated`, `BounceStrength(s)`, `GlowLeftOut(n)`,
+  `GlowNotBounced`); both implement `Display`.
+  **Glowing surfaces (`G291`).** A mesh whose
+  `MaterialFinish::emissive` is not black lights what it faces:
+  `MeterSettings::glow: GlowLight::{Counted (default), LeftOut}`.
+  Counted, the light arriving straight from glowing meshes (shadowed
+  by the model, gathered with `gather_rays` rays per sample) is
+  `Illuminance::emitted`, in the emissive colour's own units: a point
+  that sees nothing but emissive white reads 1. With bounce on, what
+  other surfaces reflect of it lands in `bounced`; with bounce off the
+  note `GlowNotBounced` says none is reflected. A glow has no physical
+  strength, so a model with `n` glowing meshes reads `Relative` with
+  `RelativeReason::GlowingParts(n)`. `LeftOut` restores lamps-only
+  figures (lux where the lamps allow) and carries the note
+  `GlowLeftOut(n)`. A model with no glowing mesh gets neither reason
+  nor note. A reading of 0 lux with no reason is a true zero: nothing
+  in force lights the point. Pictures are unchanged: a glow never
+  lights another surface in `render`.
   In lux each light counts at `ModelLight::photometric`, point and spot
   lights fade as `1 / d²` with `d` in metres, and `RenderOptions::light_gain`
   and `lamp_cut` are not applied.
   `MeterSettings { basis: MeterBasis::{Auto, Relative}, tint:
   LightTint::{Neutral, Coloured}, mm_per_unit: Option<f64> (overrides
-  `AssembledModel::units`), gather_rays (128, at most 4096) }` is
+  `AssembledModel::units`), gather_rays (128, at most 4096), glow }` is
   `#[non_exhaustive]`: start from `MeterSettings::default()` and assign.
   Refusals: `IlluminanceError::{BadQuery("normal" | "point" | "radius"),
   OffSurface, TooManySamples { asked, limit: MAX_ILLUMINANCE_SAMPLES
@@ -3544,8 +3562,9 @@ let image = render_coloured(&meshes, &colours, &camera, &RenderOptions { width: 
   has `None`.
   CLI: `3d-render ... --illuminance X,Y` (repeatable; with
   `--illuminance-radius`, `-samples`, `-rays`, `-basis`, `-tint`,
-  `-unit-mm`) prints `illuminance x= y= mesh= point= radius= samples_on=
-  samples_off= unit=lux|relative total= direct= bounced= ambient=`, one
+  `-unit-mm`, `-glow counted|left-out`) prints `illuminance x= y= mesh=
+  point= radius= samples_on= samples_off= unit=lux|relative total=
+  direct= bounced= ambient= emitted=`, one
   `illuminance-light x= y= name= direct=` per light, `illuminance x= y=
   miss` or `refused: <why>`, then `note: illuminance: ...` lines for the
   reasons and notes.

@@ -260,6 +260,7 @@ pub(crate) fn frame_bounce(
         surfaces: &surfaces,
         lamps: &lamps,
         sky,
+        glow: &[],
     };
     volume.build(&scene, options.threads);
     Ok(Some(BounceLight { volume, strength }))

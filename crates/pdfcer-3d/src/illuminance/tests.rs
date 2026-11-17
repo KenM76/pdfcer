@@ -353,3 +353,125 @@ fn a_model_with_every_lamp_left_out_reads_nothing() {
     assert_eq!(lamps(crate::EmptyArtwork::Dark), (0, 0));
     assert_eq!(lamps(crate::EmptyArtwork::Headlight), (0, 1));
 }
+
+/// A dark floor under a 4 by 4 ceiling one unit up that glows `emissive`,
+/// with every lamp left out.
+fn glow_room(emissive: [f64; 3]) -> (AssembledModel, RenderOptions) {
+    let mut model = floor(Vec::new());
+    model.meshes.push(quad([
+        [-2.0, -2.0, 1.0],
+        [-2.0, 2.0, 1.0],
+        [2.0, 2.0, 1.0],
+        [2.0, -2.0, 1.0],
+    ]));
+    model.colours.push(Some([255, 255, 255, 255]));
+    model.finishes.push(Some(crate::MaterialFinish {
+        ambient: [0.0; 3],
+        specular: [0.0; 3],
+        emissive,
+        shininess: 0.0,
+    }));
+    let dark = RenderOptions {
+        empty_artwork: crate::EmptyArtwork::Dark,
+        ..direct()
+    };
+    (model, dark)
+}
+
+/// The share of a point's view a parallel square of half-width `h`, `z`
+/// over it, fills (cosine-weighted).
+fn square_overhead(h: f64, z: f64) -> f64 {
+    let s = h / h.hypot(z);
+    4.0 / std::f64::consts::PI * s * s.atan()
+}
+
+#[test]
+fn a_glowing_ceiling_lights_the_floor_under_it() {
+    let (model, dark) = glow_room([1.0; 3]);
+    let settings = MeterSettings {
+        gather_rays: 4096,
+        ..MeterSettings::default()
+    };
+    let m = meter(&model, &dark, &settings);
+    // A glow has no physical strength.
+    assert_eq!(m.unit(), IlluminanceUnit::Relative);
+    assert_eq!(m.reasons(), [RelativeReason::GlowingParts(1)]);
+    assert!(m.notes().contains(&IlluminanceNote::GlowNotBounced));
+    let r = m.read(&at([0.0; 3])).unwrap();
+    let want = square_overhead(2.0, 1.0);
+    assert!((r.emitted - want).abs() < 0.02, "{r:?} want {want}");
+    assert_eq!((r.direct, r.bounced, r.lights.len()), (0.0, 0.0, 0));
+    assert!((r.total - r.emitted).abs() < 1e-12);
+    // Half the glow, half the light; a corner sees less ceiling.
+    let (dim, _) = glow_room([0.5; 3]);
+    let half = meter(&dim, &dark, &settings).read(&at([0.0; 3])).unwrap();
+    assert!((half.emitted - r.emitted / 2.0).abs() < 1e-9);
+    let corner = m.read(&at([1.9, 1.9, 0.0])).unwrap();
+    assert!(
+        corner.emitted > 0.0 && corner.emitted < 0.6 * r.emitted,
+        "{corner:?}"
+    );
+}
+
+#[test]
+fn a_glow_left_out_is_said_and_reads_nothing() {
+    let (model, dark) = glow_room([1.0; 3]);
+    let settings = MeterSettings {
+        glow: GlowLight::LeftOut,
+        ..MeterSettings::default()
+    };
+    let m = meter(&model, &dark, &settings);
+    assert_eq!(m.unit(), IlluminanceUnit::Lux);
+    assert!(m.reasons().is_empty());
+    assert!(m.notes().contains(&IlluminanceNote::GlowLeftOut(1)));
+    let r = m.read(&at([0.0; 3])).unwrap();
+    assert_eq!((r.total, r.emitted), (0.0, 0.0));
+    // A black emissive term is not a glow: nothing is said of it.
+    let (black, _) = glow_room([0.0; 3]);
+    let m = meter(&black, &dark, &MeterSettings::default());
+    assert!(m.reasons().is_empty());
+    assert!(!m.notes().iter().any(|n| matches!(
+        n,
+        IlluminanceNote::GlowLeftOut(_) | IlluminanceNote::GlowNotBounced
+    )));
+    assert_eq!(m.read(&at([0.0; 3])).unwrap().total, 0.0);
+}
+
+#[test]
+fn a_glow_bounces_where_bounce_is_on() {
+    let (mut model, _) = glow_room([1.0; 3]);
+    // A shelf between floor and ceiling, measured on its underside.
+    model.meshes.push(quad([
+        [-0.5, -0.5, 0.5],
+        [0.5, -0.5, 0.5],
+        [0.5, 0.5, 0.5],
+        [-0.5, 0.5, 0.5],
+    ]));
+    model.colours.push(Some([255, 255, 255, 255]));
+    model.finishes.push(None);
+    let under = IlluminanceQuery::new(2, [0.0, 0.0, 0.5], [0.0, 0.0, -1.0]);
+    let dark = |bounce| RenderOptions {
+        empty_artwork: crate::EmptyArtwork::Dark,
+        indirect: IndirectOptions {
+            bounce,
+            ..IndirectOptions::default()
+        },
+        ..RenderOptions::default()
+    };
+    // The underside sees only the floor, which glows nothing.
+    let off = meter(&model, &dark(Bounce::Off), &MeterSettings::default());
+    assert_eq!(off.read(&under).unwrap().total, 0.0);
+    let on = meter(
+        &model,
+        &dark(IndirectOptions::default().bounce),
+        &MeterSettings::default(),
+    );
+    assert!(!on.notes().contains(&IlluminanceNote::GlowNotBounced));
+    let r = on.read(&under).unwrap();
+    assert_eq!((r.direct, r.emitted), (0.0, 0.0));
+    assert!(r.bounced > 0.02 && r.bounced < 1.0, "{r:?}");
+    // The floor's own reading has both parts.
+    let f = on.read(&at([1.5, 1.5, 0.0])).unwrap();
+    assert!(f.emitted > 0.1, "{f:?}");
+    assert!((f.total - f.emitted - f.bounced).abs() < 1e-12);
+}

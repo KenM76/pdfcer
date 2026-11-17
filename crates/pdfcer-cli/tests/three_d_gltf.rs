@@ -678,3 +678,78 @@ fn measure_surfaces_reports_the_distance_between_parallel_surfaces() {
         "{bad}"
     );
 }
+
+/// [`floor_and_square`] with a square that glows white and no lamp.
+fn floor_and_glowing_square() -> Vec<u8> {
+    glb_of(
+        r#"{"asset":{"version":"2.0"},"scene":0,
+  "buffers":[{"byteLength":60}],
+  "bufferViews":[{"buffer":0,"byteLength":48},{"buffer":0,"byteOffset":48,"byteLength":12}],
+  "accessors":[{"bufferView":0,"componentType":5126,"count":4,"type":"VEC3"},
+    {"bufferView":1,"componentType":5123,"count":6,"type":"SCALAR"}],
+  "materials":[{"name":"glow","emissiveFactor":[1,1,1]}],
+  "meshes":[{"primitives":[{"attributes":{"POSITION":0},"indices":1}]},
+    {"primitives":[{"attributes":{"POSITION":0},"indices":1,"material":0}]}],
+  "nodes":[{"name":"floor","mesh":0,"translation":[-2,0,-2],"rotation":[0.70710678,0,0,0.70710678],"scale":[4,4,1]},
+    {"name":"square","mesh":1,"translation":[-0.5,1,-0.5],"rotation":[0.70710678,0,0,0.70710678]}],
+  "scenes":[{"nodes":[0,1]}]}"#
+            .to_owned(),
+    )
+}
+
+/// `--illuminance` under a glowing surface and no lamp: the glow is
+/// counted as its own part and makes the figure relative, by name;
+/// `--illuminance-glow left-out` reads nothing and says what it left out.
+#[test]
+fn illuminance_counts_a_glowing_surface_unless_told_not_to() {
+    let s = Scratch::new("glow");
+    std::fs::write(s.path("m.glb"), floor_and_glowing_square()).unwrap();
+    let pdf = format!(
+        "{}/../../fixtures/synthetic/minimal.pdf",
+        env!("CARGO_MANIFEST_DIR")
+    );
+    let (m, out, png) = (s.path("m.glb"), s.path("out.pdf"), s.path("x.png"));
+    let args = ["3d-embed", &pdf, "--model", &m, "--page", "1"];
+    stdout(&run(&[
+        &args[..],
+        &["--rect", "10,10,190,190", "--apply", "-o", &out],
+    ]
+    .concat()));
+    let read = |extra: &[&str]| {
+        let mut args = vec!["3d-render", &out, "--index", "0", "--eye=1,-3,4"];
+        args.extend_from_slice(&["--width", "120", "--height", "80", "-o", &png]);
+        // Left of the square is the floor it hangs over.
+        args.extend_from_slice(&["--lighting", "artwork", "--dark-without-lights"]);
+        args.extend_from_slice(&["--illuminance", "20,40"]);
+        args.extend_from_slice(extra);
+        stdout(&run(&args))
+    };
+    let part = |text: &str, key: &str| -> f64 {
+        let line = text
+            .lines()
+            .find(|l| l.starts_with("illuminance x="))
+            .unwrap();
+        let at = line.find(key).unwrap() + key.len();
+        line[at..].split(' ').next().unwrap().parse().unwrap()
+    };
+    let counted = read(&["--bounce", "off"]);
+    assert!(counted.contains(" mesh=0 "), "{counted}");
+    assert!(counted.contains("unit=relative"), "{counted}");
+    let (total, emitted) = (part(&counted, "total="), part(&counted, "emitted="));
+    assert!(emitted > 0.001 && emitted < 1.0, "{counted}");
+    assert!((total - emitted).abs() < 1e-6, "{counted}");
+    let why = "note: illuminance: a relative figure, not lux: 1 glowing surface(s) are counted, \
+               and a glow has no physical strength";
+    assert!(counted.contains(why), "{counted}");
+    assert!(
+        counted.contains("counted where it falls, not bounced"),
+        "{counted}"
+    );
+    let left = read(&["--illuminance-glow", "left-out"]);
+    assert!(left.contains("unit=lux total=0.000000"), "{left}");
+    assert!(left.contains("emitted=0.000000"), "{left}");
+    assert!(
+        left.contains("note: illuminance: the light of 1 glowing surface(s) is left out"),
+        "{left}"
+    );
+}

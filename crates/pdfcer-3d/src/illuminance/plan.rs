@@ -2,7 +2,8 @@
 //! about that.
 
 use super::{
-    IlluminanceNote, IlluminanceUnit, LightTint, MeterBasis, MeterSettings, RelativeReason,
+    GlowLight, IlluminanceNote, IlluminanceUnit, LightTint, MeterBasis, MeterSettings,
+    RelativeReason,
 };
 use crate::lighting::bounce::{Bounce, BounceSky};
 use crate::lighting::{LightingScheme, Shader};
@@ -23,6 +24,9 @@ pub(super) struct Plan {
     /// relative reading, their physical strengths for lux.
     pub(super) lights: Vec<ModelLight>,
     pub(super) options: RenderOptions,
+    /// The radiance each mesh gives off, by mesh index; empty when no
+    /// glow is counted.
+    pub(super) glow: Vec<[f64; 3]>,
 }
 
 impl Plan {
@@ -31,7 +35,12 @@ impl Plan {
     pub(super) fn of(model: &AssembledModel, options: &RenderOptions, s: &MeterSettings) -> Plan {
         let given = s.mm_per_unit.filter(|m| m.is_finite() && *m > 0.0);
         let mm = given.or(model.units.map(|u| u.mm_per_unit));
-        let reasons = reasons(&model.lights, options, s, mm.is_some());
+        let (glow, glowing) = glow(model);
+        let counted = s.glow == GlowLight::Counted && glowing > 0;
+        let mut reasons = reasons(&model.lights, options, s, mm.is_some());
+        if counted {
+            reasons.push(RelativeReason::GlowingParts(glowing));
+        }
         let mut notes = Vec::new();
         let (unit, lights, options) = if reasons.is_empty() {
             let lamps = model.lights.iter().any(|l| candela(l) > 0.0);
@@ -65,12 +74,19 @@ impl Plan {
             (IlluminanceUnit::Relative, model.lights.clone(), *options)
         };
         notes.extend(bounce_notes(&options));
+        if counted && notes.contains(&IlluminanceNote::DirectOnly) {
+            notes.push(IlluminanceNote::GlowNotBounced);
+        }
+        if !counted && glowing > 0 {
+            notes.push(IlluminanceNote::GlowLeftOut(glowing));
+        }
         Plan {
             unit,
             reasons,
             notes,
             lights,
             options,
+            glow: if counted { glow } else { Vec::new() },
         }
     }
 
@@ -78,6 +94,21 @@ impl Plan {
     fn artwork(&self) -> bool {
         artwork(&self.lights, &self.options)
     }
+}
+
+/// The radiance each of `model`'s meshes gives off (a channel that is not
+/// a positive number gives off none), and how many give off any.
+fn glow(model: &AssembledModel) -> (Vec<[f64; 3]>, usize) {
+    let of = |i: usize| {
+        let finish = model.finishes.get(i).copied().flatten();
+        finish.map_or([0.0; 3], |f| {
+            f.emissive
+                .map(|c| if c.is_finite() { c.max(0.0) } else { 0.0 })
+        })
+    };
+    let glow: Vec<[f64; 3]> = (0..model.meshes.len()).map(of).collect();
+    let glowing = glow.iter().filter(|g| g.iter().any(|&c| c > 0.0)).count();
+    (glow, glowing)
 }
 
 fn artwork(lights: &[ModelLight], options: &RenderOptions) -> bool {

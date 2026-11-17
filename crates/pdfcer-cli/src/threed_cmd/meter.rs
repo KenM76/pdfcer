@@ -22,12 +22,24 @@ pub(crate) enum MeterTintArg {
     Coloured,
 }
 
+/// `--illuminance-glow`: the light of glowing surfaces.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, clap::ValueEnum)]
+pub(crate) enum MeterGlowArg {
+    /// A glowing surface lights what it faces. A glow has no physical
+    /// strength, so a model with one reads relative.
+    #[default]
+    Counted,
+    /// Glowing surfaces light nothing, as in the picture.
+    LeftOut,
+}
+
 /// The `3d-render` options that measure the light on a surface.
 #[derive(Clone, Debug, PartialEq, clap::Args)]
 pub(crate) struct MeterArgs {
     /// Report the light arriving on the surface drawn at image position
     /// X,Y (as --pick), on the side facing the camera: the total, the
-    /// direct and bounced parts, and each light's direct part, shadows
+    /// direct and bounced parts, the part straight from glowing surfaces
+    /// (--illuminance-glow), and each light's direct part, shadows
     /// counted. The lights are the picture's: the model's own, an aimed
     /// sun and the --bounce settings. The figure is lux when every light
     /// in force states a physical strength (a glTF light does; a light
@@ -57,6 +69,10 @@ pub(crate) struct MeterArgs {
     /// What a lux figure does with a light's colour.
     #[arg(long, value_enum, default_value_t)]
     pub(crate) illuminance_tint: MeterTintArg,
+    /// What --illuminance does with surfaces that glow (a material that
+    /// gives off light), which a model may use where it has no lamp.
+    #[arg(long, value_enum, default_value_t)]
+    pub(crate) illuminance_glow: MeterGlowArg,
     /// Millimetres per model unit for --illuminance, when the model states
     /// none or states the wrong one (1000 for a model in metres). Lux from
     /// a point or spot light depends on it.
@@ -78,6 +94,10 @@ impl MeterArgs {
         };
         s.mm_per_unit = self.illuminance_unit_mm;
         s.gather_rays = self.illuminance_rays;
+        s.glow = match self.illuminance_glow {
+            MeterGlowArg::Counted => pdfcer_3d::GlowLight::Counted,
+            MeterGlowArg::LeftOut => pdfcer_3d::GlowLight::LeftOut,
+        };
         s
     }
 
@@ -122,7 +142,8 @@ impl MeterArgs {
                 Ok(r) => {
                     println!(
                         "{at} mesh={} point={} radius={} samples_on={} samples_off={} \
-                         unit={unit} total={:.6} direct={:.6} bounced={:.6} ambient={:.6}",
+                         unit={unit} total={:.6} direct={:.6} bounced={:.6} ambient={:.6} \
+                         emitted={:.6}",
                         hit.mesh,
                         hit.point.map(|c| format!("{c:.6}")).join(","),
                         self.illuminance_radius,
@@ -131,7 +152,8 @@ impl MeterArgs {
                         r.total,
                         r.direct,
                         r.bounced,
-                        r.ambient
+                        r.ambient,
+                        r.emitted
                     );
                     for l in &r.lights {
                         println!(

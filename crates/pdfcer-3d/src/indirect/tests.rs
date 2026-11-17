@@ -95,6 +95,7 @@ fn built(meshes: &[TriangleMesh], paint: &Paint, lamps: &[Lamp], threads: usize)
         surfaces: paint,
         lamps,
         sky: [0.0; 3],
+        glow: &[],
     };
     let mut v = Volume::with_ceiling(meshes, TEST_PROBES).unwrap();
     v.build(&scene, threads);
@@ -164,6 +165,7 @@ fn thread_count_and_step_budget_do_not_change_the_result() {
         surfaces: &paint,
         lamps: &lamps,
         sky: [0.0; 3],
+        glow: &[],
     };
     let mut stepped = Volume::with_ceiling(&meshes, TEST_PROBES).unwrap();
     let mut steps = 0;
@@ -306,6 +308,7 @@ fn a_lamp_behind_a_surface_lights_none_of_it() {
         surfaces: &paint,
         lamps: &lamps,
         sky: [0.0; 3],
+        glow: &[],
     };
     let p = [0.5, 2.0, 0.5];
     assert!(trace::direct(&scene, p, UP, 10.0)[0] > 1.0);
@@ -378,6 +381,7 @@ fn a_lone_sheet_lit_from_above_leaves_its_underside_dark() {
             surfaces: &paint,
             lamps: &[sun],
             sky: [0.0; 3],
+            glow: &[],
         };
         let mut v = Volume::with_ceiling(&meshes, probes).unwrap();
         v.build(&scene, 2);

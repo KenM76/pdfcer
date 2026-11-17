@@ -6,9 +6,10 @@
 //!
 //! Units: irradiance is the multiplier the renderer adds to a surface's
 //! direct shade term, so a white surface surrounded by surfaces lit to 1
-//! receives 1. Only the lamps given are sources; ambient, camera lights and
-//! emissive terms never are (decision 224: emissive carries surface colour
-//! on the measured corpus).
+//! receives 1. Only the lamps given are sources, and the meshes a scene
+//! names as glowing ([`Scene::glow`]); ambient and camera lights never are.
+//! A picture names no glowing mesh (decision 224: emissive carries surface
+//! colour on the measured corpus); the light meter may.
 //!
 //! Results are identical at any thread count and any step budget: each probe
 //! of a bounce is built from the previous bounce alone.
@@ -32,7 +33,7 @@ pub(crate) use atlas::Atlas;
 use grid::Grid;
 use octa::TEXELS;
 use trace::Published;
-pub(crate) use trace::lamp_direct;
+pub(crate) use trace::{glow_gather, lamp_direct};
 
 /// The most probes a volume holds.
 pub(crate) const MAX_PROBES: usize = 4096;
@@ -74,6 +75,9 @@ pub(crate) struct Scene<'a> {
     pub(crate) lamps: &'a [Lamp],
     /// The radiance of a ray that meets nothing.
     pub(crate) sky: [f64; 3],
+    /// The radiance each mesh gives off, by mesh index; a mesh past the
+    /// end gives off none.
+    pub(crate) glow: &'a [[f64; 3]],
 }
 
 impl Scene<'_> {
@@ -183,16 +187,17 @@ impl Volume {
         grid::gather(&self.grid, &self.current, &self.active, p, n)
     }
 
-    /// The bounced light at `p` on the side `n` faces, gathered there with
-    /// about `rays` rays ([`trace::final_gather`]) rather than blended from
-    /// the probes round it.
+    /// The bounced light at `p` on the side `n` faces, and the light
+    /// arriving there straight from glowing meshes, gathered with about
+    /// `rays` rays ([`trace::final_gather`]) rather than blended from the
+    /// probes round it.
     pub(crate) fn gathered(
         &self,
         scene: &Scene,
         p: [f64; 3],
         n: [f64; 3],
         rays: usize,
-    ) -> [f64; 3] {
+    ) -> ([f64; 3], [f64; 3]) {
         let last = Published {
             grid: &self.grid,
             probes: &self.current,
