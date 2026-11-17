@@ -200,6 +200,7 @@ mod page_ops;
 mod page_tree_nested_count;
 mod page_with_boxes;
 mod paste_annotation_geometry;
+mod paste_text_state;
 mod pdf15_streams;
 mod pkcs12_import;
 mod place_artwork;

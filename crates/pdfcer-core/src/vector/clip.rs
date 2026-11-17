@@ -1963,13 +1963,14 @@ pub(crate) fn transformed_bounds(b: Bounds, m: Matrix) -> Bounds {
 ///
 /// # What is emitted, and what deliberately is not
 ///
-/// Only state the decomposition already **measured**, and only when the item's
-/// own bytes do not set it:
+/// Only state the decomposition already **measured**:
 ///
-/// - **`Tf`** for a text object, from [`TextObject::font`] — the case the real
-///   file found.
+/// - **`Tf`** for a text object, from [`TextObject::font`], when its own bytes
+///   do not set one.
+/// - A text object's inherited colours and text state, from
+///   [`TextObject::inherited`], whatever its own bytes set later.
 /// - **`w`** (line width) and the fill/stroke colours for a path, from
-///   [`PathObject`]'s recorded values.
+///   [`PathObject`]'s recorded values, when its own bytes do not set them.
 ///
 /// Not emitted: dash patterns, `gs` parameters, clipping, blend modes,
 /// rendering intent. Those are **not in the object model**, so emitting
@@ -2002,6 +2003,10 @@ pub(crate) fn item_prelude(o: &VectorObject, own_bytes: &[u8]) -> Vec<u8> {
                 crate::writer::content::emit_number(&mut out, font.size);
                 out.extend_from_slice(b" Tf");
             }
+            // Colour and text state are written whatever the object's own
+            // bytes say: an operator part-way through the object leaves
+            // everything before it inheriting.
+            t.inherited.emit(&mut out);
         }
         VectorObject::Path(p) => {
             if !sets(b" w") && !out_starts_with_w(own_bytes) && p.line_width > 0.0 {

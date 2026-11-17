@@ -104,6 +104,7 @@ use crate::settings::UnmappableCode;
 use crate::span::ByteSpan;
 use crate::text_extract::{ExtractFont, LadderRung};
 use crate::text_state::TextStateParams;
+use crate::vector::text_inherited::TextInherited;
 use crate::view::DocumentView;
 
 use super::geometry::{Bounds, Matrix, Point, Rgb, cubic_from_v, cubic_from_y, rect_corners};
@@ -825,6 +826,10 @@ pub struct TextObject {
     /// form's `Do`. Unresolvable `/OC` names are absent, as the renderer
     /// treats them as visible. See [`VectorObject::is_hidden_under`].
     pub oc_chain: Vec<ObjId>,
+    /// The colour and text state in force at the object's `BT`: what its
+    /// bytes rely on without setting. A copy re-establishes it ahead of
+    /// the bytes.
+    pub inherited: TextInherited,
 }
 
 impl TextObject {
@@ -2539,6 +2544,8 @@ struct PathAccum {
 /// accumulator.
 struct TextAccum {
     token_start: usize,
+    /// See [`TextObject::inherited`].
+    inherited: TextInherited,
     /// The CTM in force at `BT` — see [`TextObject::ctm`].
     ctm: Matrix,
     /// The hull of every show operator's pen-START position, page space.
@@ -2643,9 +2650,10 @@ struct TextAccum {
 }
 
 impl TextAccum {
-    fn new(token_start: usize, ctm: Matrix) -> Self {
+    fn new(token_start: usize, ctm: Matrix, inherited: TextInherited) -> Self {
         Self {
             token_start,
+            inherited,
             ctm,
             origins: Bounds::EMPTY,
             runs: Vec::new(),
@@ -3200,7 +3208,12 @@ impl<'a> Decomposer<'a> {
             // ---- text objects (Table 107) ----
             b"BT" => {
                 self.discard_path(); // defensive: a path open across BT is malformed
-                self.text = Some(TextAccum::new(op_index, self.gs.ctm));
+                let inherited = TextInherited {
+                    fill: self.gs.fill_paint.clone(),
+                    stroke: self.gs.stroke_paint.clone(),
+                    text_state: self.gs.text,
+                };
+                self.text = Some(TextAccum::new(op_index, self.gs.ctm, inherited));
             }
             b"ET" => self.end_text(op_index),
 
@@ -3250,6 +3263,15 @@ impl<'a> Decomposer<'a> {
             b"Ts" => {
                 if let &[v] = nums.as_slice() {
                     self.gs.text.rise = v;
+                }
+            }
+            b"Tr" => {
+                if let &[v] = nums.as_slice()
+                    && (0.0..=7.0).contains(&v)
+                {
+                    #[allow(clippy::cast_possible_truncation)] // Range-checked above.
+                    let mode = v as i64;
+                    self.gs.text.render_mode = mode;
                 }
             }
             b"Td" => {
@@ -3963,6 +3985,7 @@ impl<'a> Decomposer<'a> {
         let bytes = self.span_of(t.token_start, op_index);
         let token_start = t.token_start;
         let ctm = t.ctm;
+        let inherited = t.inherited.clone();
         // The still-open run was already folded in by the `close_text_run`
         // at the top of this function.
         let runs = std::mem::take(&mut t.runs);
@@ -3984,6 +4007,7 @@ impl<'a> Decomposer<'a> {
             },
             bytes,
             ctm,
+            inherited,
         }));
     }
 

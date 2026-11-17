@@ -68,6 +68,7 @@ mod restack_state;
 pub mod snap;
 mod snap_annot;
 mod stroke_style;
+mod text_inherited;
 pub mod text_locate;
 
 // Re-export the primary surface at `crate::vector::…` so callers do not
@@ -127,4 +128,5 @@ pub use snap_annot::{
     MAX_MARKUP_SNAP_POINTS, MarkupSnapGeometry, markup_snap_geometry, snap_candidates_with_markups,
 };
 pub use stroke_style::{Dash, StrokeStyle, StrokeUnits};
+pub use text_inherited::TextInherited;
 pub use text_locate::{TextRunRef, locate_text_run, locate_text_runs};

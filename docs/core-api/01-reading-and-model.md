@@ -2390,7 +2390,7 @@ request G109).
 **`TextObject`** — `decompose.rs`. `page_bbox` (approximate),
 `runs: Vec<TextRun>` (per-show-op boxes), `approximate: bool`
 (**always `true`**), `bounds_basis: TextBoundsBasis`, `preview`,
-`font: Option<TextFont>`.
+`font: Option<TextFont>`, `inherited: vector::TextInherited` (`text_inherited.rs`) - the `fill` and `stroke` `PathPaint` and the `text_state` (`Tc`, `Tw`, `Tz`, `TL`, `Ts`, `Tr`) in force at the object's `BT`: what it starts with, not what an operator inside it may change. `copy_objects` / `copy_objects_in_form` write it ahead of the copied bytes (both colours always, a text-state parameter when it is not its initial value; a named colour space travels as a bound resource), so pasted text keeps its colour and spacing. Not carried: a pattern colour and `gs` alpha.
 
 **Text opacity reader (G225).** `vector::TextRun::fill_alpha: Option<f64>` is
 the `/ca` (§8.4.5 Table 58) in force when that run is shown, clamped `0..=1`,
