@@ -112,7 +112,25 @@ wherever it appears.*
 
 ## Shipped
 
+### `1fee82da` `v0.156.0` PUBLISHED, 2026-11-17 (1592nd filing)
+
+Engineer-reported; no shell here, nothing checked from here. Bump `a40088c4` (filed 1590th); `1fee82da` is the 1591st filing commit. Docs-only filing: no new code commit. Tag `v0.156.0` (annotated) is on `1fee82da`, pushed. CI green at that commit (run 44151413440, read from GitHub by the engineer).
+- **Carries, since `v0.155.0`:** `ce8fa9d2` (`Pass 721.0`, `G288`, light meter), `0598d562` (`Pass 721.1`, two-surface measure), `9e9a570b` (`Pass 720.2`, copied text keeps colour and text state), `37d649a4` (`Pass 722.0`, continue/open a path), `b5eb72e6` (`Pass 721.3`, `G289`, a light names its tree node), `9b288250` (`Pass 721.4`, `G290`, a model with every lamp left out drawn dark), bump `a40088c4`. **The release DOES carry `Pass 721.4`**: it is in the tagged commit's history, though the bump predates it (answers the 1591st filing's open question).
+- **Operator ruling governing it (Ken):** *"don't just release the light meter. There's a bunch of other features that need to come with it. check the feature requests folder, and when all is complete, then release the next version."*
+- **CI history:** the previous push `d8bdf2be` was RED on one audit, `check-register-entry-size` (the model-lights FEATURES row had grown to 1,376 characters, 1590th filing); fixed in `1fee82da` by trimming that row and giving `721.4` its own row. **Lesson:** run `tools/check-register-entry-size.py` on every filing before committing, and give a new capability its own FEATURES row rather than appending to an existing one.
+- **GitHub release:** "pdfcer v0.156.0", 8 assets (local sizes matched, `gh-release.py` PASS): `pdfcer-v0.156.0-windows-x64.zip` 32,495,594 bytes; `ocr-addon-ocrcer.zip` 3,789,155; `ocr-addon-ocrs.zip` 11,352,262; `ocr-addon-tesseract.zip` 4,483,685; a `.sha256` for each.
+- **Smoke:** build folder `D:\builds\pdfcer-20261117-1346-1fee82d`; fresh-folder smoke in `D:\builds\smoke156`: `--version` 0.156.0 / revision `v0.155.0-13-g1fee82da`; `3d-embed` and `3d-render` of `fixtures/synthetic/prc/assembly.prc` drew; `--dark-without-lights` gave a different, darker picture with the disclosure note; `--illuminance` ran and disclosed a relative figure.
+- **OneDrive:** slot `pdfcer1` (6 items, 87,516,161 bytes) now holds 0.156.0; `pdfcer2` keeps 0.155.0; the next release writes `pdfcer2`.
+- **`verify-release.py v0.156.0`:** every check ok except "working tree clean" (28 uncommitted paths, all agent-memory and untracked research notes; no code).
+- **crates.io:** 16 crates at 0.156.0 (`pdfcer-model`, `-color`, `-pkix`, `-vec3`, `-json`, `-jpeg-remux`, `-3d`, `-3d-nav`, `-image-codec`, `-fonts`, `-function`, `-text`, `-core`, `-render`, `-flatten`, `-emf`); no rate-limit error.
+- **Release tests (engineer-reported):** `cargo test -p pdfcer-3d -p pdfcer-cli --no-fail-fast` green at `9b288250` (`pdfcer-3d` 539; `pdfcer-cli` 131 + 1111 + 35 + 6). `pdfcer-core` was green on `d8bdf2be`'s tree (2376 lib, 3318 integration) and no core source changed after it.
+- **Channel:** request `request_tag_v0.156.0_for_the_light_meter.md` answered by `reply_tag_v0.156.0_for_the_light_meter_DONE.md` (doubles as the release notice), in `D:\Dev\FeatureRequests\pdfce_FeatureRequests\open`; SHIPPED replies exist for `G288`, `G289`, `G290`.
+- **Still open after the release:** `Pass 721.2`, `722.1` (awaits operator ruling), `722.2`, `647.3g`.
+- **FEATURES:** `Engine crates on crates.io` row advanced to 0.156.0; no capability row changed. No decision, no rule. Supersedes the "NOT yet tagged" status of the `a40088c4` note and the "Not in `v0.156.0`" bullet of the `9b288250` entry below.
+
 ### `9b288250` `Pass 721.4`: a model with every lamp left out can be drawn dark, 2026-11-17 (1591st filing)
+
+*(Amended 1592nd filing: the "Not in `v0.156.0`" bullet below is superseded; the release tag `1fee82da` carries this Pass. See the `v0.156.0` PUBLISHED entry above.)*
 
 Engineer-reported; no shell here, git, push and CI state not checked from here. `9b288250` `feat(3d): a model with every lamp left out can be drawn dark (Pass 721.4)` (16 files, +251/-90). `pdfcer-gui` request `G290` (`D:\Dev\FeatureRequests\pdfce_FeatureRequests\open\request_G290_a_model_with_every_lamp_off_gets_a_headlight.md`), answered by `open\reply_G290_a_model_with_every_lamp_off_gets_a_headlight_SHIPPED.md`. Opened and shipped in the same filing. Reasoning is in the commit message. `pdfcer-3d`; core and cli ticked, gui none (the GUI project has not adopted it).
 - **Problem:** a shell that switches a model's lamps off by leaving them out of `AssembledModel::lights` got the camera headlight once the last lamp was removed, because under the `Artwork` scheme an empty list means "the file carries no lights".
@@ -127,6 +145,8 @@ Engineer-reported; no shell here, git, push and CI state not checked from here. 
 - **Next free IDs:** `Pass 717.4`, `Pass 720.3`, `Pass 721.5`, `Pass 722.3`, `Pass 647.3h`.
 
 ### `a40088c4` `v0.156.0` release bump, 2026-11-17 (1590th filing)
+
+*(Amended 1592nd filing: this note said "NOT yet tagged, deployed or published"; tag, release, OneDrive `pdfcer1` and crates.io are in the `v0.156.0` PUBLISHED entry above, which also carries `Pass 721.4`, absent from the round list below.)*
 
 Engineer-reported; no shell here, git, push and CI state not checked from here. `a40088c4` `chore(release): v0.156.0`: the 17 workspace version strings `0.155.0` to `0.156.0` plus both lock files. **NOT yet tagged, deployed or published**; a separate publication filing follows after the tag.
 - **Round contents:** `Pass 721.0` (`ce8fa9d2`, light meter), `721.1` (`0598d562`, two-surface measure), `720.2` (`9e9a570b`, copied text keeps colour and text state), `722.0` (`37d649a4`, continue/open a path), `721.3` (`b5eb72e6`, below). All already filed.

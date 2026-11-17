@@ -4,6 +4,18 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-11-17 (1592nd filing) — `v0.156.0` PUBLISHED (carries `Pass 721.4`)
+
+**Filed (engineer-reported; no shell here, nothing checked from here):**
+- Tag `v0.156.0` (annotated) on `1fee82da` (the 1591st filing commit), pushed; CI green there (run 44151413440, read from GitHub). Carries `ce8fa9d2` (`721.0`), `0598d562` (`721.1`), `9e9a570b` (`720.2`), `37d649a4` (`722.0`), `b5eb72e6` (`721.3`), `9b288250` (`721.4`), bump `a40088c4`. Answers the 1591st filing's open question: the release DOES carry `721.4`. Governed by Ken's ruling to hold the release until the feature-request round was complete.
+- CI lesson: push `d8bdf2be` was RED on `check-register-entry-size` (model-lights FEATURES row at 1,376 characters, grown in the 1590th filing); fixed in `1fee82da` by trimming it and giving `721.4` its own row. Run `check-register-entry-size.py` on every filing before committing; a new capability gets its own FEATURES row.
+- GitHub release "pdfcer v0.156.0", 8 assets (portable zip 32,495,594 bytes; three `ocr-addon-*.zip` 3,789,155 / 11,352,262 / 4,483,685; each with `.sha256`); `gh-release.py` PASS at local sizes. Fresh-folder smoke (`D:\builds\smoke156`): `--version` 0.156.0 / `v0.155.0-13-g1fee82da`; `3d-embed`, `3d-render`, `--dark-without-lights` (darker, with note) and `--illuminance` (relative figure disclosed) all ran.
+- OneDrive `pdfcer1` (6 items, 87,516,161 bytes) holds 0.156.0; `pdfcer2` keeps 0.155.0; the next release writes `pdfcer2`. `verify-release.py v0.156.0`: all ok except "working tree clean" (28 uncommitted paths, none code). crates.io: 16 crates at 0.156.0.
+- Tests: `pdfcer-3d` 539 and `pdfcer-cli` 131 + 1111 + 35 + 6 green at `9b288250`; `pdfcer-core` green on `d8bdf2be`'s tree, no core source changed since.
+- Channel: `reply_tag_v0.156.0_for_the_light_meter_DONE.md` (also the release notice) answers `request_tag_v0.156.0_for_the_light_meter.md`.
+
+**Open:** `Pass 721.2`, `722.2` (Backlog), `722.1` (awaits operator ruling), `647.3g` (Next up). Next free IDs unchanged (`Pass 717.4`, `720.3`, `721.5`, `722.3`, `647.3h`). ROADMAP: one Shipped entry, two amendment notes (bump entry, `721.4` entry). FEATURES: crates.io row to 0.156.0. No decision, no rule.
+
 ## 2026-11-17 (1591st filing) — `Pass 721.4` SHIPPED (`9b288250`, a model with every lamp left out can be drawn dark, `G290`); opened and shipped in one filing
 
 **Filed (engineer-reported; no shell here, git, push and CI state not checked from here):**
