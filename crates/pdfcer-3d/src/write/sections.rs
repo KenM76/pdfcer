@@ -65,10 +65,6 @@ impl Ids {
     }
 }
 
-/// The globals section: an empty schema, one colour and one RGB style per
-/// material, the lights' colours and then the emissive colours after the
-/// materials', the texture entities, one material style per textured and
-/// per glowing material, and the solid line pattern every style names.
 /// A style's transparency: a flag, and when the material is not opaque its
 /// alpha as a byte.
 fn transparency(w: &mut BitWriter, m: Option<&crate::SceneMaterial>) {
@@ -79,6 +75,10 @@ fn transparency(w: &mut BitWriter, m: Option<&crate::SceneMaterial>) {
     }
 }
 
+/// The globals section: an empty schema, one colour and one RGB style per
+/// material, the lights' colours and then the emissive colours after the
+/// materials', the texture entities, one material style per textured and
+/// per glowing material, and the solid line pattern every style names.
 pub(super) fn globals(scene: &MeshScene, plan: &Plan) -> BitWriter {
     let mut w = BitWriter::default();
     w.uint(0).uint(GLOBALS);
