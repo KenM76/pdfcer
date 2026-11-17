@@ -112,6 +112,29 @@ wherever it appears.*
 
 ## Shipped
 
+### `37d649a4` `Pass 722.0`: continue an open path, and open a closed one, 2026-11-17 (1589th filing)
+
+Engineer-reported; no shell here, git, push and CI state not checked from here. `37d649a4` `feat(vector): continue an open path and open a closed one (Pass 722.0)`. Operator wish list. Reasoning is in the commit message. `pdfcer-core` plus CLI; core and cli ticked, gui none.
+- **Verbs:** `EditSession::extend_path`, `open_subpath`, `extend_path_in_form`, `open_subpath_in_form`; pure planners `vector::plan_extend_path`, `plan_open_subpath`; undo kinds `CommandKind::ExtendPath`, `OpenSubpath`.
+- **Refusals (six new `VectorEditError` variants):** `NoSegmentsGiven`, `NonFinitePoint`, `SubpathClosed`, `NotAnEndNode`, `SubpathAlreadyOpen`, `SubpathStartsImplicitly`.
+- **CLI:** `path-extend` and `path-open` (page object or `--leaf`). README subcommand count 255 working.
+- **Round-trip:** extend-at-end inserts only; undo restores the saved bytes byte-identically (tested).
+- **Not shipped, stays open:** joining two open ends; closing an open path (`Pass 722.2`, Backlog).
+- **Docs:** `docs/core-api/` verb count now 423.
+- **Tests added (engineer-reported):** 20 in `crates/pdfcer-core/tests/vector_path_extend.rs`; 4 CLI in `crates/pdfcer-cli/tests/node_shape.rs`.
+- **Gates (engineer-reported):** `pdfcer-core` (2376 lib, 3318 integration, 288 doc) and `pdfcer-cli` (131 bin, 1111 integration) green; `clippy --workspace --all-targets` clean. No manifest change, so `cargo tree` invariant untouched.
+- **FEATURES:** `Pass 722.0` Planned row moved to Implemented (core, cli ticked, gui open); no decision, no rule.
+
+### `9e9a570b` `Pass 720.2`: copied text keeps its colour and text state, 2026-11-17 (1589th filing)
+
+Engineer-reported; no shell here, git, push and CI state not checked from here. `9e9a570b` `fix(clip): copied text keeps its colour and text state`. Operator wish list (copy-paste text loses colour). Reasoning is in the commit message. `pdfcer-core`; core improved, cli and gui boxes unchanged.
+- **Behaviour:** a copied text object carries the fill and stroke colour and the text-state parameters (`Tc`, `Tw`, `Tz`, `TL`, `Ts`, `Tr`) it inherited at its `BT`, on both the page route (`copy_objects`) and the in-form route (`copy_objects_in_form`). A named colour space travels with the clip as a bound resource. The decomposer now tracks `Tr`.
+- **New pub:** `TextObject::inherited`, `vector::TextInherited`.
+- **Not carried:** pattern colours; `gs` alpha.
+- **Docs:** `docs/core-api/01-reading-and-model.md` updated in the code commit.
+- **Tests added (engineer-reported):** 6 integration (`tests/paste_text_state.rs`); 4 unit. Full `pdfcer-core` suite green; clippy and fmt clean (engineer-reported).
+- **FEATURES:** the copy/paste-of-page-objects row gained a clause; the `Pass 720.2` Planned row removed; cli and gui boxes unchanged. No decision, no rule.
+
 ### `0598d562` `Pass 721.1`: measure between two picked surfaces of a 3D model, with an adjustable parallel tolerance, 2026-11-17 (1588th filing)
 
 Engineer-reported; no shell here, git, push and CI state not checked from here. `0598d562` `feat(3d): measure between two picked surfaces (Pass 721.1)`. Operator request (Ken, chat, 2026-11-17). Reasoning is in the commit message. `pdfcer-3d` (`render` feature) plus CLI; core and cli ticked, gui none (the measure window is `pdfcer-gui`'s).
@@ -27457,12 +27480,15 @@ closes out the *prior* filing's business rather than opening this one's.
 
 > **1588th filing: operator direction (Ken, chat, 2026-11-17), RELEASE `v0.156.0` HELD until the open-request round is complete:** *"don't just release the light meter. There's a bunch of other features that need to come with it. check the feature requests folder, and when all is complete, then release the next version."* This supersedes the earlier "`721.0` alone, first" order. A triage of `D:\Dev\FeatureRequests\pdfce_FeatureRequests\open\` and the operator's wish list `D:\Dev\FeatureRequests\pdfcer-gui\KensFeatureRequestFile.MD` found the remaining engine work to be the three Passes below (all OPEN, none started; the "not yet taken up" requests the gate lists are otherwise shipped or GUI-side, per the engineer). IDs `720.2`, `722.0`, `647.3g`, `722.1` had zero hits as Passes across `docs/*.md` by grep (no shell; not run through `tools/check-ledger-numbers.py`). Next free IDs: `Pass 717.4`, `Pass 720.3`, `Pass 721.3`, `Pass 722.2`, `Pass 647.3h`.
 
-> **`Pass 720.2` (OPEN, NOT STARTED; gates `v0.156.0`): copied text keeps its colour and text state (bug; operator wish list: copy-paste text loses colour).** `item_prelude` in `crates/pdfcer-core/src/vector/clip.rs` emits only `Tf` for a text item. Fill and stroke colour, text render mode, character and word spacing, horizontal scale and alpha set before `BT` are not carried, so pasted text takes the destination's ambient state.
-> - **Acceptance:** copying red text and pasting it on another page yields red text, on the page route and the in-form route; a fixture test whose source colour differs from the destination default (must fail with the fix reverted); objects not touched stay byte-identical; the CLI route (`object-copy` and `paste`) is covered.
-> - **Disclosure (rule 4):** if any state cannot be carried, the paste says which.
+> **`Pass 720.2` SHIPPED 2026-11-17 (1589th filing), `9e9a570b`; see its *Shipped* entry, removed from this list.**
 
-> **`Pass 722.0` (OPEN, NOT STARTED; gates `v0.156.0`): continue an existing path, or open a closed one (operator wish list).** New `EditSession` verbs: append segments at the end node of an open subpath of an existing page path; open a closed subpath at a node. `_in_form` twins; CLI subcommands; undo; `docs/core-api/` entries (R151: no core-only verb).
-> - **Acceptance:** fixture tests for both verbs; round-trip minimal-diff (only the edited path's operators change); appending to a closed subpath is refused by name; undo restores the original bytes; the CLI route covered.
+> **`Pass 722.0` SHIPPED 2026-11-17 (1589th filing), `37d649a4`; see its *Shipped* entry, removed from this list.** Residue: `Pass 722.2` (Backlog).
+
+> **`Pass 721.3` (OPEN, NOT STARTED; gates `v0.156.0`; filed 1589th filing): model lights name the assembly-tree node that carries them (`pdfcer-gui` request `G289`, `D:\Dev\FeatureRequests\pdfce_FeatureRequests\open\request_G289_model_lights_name_their_tree_node.md`).** Crate `pdfcer-3d`. `prc::tree` knows each light's owning occurrence while assembling and drops the link before `AssembledModel`, so a shell cannot switch off the lamps under a folder.
+> - **Ask:** `ModelLight::node: Option<usize>` indexing `AssembledModel::tree`, and the owner on each `ViewLights` entry (the occurrence carrying the view). glTF-authored lights have `None`.
+> - **Contract:** state in `docs/core-api/` whether a hidden or suppressed occurrence's lights are still listed in `AssembledModel::lights` (engineer's stated intent: they are).
+> - **Acceptance:** fixture test that an occurrence's light names its node and a view's lights name the occurrence carrying the view; glTF lights read `None`; contract doc updated. Reply to `G289` owed when it ships.
+> - **Filing note:** ID chosen from the ledger's next-free list; zero hits for `721.3` as a Pass across `docs/` by grep (only "next free" mentions). Next free IDs: `Pass 717.4`, `Pass 720.3`, `Pass 721.4`, `Pass 722.3`, `Pass 647.3h`.
 
 > **`Pass 647.3g` (OPEN, NOT STARTED; NOT gating `v0.156.0` unless the operator says so): XFA page-background fields bind per page (request `X016` item 1, the only unshipped part of `X016`).** Part of the `Pass 647.x` arc (decision 204, paced slowly). The criteria sit under the `Pass 647.3` heading further down this file (heading status corrected this filing: `647.3a` to `647.3f` shipped); the fresh slice is the per-page instance index (`Area[0]`, `Area[1]`, ...), a per-page value surviving save and reopen, and `match="global"` or an explicit `<bind ref>` staying one shared value, synthetic templates only. Reply to `X016` owed when it ships.
 
@@ -38748,6 +38774,7 @@ Grouped by rough Acrobat Pro feature area. Each bucket gets scoped into
 real Pass entries as the engineer reaches it — this list exists so
 nothing gets forgotten, not as a commitment to build in this order.
 
+- **`Pass 722.2` (OPEN, NOT STARTED; filed 1589th filing; residue of `Pass 722.0`, `37d649a4`):** join two open ends of paths (merge two open subpaths, or two paths, into one), and close an open path (add the closing segment or `h`). Neither shipped with `722.0`; both want the same planner shape (`plan_*` plus `_in_form` twins, CLI, undo, R151). ID by grep: zero hits for `722.2` as a Pass before this filing (only "next free" mentions).
 - **`Pass 722.1` (OPEN, NOT STARTED; filed 1588th filing; NEEDS AN OPERATOR RULING BEFORE SCOPING):** rich-text (`/RC` plus `/DS`) authoring for text-box (FreeText) annotations: the operator wish list's "full formatting control" for markup text boxes. Ruling needed on which formatting set (runs, fonts, colours, sizes, lists, links) and on how a plain-`/Contents` fallback is kept in step. Not gating `v0.156.0`. ID by grep: zero hits for `722.1` before this filing.
 - **`Pass 721.2` (OPEN, NOT STARTED; filed 1587th filing; `721.1` SHIPPED `0598d562` covers the two-surface case only; to be scoped from `pdfcer-gui`'s requests):** the engine verbs the 3D measure window needs beyond `Pass 721.1` (Ken, chat, 2026-11-17: *"Also would like to see a measure tool dialogue windows with all the same options and capabilities of the Solidworks measure tool for assemblies."*). The window is `pdfcer-gui`'s (decisions 073, 128); handed over in `D:\Dev\FeatureRequests\pdfce_FeatureRequests\open\notice_2026-11-17_operator_asks_3d_measure_tool_window.md`, which holds the capability catalogue (capabilities only). Verbs: single-selection figures (face area and perimeter, edge length, vertex XYZ); circle/cylinder fit (radius, diameter, centre-to-centre, minimum and maximum distance); minimum distance between entities with dX/dY/dZ; point-to-point; projection onto the screen or a chosen plane (in-plane and normal distance); XYZ relative to a chosen coordinate system; projected area; units and precision formatting including dual units. Every fitted figure discloses its fit (rule 4). Scope it Pass-by-Pass when `pdfcer-gui` files its requests; ID by grep: zero hits for `721.2` before this filing. Next free IDs: `Pass 717.4`, `Pass 720.2`, `Pass 721.3`.
 - **`Pass 719.1` (OPEN, NOT STARTED; filed 1576th filing, request `X083`):** glTF node under two parents: import by copying the shared subtree under each parent within a fixed budget (e.g. 100,000 node copies, depth 64), with what is left out counted in a note; today `write_prc` refuses it (`NotATree`). The consumer offered code; the engine replied yes.

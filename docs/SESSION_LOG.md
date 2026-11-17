@@ -4,6 +4,20 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-11-17 (1589th filing) — `Pass 720.2` SHIPPED (`9e9a570b`, copied text keeps colour and text state); `Pass 722.0` SHIPPED (`37d649a4`, continue an open path / open a closed one); `Pass 721.3` (`G289`) opened; `722.2` filed
+
+**Filed (engineer-reported; no shell here, git, push and CI state not checked from here):**
+- `9e9a570b` `fix(clip): copied text keeps its colour and text state`: a copied text object carries fill and stroke colour and `Tc Tw Tz TL Ts Tr` inherited at its `BT`, page route (`copy_objects`) and in-form route (`copy_objects_in_form`); `TextObject::inherited`, `vector::TextInherited`; a named colour space travels as a bound resource; the decomposer tracks `Tr`. Not carried: pattern colours, `gs` alpha. Tests: 6 integration, 4 unit.
+- `37d649a4` `feat(vector): continue an open path and open a closed one (Pass 722.0)`: `extend_path`, `open_subpath`, `_in_form` twins, `plan_extend_path`, `plan_open_subpath`, `CommandKind::ExtendPath` / `OpenSubpath`, six new `VectorEditError` refusals, CLI `path-extend` and `path-open`. Tests: 20 core, 4 CLI. Extend-at-end inserts only; undo byte-identical. Full entries in ROADMAP *Shipped*.
+
+**New:**
+- `Pass 721.3` (Next up, gates `v0.156.0`): `pdfcer-gui` request `G289`, model lights name their assembly-tree node (`ModelLight::node`, owner on `ViewLights`), contract states hidden or suppressed occurrences' lights are still listed. Chosen from the ledger's next-free list; zero hits as a Pass across `docs/` by grep.
+- `Pass 722.2` (Backlog): join two open ends, close an open path (the residue of `722.0`). Zero hits as a Pass by grep. Not run through `tools/check-ledger-numbers.py` (no shell).
+
+**Premises corrected:** next free decision is `225` (ceiling `224` by `Glob` of `docs/decisions/22*` and the earlier "next free `225`" ledger entry), not `226`; the standing-rule ceiling is `R263`, next free `R264`, not `R251` (`R251` is long taken). Neither was needed: no decision and no rule minted. `Pass 720.2` and `722.0` were Next up as stated; Next-up entries are `>` banners as stated.
+
+**Open:** `v0.156.0` still HELD: `721.3` gates it; `647.3g` does not; the `paste-clipboard` rider (filed 1586th) still not reported done. Next free IDs: `Pass 717.4`, `Pass 720.3`, `Pass 721.4`, `Pass 722.3`, `Pass 647.3h`. `Pass 722.1` stays Backlog awaiting the operator. Reply to `G289` owed when `721.3` ships. FEATURES: `722.0` row added to Implemented (core, cli ticked); `720.2` folded into the copy/paste row (core only) and its Planned row removed; Planned rows added for `721.3` and `722.2`.
+
 ## 2026-11-17 (1588th filing) — `Pass 721.1` SHIPPED (`0598d562`, 3D two-surface measure); `v0.156.0` HELD for the open-request round; four new Passes filed (`720.2`, `722.0`, `647.3g`, `722.1`)
 
 **Filed (engineer-reported; no shell here, git, push and CI state not checked from here):**
