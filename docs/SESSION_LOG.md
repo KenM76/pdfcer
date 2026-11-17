@@ -4,6 +4,13 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-11-17 (1594th filing) — `v0.157.0` release bump (`e96fe055`, not yet published)
+
+**Filed (engineer-reported; no shell here, git, push and CI state not checked from here):**
+- `e96fe055` `chore(release): v0.157.0`: workspace version `0.156.0` to `0.157.0` in `Cargo.toml`, `Cargo.lock`, `fuzz/Cargo.lock` (53 insertions, 53 deletions); no code change. Committed locally, not pushed, not tagged. Round carries one code commit, `66ce4fd7` (`Pass 721.5`, `G291`, filed 1593rd in `ea4a689e`, pushed).
+
+**Open:** tag, package, deploy and publish are a separate filing; nothing is published. FEATURES: no change (no version marker or capability row affected; the crates.io row stays at 0.156.0 until publication). No Pass, decision or rule minted; next free IDs unchanged (`Pass 717.4`, `720.3`, `721.6`, `722.3`, `647.3h`; decision `225`; rule `R264`).
+
 ## 2026-11-17 (1593rd filing) — `Pass 721.5` SHIPPED (`66ce4fd7`, the light meter counts light from glowing surfaces, `G291`); opened and shipped in one filing; unreleased
 
 **Filed (engineer-reported; no shell here, git, push and CI state not checked from here):**

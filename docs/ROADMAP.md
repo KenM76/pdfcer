@@ -112,6 +112,11 @@ wherever it appears.*
 
 ## Shipped
 
+### `e96fe055` `v0.157.0` release bump, 2026-11-17 (1594th filing)
+
+Engineer-reported; no shell here, git, push and CI state not checked from here. `e96fe055` `chore(release): v0.157.0`: workspace version `0.156.0` to `0.157.0` in `Cargo.toml`, `Cargo.lock` and `fuzz/Cargo.lock` (53 insertions, 53 deletions). No code change. Committed locally, not yet pushed. **NOT yet tagged, deployed or published**; a separate publication filing follows after the tag.
+- **Round contents:** one code commit since `v0.156.0`: `66ce4fd7` (`Pass 721.5`, `G291`, the light meter counts glowing surfaces; filed 1593rd). No decision, no rule. Next free IDs unchanged: `Pass 717.4`, `720.3`, `721.6`, `722.3`, `647.3h`; decision `225`, rule `R264`.
+
 ### `66ce4fd7` `Pass 721.5`: the light meter counts light from glowing surfaces, 2026-11-17 (1593rd filing)
 
 Engineer-reported; no shell here, git, push and CI state not checked from here. `66ce4fd7` `feat(3d): the light meter counts light from glowing surfaces (Pass 721.5)`. `pdfcer-gui` request `G291` (`D:\Dev\FeatureRequests\pdfce_FeatureRequests\open\request_G291_glowing_parts_light_nothing_in_the_meter.md`, pinned `1fee82da` / `v0.156.0`). Opened and shipped in one filing. **Unreleased at filing** (goes out in `v0.157.0`, not yet tagged). Reasoning is in the commit message.
