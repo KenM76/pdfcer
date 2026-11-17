@@ -26,6 +26,44 @@ pub struct ModelLight {
     pub specular: Option<[f64; 3]>,
     /// The light's name, if the file gives one.
     pub name: Option<String>,
+    /// Its physical strength, when the source gave one. Nothing here is
+    /// drawn: [`Self::colour`] and [`Self::intensity`] are. `None` for a
+    /// light PRC stored without one, which is every PRC light pdfcer did
+    /// not write from glTF.
+    pub photometric: Option<Photometric>,
+}
+
+/// The title of the PRC attribute [WD 7.2.3.3, 7.4.3] pdfcer's writer
+/// carries a light's [`Photometric`] in; PRC defines no physical strength.
+pub(crate) const PHOTOMETRIC_TITLE: &str = "pdfcer:photometric";
+/// The attribute's key for [`Photometric::Candela`].
+pub(crate) const CANDELA_KEY: &str = "candela";
+/// The attribute's key for [`Photometric::Lux`].
+pub(crate) const LUX_KEY: &str = "lux";
+
+/// A light's physical strength ([`ModelLight::photometric`]), as glTF's
+/// `KHR_lights_punctual` states it. Distances are metres whatever the
+/// model's unit.
+#[derive(Debug, Clone, Copy, PartialEq)]
+#[non_exhaustive]
+pub enum Photometric {
+    /// Luminous intensity in candela (lumens per steradian): a point or
+    /// spot light. A surface facing it `d` metres away gets
+    /// `candela / d^2` lux.
+    Candela(f64),
+    /// Illuminance in lux on a surface facing it: a directional light, or
+    /// an ambient light that stands for no physical light (0).
+    Lux(f64),
+}
+
+impl Photometric {
+    /// The number, whichever unit it is in.
+    #[must_use]
+    pub fn value(self) -> f64 {
+        match self {
+            Photometric::Candela(v) | Photometric::Lux(v) => v,
+        }
+    }
 }
 
 /// A [`ModelLight`]'s kind and placement. Attenuation is
@@ -89,6 +127,7 @@ impl ModelLight {
             intensity: 1.0,
             specular: None,
             name: None,
+            photometric: None,
         }
     }
 }
@@ -240,6 +279,7 @@ pub(crate) struct StoredLight {
     pub(crate) colours: [u32; 3],
     pub(crate) intensity: f64,
     pub(crate) name: Option<String>,
+    pub(crate) photometric: Option<Photometric>,
 }
 
 /// One scene display parameters entity's lights.
@@ -273,6 +313,7 @@ impl StoredLight {
             intensity: self.intensity,
             specular: s.filter(|&s| self.colours[2] != self.colours[0] && s != colour),
             name: self.name.clone(),
+            photometric: self.photometric,
         }
     }
 }

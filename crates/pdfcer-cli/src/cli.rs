@@ -3329,6 +3329,11 @@ pub(crate) enum Command {
     /// point and the face's outward normal in model units, and the distance
     /// from the camera, or `miss` when the background is drawn there.
     ///
+    /// `--illuminance X,Y` reports the light arriving on the surface drawn
+    /// at that image position, in lux when the model's lights state a
+    /// physical strength and otherwise as a relative figure, with a note
+    /// saying which and why.
+    ///
     /// `--360` draws the whole sphere around the camera as an
     /// equirectangular panorama (2048 x 1024 unless a size is given); a
     /// `.jpg` output carries the Google Photo Sphere (GPano) XMP tag, so
@@ -3481,6 +3486,8 @@ pub(crate) enum Command {
         mode: crate::threed_cmd::RenderModeArgs,
         #[command(flatten)]
         light: crate::threed_cmd::LightArgs,
+        #[command(flatten)]
+        meter: crate::threed_cmd::MeterArgs,
         /// Draw without ambient occlusion. By default creases, corners and
         /// contacts are darkened by how much nearby surface rises around
         /// them, read from the depth of the finished picture; an unlit

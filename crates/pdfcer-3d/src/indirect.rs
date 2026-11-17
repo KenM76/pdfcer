@@ -18,7 +18,7 @@ mod grid;
 mod inside;
 mod octa;
 #[cfg(test)]
-mod tests;
+pub(crate) mod tests;
 mod trace;
 
 use crate::Bounds;
@@ -32,6 +32,7 @@ pub(crate) use atlas::Atlas;
 use grid::Grid;
 use octa::TEXELS;
 use trace::Published;
+pub(crate) use trace::lamp_direct;
 
 /// The most probes a volume holds.
 pub(crate) const MAX_PROBES: usize = 4096;
@@ -182,6 +183,24 @@ impl Volume {
         grid::gather(&self.grid, &self.current, &self.active, p, n)
     }
 
+    /// The bounced light at `p` on the side `n` faces, gathered there with
+    /// about `rays` rays ([`trace::final_gather`]) rather than blended from
+    /// the probes round it.
+    pub(crate) fn gathered(
+        &self,
+        scene: &Scene,
+        p: [f64; 3],
+        n: [f64; 3],
+        rays: usize,
+    ) -> [f64; 3] {
+        let last = Published {
+            grid: &self.grid,
+            probes: &self.current,
+            active: &self.active,
+        };
+        trace::final_gather(scene, &last, p, n, rays)
+    }
+
     /// Advances the build by about `budget` rays (at least one probe), on up
     /// to `threads` threads (0: every core); returns [`Self::is_done`].
     pub(crate) fn step(&mut self, scene: &Scene, budget: usize, threads: usize) -> bool {
@@ -262,7 +281,7 @@ fn batch_end(from: usize, len: usize, count: usize) -> usize {
 
 /// Runs `work(index, slot)` over `slots` (item `first` onwards), split into
 /// one contiguous chunk per worker.
-fn for_chunks<T: Send>(
+pub(crate) fn for_chunks<T: Send>(
     slots: &mut [T],
     first: usize,
     threads: usize,

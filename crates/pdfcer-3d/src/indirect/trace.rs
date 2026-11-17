@@ -113,34 +113,71 @@ fn arriving(
 /// ray-traced shadows (see-through surfaces pass their share). A lamp on
 /// the other side of the surface adds nothing.
 pub(crate) fn direct(scene: &Scene, p: [f64; 3], n: [f64; 3], far: f64) -> [f64; 3] {
+    scene.lamps.iter().fold([0.0; 3], |sum, lamp| {
+        add(sum, lamp_direct(scene, lamp, p, n, far))
+    })
+}
+
+/// [`direct`] for one lamp.
+pub(crate) fn lamp_direct(
+    scene: &Scene,
+    lamp: &Lamp,
+    p: [f64; 3],
+    n: [f64; 3],
+    far: f64,
+) -> [f64; 3] {
     let surfaces = scene.surfaces;
     let eps = 1e-9 * far;
-    let mut sum = [0.0; 3];
-    for lamp in scene.lamps {
-        let (l, distance, colour) = match lamp {
-            Lamp::Far { to_light, colour } => (*to_light, far, *colour),
-            Lamp::Near(local) => {
-                let Some((l, share)) = local.reach(p) else {
-                    continue;
-                };
-                let d = length(sub(local.position, p));
-                (l, d - eps, local.colour.map(|c| c * share))
-            }
-        };
-        let cos = dot(n, l);
-        if cos <= 0.0 || colour.iter().all(|&c| c == 0.0) {
+    let (l, distance, colour) = match lamp {
+        Lamp::Far { to_light, colour } => (*to_light, far, *colour),
+        Lamp::Near(local) => {
+            let Some((l, share)) = local.reach(p) else {
+                return [0.0; 3];
+            };
+            let d = length(sub(local.position, p));
+            (l, d - eps, local.colour.map(|c| c * share))
+        }
+    };
+    let cos = dot(n, l);
+    if cos <= 0.0 || colour.iter().all(|&c| c == 0.0) {
+        return [0.0; 3];
+    }
+    let ray = Ray {
+        origin: add(p, scale(n, eps)),
+        direction: l,
+        min_distance: eps,
+    };
+    let through = scene
+        .index
+        .transmittance(&ray, distance, |_| true, |h, w| surfaces.passes(h, w));
+    scale(colour, cos * through)
+}
+
+/// The bounced light arriving at `p` on the side its unit normal `n`
+/// faces: the cosine-weighted mean, over about `rays` directions on that
+/// side, of what each sees lit directly and by the last bounce.
+pub(crate) fn final_gather(
+    scene: &Scene,
+    last: &Published,
+    p: [f64; 3],
+    n: [f64; 3],
+    rays: usize,
+) -> [f64; 3] {
+    let far = 2.0 * last.grid.diagonal();
+    let origin = add(p, scale(n, 1e-9 * far));
+    let (mut sum, mut weight) = ([0.0; 3], 0.0);
+    for direction in sphere_directions(rays.saturating_mul(2), false) {
+        let c = dot(n, direction);
+        if c <= 0.0 {
             continue;
         }
-        let ray = Ray {
-            origin: add(p, scale(n, eps)),
-            direction: l,
-            min_distance: eps,
-        };
-        let through =
-            scene
-                .index
-                .transmittance(&ray, distance, |_| true, |h, w| surfaces.passes(h, w));
-        sum = add(sum, scale(colour, cos * through));
+        let (radiance, _) = arriving(scene, last, origin, direction, far);
+        sum = add(sum, scale(radiance, c));
+        weight += c;
     }
-    sum
+    if weight > 0.0 {
+        scale(sum, 1.0 / weight)
+    } else {
+        [0.0; 3]
+    }
 }

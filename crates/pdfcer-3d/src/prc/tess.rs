@@ -14,7 +14,9 @@ mod compressed;
 pub(crate) mod face;
 pub(crate) mod wire;
 
+use crate::Photometric;
 use crate::PrcError;
+use crate::model::light::{CANDELA_KEY, LUX_KEY, PHOTOMETRIC_TITLE};
 use crate::prc::bits::BitReader;
 use crate::prc::schema::Schema;
 use crate::prc::tess::face::{
@@ -159,6 +161,9 @@ pub(crate) struct Ctx<'a, 's> {
     pub(crate) name: Option<String>,
     /// The last `ContentPRCRefBase`'s PRC unique id [WD 7.2.3.2].
     pub(crate) uid: u32,
+    /// The last `ContentPRCBase`'s physical light strength: the attribute
+    /// pdfcer's writer puts on a light.
+    pub(crate) photometric: Option<Photometric>,
     /// Schema steps the reading pass has taken; a pass over several
     /// sections carries it from one reader to the next.
     pub(crate) schema_steps: u64,
@@ -186,6 +191,7 @@ impl<'a, 's> Ctx<'a, 's> {
             graphics: crate::prc::tree::Graphics::default(),
             name: None,
             uid: 0,
+            photometric: None,
             schema_steps: 0,
             elements: 0,
             names_cs: false,
@@ -235,43 +241,61 @@ impl Ctx<'_, '_> {
         (0..n).map(|_| self.r.double()).collect()
     }
 
-    /// `AttributeEntry` [WD 7.4.3]: a predefined title code or a string.
-    fn attribute_entry(&mut self) -> Result<(), PrcError> {
+    /// `AttributeEntry` [WD 7.4.3]: a predefined title code or a string;
+    /// the string when it is one.
+    fn attribute_entry(&mut self) -> Result<Option<String>, PrcError> {
         if self.r.bit()? {
             self.r.unsigned_integer()?;
+            Ok(None)
         } else {
-            self.r.string()?;
+            self.r.string()
         }
-        Ok(())
+    }
+
+    /// One `AttributeKeyValue`'s value [WD 7.4.3]; the number when it is a
+    /// double.
+    fn attribute_value(&mut self) -> Result<Option<f64>, PrcError> {
+        match self.r.unsigned_integer()? {
+            0 => {}
+            1 | 3 => {
+                self.r.integer()?;
+            }
+            2 => return self.r.double().map(Some),
+            4 => {
+                self.r.string()?;
+            }
+            // A 64-bit integer: high part, then low [PRCRS].
+            5 => {
+                self.r.integer()?;
+                self.r.unsigned_integer()?;
+            }
+            k => return Err(malformed(format!("attribute value kind {k}"))),
+        }
+        Ok(None)
     }
 
     /// `ContentPRCBase` [WD 7.2.3]: attributes, then the name; returns the
-    /// entity's name, which is also the current name afterwards.
+    /// entity's name, which is also the current name afterwards. Sets
+    /// [`Self::photometric`] from pdfcer's own attribute, clearing it when
+    /// the entity has none.
     pub(crate) fn content_prc_base(&mut self) -> Result<Option<String>, PrcError> {
+        self.photometric = None;
         let n = self.count(1, "attributes")?;
         for _ in 0..n {
             self.expect_type(ATTRIBUTE)?;
-            self.attribute_entry()?;
+            let ours = self.attribute_entry()?.as_deref() == Some(PHOTOMETRIC_TITLE);
             let pairs = self.count(2, "attribute pairs")?;
             for _ in 0..pairs {
-                self.attribute_entry()?;
-                match self.r.unsigned_integer()? {
-                    0 => {}
-                    1 | 3 => {
-                        self.r.integer()?;
+                let key = self.attribute_entry()?;
+                let value = self.attribute_value()?.filter(|v| ours && v.is_finite());
+                match (key.as_deref(), value) {
+                    (Some(CANDELA_KEY), Some(v)) => {
+                        self.photometric = Some(Photometric::Candela(v.max(0.0)));
                     }
-                    2 => {
-                        self.r.double()?;
+                    (Some(LUX_KEY), Some(v)) => {
+                        self.photometric = Some(Photometric::Lux(v.max(0.0)));
                     }
-                    4 => {
-                        self.r.string()?;
-                    }
-                    // A 64-bit integer: high part, then low [PRCRS].
-                    5 => {
-                        self.r.integer()?;
-                        self.r.unsigned_integer()?;
-                    }
-                    k => return Err(malformed(format!("attribute value kind {k}"))),
+                    _ => {}
                 }
             }
             self.skip_added(ATTRIBUTE)?;

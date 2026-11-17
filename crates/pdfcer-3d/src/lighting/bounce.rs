@@ -273,38 +273,48 @@ fn bouncing(
     camera: &Camera,
     basis: &[[f64; 3]; 3],
 ) -> Vec<Lamp> {
+    frame_lamps(shader, options, artwork, camera, basis)
+        .into_iter()
+        .filter_map(|(lamp, bounces)| bounces.then_some(lamp))
+        .collect()
+}
+
+/// Every light of `shader` as a lamp, in the shader's order (directional
+/// and camera lights, then point and spot lights), and whether it bounces
+/// under `options` when bounce is on. Arguments as [`bouncing`].
+pub(crate) fn frame_lamps(
+    shader: &Shader,
+    options: &RenderOptions,
+    artwork: bool,
+    camera: &Camera,
+    basis: &[[f64; 3]; 3],
+) -> Vec<(Lamp, bool)> {
     let every = options.indirect.bounce == Bounce::EveryLight;
     let artwork = artwork && options.lighting == LightingScheme::Artwork;
     let sun_last = matches!(options.shadow_light, ShadowLight::AimedSun(_));
-    let at_camera =
-        |colour: [f64; 3]| -> Option<Lamp> { every.then(|| headlight(camera, basis, colour)) };
+    let at_camera = |colour: [f64; 3]| (headlight(camera, basis, colour), every);
     match shader {
         Shader::Unlit => Vec::new(),
-        Shader::Headlight { gain } => at_camera([0.7 * gain; 3]).into_iter().collect(),
+        Shader::Headlight { gain } => vec![at_camera([0.7 * gain; 3])],
         Shader::Set { lights, local, .. } => {
             let mut out = Vec::new();
             for (i, (dir, colour)) in lights.iter().enumerate() {
                 let Some(d) = dir else {
-                    out.extend(at_camera(*colour));
+                    out.push(at_camera(*colour));
                     continue;
                 };
                 // `Shader::for_frame` adds an aimed sun as the last light;
                 // its direction is towards it whatever the sense.
                 let sun = sun_last && i + 1 == lights.len();
                 let fixed = artwork || sun || options.light_frame == LightFrame::World;
-                if !(fixed || every) {
-                    continue;
-                }
                 let to_light = match options.light_sense {
                     LightSense::Emitted if !sun => scale(*d, -1.0),
                     _ => *d,
                 };
-                out.push(Lamp::Far {
-                    to_light,
-                    colour: *colour,
-                });
+                let colour = *colour;
+                out.push((Lamp::Far { to_light, colour }, fixed || every));
             }
-            out.extend(local.iter().map(|l| Lamp::Near(*l)));
+            out.extend(local.iter().map(|l| (Lamp::Near(*l), true)));
             out
         }
     }
@@ -331,9 +341,9 @@ fn headlight(camera: &Camera, basis: &[[f64; 3]; 3], colour: [f64; 3]) -> Lamp {
 }
 
 /// The meshes as drawn, for bounce rays.
-struct Painted<'a, 'p> {
-    meshes: &'a [TriangleMesh],
-    paints: &'a [Paint<'p>],
+pub(crate) struct Painted<'a, 'p> {
+    pub(crate) meshes: &'a [TriangleMesh],
+    pub(crate) paints: &'a [Paint<'p>],
 }
 
 impl Painted<'_, '_> {

@@ -10,6 +10,7 @@ mod embed;
 mod gltf;
 mod light_args;
 mod lights;
+mod meter;
 mod mode;
 #[cfg(feature = "3d")]
 mod pick;
@@ -25,6 +26,7 @@ pub(crate) use embed::{EmbedThreeDArgs, PosterThreeDArgs, cmd_embed_3d, cmd_set_
 pub(crate) use gltf::{GltfHow, cmd_convert_3d};
 pub(crate) use light_args::LightArgs;
 pub(crate) use lights::{LightArg, parse_light};
+pub(crate) use meter::MeterArgs;
 pub(crate) use mode::RenderModeArgs;
 pub(crate) use picture::picture_size;
 pub(crate) use tree::cmd_tree_3d;
@@ -477,6 +479,7 @@ pub(crate) struct RenderThreeDArgs<'a> {
     pub(crate) line_width: u32,
     pub(crate) mode: RenderModeArgs,
     pub(crate) light: LightArgs,
+    pub(crate) meter: &'a MeterArgs,
     pub(crate) shadow_map_size: u32,
     pub(crate) ambient_occlusion: bool,
     pub(crate) artwork_headlight: bool,
@@ -720,6 +723,7 @@ fn render_from_bytes(
     print_texture_notes(model.textured, &model.texture_notes);
     pick::print_picks(a, &model.meshes, &camera);
     pick::print_projects(a, &camera);
+    a.meter.print(&model, &camera, &options);
     if model.overridden > 0 {
         println!(
             "note: {} placement(s) drawn in a colour an enclosing assembly overrides them with \

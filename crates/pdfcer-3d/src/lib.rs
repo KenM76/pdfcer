@@ -35,6 +35,8 @@ mod gltf;
 #[cfg(feature = "render")]
 mod gpu;
 #[cfg(feature = "render")]
+mod illuminance;
+#[cfg(feature = "render")]
 mod indirect;
 #[cfg(feature = "render")]
 mod lighting;
@@ -113,6 +115,12 @@ pub use gpu::wide_lines::GLSL_ES_300_WIDE_LINE_VERTEX;
 #[cfg(feature = "render")]
 pub use gpu::{Draw, DrawData, VERTEX_FLOATS};
 #[cfg(feature = "render")]
+pub use illuminance::{
+    Illuminance, IlluminanceError, IlluminanceNote, IlluminanceQuery, IlluminanceUnit, LightMeter,
+    LightShare, LightTint, MAX_ILLUMINANCE_RAYS, MAX_ILLUMINANCE_SAMPLES, MeterBasis,
+    MeterSettings, RelativeReason,
+};
+#[cfg(feature = "render")]
 pub use lighting::bounce::{Bounce, BounceSky, BounceStats, IndirectOptions, MAX_BOUNCE_STRENGTH};
 #[cfg(feature = "render")]
 pub use lighting::gain::{MAX_LIGHT_GAIN, MIN_LIGHT_GAIN};
@@ -125,7 +133,7 @@ pub use lighting::sun::{MAX_SUN_KELVIN, MIN_SUN_KELVIN, SunColour, SunLight, kel
 #[cfg(feature = "render")]
 pub use lighting::{Light, LightFrame, LightSet, LightingScheme, Lights};
 pub use model::export::{to_obj, to_stl};
-pub use model::light::{ModelLight, ModelLightKind, ViewLightUse, ViewLights};
+pub use model::light::{ModelLight, ModelLightKind, Photometric, ViewLightUse, ViewLights};
 pub use model::named_view::{NamedView, UnknownName, UpAxis};
 pub use model::node_box::NodeBox;
 pub use model::wire::ModelLine;

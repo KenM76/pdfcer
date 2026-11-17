@@ -579,3 +579,40 @@ fn supplied_normals_are_stored_not_replaced() {
         "one normal for three vertices"
     );
 }
+
+#[test]
+fn a_light_strength_is_written_only_when_there_is_one() {
+    let lamp = |photometric| {
+        let mut l = ModelLight::new(
+            ModelLightKind::Point {
+                position: [1.0, 2.0, 3.0],
+                attenuation: [1.0, 0.0, 0.5],
+            },
+            [0.5; 3],
+        );
+        l.photometric = photometric;
+        l
+    };
+    let written = |lights: Vec<ModelLight>| {
+        let mut s = scene();
+        s.lights = lights;
+        write_prc(&s).unwrap().prc
+    };
+    let plain = written(vec![lamp(None)]);
+    let stated = written(vec![lamp(Some(crate::Photometric::Candela(800.0)))]);
+    assert!(stated.len() > plain.len());
+    assert_eq!(assemble(&plain).unwrap().lights[0].photometric, None);
+    let back = assemble(&stated).unwrap().lights;
+    assert_eq!(
+        back[0].photometric,
+        Some(crate::Photometric::Candela(800.0))
+    );
+    // Nothing drawn changes with it.
+    assert_eq!(back[0].kind, assemble(&plain).unwrap().lights[0].kind);
+    let mut s = scene();
+    s.lights = vec![lamp(Some(crate::Photometric::Lux(f64::NAN)))];
+    assert_eq!(
+        write_prc(&s).err(),
+        Some(PrcWriteError::BadNumber("light strength"))
+    );
+}

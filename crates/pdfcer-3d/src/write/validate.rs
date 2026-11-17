@@ -211,6 +211,10 @@ fn check_numbers(scene: &MeshScene) -> Result<(), PrcWriteError> {
     for l in &scene.lights {
         finite(l.colour.into_iter().chain(l.ambient), "light colour")?;
         finite([l.intensity], "light intensity")?;
+        finite(
+            l.photometric.map(crate::Photometric::value),
+            "light strength",
+        )?;
         let (p, d, a, cone) = match l.kind {
             crate::ModelLightKind::Point {
                 position,

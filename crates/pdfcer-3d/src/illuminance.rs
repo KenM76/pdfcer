@@ -1,0 +1,310 @@
+//! Illuminance at a point on a model's surface, or averaged over a disc
+//! round it: [`LightMeter`].
+//!
+//! The figure is the light arriving on the surface, not the light it sends
+//! to the eye, so the surface's own colour plays no part in it; the colours
+//! of the surfaces light bounces off do.
+
+mod disc;
+mod plan;
+mod types;
+
+#[cfg(test)]
+mod tests;
+
+pub use types::{
+    Illuminance, IlluminanceError, IlluminanceNote, IlluminanceQuery, IlluminanceUnit, LightShare,
+    LightTint, MeterBasis, MeterSettings, RelativeReason,
+};
+
+use crate::camera::pick_index::PickIndex;
+use crate::indirect::{Lamp, Scene, Volume, for_chunks};
+use crate::lighting::Shader;
+use crate::lighting::bounce::{Bounce, BounceSky, Painted, frame_lamps};
+use crate::model::light::unit;
+use crate::render::raster::Paint;
+use crate::vec3::{add, length, scale, sub};
+use crate::{AssembledModel, Bounds, Camera, PreparedModel, RenderOptions, TriangleMesh};
+
+/// The most samples one [`LightMeter::read`] takes over a disc.
+pub const MAX_ILLUMINANCE_SAMPLES: usize = 4096;
+/// The most rays one [`LightMeter::read`] casts.
+pub const MAX_ILLUMINANCE_RAYS: usize = 4_000_000;
+/// The most [`MeterSettings::gather_rays`] used.
+const MAX_GATHER_RAYS: usize = 4096;
+/// Rec. 709 luminance weights: one number from linear red, green, blue.
+const LUMINANCE: [f64; 3] = [0.2126, 0.7152, 0.0722];
+
+/// One linear RGB triple as one number.
+fn luminance(c: [f64; 3]) -> f64 {
+    c.iter().zip(LUMINANCE).map(|(c, w)| c * w).sum()
+}
+
+/// Measures the light arriving on a model's surfaces under one set of
+/// lights. Built once ([`Self::new`], which builds the bounce as a picture
+/// does), then read at as many points as wanted ([`Self::read`]).
+///
+/// Every mesh of the model blocks and bounces light, painted as a solid
+/// picture paints it, whatever the render mode.
+pub struct LightMeter<'m> {
+    meshes: &'m [TriangleMesh],
+    paints: Vec<Paint<'m>>,
+    index: PickIndex,
+    /// Every light, and those among them that bounce.
+    lamps: Vec<Lamp>,
+    bouncing: Vec<Lamp>,
+    names: Vec<(String, Option<usize>)>,
+    volume: Option<Volume>,
+    strength: f64,
+    sky: [f64; 3],
+    ambient: [f64; 3],
+    /// Longer than any path inside the model.
+    far: f64,
+    gather_rays: usize,
+    threads: usize,
+    unit: IlluminanceUnit,
+    reasons: Vec<RelativeReason>,
+    notes: Vec<IlluminanceNote>,
+}
+
+impl std::fmt::Debug for LightMeter<'_> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("LightMeter")
+            .field("unit", &self.unit)
+            .field("lamps", &self.lamps.len())
+            .field("bounce", &self.volume.is_some())
+            .finish_non_exhaustive()
+    }
+}
+
+impl<'m> LightMeter<'m> {
+    /// A meter for `model` under the lights a picture from `camera` with
+    /// `options` uses: the model's own under
+    /// [`LightingScheme::Artwork`](crate::LightingScheme::Artwork), else the
+    /// scheme's; an aimed sun; and the bounce settings
+    /// ([`RenderOptions::indirect`]). The camera matters only for a light
+    /// that follows it.
+    ///
+    /// The figures are lux when every light in force has a
+    /// [`ModelLight::photometric`](crate::ModelLight::photometric) and the
+    /// model's unit is known; otherwise they are in the picture's own
+    /// shading units, and [`Self::reasons`] says why.
+    ///
+    /// # Errors
+    ///
+    /// [`IlluminanceError::Render`] as [`crate::render`] for the camera,
+    /// the light gain and an aimed sun.
+    pub fn new(
+        model: &'m AssembledModel,
+        prepared: &PreparedModel,
+        camera: &Camera,
+        options: &RenderOptions,
+        settings: &MeterSettings,
+    ) -> Result<Self, IlluminanceError> {
+        let basis = camera.basis()?;
+        let plan = plan::Plan::of(model, options, settings);
+        let shader = Shader::for_frame(&plan.options, &plan.lights, &basis)?;
+        let artwork = !plan.lights.is_empty();
+        let all = frame_lamps(&shader, &plan.options, artwork, camera, &basis);
+        let names = plan::names(&plan, all.len());
+        let indirect = plan.options.indirect;
+        let on = indirect.bounce != Bounce::Off && indirect.strength() > 0.0;
+        let bouncing: Vec<Lamp> = all
+            .iter()
+            .filter_map(|(lamp, bounces)| (on && *bounces).then_some(*lamp))
+            .collect();
+        let lamps: Vec<Lamp> = all.into_iter().map(|(lamp, _)| lamp).collect();
+        let meshes = &model.meshes[..];
+        let (paints, _) = prepared.paints(model, options);
+        let index = PickIndex::new(meshes);
+        let sky = match indirect.bounce_sky {
+            BounceSky::Dark => [0.0; 3],
+            BounceSky::Background => {
+                let [r, g, b, a] = options.background.map(|c| f64::from(c) / 255.0);
+                [r * a, g * a, b * a]
+            }
+        };
+        let mut volume = match bouncing.is_empty() {
+            true => None,
+            false => Volume::new(meshes),
+        };
+        if let Some(volume) = &mut volume {
+            let surfaces = Painted {
+                meshes,
+                paints: &paints,
+            };
+            let scene = Scene {
+                meshes,
+                index: &index,
+                surfaces: &surfaces,
+                lamps: &bouncing,
+                sky,
+            };
+            volume.build(&scene, options.threads);
+        }
+        let far = Bounds::of(meshes).map_or(1.0, |b| 2.0 * length(sub(b.max, b.min)));
+        Ok(LightMeter {
+            meshes,
+            paints,
+            index,
+            lamps,
+            bouncing,
+            names,
+            volume,
+            strength: indirect.strength(),
+            sky,
+            ambient: plan::ambient(&shader),
+            far: if far > 0.0 { far } else { 1.0 },
+            gather_rays: settings.gather_rays.clamp(1, MAX_GATHER_RAYS),
+            threads: options.threads,
+            unit: plan.unit,
+            reasons: plan.reasons,
+            notes: plan.notes,
+        })
+    }
+
+    /// What every reading is in.
+    #[must_use]
+    pub fn unit(&self) -> IlluminanceUnit {
+        self.unit
+    }
+
+    /// Why the readings are [`IlluminanceUnit::Relative`]; empty for lux.
+    #[must_use]
+    pub fn reasons(&self) -> &[RelativeReason] {
+        &self.reasons
+    }
+
+    /// What the meter assumed or left out: to be shown beside a reading.
+    #[must_use]
+    pub fn notes(&self) -> &[IlluminanceNote] {
+        &self.notes
+    }
+
+    /// The rays one sample costs.
+    fn rays_per_sample(&self) -> usize {
+        let gather = match self.volume {
+            Some(_) => self.gather_rays.saturating_mul(1 + self.bouncing.len()),
+            None => 0,
+        };
+        gather.saturating_add(self.lamps.len() + 2)
+    }
+
+    /// The light arriving at `query`'s point, or the mean over its disc.
+    ///
+    /// A disc lies in the plane through the point square to its normal;
+    /// each sample is dropped onto the picked mesh along the normal and
+    /// measured where it lands. A sample that lands on nothing, or on a
+    /// face turned more than 60 degrees from the normal, is counted in
+    /// [`Illuminance::off_edge`] and left out of the mean.
+    ///
+    /// # Errors
+    ///
+    /// [`IlluminanceError::BadQuery`] for a point, normal or radius that is
+    /// not usable; [`IlluminanceError::OffSurface`] when the point is not on
+    /// the mesh; [`IlluminanceError::TooManySamples`] and
+    /// [`IlluminanceError::TooMuchWork`] past the caps.
+    pub fn read(&self, query: &IlluminanceQuery) -> Result<Illuminance, IlluminanceError> {
+        let normal = unit(query.normal).ok_or(IlluminanceError::BadQuery("normal"))?;
+        if !query.point.iter().all(|c| c.is_finite()) {
+            return Err(IlluminanceError::BadQuery("point"));
+        }
+        if !(query.radius.is_finite() && query.radius >= 0.0) {
+            return Err(IlluminanceError::BadQuery("radius"));
+        }
+        let asked = if query.radius > 0.0 {
+            query.samples.max(1)
+        } else {
+            1
+        };
+        if asked > MAX_ILLUMINANCE_SAMPLES {
+            return Err(IlluminanceError::TooManySamples {
+                asked,
+                limit: MAX_ILLUMINANCE_SAMPLES,
+            });
+        }
+        let rays = asked.saturating_mul(self.rays_per_sample());
+        if rays > MAX_ILLUMINANCE_RAYS {
+            return Err(IlluminanceError::TooMuchWork {
+                rays,
+                limit: MAX_ILLUMINANCE_RAYS,
+            });
+        }
+        let spots = disc::spots(&self.index, self.far, query, normal, asked)
+            .ok_or(IlluminanceError::OffSurface)?;
+        let mut samples: Vec<Sample> = vec![Sample::default(); spots.len()];
+        for_chunks(&mut samples, 0, self.threads, &|i, slot: &mut Sample| {
+            if let Some(spot) = spots.get(i) {
+                *slot = self.measure(spot.point, spot.normal);
+            }
+        });
+        Ok(self.mean(&samples, asked - spots.len()))
+    }
+
+    /// The light at `p` on the side its unit normal `n` faces.
+    fn measure(&self, p: [f64; 3], n: [f64; 3]) -> Sample {
+        let surfaces = Painted {
+            meshes: self.meshes,
+            paints: &self.paints,
+        };
+        let scene = |lamps| Scene {
+            meshes: self.meshes,
+            index: &self.index,
+            surfaces: &surfaces,
+            lamps,
+            sky: self.sky,
+        };
+        let all = scene(&self.lamps);
+        let direct = self
+            .lamps
+            .iter()
+            .map(|lamp| crate::indirect::lamp_direct(&all, lamp, p, n, self.far))
+            .collect();
+        let bounced = self.volume.as_ref().map_or([0.0; 3], |v| {
+            let g = v.gathered(&scene(&self.bouncing), p, n, self.gather_rays);
+            scale(g, self.strength)
+        });
+        Sample { direct, bounced }
+    }
+
+    /// The mean of `samples` as a reading; `off_edge` samples were dropped.
+    fn mean(&self, samples: &[Sample], off_edge: usize) -> Illuminance {
+        let k = 1.0 / samples.len().max(1) as f64;
+        let mut per_lamp = vec![[0.0; 3]; self.lamps.len()];
+        let mut bounced = [0.0; 3];
+        for s in samples {
+            for (sum, d) in per_lamp.iter_mut().zip(&s.direct) {
+                *sum = add(*sum, scale(*d, k));
+            }
+            bounced = add(bounced, scale(s.bounced, k));
+        }
+        let lights: Vec<LightShare> = per_lamp
+            .iter()
+            .zip(&self.names)
+            .map(|(d, (name, model_light))| LightShare {
+                name: name.clone(),
+                model_light: *model_light,
+                direct: luminance(*d),
+            })
+            .collect();
+        let direct = lights.iter().map(|l| l.direct).sum();
+        let (bounced, ambient) = (luminance(bounced), luminance(self.ambient));
+        Illuminance {
+            unit: self.unit,
+            total: direct + bounced + ambient,
+            direct,
+            bounced,
+            ambient,
+            lights,
+            on_surface: samples.len(),
+            off_edge,
+        }
+    }
+}
+
+/// One sample: each lamp's direct light, and the bounced light.
+#[derive(Debug, Clone, Default)]
+struct Sample {
+    direct: Vec<[f64; 3]>,
+    bounced: [f64; 3],
+}

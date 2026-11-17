@@ -78,7 +78,7 @@ impl Ctx<'_, '_> {
             return Err(malformed(format!("entity type {t} as a light")));
         }
         self.content_prc_ref_base()?;
-        let name = self.name.clone();
+        let (name, photometric) = (self.name.clone(), self.photometric);
         let mut colours = [0; 3];
         for c in &mut colours {
             *c = self.r.unsigned_integer()?; // ambient, diffuse, specular + 1
@@ -113,6 +113,7 @@ impl Ctx<'_, '_> {
             colours,
             intensity,
             name,
+            photometric,
         })
     }
 

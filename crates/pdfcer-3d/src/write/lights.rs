@@ -3,7 +3,11 @@
 
 use super::BitWriter;
 use super::sections::ref_base;
-use crate::{ModelLight, ModelLightKind};
+use crate::model::light::{CANDELA_KEY, LUX_KEY, PHOTOMETRIC_TITLE};
+use crate::{ModelLight, ModelLightKind, Photometric};
+
+/// `PRC_TYPE_MISC_Attribute` [WD 7.4.3].
+const ATTRIBUTE: u32 = 201;
 
 const SCENE_DISPLAY_PARAMETERS: u32 = 741;
 const AMBIENT_LIGHT: u32 = 731;
@@ -86,6 +90,22 @@ pub(super) fn scene(
     w.bit(true);
 }
 
+/// `ContentPRCRefBase` of a light with a physical strength: one attribute
+/// [WD 7.2.3.3, 7.4.3] titled [`PHOTOMETRIC_TITLE`], holding one double
+/// keyed by its unit, then the name, CAD ids 0 and `id`. A reader that
+/// does not know the title skips the attribute.
+fn photometric_base(w: &mut BitWriter, name: Option<&str>, p: Photometric, id: u32) {
+    let (key, value) = match p {
+        Photometric::Candela(v) => (CANDELA_KEY, v),
+        Photometric::Lux(v) => (LUX_KEY, v),
+    };
+    w.uint(1).uint(ATTRIBUTE);
+    w.bit(false).string(Some(PHOTOMETRIC_TITLE)).uint(1);
+    w.bit(false).string(Some(key)).uint(2).double(value);
+    w.bit(false).string(name);
+    w.uint(0).uint(0).uint(id);
+}
+
 fn light(w: &mut BitWriter, l: &ModelLight, diffuse: u32, ambient: u32, id: u32) {
     let (_, scale) = stored(l);
     let fade = |a: [f64; 3]| a.map(|c| c / scale);
@@ -96,7 +116,10 @@ fn light(w: &mut BitWriter, l: &ModelLight, diffuse: u32, ambient: u32, id: u32)
         _ => SPOT_LIGHT,
     };
     w.uint(code);
-    ref_base(w, Some(l.name.as_deref()), id);
+    match l.photometric {
+        None => ref_base(w, Some(l.name.as_deref()), id),
+        Some(p) => photometric_base(w, l.name.as_deref(), p, id),
+    }
     // Ambient, diffuse, specular (biased, double-scaled); an ambient light's
     // own colour is its ambient one.
     match l.kind {

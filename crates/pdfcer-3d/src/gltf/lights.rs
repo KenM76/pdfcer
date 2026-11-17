@@ -10,7 +10,9 @@ use pdfcer_json::Json;
 
 use super::build::srgb;
 use super::{GltfImport, GltfLights, member};
-use crate::{IDENTITY, MAX_DEPTH, Matrix, ModelLight, ModelLightKind, multiply, transform_point};
+use crate::{
+    IDENTITY, MAX_DEPTH, Matrix, ModelLight, ModelLightKind, Photometric, multiply, transform_point,
+};
 
 /// The ambient light a normalised import adds.
 pub(super) const AMBIENT: f64 = 0.2;
@@ -103,8 +105,10 @@ fn disclose(mode: GltfLights, scale: f64, spots: usize, out: &mut GltfImport) {
             100.0 * (1.0 - AMBIENT),
             100.0 * AMBIENT
         ));
+        // A fill for the picture, standing for no physical light.
         out.scene.lights.push(ModelLight {
             name: Some("ambient".into()),
+            photometric: Some(Photometric::Lux(0.0)),
             ..ModelLight::new(ModelLightKind::Ambient, [AMBIENT; 3])
         });
     }
@@ -311,6 +315,11 @@ fn light(
         }
     };
     l.name = label;
+    // glTF's own number, whatever scale the picture uses.
+    l.photometric = Some(match l.kind {
+        ModelLightKind::Directional { .. } => Photometric::Lux(intensity),
+        _ => Photometric::Candela(intensity),
+    });
     Some(l)
 }
 

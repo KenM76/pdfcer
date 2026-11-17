@@ -280,3 +280,28 @@ fn exposure_falls_back_to_the_centre_when_nothing_is_lit() {
 fn exposure_is_the_default() {
     assert_eq!(GltfOptions::default().lights, GltfLights::Exposure);
 }
+
+#[test]
+fn each_light_keeps_the_strength_the_file_states() {
+    use crate::Photometric::{Candela, Lux};
+    let stated = [
+        Some(Candela(100.0)),
+        Some(Lux(3.0)),
+        Some(Candela(50.0)),
+        Some(Lux(0.0)),
+    ];
+    for lights in [GltfLights::Normalise, GltfLights::Exposure] {
+        let options = GltfOptions {
+            lights,
+            ..AS_STORED
+        };
+        let import = read(THREE, NODES, options);
+        let read: Vec<_> = import.scene.lights.iter().map(|l| l.photometric).collect();
+        assert_eq!(read, stated, "{lights:?}");
+        // The strength survives PRC, beside the light as drawn.
+        let m = assemble(&write_prc(&import.scene).unwrap().prc).unwrap();
+        let kept: Vec<_> = m.lights.iter().map(|l| l.photometric).collect();
+        assert_eq!(kept, stated, "{lights:?}");
+        assert_eq!(m.lights[0].name.as_deref(), Some("lamp"));
+    }
+}

@@ -25,7 +25,8 @@ impl Surfaces for Paint {
     }
 }
 
-fn quad(corners: [[f64; 3]; 4]) -> TriangleMesh {
+/// A quad of two triangles, facing the way its corners turn.
+pub(crate) fn quad(corners: [[f64; 3]; 4]) -> TriangleMesh {
     TriangleMesh {
         positions: corners.to_vec(),
         triangles: vec![[0, 1, 2], [0, 2, 3]],

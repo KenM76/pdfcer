@@ -3495,6 +3495,60 @@ let image = render_coloured(&meshes, &colours, &camera, &RenderOptions { width: 
   x= y=`, or `not drawn`, from `Camera::pixel_of`.
   CLI: `3d-render … --pick X,Y` (repeatable) prints `pick x= y= mesh=
   triangle= point= normal= distance=` or `pick x= y= miss`.
+- **Illuminance at a surface point** (`G288`, `render` feature):
+  `LightMeter::new(&model, &prepared, &camera, &options, &settings) ->
+  Result<LightMeter, IlluminanceError>` prepares the lights the picture is
+  drawn with (the model's own, the light at the camera, an aimed sun, the
+  scheme's, and the bounce `options.indirect` asks for); build it once and
+  call `read(&IlluminanceQuery) -> Result<Illuminance, IlluminanceError>`
+  per point. `IlluminanceQuery::new(mesh, point, normal)` or
+  `from_pick(&hit, &ray)` (the side the ray came from);
+  `.over_disc(radius, samples)` averages over a disc of `radius` model
+  units on the surface (sunflower samples; a sample is kept when it lands
+  on mesh `mesh` within 60 degrees of the query's normal).
+  `Illuminance { unit, total, direct, bounced, ambient, lights:
+  Vec<LightShare { name, model_light: Option<usize>, direct }>,
+  on_surface, off_edge }`: `total = direct + bounced + ambient`, `direct`
+  is the sum of `lights`, shadows by the model's geometry counted;
+  `on_surface` / `off_edge` count the disc's samples that landed and that
+  fell off the picked mesh (`1` / `0` for a point). Numbers are scalar:
+  Rec. 709 luminance of the RGB light.
+  `meter.unit()` is `IlluminanceUnit::Lux` only when `meter.reasons()` is
+  empty; otherwise `Relative` (the picture's shading units, 1.0 lights a
+  white surface to full white) and `reasons(): &[RelativeReason]` says why:
+  `Asked`, `PictureLights` (not lit by lights of the model), `Headlight`,
+  `Sun`, `UnitlessLights(n)`, `NoUnits`, `Sky` (bounce sky is the
+  background colour). `meter.notes(): &[IlluminanceNote]` states what was
+  assumed or left out (`PictureScaleUnused`, `AmbientFillLeftOut`,
+  `UnitAssumed`, `UnitGiven`, `TintApplied`, `DirectOnly`,
+  `BounceEstimated`, `BounceStrength(s)`); both implement `Display`.
+  In lux each light counts at `ModelLight::photometric`, point and spot
+  lights fade as `1 / d²` with `d` in metres, and `RenderOptions::light_gain`
+  and `lamp_cut` are not applied.
+  `MeterSettings { basis: MeterBasis::{Auto, Relative}, tint:
+  LightTint::{Neutral, Coloured}, mm_per_unit: Option<f64> (overrides
+  `AssembledModel::units`), gather_rays (128, at most 4096) }` is
+  `#[non_exhaustive]`: start from `MeterSettings::default()` and assign.
+  Refusals: `IlluminanceError::{BadQuery("normal" | "point" | "radius"),
+  OffSurface, TooManySamples { asked, limit: MAX_ILLUMINANCE_SAMPLES
+  (4096) }, TooMuchWork { rays, limit: MAX_ILLUMINANCE_RAYS (4,000,000) },
+  Render(RenderError)}`. A reading is CPU-only and uses
+  `options.threads`.
+  `ModelLight::photometric: Option<Photometric>` (`Photometric::{Candela(f64),
+  Lux(f64)}`, `value()`) is the strength the source file states, beside the
+  scaled `intensity` the picture draws with: the glTF importer sets it on
+  every light (point and spot candela, directional lux, the ambient fill
+  it adds `Lux(0.0)`) in every `GltfLights` mode; `write_prc` stores it as
+  a `pdfcer:photometric` attribute on the light (no bytes are written for
+  `None`) and `assemble` reads it back. A light from any other PRC file
+  has `None`.
+  CLI: `3d-render ... --illuminance X,Y` (repeatable; with
+  `--illuminance-radius`, `-samples`, `-rays`, `-basis`, `-tint`,
+  `-unit-mm`) prints `illuminance x= y= mesh= point= radius= samples_on=
+  samples_off= unit=lux|relative total= direct= bounced= ambient=`, one
+  `illuminance-light x= y= name= direct=` per light, `illuminance x= y=
+  miss` or `refused: <why>`, then `note: illuminance: ...` lines for the
+  reasons and notes.
 - `Placement::colour: Option<[f64; 4]>` is the part's colour from its tree
   (style inheritance and father/son heritage resolved, material diffuse and
   transparency applied), straight RGBA 0–1. `None`: no style reaches it or it

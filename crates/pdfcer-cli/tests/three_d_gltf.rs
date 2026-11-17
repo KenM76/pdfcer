@@ -564,3 +564,62 @@ fn a_model_lamp_bounces_by_default_and_off_says_nothing() {
     assert!(!note.contains("bounce:"), "{note}");
     assert_ne!(on, off, "the bounce adds light");
 }
+
+/// `--illuminance`: lux under a glTF lamp, by the inverse square of the
+/// distance in metres; a relative figure, with the reason, once a light
+/// with no physical strength joins; and the caps refuse by name.
+#[test]
+fn illuminance_is_lux_under_a_stated_lamp_and_relative_otherwise() {
+    let s = Scratch::new("lux");
+    std::fs::write(s.path("m.glb"), lamp_over_floor()).unwrap();
+    let pdf = format!(
+        "{}/../../fixtures/synthetic/minimal.pdf",
+        env!("CARGO_MANIFEST_DIR")
+    );
+    let (m, out, png) = (s.path("m.glb"), s.path("out.pdf"), s.path("x.png"));
+    let args = ["3d-embed", &pdf, "--model", &m, "--page", "1"];
+    stdout(&run(&[
+        &args[..],
+        &["--rect", "10,10,190,190", "--apply", "-o", &out],
+    ]
+    .concat()));
+    let read = |extra: &[&str]| {
+        let mut args = vec!["3d-render", &out, "--index", "0", "--eye=1,-3,4"];
+        args.extend_from_slice(&["--width", "120", "--height", "80", "-o", &png]);
+        // The floor's centre, under the lamp, is drawn mid-picture.
+        args.extend_from_slice(&["--illuminance", "60,40"]);
+        args.extend_from_slice(extra);
+        stdout(&run(&args))
+    };
+    // 5 candela half a metre up: 20 lux.
+    let lux = read(&[]);
+    assert!(
+        lux.contains("samples_on=1 samples_off=0 unit=lux total=20.0000"),
+        "{lux}"
+    );
+    assert!(lux.contains("illuminance-light x=60 y=40 name="), "{lux}");
+    assert!(
+        lux.contains("note: illuminance: each light counts at its stated strength"),
+        "{lux}"
+    );
+    assert!(!lux.contains("not lux"), "{lux}");
+    let half = read(&["--illuminance-unit-mm", "500"]);
+    assert!(half.contains("unit=lux total=80.0000"), "{half}");
+    let disc = read(&["--illuminance-radius", "3", "--illuminance-samples", "100"]);
+    assert!(disc.contains("samples_on=57 samples_off=43"), "{disc}");
+    let lit = read(&["--artwork-headlight"]);
+    assert!(lit.contains("unit=relative"), "{lit}");
+    let why = "note: illuminance: a relative figure, not lux: the light at the camera has no \
+               physical strength";
+    assert!(lit.contains(why), "{lit}");
+    assert!(lit.contains("name=\"headlight\""), "{lit}");
+    let asked = read(&["--illuminance-basis", "relative"]);
+    assert!(asked.contains("a relative figure was asked for"), "{asked}");
+    let many = read(&["--illuminance-radius", "1", "--illuminance-samples", "5000"]);
+    assert!(
+        many.contains("refused: 5000 samples asked for; the most is 4096"),
+        "{many}"
+    );
+    let miss = read(&["--illuminance", "2,2"]);
+    assert!(miss.contains("illuminance x=2 y=2 miss"), "{miss}");
+}
