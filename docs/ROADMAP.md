@@ -112,7 +112,22 @@ wherever it appears.*
 
 ## Shipped
 
-### `36f8e138` `chore(release): v0.154.0`, 2026-11-17: version bump filed; NOT yet published (1577th filing)
+### `96ba8e75` `v0.154.0` PUBLISHED, 2026-11-17 (1578th filing)
+
+Engineer-reported measurements; no shell here, nothing checked from here. Bump `36f8e138`, filed by `96ba8e75` (1577th). Tag `v0.154.0` is on `96ba8e75d53f90cc5c5e77721ec603d0d841fd44`, pushed. CI green at that commit (read from GitHub by the engineer).
+- **Carries:** `14f14ed8496981bf51939fe761bab0fcf71452c1` (`Pass 719.0`: `X083`-`X085`, glTF repeated roots and scene notes; PRC writer depth 64, huge-triangle normals, textured alpha, emissive check), `39c3a39eeb237f38f5e2554e7bfc2b8465bb5296` (doc-comment fix), bump `36f8e138cf823a9c471b4e33fcd2a6c11121e864`.
+- **GitHub release:** 8 assets uploaded at local sizes: `pdfcer-v0.154.0-windows-x64.zip` 32,384,385 bytes, three `ocr-addon-*.zip`, four `.sha256`.
+- **Package and smoke:** package `D:\builds\pdfcer-20261117-0223-96ba8e7`; fresh-folder smoke in `D:\builds\smoke154`: `pdfcer --version` printed 0.154.0, and `3d-convert` on a glTF with `"scene":7` and `"nodes":[0,0]` printed "scene 7 does not exist; scene 0 of 1 drawn" and "the scene lists a root node it already listed 1 times; each root is drawn once", exit 0.
+- **OneDrive:** wrote slot `pdfcer1`; `pdfcer2` keeps 0.153.0; the next release writes `pdfcer2`.
+- **`verify-release.py v0.154.0`:** every check ok except "working tree clean" (agent-memory files, two untracked `docs/research/request-*.md` drafts, a stray repo-root file `-`; none in the release; same as `v0.153.0`).
+- **crates.io:** all 16 crates at 0.154.0, published with `cargo publish --workspace --allow-dirty` and `CARGO_TARGET_DIR=target/pub`; first use of `--workspace` (cargo ordered the crates itself); no HTTP 429. Confirmed by the crates.io API for `pdfcer-model`, `pdfcer-3d`, `pdfcer-core`, `pdfcer-emf` (the other 12 not individually queried).
+- **Channel:** notice `D:\Dev\FeatureRequests\pdfce_FeatureRequests\open\notice_2026-11-17_release_v0.154.0.md` written.
+- **Process finding:** `check-public-fns-documented.py` went red after `78650261` was already pushed, because a helper inserted before `globals` took its doc comment (`39c3a39e`). Run the CI audit sweep before pushing a code commit, not only before the tag.
+- **FEATURES:** `Engine crates on crates.io` row advanced to 0.154.0; no capability row changed. No decision, no rule. Supersedes the "NOT yet published" status of the `36f8e138` note below.
+
+### `36f8e138` `chore(release): v0.154.0`, 2026-11-17: version bump filed; published in the 1578th filing above (1577th filing)
+
+*(Amended 1578th filing: this note said "NOT yet published"; tag, release, OneDrive `pdfcer1` and crates.io are in the entry above.)*
 
 Engineer-reported; no shell here, git, tag, push, CI, crates.io and backup state not checked from here. `36f8e138` on `main` bumps the workspace version and the 16 engine-crate pins from 0.153.0 to 0.154.0 in `Cargo.toml`, plus `Cargo.lock` and `fuzz/Cargo.lock`. Version bump only: no code change, no dependency change.
 - **Planned contents of `v0.154.0`:** `14f14ed8` (`Pass 719.0`, filed 1576th) and `39c3a39e` (below). Publication (tag, GitHub release, OneDrive `pdfcer1`, crates.io) will be the 1578th filing.
@@ -27299,6 +27314,18 @@ closes out the *prior* filing's business rather than opening this one's.
 
 ## Next up
 
+> **1578th filing: operator request (Ken, chat, 2026-11-17), five Passes, all OPEN, none started. `720.0`, `720.1`, `717.2` had zero hits across `docs/*.md` and `docs/history/` by grep (no shell; not run through `tools/check-ledger-numbers.py`). Next free IDs: `Pass 717.3`, `Pass 720.2`, `Pass 721.0`.** Ken's words: *"One thing deferred: carrying ce dimension groups through merge and insert so that count becomes zero. It's in the backlog; the GUI project has been told. Can you please complete this and grouping within groups. Also not sure if it was addressed but if I use the copy as vector commands (I assume if I use cut instead it has the same issue and if there isn't a cut yet to do this there should be) and paste into pdfcer instead of inkscape the paste is done as a bitmap instead of a vector - this was with an older version and haven't tried in the newest. Also please upgrade to the latest egui and refactor as nessecary."*
+>
+> **`Pass 718.2` (OPEN; moved here from Backlog; also closes `Pass 713.1`, the same gap, IDs not merged; filed 1573rd, `G286` ask 1).** Carry ce-dimension groups and records through `pageops::merge`, `insert_pages` / `insert_pages_with` / `paste_pages` and `merge_document`, so `ce_dimensions_as_lines` (`Pass 718.1`) is 0 on those routes. Acceptance: (a) a same-name group with identical settings (scale, format, standard, style) is matched, and the carried annotations point at its layer; (b) a same-name group with different settings is renamed "name (2)", "(3)"...; (c) existing groups and records are never rewritten, only appended; record ids are freshly allocated; (d) a source or target sidecar newer than this build is left alone, counted as lines and disclosed; (e) nothing carried means no catalog write (minimal diff); (f) one undo entry removes the pages and the records together; (g) save and reopen round-trips; (h) `set_group_scale` on a carried group regenerates its appearance; (i) counts of carried, matched and renamed groups on `AssembleReport`, `InsertOutcome`, `MergeOutcome`, printed by the CLI (rule 4). `merge_document` is the easiest first route (it already merges optional content). FEATURES: the extract/split ce-dimension row and the merge/insert rows. The GUI project has been told (`G286`).
+>
+> **`Pass 717.1` (OPEN; moved here from Backlog; owed by `Pass 717.0`, `G280` ask 3).** `EditSession::group_objects_in_form` / `ungroup_form_in_form`, and CLI `--leaf` on `group-objects` and `ungroup-form`. Acceptance: pixel-identical before and after; depth 2; a form drawn twice is edited in place with the reach disclosed (decision 076); refusals for a form inheriting page resources, the depth cap, and an inner form with `/Group` or `/OC`; one undo entry.
+>
+> **`Pass 717.2` (OPEN; new): groups of groups for markup annotations.** ISO 32000-1 12.5.6.2 defines a FLAT group (`/IRT` plus `/RT /Group` to one primary), so there is no chained `/IRT`. Ship: adding an existing group to another group merges them under one primary (a `merge_annotation_groups`-style verb plus CLI), disclosed; the flat model stated in the verb docs and the CLI help. Open design point, decided inside the Pass by the engineer (ship both, pick the default, per the operator's standing preference): whether pdfcer also records nesting in its own private data.
+>
+> **`Pass 720.0` (OPEN; new): engine CLI clipboard paste and cut.** A `pdfcer` verb that reads the OS clipboard and pastes the best form it holds onto a page, ranked PDF, SVG, EMF, PNG, DIB, printing which format it took (rule 4); a cut counterpart for the copy verbs that put vectors on the clipboard; a raw-DIB reader; correct the stale `copy-page` help that omits EMF. **Scout finding (read-only reading of the GUI source at HEAD `28f82236`, not a measurement):** the bitmap paste the operator saw is two GUI defects (copy-as-vector places no PDF on the clipboard; paste never reads SVG or EMF) and there is no cut-as-vector. That fix belongs to `pdfcer-gui` and was handed over in `D:\Dev\FeatureRequests\pdfce_FeatureRequests\open\notice_2026-11-17_operator_asks_vector_paste_and_cut_as_vector.md`. The operator's test was on an older version; not retried on the newest.
+>
+> **`Pass 720.1` (OPEN; new): `skrifa` 0.42 to 0.44** in `crates/pdfcer-render/Cargo.toml` and `crates/pdfcer-emf/Cargo.toml`, the engine's side of the egui 0.35 to 0.37 upgrade (egui 0.37 needs `skrifa` ^0.44, `read-fonts` ^0.41, `font-types` ^0.12.4; reading of the upgrade note, not measured here). The egui upgrade itself is `pdfcer-gui`'s work (decisions 073, 128), handed over in `notice_2026-11-17_operator_asks_egui_upgrade_to_latest.md`. Acceptance: one font stack in `cargo tree --duplicates`; engine gates green; `THIRD_PARTY_LICENSES.md` regenerated; a notice to the GUI project with the commit hash.
+
 > **1573rd filing: `G283`, `G284`, `G285`, `G287` SHIPPED as `Pass 718.0` (`011b78b0`); `G286` ask 2 as `Pass 718.1` (`7d8a7bf3`); see *Shipped*. `G286` ask 1 is OPEN as `Pass 718.2` (Backlog, overlaps `Pass 713.1`). `Pass 718.3` is the next free ID.**
 
 > **1572nd filing: `G280` SHIPPED as `Pass 717.0` (`7ec18b00`); `G281` as `Pass 715.0` (`99235b6f`), `G282` as `Pass 716.0` (`cdfbc01f`); see *Shipped*. No open `pdfcer-gui` request of this round is known from here. `Pass 717.1` (Backlog) is the owed `_in_form` twin; `Pass 717.2` is the next free ID.**
@@ -38569,17 +38596,7 @@ nothing gets forgotten, not as a commitment to build in this order.
 
 - **`Pass 719.1` (OPEN, NOT STARTED; filed 1576th filing, request `X083`):** glTF node under two parents: import by copying the shared subtree under each parent within a fixed budget (e.g. 100,000 node copies, depth 64), with what is left out counted in a note; today `write_prc` refuses it (`NotATree`). The consumer offered code; the engine replied yes.
 
-### `Pass 718.2`: carry ce-dimension groups and records through merge and the insert routes (OPEN, NOT STARTED; filed 1573rd filing, `G286` ask 1)
-
-Carry the source's ce-dimension groups and records through `pageops::merge`, `insert_pages`/`insert_pages_with`/`paste_pages` and `merge_document`: groups renamed on a name collision, group layers registered in the target's optional content, records' annotation and appearance ids remapped. `merge_document` is the easiest first route (it already merges optional content). When shipped, `ce_dimensions_as_lines` (`Pass 718.1`) drops to zero on those routes. **Same gap as `Pass 713.1`** (below); shipping either closes both, and the filing should say so.
-
-### `Pass 717.1`: `group_objects_in_form` / `ungroup_form_in_form` (OPEN, NOT STARTED; filed 1572nd filing, owed by `Pass 717.0`)
-
-`group_objects_in_form` / `ungroup_form_in_form` — `G280` ask 3; groups already nest at page level.
-
-### `Pass 713.1`: `merge` and insert-into-target carry no ce-dimension sidecar (OPEN, NOT STARTED; filed 1567th filing, known gap of `Pass 713.0`)
-
-`pageops::merge` passes `catalog_from: None`, so no source's Catalog `/PieceInfo` is read: ce dimensions on merged pages arrive as plain `/Line` annotations, no longer editable as ce dimensions. The same holds for ce dimensions on pages inserted INTO a target by `insert_with`. Extract, split and insert-to-new carry the sidecar (`Pass 713.0`, `530a6ffc`). Acceptance: merging two files that each hold ce dimensions keeps them editable, with the group and id re-pointing `dimension_carry.rs` does, and the report counts them. Documented in `docs/core-api/02`. **Same gap as `Pass 718.2`** (`G286` ask 1, filed later); whichever ships first should absorb the other. `Pass 718.1` (`7d8a7bf3`) now reports the count via `ce_dimensions_as_lines`.
+`Pass 718.2`, `Pass 717.1` and `Pass 713.1` moved to *Next up* (1578th filing).
 
 ### `Pass 703.0`-`703.14` — renderer, extraction and robustness edge cases (ARC, ACCEPTED, `703.0` SHIPPED complete (1494th filing), rest NOT STARTED; filed 1486th filing; request `X067`, operator as crates consumer; ahead of `702.0`-`702.6`)
 

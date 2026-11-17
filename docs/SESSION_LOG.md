@@ -4,6 +4,21 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-11-17 (1578th filing) — `v0.154.0` PUBLISHED; operator request filed as `Pass 718.2`, `717.1`, `717.2`, `720.0`, `720.1`
+
+**Filed (engineer-reported; no shell here, nothing checked from here):**
+- Tag `v0.154.0` on `96ba8e75d53f90cc5c5e77721ec603d0d841fd44` (the 1577th filing commit), pushed; CI green there (read from GitHub). Carries `14f14ed8` (`Pass 719.0`), `39c3a39e`, bump `36f8e138`.
+- GitHub release: 8 assets; portable zip 32,384,385 bytes; three add-on zips and four `.sha256`. Package `D:\builds\pdfcer-20261117-0223-96ba8e7`; smoke `D:\builds\smoke154`: version 0.154.0; `3d-convert` on a glTF with `"scene":7`, `"nodes":[0,0]` printed both new notes, exit 0.
+- OneDrive `pdfcer1` written; `pdfcer2` keeps 0.153.0; the next release writes `pdfcer2`. `verify-release.py`: all ok except "working tree clean" (known). crates.io: 16 crates at 0.154.0 via `cargo publish --workspace --allow-dirty`, `CARGO_TARGET_DIR=target/pub`, first `--workspace` use, no 429; the API confirmed 4 of 16 (`pdfcer-model`, `-3d`, `-core`, `-emf`).
+- Release notice `open/notice_2026-11-17_release_v0.154.0.md` written.
+- **Process finding:** `check-public-fns-documented.py` went red after `78650261` was already pushed (helper inserted before `globals` took its doc comment); run the CI audit sweep before pushing a code commit, not only before the tag.
+
+**Operator request (Ken, chat, verbatim in ROADMAP *Next up*), filed as five OPEN Passes:** `718.2` (carry ce dimension groups through merge and insert; closes `713.1`), `717.1` (`_in_form` group twins), `717.2` (groups of groups, flat per ISO 32000-1 12.5.6.2), `720.0` (CLI clipboard paste and cut), `720.1` (`skrifa` 0.42 to 0.44 for egui 0.37). `718.2` and `717.1` moved from Backlog to Next up; `713.1` was removed from Backlog (absorbed by `718.2`, not deleted from history). IDs `717.2`, `720.0`, `720.1` were free by grep of `docs/*.md` and `docs/history/`.
+
+**Hand-off notices (both written by the engineer):** `notice_2026-11-17_operator_asks_vector_paste_and_cut_as_vector.md` and `notice_2026-11-17_operator_asks_egui_upgrade_to_latest.md`, under `D:\Dev\FeatureRequests\pdfce_FeatureRequests\open\`. **The scout findings about the GUI source (HEAD `28f82236`) are read-only readings, not measurements**; the operator's bitmap-paste observation was on an older version and is not retried on the newest.
+
+**Open:** all five Passes NOT STARTED. ROADMAP: one Shipped entry, 36f8e138 note amended, one Next up banner group, three Backlog entries removed. FEATURES: crates.io row to 0.154.0; five Planned rows. No decision, no rule.
+
 ## 2026-11-17 (1577th filing) — `39c3a39e` doc-comment fix and `36f8e138` `v0.154.0` version bump (not yet published)
 
 **Filed (engineer-reported; no shell here, nothing checked from here):**
