@@ -112,6 +112,13 @@ wherever it appears.*
 
 ## Shipped
 
+### `6e9ed395` `chore(release): v0.155.0`, 2026-11-17: version bump filed; NOT yet published (1585th filing)
+
+Engineer-reported; no shell here, git, tag, push, CI, crates.io and backup state not checked from here. `6e9ed395` on `main`, local only when reported, bumps the workspace version and the 16 engine-crate pins from 0.154.0 to 0.155.0: 17 version strings in `Cargo.toml`, plus `Cargo.lock` and `fuzz/Cargo.lock`. Version bump only: no source change.
+- **Planned contents of `v0.155.0`** (code commits since `v0.154.0`, oldest first): `ac29b6d0` (`Pass 718.2`, merge and insert carry ce dimensions with their groups), `6e40897a` (OCR test fix), `b46412cc` (`Pass 717.1`, group and ungroup inside a form XObject), `3e65dc61` (`Pass 717.2`, merge annotation groups, ungroup one level at a time), `928f40cc` (`Pass 720.0`, paste the OS clipboard as vectors; copy or cut a selection to it), `ed006b9e` (`Pass 720.1`, font parser on the egui 0.37 line), `70030d61` (paste test helpers gated to Windows).
+- **State when reported:** `78550e8e` (the 1584th filing) was being pushed; CI colour for it not yet read. Not tagged, packaged or deployed. Publication (tag, GitHub release, OneDrive `pdfcer2`, crates.io) will be a later filing.
+- **FEATURES:** no change (crates.io row stays 0.154.0). No decision, no rule.
+
 ### `70030d61` `fix(cli): two paste test helpers were unused off Windows`, 2026-11-17: repairs the red CI left by `928f40cc` (1584th filing)
 
 Engineer-reported; no shell here, git, push and CI state not checked from here. `70030d61`, no new Pass ID, test-only: a `#[cfg(windows)]` attribute added in each of `crates/pdfcer-cli/tests/copy_page.rs` and `crates/pdfcer-cli/tests/paste_clipboard.rs`.

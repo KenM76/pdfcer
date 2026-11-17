@@ -4,6 +4,14 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-11-17 (1585th filing) — `6e9ed395` `v0.155.0` version bump (not yet published)
+
+**Filed (engineer-reported; no shell here, nothing checked from here):**
+- `6e9ed395` `chore(release): v0.155.0`: 17 version strings in `Cargo.toml` 0.154.0 to 0.155.0; `Cargo.lock`, `fuzz/Cargo.lock`. No source change. Local only when reported.
+- Will carry, since `v0.154.0`: `ac29b6d0` (`Pass 718.2`), `6e40897a`, `b46412cc` (`Pass 717.1`), `3e65dc61` (`Pass 717.2`), `928f40cc` (`Pass 720.0`), `ed006b9e` (`Pass 720.1`), `70030d61`.
+
+**Open:** NOT tagged, packaged or deployed; `78550e8e` was being pushed and its CI colour not yet read. Publication (OneDrive slot `pdfcer2`) is a later filing. ROADMAP: one new Shipped note. FEATURES: no change. No decision, no rule.
+
 ## 2026-11-17 (1584th filing) — `70030d61` (two paste test helpers unused off Windows; CI repair)
 
 **Filed (engineer-reported; no shell here, nothing checked from here):**
