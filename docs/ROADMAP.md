@@ -112,6 +112,20 @@ wherever it appears.*
 
 ## Shipped
 
+### `9b288250` `Pass 721.4`: a model with every lamp left out can be drawn dark, 2026-11-17 (1591st filing)
+
+Engineer-reported; no shell here, git, push and CI state not checked from here. `9b288250` `feat(3d): a model with every lamp left out can be drawn dark (Pass 721.4)` (16 files, +251/-90). `pdfcer-gui` request `G290` (`D:\Dev\FeatureRequests\pdfce_FeatureRequests\open\request_G290_a_model_with_every_lamp_off_gets_a_headlight.md`), answered by `open\reply_G290_a_model_with_every_lamp_off_gets_a_headlight_SHIPPED.md`. Opened and shipped in the same filing. Reasoning is in the commit message. `pdfcer-3d`; core and cli ticked, gui none (the GUI project has not adopted it).
+- **Problem:** a shell that switches a model's lamps off by leaving them out of `AssembledModel::lights` got the camera headlight once the last lamp was removed, because under the `Artwork` scheme an empty list means "the file carries no lights".
+- **Delivered:** `pub enum EmptyArtwork { Headlight (default), Dark }` (`#[non_exhaustive]`) and `RenderOptions::empty_artwork`. Under `Dark` an empty list is drawn with no lamp light (surfaces show what they emit; `artwork_headlight`, an aimed sun and the bounce's sky still apply when asked). A non-empty list draws identically under either; default behaviour unchanged. One crate-private decision function `lighting::model_lit` is asked by the shader, the bounce lamp list, `BounceStats` and the light meter's plan. Light meter under `Dark` with an empty list: 0 lux, no lights listed, not a `RelativeReason::PictureLights` reason.
+- **Design choice (commit body):** an option rather than a per-light on/off flag, so light indices never need keeping in step across shader, shadows, bounce, GPU frame and meter.
+- **CLI:** `pdfcer 3d-render --dark-without-lights`; the lighting note states which of the two an unlit model got (fuzzy-never-sneaky). The scheme-note code moved to `crates/pdfcer-cli/src/threed_cmd/scheme.rs` to keep `threed_cmd.rs` under the 800-line limit.
+- **Docs:** `docs/core-api/01-reading-and-model.md` gained "An empty light list (`G290`)" (engineer-reported 5,442 lines).
+- **Tests (engineer-reported):** `cargo test -p pdfcer-3d -p pdfcer-cli --no-fail-fast` green: `pdfcer-3d` 539; `pdfcer-cli` 131 bin, 1111 integration (2 ignored), 35, 6. New: `every_lamp_left_out_is_dark_when_asked` (shader), `a_model_with_every_lamp_left_out_reads_nothing` (meter), additions to `render_lighting_is_reported_and_threads_draw_the_same_image`. Sabotage (removing the `Dark` clause from `model_lit`) failed both engine tests.
+- **Gates (engineer-reported):** clippy `--workspace --all-targets -D warnings` and fmt clean; `check-core-api-verbs`, `check-code-structure`, `check-public-fns-documented`, `check-clap-help`, `check-cli-help-leads` pass. No manifest changed, so `cargo tree` invariant untouched; no new dependency. Render-only, no writer change, round-trip unaffected.
+- **Not in `v0.156.0`:** the bump `a40088c4` predates this commit; whether the release carries it is for the tag filing to state (not checked here).
+- **FEATURES:** the model-lights row gained the "empty list drawn dark, `--dark-without-lights`" clause (core, cli ticked; gui open). No decision, no rule.
+- **Next free IDs:** `Pass 717.4`, `Pass 720.3`, `Pass 721.5`, `Pass 722.3`, `Pass 647.3h`.
+
 ### `a40088c4` `v0.156.0` release bump, 2026-11-17 (1590th filing)
 
 Engineer-reported; no shell here, git, push and CI state not checked from here. `a40088c4` `chore(release): v0.156.0`: the 17 workspace version strings `0.155.0` to `0.156.0` plus both lock files. **NOT yet tagged, deployed or published**; a separate publication filing follows after the tag.
@@ -27503,6 +27517,8 @@ closes out the *prior* filing's business rather than opening this one's.
 > **`Pass 722.0` SHIPPED 2026-11-17 (1589th filing), `37d649a4`; see its *Shipped* entry, removed from this list.** Residue: `Pass 722.2` (Backlog).
 
 > **`Pass 721.3` SHIPPED 2026-11-17 (1590th filing), `b5eb72e6`; see its *Shipped* entry, removed from this list.** The `v0.156.0` round is complete except publication: bump `a40088c4` is filed (1590th), tag and publish are a separate filing.
+
+> **`Pass 721.4` SHIPPED 2026-11-17 (1591st filing), `9b288250`; see its *Shipped* entry (opened and shipped in one filing, `G290`).** Next free IDs: `Pass 717.4`, `Pass 720.3`, `Pass 721.5`, `Pass 722.3`, `Pass 647.3h`.
 
 > **`Pass 647.3g` (OPEN, NOT STARTED; NOT gating `v0.156.0` unless the operator says so): XFA page-background fields bind per page (request `X016` item 1, the only unshipped part of `X016`).** Part of the `Pass 647.x` arc (decision 204, paced slowly). The criteria sit under the `Pass 647.3` heading further down this file (heading status corrected this filing: `647.3a` to `647.3f` shipped); the fresh slice is the per-page instance index (`Area[0]`, `Area[1]`, ...), a per-page value surviving save and reopen, and `match="global"` or an explicit `<bind ref>` staying one shared value, synthetic templates only. Reply to `X016` owed when it ships.
 

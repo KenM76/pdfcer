@@ -4,6 +4,13 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-11-17 (1591st filing) — `Pass 721.4` SHIPPED (`9b288250`, a model with every lamp left out can be drawn dark, `G290`); opened and shipped in one filing
+
+**Filed (engineer-reported; no shell here, git, push and CI state not checked from here):**
+- `9b288250` `feat(3d): a model with every lamp left out can be drawn dark (Pass 721.4)` (16 files, +251/-90): `EmptyArtwork { Headlight, Dark }` (`#[non_exhaustive]`, default `Headlight`) and `RenderOptions::empty_artwork`; under `Dark` an empty `AssembledModel::lights` is drawn with no lamp light and the light meter reads 0 lux. One crate-private `lighting::model_lit` feeds shader, bounce lamp list, `BounceStats` and meter plan. Option chosen over a per-light on/off flag so indices need no syncing. CLI `3d-render --dark-without-lights`, lighting note says which an unlit model got; scheme-note code moved to `threed_cmd/scheme.rs` (the 800-line limit). Contract paragraph "An empty light list (`G290`)" in `docs/core-api/01-reading-and-model.md`. Tests: `pdfcer-3d` 539; `pdfcer-cli` 131 + 1111 (2 ignored) + 35 + 6; 2 new engine tests, sabotage failed both. Reply `reply_G290_a_model_with_every_lamp_off_gets_a_headlight_SHIPPED.md` written in `D:\Dev\FeatureRequests\pdfce_FeatureRequests\open`. Full entry in ROADMAP *Shipped*.
+
+**Open:** `v0.156.0` bumped (`a40088c4`, 1590th) but NOT tagged or released; the bump predates `9b288250`, so the tag filing must say whether the release carries it. `Pass 721.2`, `722.2` (Backlog), `722.1` (awaits operator ruling), `647.3g` (Next up) unchanged. The `paste-clipboard` rider (filed 1586th) still not reported done. Next free IDs: `Pass 717.4`, `Pass 720.3`, `Pass 721.5`, `Pass 722.3`, `Pass 647.3h`; decision `225`, rule `R264` (premises as relayed, not re-measured; no decision, no rule minted). FEATURES: model-lights row gained the dark-without-lights clause (core, cli ticked, gui open).
+
 ## 2026-11-17 (1590th filing) — `Pass 721.3` SHIPPED (`b5eb72e6`, model lights name their tree node, `G289`); `v0.156.0` release bump (`a40088c4`, not yet published)
 
 **Filed (engineer-reported; no shell here, git, push and CI state not checked from here):**
