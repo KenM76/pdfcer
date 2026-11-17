@@ -172,7 +172,7 @@ mod printer_marks;
 mod redact_outside;
 pub use page_boxes::{PageBox, PageBoxChange, PageBoxEdit};
 mod annot_group;
-pub use annot_group::{AnnotationGroupChange, AnnotationGroupError};
+pub use annot_group::{AnnotationGroupChange, AnnotationGroupError, GroupNesting};
 mod form_group;
 mod group;
 pub use form_group::{FormGroupOutcome, FormUngroupOutcome};

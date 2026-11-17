@@ -2,11 +2,12 @@
 //! group (pdfcer-gui request G280).
 
 use pdfcer_core::document::Document;
-use pdfcer_core::edit::{AnnotationGroupError, CommandKind, EditError, EditSession};
+use pdfcer_core::edit::{AnnotationGroupError, CommandKind, EditError, EditSession, GroupNesting};
 use pdfcer_core::object::ObjId;
 use pdfcer_core::writer::SaveOptions;
 
-/// Page 1: 6 square, 7 circle, 8 link, 9 a text reply to 6, 10 line.
+/// Page 1: 6 square, 7 circle, 8 link, 9 a text reply to 6, 10 line, 12 ink,
+/// 13 stamp, 14 caret.
 /// Page 2: 11 square.
 fn fixture() -> Vec<u8> {
     let annot = |kind: &str, extra: &str| {
@@ -18,7 +19,7 @@ fn fixture() -> Vec<u8> {
     let objs = [
         "<< /Type /Catalog /Pages 2 0 R >>".to_owned(),
         "<< /Type /Pages /Kids [3 0 R 4 0 R] /Count 2 >>".to_owned(),
-        page("6 0 R 7 0 R 8 0 R 9 0 R 10 0 R"),
+        page("6 0 R 7 0 R 8 0 R 9 0 R 10 0 R 12 0 R 13 0 R 14 0 R"),
         page("11 0 R"),
         "<< >>".to_owned(),
         annot("Square", "/Contents (primary)"),
@@ -27,6 +28,9 @@ fn fixture() -> Vec<u8> {
         annot("Text", "/IRT 6 0 R"),
         annot("Line", "/L [10 10 50 50]"),
         annot("Square", ""),
+        annot("Ink", ""),
+        annot("Stamp", ""),
+        annot("Caret", ""),
     ];
     let mut buf = b"%PDF-1.7\n%\xE2\xE3\xCF\xD3\n".to_vec();
     let mut offsets = Vec::new();
@@ -141,4 +145,136 @@ fn what_cannot_be_grouped_is_refused_by_name() {
         s.group_annotations(id(6), &[id(99)]),
         Err(EditError::AnnotationNotFound { .. })
     ));
+}
+
+/// Groups 6+7 and 12+13, then 14 on its own.
+fn two_groups() -> EditSession {
+    let mut s = session();
+    s.group_annotations(id(6), &[id(7)]).unwrap();
+    s.group_annotations(id(12), &[id(13)]).unwrap();
+    s
+}
+
+#[test]
+fn a_merge_is_one_flat_group_and_ungrouping_gives_both_groups_back() {
+    let mut s = two_groups();
+    let depth = s.undo_depth();
+    // Named by members on both sides; the loner comes along.
+    let out = s
+        .merge_annotation_groups(id(7), &[id(13), id(14)], GroupNesting::Recorded)
+        .unwrap();
+    assert_eq!(out.primary, id(6));
+    assert_eq!(out.members, vec![id(7), id(12), id(13), id(14)]);
+    assert_eq!(out.disclosures.len(), 1, "{:?}", out.disclosures);
+    assert!(out.disclosures[0].contains("2 earlier group(s)"));
+    assert_eq!(s.undo_depth(), depth + 1);
+    assert_eq!(s.undo_kind(), Some(CommandKind::GroupAnnotations));
+    for n in [7, 12, 13, 14] {
+        assert_eq!(link(&s, n), (Some(id(6)), true), "annotation {n}");
+    }
+
+    let out = s.ungroup_annotations(id(13)).unwrap();
+    assert_eq!(out.primary, id(6));
+    assert_eq!(out.restored, vec![id(6), id(12)]);
+    assert!(out.disclosures.is_empty());
+    assert_eq!(link(&s, 7), (Some(id(6)), true));
+    assert_eq!(link(&s, 13), (Some(id(12)), true));
+    assert_eq!(link(&s, 12), (None, false));
+    assert_eq!(
+        link(&s, 14),
+        (None, false),
+        "the loner had no group to go back to"
+    );
+
+    // The inner groups are ordinary groups again: one more level each.
+    let out = s.ungroup_annotations(id(12)).unwrap();
+    assert!(out.restored.is_empty());
+    assert_eq!(link(&s, 13), (None, false));
+    let bytes = s.to_incremental_bytes(&SaveOptions::identity()).unwrap().0;
+    let tail = String::from_utf8_lossy(&bytes[fixture().len()..]).into_owned();
+    assert!(!tail.contains("pdfcer_Groups"), "a spent record is removed");
+}
+
+#[test]
+fn three_levels_come_apart_one_at_a_time() {
+    let mut s = two_groups();
+    let nested = GroupNesting::Recorded;
+    s.merge_annotation_groups(id(6), &[id(12)], nested).unwrap();
+    s.merge_annotation_groups(id(14), &[id(6)], nested).unwrap();
+    for n in [6, 7, 12, 13] {
+        assert_eq!(link(&s, n), (Some(id(14)), true), "annotation {n}");
+    }
+    let out = s.ungroup_annotations(id(14)).unwrap();
+    assert_eq!(out.restored, vec![id(6)]);
+    assert_eq!(link(&s, 6), (None, false));
+    for n in [7, 12, 13] {
+        assert_eq!(link(&s, n), (Some(id(6)), true), "annotation {n}");
+    }
+    let out = s.ungroup_annotations(id(6)).unwrap();
+    assert_eq!(out.restored, vec![id(6), id(12)]);
+    assert_eq!(link(&s, 13), (Some(id(12)), true));
+
+    for _ in 0..4 {
+        s.undo().unwrap();
+    }
+    assert_eq!(link(&s, 7), (Some(id(6)), true));
+    assert_eq!(link(&s, 13), (Some(id(12)), true));
+    assert_eq!(link(&s, 14), (None, false));
+}
+
+#[test]
+fn a_flat_merge_records_nothing_and_ungrouping_releases_everyone() {
+    let mut s = two_groups();
+    let out = s
+        .merge_annotation_groups(id(6), &[id(12)], GroupNesting::Flat)
+        .unwrap();
+    assert_eq!(out.members, vec![id(12), id(13)]);
+    assert!(
+        out.disclosures[0].contains("merged flat"),
+        "{:?}",
+        out.disclosures
+    );
+    let bytes = s.to_incremental_bytes(&SaveOptions::identity()).unwrap().0;
+    assert!(!String::from_utf8_lossy(&bytes).contains("pdfcer_Groups"));
+    let out = s.ungroup_annotations(id(6)).unwrap();
+    assert!(out.restored.is_empty());
+    for n in [7, 12, 13] {
+        assert_eq!(link(&s, n), (None, false), "annotation {n}");
+    }
+}
+
+#[test]
+fn a_recorded_group_whose_primary_is_gone_releases_and_says_so() {
+    let mut s = two_groups();
+    s.merge_annotation_groups(id(6), &[id(12)], GroupNesting::Recorded)
+        .unwrap();
+    s.delete_annotation(id(12)).unwrap();
+    let out = s.ungroup_annotations(id(6)).unwrap();
+    assert_eq!(out.restored, vec![id(6)]);
+    assert_eq!(link(&s, 13), (None, false));
+    assert_eq!(out.disclosures.len(), 1);
+    assert!(out.disclosures[0].starts_with("1 annotation(s)"));
+}
+
+#[test]
+fn a_merge_refuses_what_it_cannot_keep_and_writes_nothing_when_already_one() {
+    let mut s = two_groups();
+    let depth = s.undo_depth();
+    let nested = GroupNesting::Recorded;
+    use AnnotationGroupError as E;
+    let refused = |s: &mut EditSession, primary: u32, others: &[u32]| {
+        let others: Vec<ObjId> = others.iter().map(|&n| id(n)).collect();
+        match s.merge_annotation_groups(id(primary), &others, nested) {
+            Err(EditError::AnnotationGroup(e)) => e,
+            other => panic!("{other:?}"),
+        }
+    };
+    assert!(matches!(refused(&mut s, 6, &[]), E::NoMembers { .. }));
+    assert!(matches!(refused(&mut s, 6, &[8]), E::NotMarkup { .. }));
+    assert!(matches!(refused(&mut s, 6, &[11]), E::DifferentPage { .. }));
+    assert!(matches!(refused(&mut s, 6, &[9]), E::AlreadyLinked { .. }));
+    assert!(matches!(refused(&mut s, 9, &[12]), E::AlreadyLinked { .. }));
+    let out = s.merge_annotation_groups(id(6), &[id(7)], nested).unwrap();
+    assert!(out.members.is_empty() && out.disclosures.is_empty());
+    assert_eq!(s.undo_depth(), depth);
 }

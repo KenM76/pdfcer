@@ -28,6 +28,34 @@ const MARKUP: &[&[u8]] = &[
     b"Projection",
 ];
 
+/// The annotation entry listing the groups an annotation was in before
+/// [`EditSession::merge_annotation_groups`] put it under another primary,
+/// as references to their primaries, outermost last. Private to pdfcer:
+/// a §12.5.6.2 group is flat, so the file format has no place for it.
+const NESTING_KEY: &[u8] = b"pdfcer_Groups";
+
+/// What [`EditSession::merge_annotation_groups`] keeps of the groups it
+/// merges.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+#[non_exhaustive]
+pub enum GroupNesting {
+    /// Each merged group is recorded on its annotations, and
+    /// [`EditSession::ungroup_annotations`] restores it.
+    #[default]
+    Recorded,
+    /// Nothing is recorded: ungrouping releases every annotation.
+    Flat,
+}
+
+/// One annotation [`EditSession::merge_annotation_groups`] rewrites.
+struct Absorbed {
+    id: ObjId,
+    /// The group it leaves, pushed onto its record.
+    was: Option<ObjId>,
+    /// Whether the record it already carries is still true.
+    keep: bool,
+}
+
 /// Why annotations could not be grouped or ungrouped.
 #[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
 #[non_exhaustive]
@@ -102,6 +130,12 @@ pub struct AnnotationGroupChange {
     pub primary: ObjId,
     /// The subordinates written: those joined, or those released.
     pub members: Vec<ObjId>,
+    /// The primaries of the earlier groups an ungroup put back, in the
+    /// order first met. Empty for a group or a merge.
+    pub restored: Vec<ObjId>,
+    /// What the operator should be told: how a merge recorded the groups
+    /// it merged, and any recorded group that could not be put back.
+    pub disclosures: Vec<String>,
 }
 
 impl EditSession {
@@ -165,14 +199,110 @@ impl EditSession {
         if members.is_empty() {
             return Err(AnnotationGroupError::NoMembers { primary }.into());
         }
-        self.write_group_links(CommandKind::GroupAnnotations, &joined, |d| {
-            d.insert(Name::from(b"IRT"), Object::Reference(primary));
-            d.insert(Name::from(b"RT"), Object::Name(Name::from(b"Group")));
+        self.write_group_links(CommandKind::GroupAnnotations, &joined, |_, d| {
+            link(d, primary);
+            d.remove(NESTING_KEY);
         })?;
         Ok(AnnotationGroupChange {
             primary,
             members: joined,
+            restored: Vec::new(),
+            disclosures: Vec::new(),
         })
+    }
+
+    /// Put whole groups under one primary: each of `others` brings the
+    /// group it is in, primary and members, or itself when it is in none.
+    /// `primary` may be a member too; its group's primary is the one kept.
+    /// One command, one undo entry ([`CommandKind::GroupAnnotations`]).
+    ///
+    /// ISO 32000-1 §12.5.6.2 has no group of groups, so the file holds one
+    /// flat group either way. With [`GroupNesting::Recorded`] every
+    /// annotation of a merged group, the primary's own included, also
+    /// records that group in a pdfcer-private entry, and
+    /// [`Self::ungroup_annotations`] puts the groups back instead of
+    /// releasing their members; the outcome discloses this. `members` is
+    /// every annotation written. Nothing to merge writes nothing.
+    ///
+    /// # Errors
+    ///
+    /// Nothing changes on any error.
+    /// - [`AnnotationGroupError`]: `NoMembers`, `NotMarkup`, `CeDimension`,
+    ///   `DifferentPage`, and `AlreadyLinked` for a reply or for a primary
+    ///   that is itself a reply.
+    /// - [`EditError::AnnotationNotFound`] for an id on no page.
+    /// - [`EditError::DocumentEncrypted`] and the certification gate.
+    pub fn merge_annotation_groups(
+        &mut self,
+        primary: ObjId,
+        others: &[ObjId],
+        nesting: GroupNesting,
+    ) -> Result<AnnotationGroupChange, EditError> {
+        self.annotation_group_guards()?;
+        let pages = self.annotations_by_page()?;
+        let (page, head) = self.group_head(&pages, primary)?;
+        let mut groups = Vec::new();
+        for &id in others {
+            let (at, group) = self.group_head(&pages, id)?;
+            if at != page {
+                return Err(AnnotationGroupError::DifferentPage { id }.into());
+            }
+            if group != head && !groups.contains(&group) {
+                groups.push(group);
+            }
+        }
+        if others.is_empty() {
+            return Err(AnnotationGroupError::NoMembers { primary }.into());
+        }
+        let recorded = nesting == GroupNesting::Recorded;
+        let (plan, merged) = merge_plan(&pages, head, &groups, recorded);
+        let ids: Vec<ObjId> = plan.iter().map(|a| a.id).collect();
+        self.write_group_links(CommandKind::GroupAnnotations, &ids, |id, d| {
+            let Some(step) = plan.iter().find(|a| a.id == id) else {
+                return;
+            };
+            let mut record = if step.keep {
+                nesting_record(d)
+            } else {
+                Vec::new()
+            };
+            record.extend(step.was);
+            link(d, head);
+            set_nesting_record(d, &record);
+        })?;
+        Ok(AnnotationGroupChange {
+            primary: head,
+            members: ids,
+            restored: Vec::new(),
+            disclosures: merge_disclosure(merged, recorded).into_iter().collect(),
+        })
+    }
+
+    /// The page of `id` and the primary of the group it is in, itself when
+    /// it is in none; refused when either cannot be in a group.
+    fn group_head(
+        &self,
+        pages: &[Vec<Annotation>],
+        id: ObjId,
+    ) -> Result<(usize, ObjId), EditError> {
+        let (page, named) = find(pages, id)?;
+        self.groupable(named, id)?;
+        let (head_id, head) = match named.in_reply_to {
+            Some(target) if named.is_group_subordinate() => {
+                let (_, head) = find(pages, target)?;
+                self.groupable(head, target)?;
+                (target, head)
+            }
+            _ => (id, named),
+        };
+        match head.in_reply_to {
+            Some(target) => Err(AnnotationGroupError::AlreadyLinked {
+                id: head_id,
+                target,
+            }
+            .into()),
+            None => Ok((page, head_id)),
+        }
     }
 
     /// Dissolve the annotation group `annotation` belongs to, named by its
@@ -180,6 +310,12 @@ impl EditSession {
     /// subordinate — one command, one undo entry
     /// ([`CommandKind::UngroupAnnotations`]). Replies (`/RT /R`, or `/IRT`
     /// alone) are not group links and are left alone.
+    ///
+    /// A subordinate that [`Self::merge_annotation_groups`] recorded an
+    /// earlier group on goes back under that group's primary instead, so
+    /// one call dissolves one level; `restored` names the groups put back.
+    /// A recorded primary that is no longer in the document releases its
+    /// annotation, and that is disclosed.
     ///
     /// # Errors
     ///
@@ -202,13 +338,44 @@ impl EditSession {
         if released.is_empty() {
             return Err(AnnotationGroupError::NotGrouped { id: annotation }.into());
         }
-        self.write_group_links(CommandKind::UngroupAnnotations, &released, |d| {
-            d.remove(b"IRT");
-            d.remove(b"RT");
+        let (mut restored, mut lost) = (Vec::new(), 0usize);
+        let mut back = Vec::with_capacity(released.len());
+        for &id in &released {
+            let earlier = match self.value(id) {
+                Some(Object::Dict(d)) => nesting_record(d).pop(),
+                _ => None,
+            };
+            let target = earlier.filter(|&p| p != id && find(&pages, p).is_ok());
+            // A record naming the annotation itself: it was that group's primary.
+            lost += usize::from(earlier.is_some_and(|p| p != id) && target.is_none());
+            if let Some(p) = target.filter(|p| !restored.contains(p)) {
+                restored.push(p);
+            }
+            back.push((id, target));
+        }
+        self.write_group_links(CommandKind::UngroupAnnotations, &released, |id, d| {
+            let mut record = nesting_record(d);
+            record.pop();
+            match back.iter().find(|b| b.0 == id).and_then(|b| b.1) {
+                Some(earlier) => link(d, earlier),
+                None => {
+                    d.remove(b"IRT");
+                    d.remove(b"RT");
+                }
+            }
+            set_nesting_record(d, &record);
         })?;
+        let disclosures = (lost > 0).then(|| {
+            format!(
+                "{lost} annotation(s) recorded an earlier group whose primary is no longer \
+                 in the document; they were released"
+            )
+        });
         Ok(AnnotationGroupChange {
             primary,
             members: released,
+            restored,
+            disclosures: disclosures.into_iter().collect(),
         })
     }
 
@@ -250,7 +417,7 @@ impl EditSession {
         &mut self,
         kind: CommandKind,
         ids: &[ObjId],
-        edit: impl Fn(&mut Dict),
+        edit: impl Fn(ObjId, &mut Dict),
     ) -> Result<(), EditError> {
         let mut objects = Vec::with_capacity(ids.len());
         for &id in ids {
@@ -258,7 +425,7 @@ impl EditSession {
                 return Err(EditError::NotADictionary { id, key: "IRT" });
             };
             let mut updated = dict.clone();
-            edit(&mut updated);
+            edit(id, &mut updated);
             objects.push(ObjectWrite {
                 id,
                 before: self.state.get(&id).cloned(),
@@ -275,6 +442,91 @@ impl EditSession {
         }
         Ok(())
     }
+}
+
+/// Make `dict` a `/RT /Group` subordinate of `primary`.
+fn link(dict: &mut Dict, primary: ObjId) {
+    dict.insert(Name::from(b"IRT"), Object::Reference(primary));
+    dict.insert(Name::from(b"RT"), Object::Name(Name::from(b"Group")));
+}
+
+/// The earlier groups recorded on an annotation, outermost last.
+fn nesting_record(dict: &Dict) -> Vec<ObjId> {
+    let Some(Object::Array(items)) = dict.get(NESTING_KEY) else {
+        return Vec::new();
+    };
+    items
+        .iter()
+        .filter_map(|o| match o {
+            Object::Reference(id) => Some(*id),
+            _ => None,
+        })
+        .collect()
+}
+
+fn set_nesting_record(dict: &mut Dict, record: &[ObjId]) {
+    if record.is_empty() {
+        dict.remove(NESTING_KEY);
+    } else {
+        let items = record.iter().map(|&id| Object::Reference(id)).collect();
+        dict.insert(Name::from(NESTING_KEY), Object::Array(items));
+    }
+}
+
+/// What merging `groups` under `head` writes, and how many groups that had
+/// members of their own it merges, the head's counted.
+fn merge_plan(
+    pages: &[Vec<Annotation>],
+    head: ObjId,
+    groups: &[ObjId],
+    recorded: bool,
+) -> (Vec<Absorbed>, usize) {
+    let mut plan = Vec::new();
+    let mut merged = 0usize;
+    if groups.is_empty() {
+        return (plan, merged);
+    }
+    let own: Vec<ObjId> = subordinates(pages, head).collect();
+    merged += usize::from(!own.is_empty());
+    if recorded {
+        plan.extend(own.into_iter().map(|id| Absorbed {
+            id,
+            was: Some(head),
+            keep: true,
+        }));
+    }
+    for &group in groups {
+        let subs: Vec<ObjId> = subordinates(pages, group).collect();
+        merged += usize::from(!subs.is_empty());
+        let was = (recorded && !subs.is_empty()).then_some(group);
+        plan.push(Absorbed {
+            id: group,
+            was,
+            keep: false,
+        });
+        plan.extend(subs.into_iter().map(|id| Absorbed {
+            id,
+            was,
+            keep: recorded,
+        }));
+    }
+    (plan, merged)
+}
+
+/// What a merge of `merged` existing groups tells the operator.
+fn merge_disclosure(merged: usize, recorded: bool) -> Option<String> {
+    if merged == 0 {
+        return None;
+    }
+    Some(if recorded {
+        format!(
+            "the file holds one flat group (ISO 32000-1 12.5.6.2 has no group of groups); \
+             {merged} earlier group(s) are recorded in a pdfcer-private entry that other \
+             applications ignore, and ungrouping puts them back"
+        )
+    } else {
+        format!("{merged} earlier group(s) were merged flat; ungrouping releases every member")
+    })
 }
 
 /// The page index and read model of annotation `id`.

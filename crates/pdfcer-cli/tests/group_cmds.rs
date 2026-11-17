@@ -21,7 +21,7 @@ fn fixture(tag: &str) -> PathBuf {
         "<< /Type /Catalog /Pages 2 0 R >>".to_owned(),
         "<< /Type /Pages /Kids [3 0 R] /Count 1 >>".to_owned(),
         "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 100 100] /Contents 4 0 R \
-         /Resources << >> /Annots [5 0 R 6 0 R 7 0 R] >>"
+         /Resources << >> /Annots [5 0 R 6 0 R 7 0 R 8 0 R 9 0 R] >>"
             .to_owned(),
         format!(
             "<< /Length {} >>\nstream\n{CONTENT}endstream",
@@ -30,6 +30,8 @@ fn fixture(tag: &str) -> PathBuf {
         annot("Square"),
         annot("Circle"),
         annot("Link"),
+        annot("Ink"),
+        annot("Stamp"),
     ];
     let mut buf = b"%PDF-1.7\n".to_vec();
     let mut offsets = Vec::new();
@@ -210,4 +212,67 @@ fn annotations_group_and_ungroup() {
     );
     assert_eq!(out.status.code(), Some(9));
     assert!(String::from_utf8_lossy(&out.stderr).contains("not a markup annotation"));
+}
+
+#[test]
+fn annotation_groups_merge_and_come_back_apart() {
+    let input = fixture("merge");
+    let a = input.with_extension("a.pdf");
+    let b = input.with_extension("b.pdf");
+    let group = |from: &Path, to: &Path, args: &[&str]| {
+        let out = run("group-annotations", from, to, args);
+        let stdout = String::from_utf8_lossy(&out.stdout).into_owned();
+        assert!(out.status.success(), "{stdout}{:?}", out.stderr);
+        (stdout, String::from_utf8_lossy(&out.stderr).into_owned())
+    };
+    group(&input, &a, &["--primary", "0", "--members", "1"]);
+    group(&a, &b, &["--primary", "3", "--members", "4"]);
+
+    // Named by a member on each side.
+    let merged = input.with_extension("merged.pdf");
+    let (stdout, stderr) = group(
+        &b,
+        &merged,
+        &["--primary", "1", "--members", "4", "--merge"],
+    );
+    assert!(
+        stdout.contains(" primary=5 0 R ") || stdout.contains(" primary=5 "),
+        "{stdout}"
+    );
+    assert!(stdout.contains(" count=3 "), "{stdout}");
+    assert!(
+        stderr.contains("note: the file holds one flat group"),
+        "{stderr}"
+    );
+
+    let apart = input.with_extension("apart.pdf");
+    let out = run("ungroup-annotations", &merged, &apart, &["--index", "0"]);
+    let stdout = String::from_utf8_lossy(&out.stdout);
+    assert!(out.status.success(), "{stdout}");
+    assert!(
+        stdout.contains(" count=3 ") && !stdout.contains("restored=none"),
+        "{stdout}"
+    );
+
+    let flat = input.with_extension("flat.pdf");
+    let (_, stderr) = group(
+        &b,
+        &flat,
+        &["--primary", "0", "--members", "3", "--merge", "--flat"],
+    );
+    assert!(stderr.contains("merged flat"), "{stderr}");
+    let out = run("ungroup-annotations", &flat, &apart, &["--index", "0"]);
+    let stdout = String::from_utf8_lossy(&out.stdout);
+    assert!(
+        stdout.contains(" count=3 ") && stdout.contains("restored=none"),
+        "{stdout}"
+    );
+
+    let out = run(
+        "group-annotations",
+        &input,
+        &flat,
+        &["--primary", "0", "--members", "1", "--flat"],
+    );
+    assert_eq!(out.status.code(), Some(2), "--flat needs --merge");
 }

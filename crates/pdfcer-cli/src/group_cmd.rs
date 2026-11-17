@@ -2,7 +2,7 @@
 //! `ungroup-annotations`.
 
 use super::*;
-use pdfcer_core::edit::EditSession;
+use pdfcer_core::edit::{EditSession, GroupNesting};
 
 /// What every grouping subcommand takes besides its own selection.
 pub(crate) struct GroupIo<'a> {
@@ -135,7 +135,13 @@ pub(crate) fn cmd_ungroup_form(io: &GroupIo, object: usize, leaf: bool) -> u8 {
 }
 
 /// `group-annotations` and, with no `members`, `ungroup-annotations`.
-pub(crate) fn cmd_group_annotations(io: &GroupIo, index: usize, members: Option<&[usize]>) -> u8 {
+/// `merge` joins whole groups instead of loose annotations.
+pub(crate) fn cmd_group_annotations(
+    io: &GroupIo,
+    index: usize,
+    members: Option<&[usize]>,
+    merge: Option<GroupNesting>,
+) -> u8 {
     let (source, mut session) = match open_for_edit(io.input) {
         Ok(pair) => pair,
         Err(code) => return code,
@@ -157,7 +163,11 @@ pub(crate) fn cmd_group_annotations(io: &GroupIo, index: usize, members: Option<
                     Err(code) => return code,
                 }
             }
-            ("group-annotations", session.group_annotations(named, &ids))
+            let result = match merge {
+                Some(nesting) => session.merge_annotation_groups(named, &ids, nesting),
+                None => session.group_annotations(named, &ids),
+            };
+            ("group-annotations", result)
         }
         None => ("ungroup-annotations", session.ungroup_annotations(named)),
     };
@@ -165,18 +175,23 @@ pub(crate) fn cmd_group_annotations(io: &GroupIo, index: usize, members: Option<
         Ok(out) => out,
         Err(err) => return report_edit_error(io.input, &err),
     };
-    let ids: Vec<String> = out.members.iter().map(ToString::to_string).collect();
-    let line = format!(
-        "{verb} {} page={} primary={} members={} count={}",
-        io.input.display(),
-        io.page,
-        out.primary,
+    note_all(io.input, &out.disclosures);
+    let list = |ids: &[pdfcer_core::object::ObjId]| {
         if ids.is_empty() {
             "none".to_owned()
         } else {
+            let ids: Vec<String> = ids.iter().map(ToString::to_string).collect();
             ids.join(",")
-        },
-        ids.len(),
+        }
+    };
+    let line = format!(
+        "{verb} {} page={} primary={} members={} count={} restored={}",
+        io.input.display(),
+        io.page,
+        out.primary,
+        list(&out.members),
+        out.members.len(),
+        list(&out.restored),
     );
     io.save(&mut session, &source, &line)
 }

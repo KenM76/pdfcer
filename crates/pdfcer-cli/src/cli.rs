@@ -13047,6 +13047,14 @@ pub(crate) enum Command {
     /// Exit 9 when an annotation is not markup (a link, a form field), is
     /// on another page, is a reply, is already in another group, or is a
     /// ce dimension. Nothing is changed.
+    ///
+    /// With --merge, whole groups are put together: each of --members
+    /// brings the group it is in, and --primary may itself be a member of
+    /// a group. The PDF format has no group of groups, so the file holds
+    /// one group and viewers treat it as one. pdfcer also records the
+    /// groups that went in, and `ungroup-annotations` then gives them back
+    /// one level per run; a note on stderr says so. Add --flat to record
+    /// nothing, so that ungrouping releases every annotation.
     GroupAnnotations {
         /// Input PDF.
         input: PathBuf,
@@ -13059,6 +13067,12 @@ pub(crate) enum Command {
         /// 0-based `/Annots` indices of the annotations to join, comma-separated.
         #[arg(long, value_delimiter = ',', required = true)]
         members: Vec<usize>,
+        /// Join whole groups: each member brings the group it is in.
+        #[arg(long)]
+        merge: bool,
+        /// With --merge, do not record the groups that were merged.
+        #[arg(long, requires = "merge")]
+        flat: bool,
         /// Output path.
         #[arg(short, long)]
         output: PathBuf,
@@ -13074,8 +13088,13 @@ pub(crate) enum Command {
     /// Every member becomes an annotation of its own again, with its own
     /// text, author and colour. Replies are not group links and stay.
     ///
+    /// A group made by `group-annotations --merge` comes apart one level
+    /// per run: the groups that were merged are groups again, and
+    /// `restored=` lists their primaries.
+    ///
     /// Prints one `ungroup-annotations` line: `primary=` and `members=` as
-    /// object numbers, `count=` how many were released.
+    /// object numbers, `count=` how many were rewritten, `restored=` the
+    /// primaries of the groups put back, or `none`.
     ///
     /// Exit 9 when the annotation is in no group. Nothing is changed.
     UngroupAnnotations {

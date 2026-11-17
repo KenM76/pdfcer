@@ -3846,6 +3846,8 @@ pub(crate) fn run() -> ExitCode {
             page,
             primary,
             members,
+            merge,
+            flat,
             output,
             mode,
             verify_undo,
@@ -3859,6 +3861,11 @@ pub(crate) fn run() -> ExitCode {
             },
             primary,
             Some(&members),
+            merge.then_some(if flat {
+                pdfcer_core::edit::GroupNesting::Flat
+            } else {
+                pdfcer_core::edit::GroupNesting::Recorded
+            }),
         ),
         Command::UngroupAnnotations {
             input,
@@ -3876,6 +3883,7 @@ pub(crate) fn run() -> ExitCode {
                 verify_undo,
             },
             index,
+            None,
             None,
         ),
         Command::SetObjectLayer {
