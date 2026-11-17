@@ -112,6 +112,18 @@ wherever it appears.*
 
 ## Shipped
 
+### `14f14ed8` `Pass 719.0`: glTF repeated roots and scene notes; PRC writer depth, normals, alpha, emissive, 2026-11-17 (1576th filing)
+
+Engineer-reported; no shell here, git, push and CI state not checked from here. `14f14ed8` `fix(3d): glTF repeated roots and scene notes; PRC writer depth, normals, alpha, emissive (X083-X085)`. Answers crates-consumer requests `X083`, `X084`, `X085` (channel `pdfce_FeatureRequests`). Reasoning is in the commit message. Crate `pdfcer-3d` only; core, visible through the CLI (`3d-convert`, `3d-embed` print the notes; no new subcommand or flag); gui none.
+- **X083:** `read_gltf` keeps the first occurrence of each scene root and adds one note counting repeats; with `GltfUpAxis::ZUp` a root listed twice used to come out upside down (the turn ran once per entry). `write_prc` refuses a repeated root: `PrcWriteError::NotATree("a root is listed twice")`.
+- **X084:** `pdfcer_3d::MAX_DEPTH` is now 64, a root counting as 1 (was 1024; name kept; the reader walks 64 levels, so deeper scenes were written and could not be read back). `face_normal` scales corners by an exact power of two, so far-apart finite corners no longer overflow to the +z fallback. A textured material's style carries the material alpha. A non-finite `SceneMaterial::emissive` is refused as `BadNumber("emissive colour")`. A test now covers supplied normals.
+- **X085:** an out-of-range `scene` index draws scene 0 with ONE note ("scene N does not exist; scene 0 of M drawn"; it gave two contradictory ones); an empty primitive `targets` array no longer counts as a morph target.
+- **Possible break:** scenes nested 65 to 1024 deep are now refused by `write_prc`.
+- **Verification (engineer-reported):** `cargo test -p pdfcer-3d` 518 lib + 6 + 35 passed; `--no-default-features` 266 + 5 + 14 passed. 9 new tests; 8 fail with their fix reverted (the supplied-normals test is a guard). clippy `-D warnings` clean with and without default features; fmt, `check-code-structure`, `check-core-api-verbs` green. No manifest change; `cargo tree` unchanged. No PDF-byte writer or round-trip change. CLI demo: `3d-convert` on a glTF with `"scene":7`, `"nodes":[0,0]`, `"targets":[]` printed the two new notes, no morph note, exit 0. `docs/core-api/01-reading-and-model.md` and `index.md` updated in the commit.
+- **Channel:** replies `open/reply_X083_*_SHIPPED.md`, `reply_X084_*_SHIPPED.md`, `reply_X085_*_SHIPPED.md` written. Release `v0.154.0` follows (OneDrive slot `pdfcer1`).
+- **Not shipped:** a glTF node under two parents (`Pass 719.1`, Backlog).
+- **FEATURES:** the `glTF import and 3D PDF writer hardening` row extended; boxes unchanged. No decision, no rule.
+
 ### `5c668701` `v0.153.0` PUBLISHED, 2026-11-16 (1575th filing)
 
 Engineer-reported measurements; no shell here, nothing checked from here. Bump `9526b9d9`, filed by `5c668701` (1574th). Annotated tag `v0.153.0` is on `5c668701`, pushed; `origin/main` is at `5c668701`. CI green at that commit (run 43979326593, read from GitHub by the engineer).
@@ -38541,6 +38553,8 @@ overrides the image dictionary; `/ColorSpace` optional,
 Grouped by rough Acrobat Pro feature area. Each bucket gets scoped into
 real Pass entries as the engineer reaches it — this list exists so
 nothing gets forgotten, not as a commitment to build in this order.
+
+- **`Pass 719.1` (OPEN, NOT STARTED; filed 1576th filing, request `X083`):** glTF node under two parents: import by copying the shared subtree under each parent within a fixed budget (e.g. 100,000 node copies, depth 64), with what is left out counted in a note; today `write_prc` refuses it (`NotATree`). The consumer offered code; the engine replied yes.
 
 ### `Pass 718.2`: carry ce-dimension groups and records through merge and the insert routes (OPEN, NOT STARTED; filed 1573rd filing, `G286` ask 1)
 

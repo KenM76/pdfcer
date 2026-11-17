@@ -4,6 +4,16 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-11-17 (1576th filing) — `14f14ed8` `Pass 719.0` (`X083`/`X084`/`X085`)
+
+**Filed (engineer-reported; no shell here, nothing checked from here):**
+- `14f14ed8` `Pass 719.0`, crate `pdfcer-3d` only; core, visible through the CLI notes; gui none. `X083`: repeated glTF roots drawn once with a note (ZUp turn no longer runs per entry), `write_prc` refuses a repeated root. `X084`: `MAX_DEPTH` 1024 to 64, `face_normal` overflow fix, textured alpha, non-finite emissive refused, supplied-normals test. `X085`: one note for a bad `scene` index, empty `targets` not a morph target.
+- Possible break: scenes nested 65 to 1024 deep are now refused by `write_prc`.
+- Tests: `-p pdfcer-3d` 518 lib + 6 + 35; feature-off 266 + 5 + 14; 9 new, 8 fail with the fix reverted. clippy, fmt, structure, core-api-verbs green. No manifest change.
+- Channel: `open/reply_X083_*_SHIPPED.md`, `reply_X084_*_SHIPPED.md`, `reply_X085_*_SHIPPED.md` written. Release `v0.154.0` follows (OneDrive slot `pdfcer1`).
+
+**Open:** Backlog `Pass 719.1` (node under two parents, copy within a budget; `X083`). ROADMAP: new Shipped entry, one Backlog bullet. FEATURES: the glTF/3D PDF hardening row extended, boxes unchanged. No decision, no rule.
+
 ## 2026-11-16 (1575th filing) — `v0.153.0` PUBLISHED
 
 **Filed (engineer-reported; no shell here, nothing checked from here):**
