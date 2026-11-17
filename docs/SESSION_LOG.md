@@ -4,6 +4,24 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-11-17 (1583rd filing) — `ed006b9e` `Pass 720.1` (font parser moves to the line egui 0.37 uses)
+
+**Filed (engineer-reported; no shell here, nothing checked from here):**
+- `ed006b9e` `Pass 720.1`: `skrifa` 0.42 to 0.44 in `pdfcer-render` and `pdfcer-emf`; lock `skrifa` 0.44.0, `read-fonts` 0.41.0, `font-types` 0.12.7; `THIRD_PARTY_LICENSES.md` regenerated. Build only, no capability box changes, no source change. GUI told (`notice_2026-11-17_engine_font_parser_on_the_egui_0.37_line.md`). Detail in the ROADMAP Shipped entry and the commit message.
+- Gates measured by the engineer: fmt, clippy, linux cross check, `check-code-structure`, rustdoc, CI audit sweep 34 run 0 failed, no font-crate duplicate, `cargo tree` invariant clean. Tests as in the Shipped entry; the no-default-features CLI integration suite was unfinished when reported, no number filed. `cargo deny` not run locally (not installed).
+
+**Decisions:** none. Decision 004 (R21, section 3.4) already says the pin follows epaint's; this Pass applies it.
+
+**Carried note:** `crates/pdfcer-render/src/font/program.rs` has a guard (`charset_glyph`) whose doc comment says it works around a `read-fonts` 0.39.2 behaviour. Kept; whether 0.41.0 still needs it was NOT measured.
+
+**Gotcha:** a bash heredoc Python patch mangles non-ASCII bytes (section sign, em dash) in the match string on this machine; the assert failed after the first of two files was already written, leaving the two pins split across versions. Patch scripts containing non-ASCII go through the Write tool with `\u` escapes.
+
+**Housekeeping:** FEATURES Planned row for `720.1` removed. `docs/PRIOR_ART.md` left unedited (see report): its `skrifa 0.42` mentions are dated measurements (lines 236-238, 252-253, 267-268, 276) and a rewrite would falsify them.
+
+**Open:** `717.3` Backlog; Next up has no head. Next free IDs: `Pass 717.4`, `Pass 720.2`, `Pass 721.0`.
+
+**For next session:** release `v0.155.0` (OneDrive slot `pdfcer2`), then `docs/NEXT_SESSION.md`.
+
 ## 2026-11-17 (1582nd filing) — `928f40cc` `Pass 720.0` (paste the OS clipboard as vectors; copy or cut a selection to it)
 
 **Filed (engineer-reported; no shell here, nothing checked from here):**

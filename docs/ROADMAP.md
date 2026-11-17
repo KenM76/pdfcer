@@ -112,6 +112,18 @@ wherever it appears.*
 
 ## Shipped
 
+### `ed006b9e` `Pass 720.1`: the font parser moves to the line egui 0.37 uses, 2026-11-17 (1583rd filing)
+
+Engineer-reported; no shell here, git, push and CI state not checked from here. `ed006b9e` `build(fonts): move the font parser to the line egui 0.37 uses (Pass 720.1)`; files `Cargo.lock`, `THIRD_PARTY_LICENSES.md`, `crates/pdfcer-emf/Cargo.toml`, `crates/pdfcer-render/Cargo.toml`. The engine side of the operator's "upgrade to the latest egui" request (Ken, chat, 2026-11-17). Reasoning is in the commit message. **Build only: core, cli, gui capability boxes unchanged.**
+- **Change:** `skrifa` "0.42" to "0.44" in `pdfcer-render` and `pdfcer-emf`. `epaint 0.37.0` (latest egui, read from crates.io 2026-11-17) declares `skrifa ^0.44`; `epaint 0.35` used 0.42. Lock: `skrifa` 0.42.1 to 0.44.0, `read-fonts` 0.39.2 to 0.41.0, `font-types` 0.11.3 to 0.12.7; no package added, nothing else moved; licences unchanged (MIT OR Apache-2.0). `THIRD_PARTY_LICENSES.md` regenerated with `cargo about generate about.hbs`. The pin comment in `pdfcer-render/Cargo.toml` now names the epaint line instead of version numbers.
+- **No source change, no `pub` API change; `docs/core-api` untouched.** No decision entry: decision 004 (R21, section 3.4) says the `skrifa` pin follows epaint's, and this Pass applies that rule.
+- **GUI told:** `D:\Dev\FeatureRequests\pdfce_FeatureRequests\open\notice_2026-11-17_engine_font_parser_on_the_egui_0.37_line.md`. Until `pdfcer-gui` (on egui 0.35) moves to 0.37, a GUI build against this engine links two fontations stacks; the GUI upgrade is the GUI project's work.
+- **Gates (engineer-measured on the committed tree):** fmt clean; clippy `--workspace --all-targets -D warnings` clean; linux cross check of the CLI clean; `check-code-structure.py` clean; rustdoc clean; CI audit sweep 34 run, 0 failed; `cargo tree --workspace --duplicates` shows no `skrifa`/`read-fonts`/`font-types` duplicate; `cargo tree -p pdfcer-core` and `-p pdfcer-render` hold no GUI, windowing or network crate.
+- **Tests (engineer-measured):** CLI 129 + 1105 (2 ignored); core 2372 + 3292; render 590 + 680 + 286 + 40; `pdfcer-emf` 17 + 106 (1 ignored) + 7; `--no-default-features` core 2313 + 3202. The no-default-features CLI integration suite was still running when reported; no number is filed for it.
+- **Not run:** `cargo deny` (not installed on that machine; CI runs it). **Not measured:** whether `read-fonts` 0.41.0 still needs the `charset_glyph` guard in `crates/pdfcer-render/src/font/program.rs` (its comment names a 0.39.2 behaviour); the guard was kept.
+- **Still open:** `717.3` (Backlog). Next up has no head. Next free IDs: `717.4`, `720.2`, `721.0`. Then release `v0.155.0` (OneDrive slot `pdfcer2`).
+- **FEATURES:** the `Pass 720.1` Planned row (engine font stack at `skrifa` 0.44) removed; no Implemented row, since it was a build chore with no capability. No rule.
+
 ### `928f40cc` `Pass 720.0`: paste the OS clipboard as vectors, and copy or cut a selection to it, 2026-11-17 (1582nd filing)
 
 Engineer-reported; no shell here, git, push and CI state not checked from here. `928f40cc` `feat(cli): paste the OS clipboard as vectors, and copy or cut a selection to it (Pass 720.0)`; 11 files, +1188/-18, all under `crates/pdfcer-cli` plus `README.md`. Answers the operator report that a copy-as-vector pasted into pdfcer arrived as a bitmap, plus the request that cut do the same (Ken, chat, 2026-11-17). Reasoning is in the commit message. **CLI only: core untouched (no new engine verb; every importer already existed); gui none** (the symptom is in the GUI's own Paste, a separate project; told via `D:\Dev\FeatureRequests\pdfce_FeatureRequests\open\notice_2026-11-17_paste_and_cut_as_vector.md`).
@@ -27389,7 +27401,7 @@ closes out the *prior* filing's business rather than opening this one's.
 >
 > **`Pass 720.0` SHIPPED 2026-11-17 (1582nd filing), `928f40cc`; see its *Shipped* entry, removed from this list.** Next free IDs: `Pass 717.4`, `Pass 720.2`, `Pass 721.0`. (Scout finding kept: the bitmap paste the operator saw is two `pdfcer-gui` defects, handed over in `D:\Dev\FeatureRequests\pdfce_FeatureRequests\open\notice_2026-11-17_operator_asks_vector_paste_and_cut_as_vector.md`.)
 >
-> **`Pass 720.1` (OPEN; new): `skrifa` 0.42 to 0.44** in `crates/pdfcer-render/Cargo.toml` and `crates/pdfcer-emf/Cargo.toml`, the engine's side of the egui 0.35 to 0.37 upgrade (egui 0.37 needs `skrifa` ^0.44, `read-fonts` ^0.41, `font-types` ^0.12.4; reading of the upgrade note, not measured here). The egui upgrade itself is `pdfcer-gui`'s work (decisions 073, 128), handed over in `notice_2026-11-17_operator_asks_egui_upgrade_to_latest.md`. Acceptance: one font stack in `cargo tree --duplicates`; engine gates green; `THIRD_PARTY_LICENSES.md` regenerated; a notice to the GUI project with the commit hash.
+> **`Pass 720.1` SHIPPED 2026-11-17 (1583rd filing), `ed006b9e`; see its *Shipped* entry, removed from this list.** Nothing of the four-part egui/groups/paste request is open on the engine side; `717.3` stays Backlog. Next up has no head. Next free IDs: `Pass 717.4`, `Pass 720.2`, `Pass 721.0`.
 
 > **1573rd filing: `G283`, `G284`, `G285`, `G287` SHIPPED as `Pass 718.0` (`011b78b0`); `G286` ask 2 as `Pass 718.1` (`7d8a7bf3`); see *Shipped*. `G286` ask 1 was OPEN as `Pass 718.2` (Backlog, overlaps `Pass 713.1`); SHIPPED 1579th filing (`ac29b6d0`). `Pass 718.3` is the next free ID.**
 

@@ -758,7 +758,6 @@ the model or verb exists and only the named shell is missing. The
 | core | cli | gui | Acrobat | Feature |
 |:----:|:---:|:---:|:-------:|---------|
 | [ ] | [ ] | [ ] | — | **Leaves inside a form see the graphics state at the form's `Do`** — today a leaf reports only the form's own stream state (inherited stroke width and colour are not seen; alpha is). `Pass 717.3`. |
-| [ ] | — | — | — | **Engine font stack at `skrifa` 0.44** — the engine's side of the egui 0.37 upgrade; one font stack in the tree. `Pass 720.1`. The egui upgrade is `pdfcer-gui`'s. |
 | [ ] | [ ] | [ ] | ? | **Translucent shadings as vector in EMF** — a shading under constant alpha or a non-Normal blend mode (declined by `--vector-shadings`, stays a bitmap), and a shading inside a not-flat transparency region, written as vector or patched at a settable gradient ppi (default 300). No Pass ID assigned yet; remainder of `Pass 700.14`. |
 | [ ] | [ ] | [ ] | ? | **Spot residue in the EMF flattener** — pages with more than four colorants, `/All` inside a non-isolated non-knockout group, and pages blending in RGB still become patches (counted as `spot_roster`, `spot_all_group`, `spot`). No Pass ID; remainder of `Pass 700.21`. |
 | [ ] | [ ] | [ ] | ? | **Image and shading soft masks as vector or per-pixel patch in EMF** — a soft mask whose content is an image or shading (or a varying nested mask) still becomes a patch; needs a per-pixel route. No Pass ID yet; remainder of `Pass 700.15`. |
