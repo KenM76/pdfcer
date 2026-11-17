@@ -111,16 +111,16 @@ icccer-color = "=0.4.2"
 #   FontFile   (bare Type 1) -> skrifa::raw::ps::type1::Type1Font
 #   explicit cmap / post     -> skrifa::raw::tables::{cmap, post}
 #
-# VERSION PIN IS LOAD-BEARING (decision 004 §3.4). skrifa 0.42.x /
-# read-fonts 0.39.x are ALREADY in Cargo.lock via epaint 0.35, so
-# "0.42" adds ZERO packages. Upstream is at 0.45; declaring that would
-# link a SECOND semver-incompatible copy of the whole fontations stack
-# beside epaint's. When egui bumps skrifa, bump this in the same
-# commit — the `cargo tree --duplicates` CI guard says so if not.
+# VERSION PIN IS LOAD-BEARING (decision 004 §3.4). This is the line
+# epaint 0.37 declares, so the GUI project links ONE fontations stack.
+# Declaring a newer line would link a second semver-incompatible copy
+# beside epaint's. When egui bumps skrifa, bump this and pdfcer-emf's
+# in the same commit — the `cargo tree --duplicates` CI guard says so
+# if not.
 #
 # Do NOT enable read-fonts' `agl` feature: pdfcer-core owns the single
 # Adobe Glyph List, sourced BSD-3-Clause (decision 004 §5.6).
-skrifa = "0.42"
+skrifa = "0.44"
 
 # subsetter: the write-side font subsetter (decision 021 / FF-C, Pass 21.x).
 # Typst's, purpose-built for PDF embedding. MIT OR Apache-2.0, and every
@@ -159,9 +159,9 @@ skrifa = "0.42"
 #
 # With the feature off this adds exactly ONE package to the workspace
 # lock: `subsetter` itself. Its only non-optional dependency, `rustc-hash`,
-# is already present via `type-map` <- eframe. Verified by `cargo metadata`
-# on a scratch crate carrying both `subsetter` and `skrifa = "0.42"`:
-# a single `read-fonts 0.39.2`, a single `font-types 0.11.3`.
+# is already present via `type-map` <- eframe. The workspace lock holds a
+# single `read-fonts` and a single `font-types`; the
+# `cargo tree --duplicates` CI guard keeps it so.
 subsetter = { version = "0.2", default-features = false }
 
 # png: the PNG writer behind `export::encode_png` (`Pass 248.0`). ALREADY in
