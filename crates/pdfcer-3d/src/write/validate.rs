@@ -204,6 +204,10 @@ fn check_numbers(scene: &MeshScene) -> Result<(), PrcWriteError> {
         }
     }
     finite(scene.materials.iter().flat_map(|m| m.rgba), "colour")?;
+    finite(
+        scene.materials.iter().flat_map(|m| m.emissive),
+        "emissive colour",
+    )?;
     for l in &scene.lights {
         finite(l.colour.into_iter().chain(l.ambient), "light colour")?;
         finite([l.intensity], "light intensity")?;
@@ -235,7 +239,7 @@ fn check_numbers(scene: &MeshScene) -> Result<(), PrcWriteError> {
 }
 
 /// Every child and root names a node, no node has two parents, no root
-/// has one, and no chain is deeper than [`MAX_DEPTH`]. With at most one
+/// has one or is listed twice, and no chain is deeper than [`MAX_DEPTH`]. With at most one
 /// parent each and parentless roots, what the roots reach has no cycle.
 fn check_forest(scene: &MeshScene) -> Result<(), PrcWriteError> {
     let n = scene.nodes.len();
@@ -248,11 +252,13 @@ fn check_forest(scene: &MeshScene) -> Result<(), PrcWriteError> {
             }
         }
     }
+    let mut rooted = vec![false; n];
     for &r in &scene.roots {
-        match parent.get(r) {
-            None => return Err(bad("root node", r)),
-            Some(Some(_)) => return Err(PrcWriteError::NotATree("a root has a parent")),
-            Some(None) => {}
+        match (parent.get(r), rooted.get_mut(r)) {
+            (Some(None), Some(seen)) if !*seen => *seen = true,
+            (Some(None), Some(_)) => return Err(PrcWriteError::NotATree("a root is listed twice")),
+            (Some(Some(_)), _) => return Err(PrcWriteError::NotATree("a root has a parent")),
+            _ => return Err(bad("root node", r)),
         }
     }
     let mut depth = vec![0usize; n];

@@ -69,6 +69,16 @@ impl Ids {
 /// material, the lights' colours and then the emissive colours after the
 /// materials', the texture entities, one material style per textured and
 /// per glowing material, and the solid line pattern every style names.
+/// A style's transparency: a flag, and when the material is not opaque its
+/// alpha as a byte.
+fn transparency(w: &mut BitWriter, m: Option<&crate::SceneMaterial>) {
+    let alpha = m.map_or(1.0, |m| m.rgba[3].clamp(0.0, 1.0));
+    w.bit(alpha < 1.0);
+    if alpha < 1.0 {
+        w.put((alpha * 255.0).round() as u64, 8);
+    }
+}
+
 pub(super) fn globals(scene: &MeshScene, plan: &Plan) -> BitWriter {
     let mut w = BitWriter::default();
     w.uint(0).uint(GLOBALS);
@@ -106,21 +116,20 @@ pub(super) fn globals(scene: &MeshScene, plan: &Plan) -> BitWriter {
         // (double-scaled biased index, WD 7.5.3).
         w.double(1.0).bit(false).uint(1).bit(false);
         w.uint(3 * k as u32 + 1);
-        let alpha = m.rgba[3].clamp(0.0, 1.0);
-        w.bit(alpha < 1.0);
-        if alpha < 1.0 {
-            w.put((alpha * 255.0).round() as u64, 8);
-        }
+        transparency(&mut w, Some(m));
         w.bit(false).bit(false).bit(false);
     }
     for j in 0..plan.textured.len() as u32 {
         w.uint(STYLE);
         ref_base(&mut w, None, 2 + scene.materials.len() as u32 + j);
-        // As above, but a material: the TextureApplication entry (biased),
-        // which carries its own alpha.
+        // As above, but a material: the TextureApplication entry (biased).
+        // The alpha is written here too: the reader takes a material alpha
+        // of 0 under a style with no transparency as unset.
         w.double(1.0).bit(false).uint(1).bit(true);
         w.uint(2 * j + 2);
-        w.bit(false).bit(false).bit(false).bit(false);
+        let material = plan.textured.get(j as usize);
+        transparency(&mut w, material.and_then(|&m| scene.materials.get(m)));
+        w.bit(false).bit(false).bit(false);
     }
     let pairs = 2 * plan.textured.len() as u32;
     let first_glow = 2 + (scene.materials.len() + plan.textured.len()) as u32;

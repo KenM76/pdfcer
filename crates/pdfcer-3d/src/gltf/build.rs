@@ -1,6 +1,8 @@
 //! glTF materials, meshes, nodes and the scene as a [`MeshScene`]
 //! [glTF 2.0 §3.5, §3.7, §3.9].
 
+use std::collections::BTreeSet;
+
 use pdfcer_json::Json;
 
 use super::accessor::{self, Data, Refusal};
@@ -328,7 +330,7 @@ fn nodes(doc: &Json, out: &mut GltfImport) {
         meshes.get(k).is_some_and(|mesh| {
             member(mesh, "primitives")
                 .iter()
-                .any(|p| p.get("targets").is_some())
+                .any(|p| !member(p, "targets").is_empty())
         })
     };
     let (mut skinned, mut missing) = (0, 0);
@@ -368,10 +370,12 @@ fn nodes(doc: &Json, out: &mut GltfImport) {
 }
 
 /// The default scene's roots, or every parentless node when the file
-/// names no scene [§3.4]; turned Z-up when asked.
+/// names no scene [§3.4]; turned Z-up when asked. A root the scene lists
+/// again (the schema's `scene.nodes` has unique items) is kept once.
 fn roots(doc: &Json, options: GltfOptions, out: &mut GltfImport) {
     let scenes = member(doc, "scenes");
-    let chosen = index(doc, "scene").unwrap_or(0);
+    let named = index(doc, "scene");
+    let chosen = named.filter(|s| *s < scenes.len()).unwrap_or(0);
     out.scene.roots = match scenes.get(chosen) {
         Some(s) => indices(s, "nodes"),
         None => {
@@ -390,9 +394,24 @@ fn roots(doc: &Json, options: GltfOptions, out: &mut GltfImport) {
                 .collect()
         }
     };
-    if scenes.len() > 1 {
-        out.notes
-            .push(format!("scene {chosen} of {} drawn", scenes.len()));
+    match named.filter(|s| *s != chosen) {
+        Some(absent) if !scenes.is_empty() => out.notes.push(format!(
+            "scene {absent} does not exist; scene {chosen} of {} drawn",
+            scenes.len()
+        )),
+        _ if scenes.len() > 1 => out
+            .notes
+            .push(format!("scene {chosen} of {} drawn", scenes.len())),
+        _ => {}
+    }
+    let listed = out.scene.roots.len();
+    let mut seen = BTreeSet::new();
+    out.scene.roots.retain(|&r| seen.insert(r));
+    let repeats = listed - out.scene.roots.len();
+    if repeats > 0 {
+        out.notes.push(format!(
+            "the scene lists a root node it already listed {repeats} times; each root is drawn once"
+        ));
     }
     if options.up_axis == GltfUpAxis::ZUp {
         for &r in &out.scene.roots {

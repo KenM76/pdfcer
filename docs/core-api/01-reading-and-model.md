@@ -4391,7 +4391,9 @@ stream; layout in `ARCHITECTURE.md` decision 210.
   with a picture) when non-zero. `PrcWriteError` (`#[non_exhaustive]`):
   `Empty`, `BadIndex { what, index }` (including a missing texture or a
   `uvs` count unequal to `positions`), `NotATree(why)` (two parents, a
-  parented root, nesting beyond `MAX_DEPTH` 1024), `BadNumber(what)`,
+  parented root, a root listed twice, nesting beyond `MAX_DEPTH` 64 counting
+  a root as 1, the depth `PrcFile` reads back), `BadNumber(what)` (including
+  a non-finite `emissive`, named `emissive colour`),
   `TooLarge`, `BadTexture { index }` (not a PNG or JPEG whose size reads, or one
   0 pixels wide or high).
 - `read_gltf(data, &mut resolve, GltfOptions) -> Result<GltfImport,
@@ -4446,12 +4448,14 @@ stream; layout in `ARCHITECTURE.md` decision 210.
   dropped: a base-colour texture that cannot be drawn (no PNG/JPEG source,
   an unreadable image, no `TEXCOORD_n`), an occlusion map not baked,
   points/lines, skins and morphs at rest pose (a node whose mesh has
-  primitive `targets` counts as morphed), a bad primitive (including an
+  non-empty primitive `targets` counts as morphed), a bad primitive (including an
   accessor holding a NaN or infinity: `accessor N holds a number that is
   not finite`, only that primitive skipped), animations, `COLOR_0` vertex
   colours (counted), a `primitive.material` that does not exist (drawn in
   the default white), nodes naming a mesh that does not exist (counted), a second
-  scene, no scene, and one aggregate `materials: …` line counting normal
+  scene, a `scene` index that does not exist (scene 0 is drawn and the note
+  names both), a root the scene lists again (counted; each root is drawn and
+  turned once), no scene, and one aggregate `materials: …` line counting normal
   maps, metallic-roughness maps and emission, which PRC's diffuse-only
   material cannot carry) and every `inferred` line (an occlusion bake; an
   `alphaMode` MASK material cut out by its texture's alpha, thresholded to

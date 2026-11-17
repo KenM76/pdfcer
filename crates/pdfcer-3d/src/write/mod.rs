@@ -164,7 +164,7 @@ pub enum PrcWriteError {
         index: usize,
     },
     /// The nodes are not a forest (a node with two parents, a parented
-    /// root, or a nesting deeper than [`MAX_DEPTH`]).
+    /// root, a root listed twice, or a nesting deeper than [`MAX_DEPTH`]).
     #[error("the node hierarchy is not a tree: {0}")]
     NotATree(&'static str),
     /// A coordinate, normal, matrix entry, colour or the unit is NaN or
@@ -184,8 +184,10 @@ pub enum PrcWriteError {
     },
 }
 
-/// The deepest node nesting the writer accepts.
-pub const MAX_DEPTH: usize = 1024;
+/// The deepest node nesting the writer accepts, counting a root as 1: this
+/// crate's reader walks 64 levels below the root occurrence, and the writer
+/// may add a root of its own.
+pub const MAX_DEPTH: usize = 64;
 
 /// Write `scene` as a single-file-structure PRC stream.
 ///

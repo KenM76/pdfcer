@@ -149,6 +149,16 @@ fn writing_is_deterministic() {
 }
 
 #[test]
+fn a_root_listed_twice_is_refused() {
+    let mut s = scene();
+    s.roots = vec![s.roots[0]; 2];
+    assert_eq!(
+        write_prc(&s).map(|_| ()),
+        Err(PrcWriteError::NotATree("a root is listed twice"))
+    );
+}
+
+#[test]
 fn invalid_scenes_are_refused() {
     let mut s = scene();
     s.nodes[0].children.push(1);
@@ -465,4 +475,107 @@ fn a_textured_material_carries_its_glow() {
     let k = m.mesh_textures.iter().position(Option::is_some).unwrap();
     let f = m.finishes[k].unwrap();
     assert!(close(f.emissive, [1.0, 0.0, 0.0]), "{f:?}");
+}
+
+/// `n` nodes each the child of the one before, the last drawing the pane.
+fn chain(n: usize) -> MeshScene {
+    let mut s = scene();
+    s.nodes = (0..n)
+        .map(|i| {
+            let last = i + 1 == n;
+            node(
+                "link",
+                last.then_some(0),
+                if last { vec![] } else { vec![i + 1] },
+            )
+        })
+        .collect();
+    s
+}
+
+#[test]
+fn the_deepest_accepted_chain_reads_back() {
+    for roots in [1, 2] {
+        let mut s = chain(MAX_DEPTH);
+        if roots == 2 {
+            s.nodes.push(node("bolt", Some(1), vec![]));
+            s.roots = vec![0, MAX_DEPTH];
+        }
+        let prc = write_prc(&s).unwrap().prc;
+        assert!(
+            PrcFile::parse(&prc).unwrap().model_tree().is_ok(),
+            "{roots} root(s)"
+        );
+        let m = assemble(&prc).unwrap();
+        assert_eq!(m.unplaced, None, "{roots} root(s)");
+        assert_eq!(m.triangles, if roots == 2 { 3 } else { 1 });
+    }
+    assert_eq!(
+        write_prc(&chain(MAX_DEPTH + 1)).map(|_| ()),
+        Err(PrcWriteError::NotATree("nested too deeply"))
+    );
+}
+
+#[test]
+fn a_transparent_textured_material_reads_back_transparent() {
+    let mut s = scene();
+    // A PNG header claiming 1 x 2: enough to write, not to decode.
+    let image = b"\x89PNG\r\n\x1a\n\0\0\0\x0dIHDR\0\0\0\x01\0\0\0\x02".to_vec();
+    s.textures = vec![SceneTexture {
+        image,
+        wrap: [crate::TextureWrap::Clamp; 2],
+        alpha: false,
+    }];
+    s.materials[1].texture = Some(0);
+    s.materials[1].rgba[3] = 0.0;
+    s.meshes[1].primitives[0].uvs = vec![[0.5, 0.1], [0.5, 0.1], [0.5, 0.9]];
+    let m = assemble(&write_prc(&s).unwrap().prc).unwrap();
+    let red: Vec<_> = m
+        .colours
+        .iter()
+        .flatten()
+        .filter(|c| c[..3] == [255, 0, 0])
+        .collect();
+    assert!(!red.is_empty(), "{:?}", m.colours);
+    assert!(red.iter().all(|c| c[3] == 0), "{red:?}");
+}
+
+#[test]
+fn a_non_finite_emissive_colour_is_named() {
+    for bad in [f64::NAN, f64::INFINITY] {
+        let mut s = scene();
+        s.materials[0].emissive = [0.0, bad, 0.0];
+        assert_eq!(
+            write_prc(&s).map(|_| ()),
+            Err(PrcWriteError::BadNumber("emissive colour"))
+        );
+    }
+}
+
+#[test]
+fn supplied_normals_are_stored_not_replaced() {
+    use crate::Tessellation;
+    let mut s = scene();
+    let up = [[0.0, 0.0, 1.0], [0.0, 0.6, 0.8], [0.6, 0.0, 0.8]];
+    s.meshes[0].primitives[0].normals = up.to_vec();
+    let r = write_prc(&s).unwrap();
+    let file = PrcFile::parse(&r.prc).unwrap();
+    let meshes: Vec<_> = file
+        .file_structures
+        .iter()
+        .flat_map(|fs| fs.tessellations().unwrap())
+        .collect();
+    let supplied = |t: &&Tessellation| matches!(t, Tessellation::Mesh(m) if m.normals.len() == 3);
+    let Some(Tessellation::Mesh(pane)) = meshes.iter().find(supplied) else {
+        panic!("{meshes:?}")
+    };
+    assert_eq!(pane.normals, up);
+    assert_eq!(pane.triangle_normals, [[0, 1, 2]]);
+    assert!(!pane.normals_recalculated);
+    let mut s = scene();
+    s.meshes[0].primitives[0].normals = vec![[0.0, 0.0, 1.0]];
+    assert!(
+        matches!(write_prc(&s), Err(PrcWriteError::BadIndex { .. })),
+        "one normal for three vertices"
+    );
 }

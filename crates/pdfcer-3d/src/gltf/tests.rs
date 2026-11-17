@@ -183,6 +183,71 @@ fn no_scene_draws_every_top_level_node() {
     assert!(import.notes.iter().any(|n| n.contains("names no scene")));
 }
 
+#[test]
+fn a_root_listed_twice_is_drawn_and_turned_once() {
+    let text = doc("").replace(
+        r#""scenes":[{"nodes":[0]}]"#,
+        r#""scenes":[{"nodes":[0,0,0]}]"#,
+    );
+    let data = glb(&text, &payload(&QUAD, &QUAD_INDICES));
+    let once = read(
+        &glb(&doc(""), &payload(&QUAD, &QUAD_INDICES)),
+        GltfOptions::default(),
+    );
+    let import = read(&data, GltfOptions::default());
+    assert_eq!(import.scene.roots, [0]);
+    let noted: Vec<_> = import
+        .notes
+        .iter()
+        .filter(|n| n.contains("already listed"))
+        .collect();
+    assert_eq!(
+        noted,
+        ["the scene lists a root node it already listed 2 times; each root is drawn once"]
+    );
+    assert_eq!(import.scene.nodes[0].matrix, once.scene.nodes[0].matrix);
+    // The root's +Y translation lands on +Z: turned once, not twice.
+    let m = import.scene.nodes[0].matrix.unwrap();
+    assert_eq!([m[12], m[13], m[14]], [0.0, 0.0, 2.0]);
+    assert!(write_prc(&import.scene).is_ok());
+}
+
+#[test]
+fn a_scene_that_does_not_exist_is_one_true_note() {
+    let text = br#"{"asset":{"version":"2.0"},"scene":5,"nodes":[{},{}],
+      "scenes":[{"nodes":[0]},{"nodes":[1]}]}"#;
+    let import = read(text, GltfOptions::default());
+    assert_eq!(import.scene.roots, [0]);
+    let about: Vec<_> = import
+        .notes
+        .iter()
+        .filter(|n| n.contains("scene"))
+        .collect();
+    assert_eq!(about, ["scene 5 does not exist; scene 0 of 2 drawn"]);
+    let one = br#"{"asset":{"version":"2.0"},"scene":1,"nodes":[{}],"scenes":[{"nodes":[0]}]}"#;
+    let notes = read(one, GltfOptions::default()).notes;
+    assert_eq!(notes, ["scene 1 does not exist; scene 0 of 1 drawn"]);
+    let two = br#"{"asset":{"version":"2.0"},"scene":1,"nodes":[{},{}],
+      "scenes":[{"nodes":[0]},{"nodes":[1]}]}"#;
+    let import = read(two, GltfOptions::default());
+    assert_eq!(import.scene.roots, [1]);
+    assert_eq!(import.notes, ["scene 1 of 2 drawn"]);
+}
+
+#[test]
+fn an_empty_target_list_is_not_a_morph() {
+    let with = |targets: &str| {
+        let text = format!(
+            r#"{{"asset":{{"version":"2.0"}},"meshes":[{{"primitives":[{{"attributes":{{}},"targets":{targets}}}]}}],
+              "nodes":[{{"mesh":0}}],"scenes":[{{"nodes":[0]}}]}}"#
+        );
+        let notes = read(text.as_bytes(), GltfOptions::default()).notes;
+        notes.iter().any(|n| n.contains("rest pose"))
+    };
+    assert!(!with("[]"));
+    assert!(with(r#"[{"POSITION":0}]"#));
+}
+
 /// A PNG header claiming 1 x 2: enough for import, not for decoding.
 const PNG_HEADER: &[u8] = b"\x89PNG\r\n\x1a\n\0\0\0\x0dIHDR\0\0\0\x01\0\0\0\x02";
 
