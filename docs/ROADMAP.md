@@ -112,6 +112,24 @@ wherever it appears.*
 
 ## Shipped
 
+### `a40088c4` `v0.156.0` release bump, 2026-11-17 (1590th filing)
+
+Engineer-reported; no shell here, git, push and CI state not checked from here. `a40088c4` `chore(release): v0.156.0`: the 17 workspace version strings `0.155.0` to `0.156.0` plus both lock files. **NOT yet tagged, deployed or published**; a separate publication filing follows after the tag.
+- **Round contents:** `Pass 721.0` (`ce8fa9d2`, light meter), `721.1` (`0598d562`, two-surface measure), `720.2` (`9e9a570b`, copied text keeps colour and text state), `722.0` (`37d649a4`, continue/open a path), `721.3` (`b5eb72e6`, below). All already filed.
+- **Still open after this round (not in `v0.156.0`):** `Pass 721.2`, `722.1` (awaits operator ruling), `722.2`, `647.3g`.
+
+### `b5eb72e6` `Pass 721.3`: a model light names the tree node that carries it, 2026-11-17 (1590th filing)
+
+Engineer-reported; no shell here, git, push and CI state not checked from here. `b5eb72e6` `feat(3d): a model light names the tree node that carries it (Pass 721.3)`. `pdfcer-gui` request `G289` (`D:\Dev\FeatureRequests\pdfce_FeatureRequests\open\request_G289_model_lights_name_their_tree_node.md`), answered by `open\reply_G289_model_lights_name_their_tree_node_SHIPPED.md`. Reasoning is in the commit message. `pdfcer-3d`; core and cli ticked, gui none.
+- **New pub fields:** `ModelLight::node: Option<usize>` and `ViewLights::node: Option<usize>`, indexes into `AssembledModel::tree`. For an occurrence light: the product occurrence whose scene display parameters hold it. For a view: the occurrence holding the view, or whose part does; every light inside a `ViewLights` names its view's node. `None` for glTF lights and `ModelLight::new`.
+- **Not taken:** a per-node `Range` into the light list (lights can belong to a default view).
+- **Contract (now stated in `docs/core-api/`):** a hidden or suppressed occurrence's lights ARE listed and drawn with; behaviour unchanged, the engine does not drop them.
+- **CLI:** `3d-render` `light` and `view-light` lines end with `node=N` when the light has one.
+- **Docs:** `docs/core-api/01-reading-and-model.md` updated (now 5,428 lines).
+- **Tests (engineer-reported):** 2 in `prc::tree` (one new, one extended) plus the writer round-trip test adjusted; sabotage (removing the naming) failed both tree tests. `pdfcer-3d` lib 537 pass; `pdfcer-cli` 131 bin and 1111 integration pass; `clippy --workspace --all-targets` and fmt clean. No manifest change, so `cargo tree` invariant untouched (`pdfcer-3d` is not core or render).
+- **FEATURES:** the model-lights row gained the "each light names its tree node" clause (core, cli ticked; gui open); the `Pass 721.3` Planned row removed. No decision, no rule.
+- **Next free IDs:** `Pass 717.4`, `Pass 720.3`, `Pass 721.4`, `Pass 722.3`, `Pass 647.3h`.
+
 ### `37d649a4` `Pass 722.0`: continue an open path, and open a closed one, 2026-11-17 (1589th filing)
 
 Engineer-reported; no shell here, git, push and CI state not checked from here. `37d649a4` `feat(vector): continue an open path and open a closed one (Pass 722.0)`. Operator wish list. Reasoning is in the commit message. `pdfcer-core` plus CLI; core and cli ticked, gui none.
@@ -27484,11 +27502,7 @@ closes out the *prior* filing's business rather than opening this one's.
 
 > **`Pass 722.0` SHIPPED 2026-11-17 (1589th filing), `37d649a4`; see its *Shipped* entry, removed from this list.** Residue: `Pass 722.2` (Backlog).
 
-> **`Pass 721.3` (OPEN, NOT STARTED; gates `v0.156.0`; filed 1589th filing): model lights name the assembly-tree node that carries them (`pdfcer-gui` request `G289`, `D:\Dev\FeatureRequests\pdfce_FeatureRequests\open\request_G289_model_lights_name_their_tree_node.md`).** Crate `pdfcer-3d`. `prc::tree` knows each light's owning occurrence while assembling and drops the link before `AssembledModel`, so a shell cannot switch off the lamps under a folder.
-> - **Ask:** `ModelLight::node: Option<usize>` indexing `AssembledModel::tree`, and the owner on each `ViewLights` entry (the occurrence carrying the view). glTF-authored lights have `None`.
-> - **Contract:** state in `docs/core-api/` whether a hidden or suppressed occurrence's lights are still listed in `AssembledModel::lights` (engineer's stated intent: they are).
-> - **Acceptance:** fixture test that an occurrence's light names its node and a view's lights name the occurrence carrying the view; glTF lights read `None`; contract doc updated. Reply to `G289` owed when it ships.
-> - **Filing note:** ID chosen from the ledger's next-free list; zero hits for `721.3` as a Pass across `docs/` by grep (only "next free" mentions). Next free IDs: `Pass 717.4`, `Pass 720.3`, `Pass 721.4`, `Pass 722.3`, `Pass 647.3h`.
+> **`Pass 721.3` SHIPPED 2026-11-17 (1590th filing), `b5eb72e6`; see its *Shipped* entry, removed from this list.** The `v0.156.0` round is complete except publication: bump `a40088c4` is filed (1590th), tag and publish are a separate filing.
 
 > **`Pass 647.3g` (OPEN, NOT STARTED; NOT gating `v0.156.0` unless the operator says so): XFA page-background fields bind per page (request `X016` item 1, the only unshipped part of `X016`).** Part of the `Pass 647.x` arc (decision 204, paced slowly). The criteria sit under the `Pass 647.3` heading further down this file (heading status corrected this filing: `647.3a` to `647.3f` shipped); the fresh slice is the per-page instance index (`Area[0]`, `Area[1]`, ...), a per-page value surviving save and reopen, and `match="global"` or an explicit `<bind ref>` staying one shared value, synthetic templates only. Reply to `X016` owed when it ships.
 

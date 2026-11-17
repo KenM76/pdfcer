@@ -4,6 +4,16 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-11-17 (1590th filing) — `Pass 721.3` SHIPPED (`b5eb72e6`, model lights name their tree node, `G289`); `v0.156.0` release bump (`a40088c4`, not yet published)
+
+**Filed (engineer-reported; no shell here, git, push and CI state not checked from here):**
+- `b5eb72e6` `feat(3d): a model light names the tree node that carries it (Pass 721.3)`: `ModelLight::node` and `ViewLights::node` (`Option<usize>`, indexes into `AssembledModel::tree`); a view's lights all name the occurrence holding the view or whose part does; `None` for glTF lights and `ModelLight::new`. Contract now states hidden or suppressed occurrences' lights are listed and drawn (unchanged behaviour). CLI `3d-render` light and view-light lines end `node=N`. Per-node `Range` alternative not taken (lights can be a default view's). Tests: 2 in `prc::tree`, writer round-trip adjusted; sabotage failed both tree tests; `pdfcer-3d` 537, `pdfcer-cli` 131 bin + 1111 integration; clippy and fmt clean; no manifest change. Reply `reply_G289_model_lights_name_their_tree_node_SHIPPED.md` written in `D:\Dev\FeatureRequests\pdfce_FeatureRequests\open`.
+- `a40088c4` `chore(release): v0.156.0`: 17 workspace version strings `0.155.0` to `0.156.0` plus both lock files. Round: `721.0`, `721.1`, `720.2`, `722.0`, `721.3`. NOT tagged, deployed or published; a publication filing follows after the tag.
+
+**Request-folder notice:** `notice_2026-11-17_which_reply_answers_which_request.md` written in the `pdfce_FeatureRequests` open folder, indexing 31 requests to their existing replies (the request audit matches by exact request filename), with five corrections to earlier replies. `check-requests-scoped.py` now lists nothing as not yet taken up (engineer-reported, not re-run from here).
+
+**Open:** `Pass 721.2` (Backlog), `722.1` (awaits operator ruling), `722.2` (Backlog), `647.3g` (Next up). The `paste-clipboard` rider (filed 1586th) still not reported done. Next free IDs: `Pass 717.4`, `Pass 720.3`, `Pass 721.4`, `Pass 722.3`, `Pass 647.3h`; decision `225`, rule `R264` (premises not re-measured this filing; no decision, no rule minted). FEATURES: model-lights row gained the node clause (core, cli ticked); `721.3` Planned row removed.
+
 ## 2026-11-17 (1589th filing) — `Pass 720.2` SHIPPED (`9e9a570b`, copied text keeps colour and text state); `Pass 722.0` SHIPPED (`37d649a4`, continue an open path / open a closed one); `Pass 721.3` (`G289`) opened; `722.2` filed
 
 **Filed (engineer-reported; no shell here, git, push and CI state not checked from here):**
