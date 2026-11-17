@@ -122,6 +122,7 @@ pub(crate) const IN_PLACE_COMMANDS: &[&str] = &[
     "object-transform",
     "object-transform-each",
     "page-paste",
+    "paste-clipboard",
     "paste-field",
     "paste-fields",
     "place-stamp",

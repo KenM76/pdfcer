@@ -41,7 +41,7 @@ fn build_pdf(objects: &[(u32, String)]) -> Vec<u8> {
     buf
 }
 
-fn one_page() -> Vec<u8> {
+pub(crate) fn one_page() -> Vec<u8> {
     let content = "1 0 0 rg 20 20 20 20 re f";
     build_pdf(&[
         (1, "<< /Type /Catalog /Pages 2 0 R >>".into()),
@@ -61,15 +61,19 @@ fn one_page() -> Vec<u8> {
     ])
 }
 
-struct TempDir(PathBuf);
+/// Held by every test that writes the OS clipboard: there is one, and
+/// the tests of this binary run in parallel.
+pub(crate) static CLIPBOARD: std::sync::Mutex<()> = std::sync::Mutex::new(());
+
+pub(crate) struct TempDir(pub(crate) PathBuf);
 
 impl TempDir {
-    fn new(tag: &str) -> Self {
+    pub(crate) fn new(tag: &str) -> Self {
         let path = std::env::temp_dir().join(format!("pdfcer-test-{tag}-{}", std::process::id()));
         std::fs::create_dir_all(&path).unwrap();
         Self(path)
     }
-    fn write(&self, name: &str, bytes: &[u8]) -> PathBuf {
+    pub(crate) fn write(&self, name: &str, bytes: &[u8]) -> PathBuf {
         let p = self.0.join(name);
         std::fs::write(&p, bytes).unwrap();
         p
@@ -82,11 +86,11 @@ impl Drop for TempDir {
     }
 }
 
-fn run(args: &[&str]) -> Output {
+pub(crate) fn run(args: &[&str]) -> Output {
     Command::new(BIN).args(args).output().expect("spawn")
 }
 
-fn stderr(o: &Output) -> String {
+pub(crate) fn stderr(o: &Output) -> String {
     String::from_utf8_lossy(&o.stderr).into_owned()
 }
 
@@ -138,6 +142,9 @@ fn the_clipboard_round_trip_when_asked_for() {
         println!("copy_page: PDFCER_CLIPBOARD_TESTS not set; the clipboard round trip did not run");
         return;
     }
+    let _clipboard = CLIPBOARD
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
     let dir = TempDir::new("copy-page-roundtrip");
     let input = dir.write("one.pdf", &one_page());
     let o = run(&["copy-page", input.to_str().unwrap(), "--dpi", "72"]);

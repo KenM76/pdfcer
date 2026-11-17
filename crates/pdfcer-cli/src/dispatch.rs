@@ -1950,6 +1950,34 @@ pub(crate) fn run() -> ExitCode {
             mode,
             verify_undo,
         }),
+        Command::PasteClipboard {
+            input,
+            page,
+            rect,
+            contain,
+            stretch,
+            format,
+            stamp,
+            output,
+            mode,
+            verify_undo,
+        } => cmd_paste_clipboard(&PasteClipboardArgs {
+            input: &input,
+            page,
+            rect: rect.as_deref(),
+            fit: if stretch {
+                PasteFit::Stretch
+            } else if contain {
+                PasteFit::Contain
+            } else {
+                PasteFit::Natural
+            },
+            format,
+            stamp,
+            output: &output,
+            mode,
+            verify_undo,
+        }),
         Command::BookmarkCopy {
             input,
             item,
@@ -4130,6 +4158,8 @@ pub(crate) fn run() -> ExitCode {
             leaf,
             annotations,
             clip,
+            clipboard,
+            clipboard_dpi,
             pdf,
             cut,
             mode,
@@ -4139,7 +4169,8 @@ pub(crate) fn run() -> ExitCode {
             objects: &objects,
             leaf,
             annotations: &annotations,
-            clip: &clip,
+            clip: clip.as_deref(),
+            clipboard: clipboard.then_some(clipboard_dpi),
             pdf: pdf.as_deref(),
             cut: cut.as_deref(),
             mode,

@@ -6322,9 +6322,10 @@ pub(crate) enum Command {
     /// One transaction places, in this order: `image/svg+xml` (the SVG
     /// `export-image --format svg` writes, which Microsoft 365 and Inkscape
     /// read as vectors), `PNG` (with real transparency, at `--dpi`),
-    /// `CF_DIBV5` (for readers older than the PNG convention), and
-    /// `application/pdf` (the page as a one-page PDF, which Inkscape can
-    /// import). A reader takes the first format it knows, so a paste into
+    /// `CF_DIBV5` (for readers older than the PNG convention),
+    /// `CF_ENHMETAFILE` (a Windows metafile, the vector form LibreOffice
+    /// and older Windows applications read), and `application/pdf` (the
+    /// page as a one-page PDF, which Inkscape can import). A reader takes the first format it knows, so a paste into
     /// Word is vectors, a paste into Paint is pixels, and neither needs a
     /// switch. See docs/clipboard-interop-survey.md for who reads what.
     ///
@@ -13530,6 +13531,12 @@ pub(crate) enum Command {
     /// `--objects` takes 0-based paint-order indices, the numbering
     /// `object-list` prints. Add `--cut OUTPUT.pdf` to also remove them from a
     /// copy of the input, which is cut in the one-shot shape a CLI can offer.
+    ///
+    /// `--clipboard` puts the selection on the OS clipboard as vectors
+    /// (SVG, a Windows metafile and a one-page PDF, plus PNG and a bitmap
+    /// for applications that read only pixels), the same forms `copy-page`
+    /// places. With `--cut` that is cut-as-vector. `paste-clipboard` and
+    /// other applications paste it. Give `--clip`, `--clipboard`, or both.
     ObjectCopy {
         /// Input PDF.
         input: PathBuf,
@@ -13560,8 +13567,16 @@ pub(crate) enum Command {
         #[arg(long, value_name = "N,N,...", default_value = "")]
         annotations: String,
         /// Where to write the clipboard payload.
-        #[arg(long, value_name = "FILE")]
-        clip: PathBuf,
+        #[arg(long, value_name = "FILE", required_unless_present = "clipboard")]
+        clip: Option<PathBuf>,
+        /// Put the selection on the OS clipboard as vectors (Windows).
+        /// Annotations are drawn as they appear; they are not annotations
+        /// in what another application pastes.
+        #[arg(long)]
+        clipboard: bool,
+        /// Resolution of the pixel forms `--clipboard` places.
+        #[arg(long, default_value_t = 150.0, requires = "clipboard")]
+        clipboard_dpi: f32,
         /// Also write the selection as a standalone one-page PDF here
         /// (Pass 120.2) — the interchange format, for applications that are
         /// not pdfcer.
@@ -14852,6 +14867,65 @@ pub(crate) enum Command {
         mode: SaveMode,
         /// Also verify that undoing the placement reproduces the input byte
         /// for byte.
+        #[arg(long)]
+        verify_undo: bool,
+    },
+
+    /// **Paste** what the OS clipboard holds onto a page (Windows).
+    ///
+    /// Vectors stay vectors. The clipboard usually holds several forms of
+    /// one copy; the best one is taken, in this order: a PDF, an SVG, a
+    /// Windows metafile (EMF), a PNG, a bitmap. So a copy made by
+    /// `copy-page`, `object-copy --clipboard`, Inkscape, Illustrator,
+    /// Word or Excel is pasted as editable paths and text, and only a
+    /// copy that exists as pixels alone (a screenshot) becomes an image.
+    ///
+    /// Prints one `paste-clipboard` line: `took=` the form used, `from=`
+    /// its clipboard format name, `held=` every form that was available,
+    /// `vector=` 1 or 0, `placed=` the rectangle, `shrunk=` 1 when the
+    /// content was larger than the space and was made smaller. Then the
+    /// line and notes of the command that placed it (`place-stamp`,
+    /// `add-svg`, `add-emf` or `add-image`), which name anything that was
+    /// approximated or not carried. A note on stderr says when the paste
+    /// is an image because no vector form was held.
+    ///
+    /// By default the content keeps its own size, centred on the page.
+    /// `--rect` centres it in a rectangle instead; `--contain` makes it
+    /// as large as fits; `--stretch` fills the rectangle exactly.
+    ///
+    /// Exit 9 when the clipboard holds none of these forms, or not the
+    /// one `--format` names. Nothing is written.
+    PasteClipboard {
+        /// Input PDF.
+        input: PathBuf,
+        /// 1-based page number.
+        #[arg(long, default_value_t = 1)]
+        page: usize,
+        /// Where to paste, in points; the default is the whole page.
+        #[arg(long, value_name = "LLX,LLY,URX,URY", allow_hyphen_values = true)]
+        rect: Option<String>,
+        /// Make the content as large as fits, keeping its proportions.
+        #[arg(long)]
+        contain: bool,
+        /// Fill the rectangle exactly, distorting the content if the
+        /// shapes differ.
+        #[arg(long, conflicts_with = "contain")]
+        stretch: bool,
+        /// Take this form instead of the best one held.
+        #[arg(long, value_enum)]
+        format: Option<crate::clipboard_read::PasteFormat>,
+        /// Paste as a `/Stamp` annotation instead of page content (an
+        /// image is always page content).
+        #[arg(long)]
+        stamp: bool,
+        /// Output path.
+        #[arg(short, long)]
+        output: PathBuf,
+        /// Which save path to use.
+        #[arg(long, value_enum, default_value_t = SaveMode::Incremental)]
+        mode: SaveMode,
+        /// Also verify that undoing the paste reproduces the input byte
+        /// for byte (not for a PDF form).
         #[arg(long)]
         verify_undo: bool,
     },

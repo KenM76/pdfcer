@@ -565,6 +565,7 @@ use pdfcer_core::signature::{SaveMode as CoreSaveMode, SignatureImpact};
 
 mod cli;
 mod clipboard;
+mod clipboard_read;
 mod copy_text;
 use copy_text::{RichFormat, cmd_copy_text};
 mod ocr_program;
@@ -694,6 +695,8 @@ mod image_stamp_cmd;
 use image_stamp_cmd::*;
 mod emf_cmd;
 use emf_cmd::*;
+mod paste_cmd;
+use paste_cmd::*;
 mod svg_cmd;
 use svg_cmd::*;
 mod paint_cmd;

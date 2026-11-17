@@ -16,7 +16,11 @@ pub(crate) struct ObjectCopyArgs<'a> {
     pub(crate) leaf: bool,
     /// `--annotations`, unparsed.
     pub(crate) annotations: &'a str,
-    pub(crate) clip: &'a Path,
+    /// `--clip`: the payload file.
+    pub(crate) clip: Option<&'a Path>,
+    /// `--clipboard`: place the selection on the OS clipboard, at this
+    /// resolution for its pixel forms.
+    pub(crate) clipboard: Option<f32>,
     pub(crate) pdf: Option<&'a Path>,
     pub(crate) cut: Option<&'a Path>,
     pub(crate) mode: SaveMode,
@@ -53,9 +57,19 @@ pub(crate) fn cmd_object_copy(args: &ObjectCopyArgs<'_>) -> u8 {
         Err(code) => return code,
     };
     let payload = clip.to_bytes();
-    if let Err(err) = write_output(args.clip, &payload) {
-        eprintln!("pdfcer: {}: {err}", args.clip.display());
+    if let Some(path) = args.clip
+        && let Err(err) = write_output(path, &payload)
+    {
+        eprintln!("pdfcer: {}: {err}", path.display());
         return exit::IO_ERROR;
+    }
+    // Before the cut is saved: a clipboard that refuses leaves the
+    // document as it was.
+    if let Some(dpi) = args.clipboard {
+        let code = to_os_clipboard(&clip, dpi);
+        if code != exit::SUCCESS {
+            return code;
+        }
     }
     let pdf_note = match export_pdf(args, &clip) {
         Ok(note) => note,
@@ -75,15 +89,17 @@ pub(crate) fn cmd_object_copy(args: &ObjectCopyArgs<'_>) -> u8 {
         Err(code) => return code,
     };
     println!(
-        "object-copy {} page {} objects={} leaf={} -> {} ({} bytes); kinds={} resources={} {cut_note}",
+        "object-copy {} page {} objects={} leaf={} -> {} ({} bytes); kinds={} resources={} {cut_note} clipboard={}",
         args.input.display(),
         args.page,
         clip.len(),
         u32::from(args.leaf),
-        args.clip.display(),
+        args.clip
+            .map_or_else(|| String::from("-"), |p| p.display().to_string()),
         payload.len(),
         clip.kinds().join("+"),
         clip.resource_count(),
+        u32::from(args.clipboard.is_some()),
     );
     println!(
         "  annotations={} annotations_serialise={}",
@@ -92,6 +108,41 @@ pub(crate) fn cmd_object_copy(args: &ObjectCopyArgs<'_>) -> u8 {
     );
     println!("  {pdf_note}");
     exit::SUCCESS
+}
+
+/// `--clipboard`: the selection as a one-page PDF, handed to `copy-page`,
+/// which places every form and prints what is approximated in each.
+fn to_os_clipboard(clip: &ObjectClip, dpi: f32) -> u8 {
+    let exported = clip.to_pdf();
+    if exported.size_substituted {
+        eprintln!(
+            "pdfcer: object-copy: the selection has no area in one direction, so what is on the clipboard was given a minimum size of {:.2}x{:.2} pt.",
+            exported.size.0, exported.size.1
+        );
+    }
+    let temp = std::env::temp_dir().join(format!("pdfcer-copy-{}.pdf", std::process::id()));
+    if let Err(err) = std::fs::write(&temp, &exported.bytes) {
+        eprintln!("pdfcer: {}: {err}", temp.display());
+        return exit::IO_ERROR;
+    }
+    let code = cmd_copy_page(CopyPageArgs {
+        input: &temp,
+        page: 1,
+        dpi,
+        svg: true,
+        emf: true,
+        raster: true,
+        pdf: true,
+        background: None,
+        annotations: true,
+        font_dirs: &[],
+        show_layers: &[],
+        hide_layers: &[],
+        raster_blends: false,
+    });
+    // Best effort: a leftover temp file is not a failed copy.
+    let _ = std::fs::remove_file(&temp);
+    code
 }
 
 /// `--objects` and `--annotations`, parsed, with the combinations refused.
