@@ -112,12 +112,25 @@ wherever it appears.*
 
 ## Shipped
 
-### `9526b9d9` `chore(release): v0.153.0`, 2026-11-16: version bump filed, release NOT yet published (1574th filing)
+### `5c668701` `v0.153.0` PUBLISHED, 2026-11-16 (1575th filing)
+
+Engineer-reported measurements; no shell here, nothing checked from here. Bump `9526b9d9`, filed by `5c668701` (1574th). Annotated tag `v0.153.0` is on `5c668701`, pushed; `origin/main` is at `5c668701`. CI green at that commit (run 43979326593, read from GitHub by the engineer).
+- **Carries:** `99235b6f` (`Pass 715.0`), `cdfbc01f` (`Pass 716.0`), `7ec18b00` (`Pass 717.0`), `011b78b0` (`Pass 718.0`), `7d8a7bf3` (`Pass 718.1`); docs-only `f1ace7c1` (README subcommand count 248 to 252). Requests `G280` to `G287` answered and marked released in the channel.
+- **GitHub release:** "pdfcer v0.153.0", 8 assets at local sizes: portable zip `pdfcer-v0.153.0-windows-x64.zip` 32,388,605 bytes; add-ons ocrcer 3,789,155, ocrs 11,352,262, tesseract 4,483,685; each with `.sha256`. `verify-release.py v0.153.0`: 8 ok, 1 FAIL "working tree clean" (27 uncommitted paths: agent-memory files, two untracked `docs/research` request drafts, a stray repo-root file named `-`; none in the release; same known failure as prior releases).
+- **Smoke (fresh folder `D:\builds\smoke153`):** passed; `pdfcer --version` 0.153.0, revision `v0.152.0-13-g5c668701`; `dimension-list` and `list-layers` ran on a fixture. Build folder `D:\builds\pdfcer-20261116-1826-5c66870`, staging `D:\builds\rel153`.
+- **OneDrive:** wrote `pdfcer2` (was 0.151.0); `pdfcer1` keeps 0.152.0; the next release writes `pdfcer1`.
+- **crates.io:** all 16 engine crates at 0.153.0 in the standing order (model, color, pkix, vec3, json, jpeg-remux, 3d, 3d-nav, image-codec, fonts, function, text, core, render, flatten, emf); no 429; published from the repo at the tag with `CARGO_TARGET_DIR=target/pub`.
+- **Pre-tag checks on the bump tree:** 34 CI python audits (one failure found and fixed: README count, `f1ace7c1`); CI's three `--no-default-features` steps for `pdfcer-core`/`pdfcer-cli` (clippy; core 279 tests; cli bin 117 tests); rustdoc broken-link deny; register-entry-size, ledger-numbers, commits-filed, suite-name-absent.
+- **Channel:** notice `open/notice_2026-11-16_release_v0.153.0.md` written.
+- **Still open:** Backlog `Pass 717.1`, `Pass 718.2`, `Pass 713.1` (the last two are the same gap; cross-referenced, IDs not merged).
+- **FEATURES:** `Engine crates on crates.io` row advanced to 0.153.0; no capability row changed. No decision, no rule. Supersedes the "NOT yet published" status of the `9526b9d9` note below.
+
+### `9526b9d9` `chore(release): v0.153.0`, 2026-11-16: version bump filed; published in the 1575th filing above (1574th filing)
 
 Engineer-reported; no shell here, git, tag, push, CI, crates.io and backup state not checked from here. `9526b9d9` on `main` bumps the workspace version and the 16 engine-crate pins from 0.152.0 to 0.153.0 in `Cargo.toml`, plus `Cargo.lock` and `fuzz/Cargo.lock`. Version bump only: no code change, no dependency change.
 - **Planned contents of `v0.153.0`** (already filed, 1570th to 1573rd): `99235b6f` (`Pass 715.0`), `cdfbc01f` (`Pass 716.0`), `7ec18b00` (`Pass 717.0`), `011b78b0` (`Pass 718.0`), `7d8a7bf3` (`Pass 718.1`); plus docs-only `f1ace7c1` (README subcommand count 248 to 252, recorded in the session log). Requests answered: `pdfcer-gui` `G280` to `G287` (`G286` counts only; carry is Backlog `Pass 718.2`).
-- **Not published.** Not yet tagged. Still to come, filed separately: tag, GitHub release, OneDrive (`pdfcer2` is next in the alternation), crates.io (16 crates). A later filing records PUBLISHED.
-- **FEATURES:** no change; the `Engine crates on crates.io` row stays at 0.152.0 until publication.
+- **Published** (amended 1575th filing; this note said "NOT yet published"): tag, GitHub release, OneDrive `pdfcer2` and crates.io (16 crates) are recorded in the entry above.
+- **FEATURES:** no change at the time; the `Engine crates on crates.io` row advanced to 0.153.0 in the 1575th filing.
 
 ### `7d8a7bf3` `Pass 718.1`: report how many ce dimensions arrive as plain lines, 2026-11-16 (1573rd filing)
 
@@ -38539,7 +38552,7 @@ Carry the source's ce-dimension groups and records through `pageops::merge`, `in
 
 ### `Pass 713.1`: `merge` and insert-into-target carry no ce-dimension sidecar (OPEN, NOT STARTED; filed 1567th filing, known gap of `Pass 713.0`)
 
-`pageops::merge` passes `catalog_from: None`, so no source's Catalog `/PieceInfo` is read: ce dimensions on merged pages arrive as plain `/Line` annotations, no longer editable as ce dimensions. The same holds for ce dimensions on pages inserted INTO a target by `insert_with`. Extract, split and insert-to-new carry the sidecar (`Pass 713.0`, `530a6ffc`). Acceptance: merging two files that each hold ce dimensions keeps them editable, with the group and id re-pointing `dimension_carry.rs` does, and the report counts them. Documented in `docs/core-api/02`.
+`pageops::merge` passes `catalog_from: None`, so no source's Catalog `/PieceInfo` is read: ce dimensions on merged pages arrive as plain `/Line` annotations, no longer editable as ce dimensions. The same holds for ce dimensions on pages inserted INTO a target by `insert_with`. Extract, split and insert-to-new carry the sidecar (`Pass 713.0`, `530a6ffc`). Acceptance: merging two files that each hold ce dimensions keeps them editable, with the group and id re-pointing `dimension_carry.rs` does, and the report counts them. Documented in `docs/core-api/02`. **Same gap as `Pass 718.2`** (`G286` ask 1, filed later); whichever ships first should absorb the other. `Pass 718.1` (`7d8a7bf3`) now reports the count via `ce_dimensions_as_lines`.
 
 ### `Pass 703.0`-`703.14` — renderer, extraction and robustness edge cases (ARC, ACCEPTED, `703.0` SHIPPED complete (1494th filing), rest NOT STARTED; filed 1486th filing; request `X067`, operator as crates consumer; ahead of `702.0`-`702.6`)
 

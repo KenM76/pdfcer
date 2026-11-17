@@ -4,7 +4,22 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
-## 2026-11-16 (1574th filing) — `9526b9d9` `v0.153.0` version bump (not yet published)
+## 2026-11-16 (1575th filing) — `v0.153.0` PUBLISHED
+
+**Filed (engineer-reported; no shell here, nothing checked from here):**
+- Annotated tag `v0.153.0` on `5c668701` (the 1574th filing commit), pushed; `origin/main` at `5c668701`. CI green there (run 43979326593). Carries `99235b6f` (`Pass 715.0`), `cdfbc01f` (`716.0`), `7ec18b00` (`717.0`), `011b78b0` (`718.0`), `7d8a7bf3` (`718.1`) and docs-only `f1ace7c1`. Bump `9526b9d9`.
+- GitHub release: 8 assets; portable zip `pdfcer-v0.153.0-windows-x64.zip` 32,388,605 bytes; add-ons ocrcer 3,789,155, ocrs 11,352,262, tesseract 4,483,685, each with `.sha256`. `verify-release.py v0.153.0`: 8 ok, 1 FAIL "working tree clean" (27 uncommitted paths, none in the release; known, same as prior releases).
+- Fresh-folder smoke (`D:\builds\smoke153`) passed: `pdfcer 0.153.0`, revision `v0.152.0-13-g5c668701`; `dimension-list` and `list-layers` ran on a fixture. Build `D:\builds\pdfcer-20261116-1826-5c66870`, staging `D:\builds\rel153`.
+- OneDrive `pdfcer2` written (was 0.151.0); `pdfcer1` keeps 0.152.0; the next release writes `pdfcer1`.
+- crates.io: all 16 crates at 0.153.0 in the standing order; no 429; published from the repo at the tag with `CARGO_TARGET_DIR=target/pub`.
+- Pre-tag checks: 34 CI python audits (one failure found and fixed, README count, `f1ace7c1`); the three `--no-default-features` steps (clippy; core 279 tests; cli bin 117 tests); rustdoc broken-link deny; register-entry-size, ledger-numbers, commits-filed, suite-name-absent.
+- Channel: notice `open/notice_2026-11-16_release_v0.153.0.md` written; replies `G280` to `G287` marked released.
+
+**Process slips (engineer-reported):** (1) the first feature-off loop left the YAML `- run:` prefix on each command, so all three "failed" without running; caught by reading the FAIL lines, rerun correctly. (2) the first draft of the release notes credited this release with group-rename/delete/set-standard/set-unit, which shipped earlier; rewritten from `git log v0.152.0..HEAD` commit bodies before publishing.
+
+**Open:** Backlog `Pass 717.1`, `Pass 718.2`, `Pass 713.1` (the last two are the same gap, now cross-referenced, IDs not merged). ROADMAP: new Shipped entry; the 1574th note amended. FEATURES: only the `Engine crates on crates.io` row advanced to 0.153.0. No decision, no rule. No new code commit is filed here.
+
+## 2026-11-16 (1574th filing) — `9526b9d9` `v0.153.0` version bump (not yet published; published in the 1575th filing above)
 
 **Filed (engineer-reported; no shell here, nothing checked from here):**
 - `9526b9d9` `chore(release): v0.153.0`: workspace version and the 16 engine-crate pins 0.152.0 to 0.153.0 in `Cargo.toml`; `Cargo.lock` and `fuzz/Cargo.lock` updated. Version bump only.
