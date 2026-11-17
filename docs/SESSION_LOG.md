@@ -4,6 +4,22 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-11-17 (1582nd filing) — `928f40cc` `Pass 720.0` (paste the OS clipboard as vectors; copy or cut a selection to it)
+
+**Filed (engineer-reported; no shell here, nothing checked from here):**
+- `928f40cc` `Pass 720.0`: CLI `paste-clipboard` (rank PDF, SVG, EMF, PNG, DIB; pixel form only when no vector form held or `--format` names it; `took=`/`held=`/`vector=` disclosure; exit 9 when nothing usable) and `object-copy --clipboard [--cut]` (cut-as-vector). CLI only; core untouched, gui none (GUI project told: `notice_2026-11-17_paste_and_cut_as_vector.md`). Windows only. Detail in the ROADMAP Shipped entry and the commit message.
+- Gates measured by the engineer: fmt, clippy, linux cross check, `check-code-structure` (543, none new), `check-core-api-verbs`, rustdoc, CI audit sweep 34 run 0 failed; CLI bin 129, integration 1105 passed / 2 ignored, reduced-feature 124 and 1017. Core and render were NOT re-run after four CLI-only fixes (no core or render file changed). Not verified: the non-Windows refusal test never ran on a non-Windows machine locally.
+
+**Pre-compaction capture:**
+- This session shipped and pushed `Pass 717.1` `b46412cc` (filed `7ab34c8b`, 1580th) and `Pass 717.2` `3e65dc61` (filed `41c50c76`, 1581st); now `720.0` `928f40cc`.
+- Gotchas: (1) a new subcommand trips four things besides its own tests: the README working-subcommand count (`check-clap-help.py`), the in-place list test (every subcommand with input and output must be on `IN_PLACE_COMMANDS` or `NOT_IN_PLACE`), the help-markup test (a backtick in a `///` on a clap `ValueEnum` variant ships in `--help`), and `check-public-fns-documented.py` on untracked files. (2) A module whose ranking logic is used only by the Windows path needs `#![cfg_attr(not(windows), allow(dead_code))]` as the first item after the module doc, before any `use`; the linux cross check is the only gate that sees it. (3) The CLI reaches tiny_skia as `pdfcer_render::tiny_skia`. (4) Two tests writing the one OS clipboard must share a lock (`copy_page::CLIPBOARD`).
+
+**Housekeeping:** the FEATURES Planned row for `Pass 717.2` (groups of groups, all boxes open) was stale since the 1581st filing (shipped; the Implemented row names it) and was removed here.
+
+**Open:** Next up keeps `720.1` (NOT STARTED); `717.3` Backlog. Next free IDs: `Pass 717.4`, `Pass 720.2`, `Pass 721.0`. FEATURES: new Implemented row beside `copy-page`; `720.0` and `717.2` Planned rows removed. No decision, no rule.
+
+**For next session:** `Pass 720.1` (`skrifa` pin in `crates/pdfcer-emf/Cargo.toml` and `crates/pdfcer-render/Cargo.toml` moves to the version the latest egui uses; GUI told via `notice_2026-11-17_operator_asks_egui_upgrade_to_latest.md`), then release `v0.155.0` (OneDrive slot `pdfcer2`), then `docs/NEXT_SESSION.md`.
+
 ## 2026-11-17 (1581st filing) — `3e65dc61` `Pass 717.2` (merge annotation groups, ungroup one level at a time)
 
 **Filed (engineer-reported; no shell here, nothing checked from here):**
