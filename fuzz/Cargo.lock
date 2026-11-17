@@ -404,9 +404,9 @@ checksum = "98de4bbd547a563b716d8dfa9aad1cb19bfab00f4fa09a6a4ed21dbcf44ce9c4"
 
 [[package]]
 name = "font-types"
-version = "0.11.3"
+version = "0.12.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5b38ad915f6dadd993ced50848a8291a543bd41ca62bc10740d5e64e2ab4cfd7"
+checksum = "835ae9d781464a79026cde387f9cbc650c9a4909d7cf7e658b127e3c35d2f35d"
 dependencies = [
  "bytemuck",
 ]
@@ -860,7 +860,7 @@ dependencies = [
 
 [[package]]
 name = "pdfcer-3d"
-version = "0.154.0"
+version = "0.155.0"
 dependencies = [
  "flate2",
  "pdfcer-jpeg-remux",
@@ -873,11 +873,11 @@ dependencies = [
 
 [[package]]
 name = "pdfcer-color"
-version = "0.154.0"
+version = "0.155.0"
 
 [[package]]
 name = "pdfcer-core"
-version = "0.154.0"
+version = "0.155.0"
 dependencies = [
  "aes",
  "cbc",
@@ -911,7 +911,7 @@ dependencies = [
 
 [[package]]
 name = "pdfcer-emf"
-version = "0.154.0"
+version = "0.155.0"
 dependencies = [
  "pdfcer-core",
  "pdfcer-flatten",
@@ -923,7 +923,7 @@ dependencies = [
 
 [[package]]
 name = "pdfcer-flatten"
-version = "0.154.0"
+version = "0.155.0"
 dependencies = [
  "i_overlay",
  "thiserror",
@@ -931,7 +931,7 @@ dependencies = [
 
 [[package]]
 name = "pdfcer-fonts"
-version = "0.154.0"
+version = "0.155.0"
 dependencies = [
  "pdfcer-model",
  "thiserror",
@@ -939,7 +939,7 @@ dependencies = [
 
 [[package]]
 name = "pdfcer-function"
-version = "0.154.0"
+version = "0.155.0"
 dependencies = [
  "pdfcer-model",
  "thiserror",
@@ -961,7 +961,7 @@ dependencies = [
 
 [[package]]
 name = "pdfcer-image-codec"
-version = "0.154.0"
+version = "0.155.0"
 dependencies = [
  "hayro-ccitt",
  "hayro-jbig2",
@@ -975,21 +975,21 @@ dependencies = [
 
 [[package]]
 name = "pdfcer-jpeg-remux"
-version = "0.154.0"
+version = "0.155.0"
 dependencies = [
  "thiserror",
 ]
 
 [[package]]
 name = "pdfcer-json"
-version = "0.154.0"
+version = "0.155.0"
 dependencies = [
  "thiserror",
 ]
 
 [[package]]
 name = "pdfcer-model"
-version = "0.154.0"
+version = "0.155.0"
 dependencies = [
  "aes",
  "brotli",
@@ -1003,7 +1003,7 @@ dependencies = [
 
 [[package]]
 name = "pdfcer-pkix"
-version = "0.154.0"
+version = "0.155.0"
 dependencies = [
  "pdfcer-model",
  "thiserror",
@@ -1011,7 +1011,7 @@ dependencies = [
 
 [[package]]
 name = "pdfcer-print"
-version = "0.154.0"
+version = "0.155.0"
 dependencies = [
  "icccer-cmm",
  "icccer-profile",
@@ -1022,7 +1022,7 @@ dependencies = [
 
 [[package]]
 name = "pdfcer-render"
-version = "0.154.0"
+version = "0.155.0"
 dependencies = [
  "icccer-cmm",
  "icccer-color",
@@ -1038,7 +1038,7 @@ dependencies = [
 
 [[package]]
 name = "pdfcer-text"
-version = "0.154.0"
+version = "0.155.0"
 dependencies = [
  "pdfcer-fonts",
  "pdfcer-model",
@@ -1047,7 +1047,7 @@ dependencies = [
 
 [[package]]
 name = "pdfcer-vec3"
-version = "0.154.0"
+version = "0.155.0"
 
 [[package]]
 name = "pem-rfc7468"
@@ -1169,12 +1169,13 @@ dependencies = [
 
 [[package]]
 name = "read-fonts"
-version = "0.39.2"
+version = "0.41.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c4ed38b89c2c77ff968c524145ad65fb010f38af5c7a224b53b81d47ac2daa81"
+checksum = "046a7d674daf459825b32f5062056d6882db0d2f5a479fbd76ccfc870ac18709"
 dependencies = [
  "bytemuck",
  "font-types",
+ "once_cell",
 ]
 
 [[package]]
@@ -1332,9 +1333,9 @@ checksum = "33f4fe9184a62d842c9ef383018f3306d8ba224fd9d836f56d7288308847c256"
 
 [[package]]
 name = "skrifa"
-version = "0.42.1"
+version = "0.44.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0c34617370ae968efb7161bb2beb517d9084659aae19e24b89e3db25b46e4564"
+checksum = "819ab7d62b1d3e72d9d9dea5650bac30424f9111364bb94928dbf5ecad1baa68"
 dependencies = [
  "bytemuck",
  "read-fonts",
