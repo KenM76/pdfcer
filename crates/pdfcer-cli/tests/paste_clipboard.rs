@@ -12,6 +12,7 @@
 
 use super::copy_page::{TempDir, one_page, run, stderr};
 
+#[cfg(windows)]
 fn stdout(o: &std::process::Output) -> String {
     String::from_utf8_lossy(&o.stdout).into_owned()
 }

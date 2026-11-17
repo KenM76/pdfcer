@@ -63,6 +63,7 @@ pub(crate) fn one_page() -> Vec<u8> {
 
 /// Held by every test that writes the OS clipboard: there is one, and
 /// the tests of this binary run in parallel.
+#[cfg(windows)]
 pub(crate) static CLIPBOARD: std::sync::Mutex<()> = std::sync::Mutex::new(());
 
 pub(crate) struct TempDir(pub(crate) PathBuf);
