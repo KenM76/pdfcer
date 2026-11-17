@@ -10111,8 +10111,12 @@ fn intersect_clip(
             Some(b) => (
                 (b.left().floor().max(0.0) as usize).min(w),
                 (b.top().floor().max(0.0) as usize).min(h),
-                ((b.right().ceil().max(0.0) as usize) + 1).min(w),
-                ((b.bottom().ceil().max(0.0) as usize) + 1).min(h),
+                (b.right().ceil().max(0.0) as usize)
+                    .saturating_add(1)
+                    .min(w),
+                (b.bottom().ceil().max(0.0) as usize)
+                    .saturating_add(1)
+                    .min(h),
             ),
             // No usable bounds: fall back to the whole page rather than
             // silently skipping the intersection.

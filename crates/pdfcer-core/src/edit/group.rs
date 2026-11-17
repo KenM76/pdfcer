@@ -12,13 +12,13 @@ use crate::object::{Dict, Name, ObjId, Object};
 use crate::page_tree::Page;
 use crate::pageops::region::ResourceUse;
 use crate::vector::{
-    Bounds, GroupError, GsResources, ImageSource, MARKER_KEY, Matrix, PageObjects, ResourceKey,
-    VectorObject, form_box, inlined, is_marker, marker, marker_date, paint_outset, plan_group,
-    used_resources,
+    Bounds, FormLeaf, GroupError, GsResources, ImageSource, MARKER_KEY, Matrix, PageObjects,
+    ResourceKey, VectorObject, form_box, inlined, is_marker, marker, marker_date, paint_outset,
+    plan_group, used_resources,
 };
 
 /// The `/XObject` resource-name prefix a group is bound under.
-const GROUP_PREFIX: &str = "pdfcerG";
+pub(super) const GROUP_PREFIX: &str = "pdfcerG";
 /// The resource-name prefix an ungrouped form's clashing resource takes.
 const RENAME_PREFIX: &str = "pdfcerU";
 
@@ -53,14 +53,15 @@ pub struct UngroupOutcome {
 }
 
 /// A form's resources merged into a page's as its content is inlined.
-struct Merge<'a, G: ObjectGraph + ?Sized> {
-    graph: &'a G,
-    own: Option<Dict>,
-    page: &'a Dict,
+pub(super) struct Merge<'a, G: ObjectGraph + ?Sized> {
+    pub(super) graph: &'a G,
+    pub(super) own: Option<Dict>,
+    /// The resources of the stream the content is inlined into.
+    pub(super) page: &'a Dict,
     /// `(category, name)` to the value to bind on the page.
-    bind: BTreeMap<(&'static [u8], Vec<u8>), Object>,
+    pub(super) bind: BTreeMap<(&'static [u8], Vec<u8>), Object>,
     /// `(category, the form's name)` to the name the page binds it under.
-    renamed: BTreeMap<(&'static [u8], Vec<u8>), Vec<u8>>,
+    pub(super) renamed: BTreeMap<(&'static [u8], Vec<u8>), Vec<u8>>,
 }
 
 impl<G: ObjectGraph + ?Sized> Merge<'_, G> {
@@ -73,7 +74,7 @@ impl<G: ObjectGraph + ?Sized> Merge<'_, G> {
     }
 
     /// The new name for a use, if the page's own would mean something else.
-    fn rename(&mut self, u: &ResourceUse<'_>) -> Option<Vec<u8>> {
+    pub(super) fn rename(&mut self, u: &ResourceUse<'_>) -> Option<Vec<u8>> {
         let value = self.entry(self.own.as_ref()?, u.category, u.name)?;
         let key = (u.category, u.name.to_vec());
         if let Some(new) = self.renamed.get(&key) {
@@ -164,21 +165,7 @@ impl EditSession {
             )?
         };
         let resources = self.group_resources(&page.resources, &plan.form_content, plan.bind)?;
-        let mut dict = Dict::new();
-        dict.insert(Name::from(b"Type"), Object::Name(Name::from(b"XObject")));
-        dict.insert(Name::from(b"Subtype"), Object::Name(Name::from(b"Form")));
-        dict.insert(
-            Name::from(b"BBox"),
-            Object::Array(plan.bbox.iter().map(|v| Object::Real(*v)).collect()),
-        );
-        dict.insert(Name::from(b"Resources"), Object::Dict(resources));
-        let mut piece = Dict::new();
-        piece.insert(Name(MARKER_KEY.to_vec()), Object::Dict(marker()));
-        dict.insert(Name::from(b"PieceInfo"), Object::Dict(piece));
-        dict.insert(
-            Name::from(b"LastModified"),
-            Object::String(marker_date().to_vec()),
-        );
+        let dict = group_form_dict(plan.bbox, resources);
         let mut prior = Vec::new();
         let form = self.new_stream(dict, &plan.form_content, &mut prior)?;
         let binds = vec![((&b"XObject"[..], name), Object::Reference(form))];
@@ -322,7 +309,7 @@ impl EditSession {
 
     /// The resources a new group's content names, taken from the page's,
     /// plus the reset `/ExtGState`s made for it.
-    fn group_resources(
+    pub(super) fn group_resources(
         &self,
         page: &Dict,
         form_content: &[u8],
@@ -381,7 +368,7 @@ impl EditSession {
 
     /// What ungrouping needs of a form's dictionary, or why it cannot be
     /// inlined.
-    fn form_shape(&self, form: ObjId) -> Result<FormShape, GroupError> {
+    pub(super) fn form_shape(&self, form: ObjId) -> Result<FormShape, GroupError> {
         let graph = self.graph();
         let unportable = |reason| GroupError::Unportable { reason };
         let Some(Object::Stream(stream)) = graph.value(form) else {
@@ -427,11 +414,33 @@ impl EditSession {
     }
 }
 
-struct FormShape {
-    bbox: [f64; 4],
-    matrix: [f64; 6],
-    resources: Option<Dict>,
-    group: bool,
+/// The dictionary of a new group form: its box, resources and the
+/// `/PieceInfo` marker.
+pub(super) fn group_form_dict(bbox: [f64; 4], resources: Dict) -> Dict {
+    let mut dict = Dict::new();
+    dict.insert(Name::from(b"Type"), Object::Name(Name::from(b"XObject")));
+    dict.insert(Name::from(b"Subtype"), Object::Name(Name::from(b"Form")));
+    dict.insert(
+        Name::from(b"BBox"),
+        Object::Array(bbox.iter().map(|v| Object::Real(*v)).collect()),
+    );
+    dict.insert(Name::from(b"Resources"), Object::Dict(resources));
+    let mut piece = Dict::new();
+    piece.insert(Name(MARKER_KEY.to_vec()), Object::Dict(marker()));
+    dict.insert(Name::from(b"PieceInfo"), Object::Dict(piece));
+    dict.insert(
+        Name::from(b"LastModified"),
+        Object::String(marker_date().to_vec()),
+    );
+    dict
+}
+
+pub(super) struct FormShape {
+    pub(super) bbox: [f64; 4],
+    pub(super) matrix: [f64; 6],
+    pub(super) resources: Option<Dict>,
+    /// Whether pdfcer made it as a group.
+    pub(super) group: bool,
 }
 
 fn is_group_dict<G: ObjectGraph + ?Sized>(graph: &G, form: &Dict) -> bool {
@@ -480,6 +489,23 @@ fn form_at(
 /// Whether everything the form at `object_index` paints lies inside its
 /// `bbox`, `placed` being its form-to-page matrix.
 fn fits(model: &PageObjects, object_index: usize, placed: Matrix, bbox: [f64; 4]) -> bool {
+    leaves_fit(
+        model
+            .leaves
+            .iter()
+            .filter(|l| l.paint_order == object_index),
+        placed,
+        bbox,
+    )
+}
+
+/// Whether there is at least one leaf and every one paints inside `bbox`,
+/// `placed` being the form-to-page matrix of the form they are in.
+pub(super) fn leaves_fit<'a>(
+    leaves: impl Iterator<Item = &'a FormLeaf>,
+    placed: Matrix,
+    bbox: [f64; 4],
+) -> bool {
     let Some(to_form) = placed.inverse() else {
         return false;
     };
@@ -488,10 +514,7 @@ fn fits(model: &PageObjects, object_index: usize, placed: Matrix, bbox: [f64; 4]
         max: crate::vector::Point::new(bbox[2], bbox[3]),
     }
     .inflate(1e-3);
-    let seen: BTreeSet<bool> = model
-        .leaves
-        .iter()
-        .filter(|l| l.paint_order == object_index)
+    let seen: BTreeSet<bool> = leaves
         .map(|l| {
             let reach = l.object.page_bbox().inflate(paint_outset(&l.object));
             form_box(reach, to_form).is_some_and(|b| {

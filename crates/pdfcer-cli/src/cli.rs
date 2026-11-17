@@ -12954,6 +12954,14 @@ pub(crate) enum Command {
     /// Exit 9 when an index is out of range or an object cannot join: one
     /// under a different clip, layer or tagged-structure element than the
     /// front-most member, or whose own bytes set one. Nothing is changed.
+    ///
+    /// With `--leaf` the objects are ones inside a form XObject, a group
+    /// included, and the new group is made inside that form: a group
+    /// within a group. The line then carries `container=` the form it was
+    /// made in, and `invocations=` and `pages=`: how many places draw that
+    /// form and so show the change, across how many pages. Exit 9 when the
+    /// indices are not all in one placement of one form, or that form has
+    /// no resources of its own.
     GroupObjects {
         /// Input PDF.
         input: PathBuf,
@@ -12963,6 +12971,10 @@ pub(crate) enum Command {
         /// 0-based paint-order object indices, comma-separated.
         #[arg(long, value_delimiter = ',', required = true)]
         objects: Vec<usize>,
+        /// Treat `--objects` as form-leaf indices (the `leaf index=` rows of
+        /// `object-list`) and group them inside the form they are in.
+        #[arg(long)]
+        leaf: bool,
         /// Output path.
         #[arg(short, long)]
         output: PathBuf,
@@ -12991,6 +13003,12 @@ pub(crate) enum Command {
     /// Exit 9 when the object is not a form, or the form is a transparency
     /// group, belongs to a layer, or holds content that cannot be moved.
     /// Nothing is changed.
+    ///
+    /// With `--leaf`, `--object` is the index of an object inside a form,
+    /// and the form that object is directly in is the one replaced: its
+    /// objects go into the form that draws it, or onto the page when the
+    /// page draws it. The line then carries `container=` (`page` or a form's
+    /// object number), `invocations=` and `pages=` in place of `indices=`.
     UngroupForm {
         /// Input PDF.
         input: PathBuf,
@@ -13000,6 +13018,10 @@ pub(crate) enum Command {
         /// 0-based paint-order index of the form.
         #[arg(long)]
         object: usize,
+        /// Treat `--object` as a form-leaf index (a `leaf index=` row of
+        /// `object-list`) and replace the form that leaf is directly in.
+        #[arg(long)]
+        leaf: bool,
         /// Output path.
         #[arg(short, long)]
         output: PathBuf,

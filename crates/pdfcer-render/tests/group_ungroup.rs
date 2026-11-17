@@ -196,3 +196,173 @@ fn a_member_under_another_clip_cannot_join() {
     ));
     assert!(!s.can_undo());
 }
+
+/// The leaves directly inside `form`, as page leaf indices.
+fn leaves_in(s: &mut EditSession, form: pdfcer_core::object::ObjId) -> Vec<usize> {
+    let model = s.page_objects(0).unwrap();
+    (0..model.leaves.len())
+        .filter(|&i| model.leaves[i].parent() == Some(form))
+        .collect()
+}
+
+#[test]
+fn a_group_inside_a_group_changes_no_pixel_and_dissolves_level_by_level() {
+    let mut s = session(file(PAGE, "", &[]));
+    let before = pixels(&s);
+    let outer = s.group_objects(0, &[0, 1, 3, 4]).unwrap();
+    let inside = leaves_in(&mut s, outer.form);
+    assert_eq!(inside.len(), 4);
+
+    let made = s
+        .group_objects_in_form(0, &[inside[2], inside[0], inside[1]])
+        .unwrap();
+    assert_eq!((made.container, made.members), (outer.form, 3));
+    assert_eq!((made.invocations, made.pages), (1, 1));
+    assert!(made.disclosures.is_empty(), "{:?}", made.disclosures);
+    assert_eq!(s.undo_kind(), Some(CommandKind::GroupObjects));
+    assert!(is_group_form(&s.graph(), made.group));
+    assert_same(&before, &pixels(&s), "grouped inside a group");
+
+    let model = s.page_objects(0).unwrap();
+    assert_eq!(
+        model.objects.len(),
+        3,
+        "the page's own objects did not move"
+    );
+    assert_eq!(model.leaves.len(), 4);
+    let nested = leaves_in(&mut s, made.group);
+    assert_eq!(nested.len(), 3);
+    assert_eq!(
+        model.leaves[nested[0]].containment,
+        vec![outer.form, made.group]
+    );
+    assert_eq!(leaves_in(&mut s, outer.form).len(), 1);
+
+    // A third level, then back out one level at a time.
+    let deeper = s.group_objects_in_form(0, &nested[..2]).unwrap();
+    assert_eq!(deeper.container, made.group);
+    assert_same(&before, &pixels(&s), "three levels");
+    let leaf = leaves_in(&mut s, deeper.group)[0];
+    let out = s.ungroup_form_in_form(0, leaf).unwrap();
+    assert_eq!((out.form, out.container), (deeper.group, Some(made.group)));
+    assert!(!out.clipped, "a pdfcer group ungroups without a clip");
+    assert_eq!(s.undo_kind(), Some(CommandKind::UngroupForm));
+    assert_same(&before, &pixels(&s), "inner level dissolved");
+
+    let leaf = leaves_in(&mut s, made.group)[0];
+    let out = s.ungroup_form_in_form(0, leaf).unwrap();
+    assert_eq!((out.form, out.container), (made.group, Some(outer.form)));
+    assert_eq!(leaves_in(&mut s, outer.form).len(), 4);
+    assert_same(&before, &pixels(&s), "middle level dissolved");
+
+    // The last level is the page's own ungroup.
+    let leaf = leaves_in(&mut s, outer.form)[0];
+    let out = s.ungroup_form_in_form(0, leaf).unwrap();
+    assert_eq!((out.form, out.container), (outer.form, None));
+    assert_eq!(s.page_objects(0).unwrap().objects.len(), 6);
+    assert_same(&before, &pixels(&s), "outer level dissolved");
+
+    for _ in 0..6 {
+        s.undo().unwrap();
+    }
+    assert!(!s.can_undo());
+    assert_same(&before, &pixels(&s), "undone");
+}
+
+#[test]
+fn grouping_inside_an_imported_form_keeps_its_resources_and_says_its_reach() {
+    // The form is painted twice, so one edit changes two places.
+    let page = format!("{FORM_PAGE}q 1 0 0 1 100 150 cm /Fm1 Do Q\n");
+    let form = format!(
+        "<< /Type /XObject /Subtype /Form /BBox [0 0 55 30] /Matrix [1 0 0 1 5 5] \
+         /Resources << /ExtGState << /GS1 << /ca 0.25 >> >> >> /Length {} \
+         >>\nstream\n{FORM}endstream",
+        FORM.len()
+    );
+    let mut s = session(file(&page, "/XObject << /Fm1 6 0 R >>", &[form]));
+    let before = pixels(&s);
+    let model = s.page_objects(0).unwrap();
+    let VectorObject::Image(placed) = &model.objects[1] else {
+        panic!("object 1 is not the form");
+    };
+    let id = placed.xobject.unwrap();
+    let first: Vec<usize> = (0..model.leaves.len())
+        .filter(|&i| model.leaves[i].paint_order == 1)
+        .collect();
+    assert_eq!(first.len(), 2);
+
+    let made = s.group_objects_in_form(0, &first).unwrap();
+    assert_eq!((made.container, made.members), (id, 2));
+    assert_eq!((made.invocations, made.pages), (2, 1));
+    assert_same(&before, &pixels(&s), "grouped inside an imported form");
+
+    // Either invocation's leaf dissolves the one group both paint.
+    let model = s.page_objects(0).unwrap();
+    let other = (0..model.leaves.len())
+        .rfind(|&i| model.leaves[i].parent() == Some(made.group))
+        .unwrap();
+    let out = s.ungroup_form_in_form(0, other).unwrap();
+    assert_eq!((out.form, out.container), (made.group, Some(id)));
+    assert_eq!((out.invocations, out.renamed), (2, 0));
+    assert_same(&before, &pixels(&s), "ungrouped inside an imported form");
+}
+
+#[test]
+fn nesting_stops_where_the_members_would_stop_being_editable() {
+    let mut s = session(file(PAGE, "", &[]));
+    let before = pixels(&s);
+    let mut form = s.group_objects(0, &[0, 1]).unwrap().form;
+    let mut depth = 1;
+    let err = loop {
+        let inside = leaves_in(&mut s, form);
+        assert_eq!(
+            inside.len(),
+            2,
+            "both members are still leaves at depth {depth}"
+        );
+        match s.group_objects_in_form(0, &inside) {
+            Ok(made) => {
+                form = made.group;
+                depth += 1;
+            }
+            Err(err) => break err,
+        }
+        assert!(depth < 100, "nesting never stopped");
+    };
+    assert!(
+        matches!(err, EditError::Group(GroupError::TooDeep { limit }) if limit == depth),
+        "{err:?} at depth {depth}"
+    );
+    assert_same(&before, &pixels(&s), "nested to the limit");
+}
+
+#[test]
+fn grouping_inside_a_form_refuses_before_anything_changes() {
+    let mut s = session(form_file(""));
+    assert!(matches!(
+        s.group_objects_in_form(0, &[]),
+        Err(EditError::Group(GroupError::NoObjects))
+    ));
+    assert!(matches!(
+        s.group_objects_in_form(0, &[0, 99]),
+        Err(EditError::FormLeafOutOfRange { index: 99, .. })
+    ));
+    assert!(matches!(
+        s.ungroup_form_in_form(0, 99),
+        Err(EditError::FormLeafOutOfRange { index: 99, .. })
+    ));
+    assert!(!s.can_undo());
+
+    // A form with no /Resources of its own has nowhere to bind the group.
+    let bare = "0 0 1 rg 0 0 30 30 re f 1 0 0 rg 40 0 10 10 re f\n";
+    let form = format!(
+        "<< /Type /XObject /Subtype /Form /BBox [0 0 55 30] /Length {} >>\nstream\n{bare}endstream",
+        bare.len()
+    );
+    let mut s = session(file(FORM_PAGE, "/XObject << /Fm1 6 0 R >>", &[form]));
+    assert!(matches!(
+        s.group_objects_in_form(0, &[0, 1]),
+        Err(EditError::FormInheritsResources { .. })
+    ));
+    assert!(!s.can_undo());
+}

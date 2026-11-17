@@ -63,6 +63,13 @@ pub enum GroupError {
     /// inlined content would always show.
     #[error("the form belongs to an optional-content layer")]
     OptionalContent,
+    /// The objects are already nested as deep as pdfcer reads; one more
+    /// level would paint them but leave them unreachable for editing.
+    #[error("the objects are already {limit} forms deep, the deepest nesting pdfcer edits")]
+    TooDeep {
+        /// [`crate::content::MAX_FORM_DEPTH`].
+        limit: usize,
+    },
     /// The content cannot stand in another stream.
     #[error("the content cannot be moved between streams: {reason}")]
     Unportable {
@@ -97,6 +104,8 @@ pub(crate) struct GroupPlan {
     pub form_content: Vec<u8>,
     /// The form's `/BBox`, `[llx lly urx ury]`.
     pub bbox: [f64; 4],
+    /// Maps the space `initial` lands in to the form's own space.
+    pub to_form: Matrix,
     /// `/ExtGState`s the form content names beyond the stream's own.
     pub bind: Vec<(Vec<u8>, Dict)>,
     /// The group's object index once the edit is in.
@@ -158,6 +167,7 @@ pub(crate) fn plan_group(
         content: out,
         form_content: g.wraps.concat(),
         bbox,
+        to_form,
         bind: g.bind,
         index: top + 1 - members.len(),
         members: members.len(),

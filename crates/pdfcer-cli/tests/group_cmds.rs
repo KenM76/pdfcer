@@ -111,6 +111,75 @@ fn objects_group_and_ungroup() {
     assert!(String::from_utf8_lossy(&out.stderr).contains("not a form"));
 }
 
+/// The index of the most deeply nested leaf, and how many forms deep it is.
+fn deepest_leaf(file: &Path) -> (usize, usize) {
+    let mut s = EditSession::new(Document::from_bytes(std::fs::read(file).unwrap()).unwrap());
+    let model = s.page_objects(0).unwrap();
+    (0..model.leaves.len())
+        .map(|i| (i, model.leaves[i].containment.len()))
+        .max_by_key(|&(_, depth)| depth)
+        .unwrap()
+}
+
+#[test]
+fn objects_group_and_ungroup_inside_a_group() {
+    let input = fixture("nested");
+    let outer = input.with_extension("outer.pdf");
+    let out = run("group-objects", &input, &outer, &["--objects", "0,1,2"]);
+    assert!(out.status.success(), "{:?}", out.stderr);
+    assert_eq!(kinds(&outer), "F");
+
+    let inner = input.with_extension("inner.pdf");
+    let out = run(
+        "group-objects",
+        &outer,
+        &inner,
+        &["--objects", "0,1", "--leaf", "--verify-undo"],
+    );
+    let stdout = String::from_utf8_lossy(&out.stdout);
+    assert!(out.status.success(), "{stdout}{:?}", out.stderr);
+    assert!(
+        stdout.contains(" members=2 ") && stdout.contains(" invocations=1 pages=1 "),
+        "{stdout}"
+    );
+    assert_eq!(kinds(&inner), "F", "the page still paints the one group");
+
+    // A leaf two forms deep: its own form goes back into the outer one.
+    let deep = deepest_leaf(&inner);
+    assert_eq!(deep.1, 2);
+    let back = input.with_extension("back.pdf");
+    let leaf = deep.0.to_string();
+    let out = run(
+        "ungroup-form",
+        &inner,
+        &back,
+        &["--object", &leaf, "--leaf"],
+    );
+    let stdout = String::from_utf8_lossy(&out.stdout);
+    assert!(out.status.success(), "{stdout}{:?}", out.stderr);
+    assert!(
+        stdout.contains(" clipped=false ") && !stdout.contains("container=page"),
+        "{stdout}"
+    );
+
+    // One level left: the leaf's form is the page's own, so it lands there.
+    assert_eq!(deepest_leaf(&back).1, 1);
+    let loose = input.with_extension("loose.pdf");
+    let out = run("ungroup-form", &back, &loose, &["--object", "0", "--leaf"]);
+    let stdout = String::from_utf8_lossy(&out.stdout);
+    assert!(out.status.success(), "{stdout}{:?}", out.stderr);
+    assert!(stdout.contains(" container=page "), "{stdout}");
+    assert_eq!(kinds(&loose), "PPP");
+
+    let out = run(
+        "group-objects",
+        &loose,
+        &back,
+        &["--objects", "0", "--leaf"],
+    );
+    assert_eq!(out.status.code(), Some(9));
+}
+
 #[test]
 fn annotations_group_and_ungroup() {
     let input = fixture("annots");

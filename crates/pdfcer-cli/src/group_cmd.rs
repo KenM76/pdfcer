@@ -44,12 +44,37 @@ impl GroupIo<'_> {
     }
 }
 
+/// Print each thing pdfcer did that the page does not show.
+fn note_all(input: &Path, disclosures: &[String]) {
+    for d in disclosures {
+        eprintln!("pdfcer: {}: note: {d}", input.display());
+    }
+}
+
 /// `group-objects` — one undo-able grouping into a form XObject.
-pub(crate) fn cmd_group_objects(io: &GroupIo, objects: &[usize]) -> u8 {
+pub(crate) fn cmd_group_objects(io: &GroupIo, objects: &[usize], leaf: bool) -> u8 {
     let (source, mut session) = match open_for_edit(io.input) {
         Ok(pair) => pair,
         Err(code) => return code,
     };
+    if leaf {
+        let out = match session.group_objects_in_form(io.page_index(), objects) {
+            Ok(out) => out,
+            Err(err) => return report_edit_error(io.input, &err),
+        };
+        note_all(io.input, &out.disclosures);
+        let line = format!(
+            "group-objects {} page={} form={} container={} members={} invocations={} pages={}",
+            io.input.display(),
+            io.page,
+            out.group,
+            out.container,
+            out.members,
+            out.invocations,
+            out.pages,
+        );
+        return io.save(&mut session, &source, &line);
+    }
     let out = match session.group_objects(io.page_index(), objects) {
         Ok(out) => out,
         Err(err) => return report_edit_error(io.input, &err),
@@ -66,11 +91,32 @@ pub(crate) fn cmd_group_objects(io: &GroupIo, objects: &[usize]) -> u8 {
 }
 
 /// `ungroup-form` — one undo-able inlining of a form XObject.
-pub(crate) fn cmd_ungroup_form(io: &GroupIo, object: usize) -> u8 {
+pub(crate) fn cmd_ungroup_form(io: &GroupIo, object: usize, leaf: bool) -> u8 {
     let (source, mut session) = match open_for_edit(io.input) {
         Ok(pair) => pair,
         Err(code) => return code,
     };
+    if leaf {
+        let out = match session.ungroup_form_in_form(io.page_index(), object) {
+            Ok(out) => out,
+            Err(err) => return report_edit_error(io.input, &err),
+        };
+        note_all(io.input, &out.disclosures);
+        let line = format!(
+            "ungroup-form {} page={} form={} container={} clipped={} renamed={} invocations={} \
+             pages={}",
+            io.input.display(),
+            io.page,
+            out.form,
+            out.container
+                .map_or_else(|| "page".to_owned(), |c| c.to_string()),
+            out.clipped,
+            out.renamed,
+            out.invocations,
+            out.pages,
+        );
+        return io.save(&mut session, &source, &line);
+    }
     let out = match session.ungroup_form(io.page_index(), object) {
         Ok(out) => out,
         Err(err) => return report_edit_error(io.input, &err),
