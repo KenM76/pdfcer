@@ -4,6 +4,16 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-11-17 (1579th filing) — `ac29b6d0` `Pass 718.2` (merge and insert carry ce dimensions with their groups) and `6e40897a` (OCR test fix)
+
+**Filed (engineer-reported; no shell here, nothing checked from here):**
+- `ac29b6d0` `Pass 718.2`: `pageops::merge`, `insert_with`, `EditSession::insert_pages`, `insert_pages_with`, `merge_document` carry ce dimensions and their groups (join on same name and settings; else "name (2)"; newer-schema sidecar never rewritten). Core and CLI; gui none, GUI project notified (`notice_2026-11-17_merge_and_insert_now_carry_ce_dimensions.md`). Closes `Pass 713.1` (same gap). Detail in the ROADMAP Shipped entry and the commit message.
+- Gates measured by the engineer: fmt, clippy `-D warnings` (`pdfcer-core`, `pdfcer-cli`), `check-code-structure`, rustdoc, CI audit sweep 34 of 34, core default and `--no-default-features`, CLI default, CLI CI-shape bin 117 passed. No manifest change.
+
+**Found, then fixed by `6e40897a` `test(ocr): the hash-mismatch test runs without the paddle feature`:** `ocr_addons::a_hash_mismatch_is_refused` (`crates/pdfcer-cli/tests/ocr_addons.rs`) failed 1 of 1013 under `cargo test -p pdfcer-cli --no-default-features` (CI does not run that target); the test assumed the `paddle` feature. Pre-existing. Fix, test-only: the `ocr --ocr-model tampered` half is now `#[cfg(feature = "paddle")]`; the listing/verify half runs in every build. Engineer-measured after: `--no-default-features --test all ocr_addons` 5 passed, 0 failed; default-feature run passes; `clippy -p pdfcer-cli --no-default-features --all-targets -D warnings` clean. CI missed it because it runs that crate's reduced-feature tests with `--bin pdfcer` only.
+
+**Open:** Next up keeps `717.1`, `717.2`, `720.0`, `720.1`, all NOT STARTED. ROADMAP: two Shipped entries (`ac29b6d0`, `6e40897a`), the `718.2` Next-up block replaced by a SHIPPED banner, 1573rd banner and Backlog note amended (the interim Backlog item for the test failure was added and removed within this filing). FEATURES: the extract/split ce-dimension row rewritten, the `718.2` Planned row removed. No decision, no rule.
+
 ## 2026-11-17 (1578th filing) — `v0.154.0` PUBLISHED; operator request filed as `Pass 718.2`, `717.1`, `717.2`, `720.0`, `720.1`
 
 **Filed (engineer-reported; no shell here, nothing checked from here):**
