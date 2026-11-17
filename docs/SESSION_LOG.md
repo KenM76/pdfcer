@@ -4,6 +4,17 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-11-17 (1580th filing) — `b46412cc` `Pass 717.1` (group and ungroup inside a form XObject)
+
+**Filed (engineer-reported; no shell here, nothing checked from here):**
+- `b46412cc` `Pass 717.1`: `EditSession::group_objects_in_form` / `ungroup_form_in_form` (new `edit/form_group.rs`), CLI `--leaf` on `group-objects` and `ungroup-form`; one undo entry each; edits the form in place (decision 076) with reach disclosed; new `GroupError::TooDeep`. Core and CLI; gui none, GUI project notified (`notice_2026-11-17_group_and_ungroup_inside_a_form.md`). Public verb count 416 to 418. Detail in the ROADMAP Shipped entry and the commit message.
+- Two defects fixed in the same commit: a nested group's `/BBox` clipping a wide stroke's mitre (132 pixels); a `pdfcer-render` `intersect_clip` add overflow on a saturating clip edge (no dedicated test; no smaller reproducer than a 21-level nest).
+- Gates measured by the engineer: fmt, clippy workspace `-D warnings`, `check-code-structure` (543 baseline, none new), `check-core-api-verbs`, rustdoc, CI audit sweep 34 run 0 failed; core 3287, render 590 + 680, CLI 122 + 1102 + 286 + 40, reduced-feature core 3197 and CLI 117 + 1014; 0 failed. No manifest change.
+
+**Filed new:** `Pass 717.3` (Backlog, OPEN): leaves inherit the graphics state at the form's `Do` (pre-existing limitation).
+
+**Open:** Next up keeps `717.2`, `720.0`, `720.1`, NOT STARTED. Next free IDs: `Pass 717.4`, `Pass 720.2`, `Pass 721.0`. FEATURES: group/ungroup page-objects row extended; `717.1` Planned row replaced by `717.3`. No decision, no rule.
+
 ## 2026-11-17 (1579th filing) — `ac29b6d0` `Pass 718.2` (merge and insert carry ce dimensions with their groups) and `6e40897a` (OCR test fix)
 
 **Filed (engineer-reported; no shell here, nothing checked from here):**

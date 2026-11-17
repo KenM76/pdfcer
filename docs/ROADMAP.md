@@ -112,6 +112,20 @@ wherever it appears.*
 
 ## Shipped
 
+### `b46412cc` `Pass 717.1`: group and ungroup inside a form XObject, 2026-11-17 (1580th filing)
+
+Engineer-reported; no shell here, git, push and CI state not checked from here. `b46412cc` `feat(group): group and ungroup inside a form XObject (Pass 717.1)`. Answers the operator request "grouping within groups" (Ken, chat, 2026-11-17) for page/vector objects; the `_in_form` twin owed by `Pass 717.0`. Reasoning is in the commit message. Core and CLI; gui none (GUI project told: `D:\Dev\FeatureRequests\pdfce_FeatureRequests\open\notice_2026-11-17_group_and_ungroup_inside_a_form.md`).
+- **Verbs** (new `crates/pdfcer-core/src/edit/form_group.rs`, 445 lines): `EditSession::group_objects_in_form(page_index, leaf_indices) -> Result<FormGroupOutcome, EditError>` and `ungroup_form_in_form(page_index, leaf_index) -> Result<FormUngroupOutcome, EditError>`. One undo entry each (`CommandKind::GroupObjects` / `UngroupForm`). Edit the containing form in place (decision 076); outcomes report `invocations` and `pages`; a binding written into a resource dictionary held as its own object is disclosed. `ungroup_form_in_form` is `ungroup_form` when the page itself paints the form (outcome `container` is `None`).
+- **Refusals:** `GroupError::TooDeep { limit }` (new; members already `MAX_FORM_DEPTH` forms deep), `EditError::FormInheritsResources`, `FormLeafOutOfRange`, `FormLeafSelectionSpansForms`, `GroupError::NoObjects` / `MemberCannotJoin` / `NotInvertible` / `TransparencyGroup` / `OptionalContent` / `Unportable`, encryption and certification guards.
+- **CLI:** `--leaf` on `pdfcer group-objects` and `pdfcer ungroup-form`; output line carries `container=`, `invocations=`, `pages=`.
+- **Docs:** `docs/core-api/02-editing-and-saving.md` two rows; public verb count 416 to 418.
+- **Defect 1, fixed here:** a nested group's `/BBox` measured from its members clipped the mitre of a wide stroke (132 pixels), because a form's decomposition starts from the initial graphics state and reads an inherited line width as 1. The nested group now takes the container's own box carried into the group's space (`GroupPlan` gains `to_form`). The underlying limitation is filed as `Pass 717.3` (Backlog).
+- **Defect 2, fixed here:** `pdfcer-render` `intersect_clip` pixel bound panicked with an add overflow (surfacing as `RasterizerLimit`) on a clip whose far edge saturates `usize`; now `saturating_add`. **No smaller reproducer than a 21-level nest was found, so this fix has no dedicated test.**
+- **Tests added:** render `group_ungroup` +4 (nested three levels with level-by-level dissolve and undo; imported form resources and reach; refusals leave no undo entry; nesting to the depth limit holds every pixel then refuses `TooDeep`); CLI `objects_group_and_ungroup_inside_a_group`.
+- **Gates (engineer-measured on the committed tree):** fmt clean; clippy `--workspace --all-targets -D warnings` clean; `check-code-structure.py` clean (543 baseline, none new); `check-core-api-verbs.py` PASS; rustdoc broken-intra-doc-links clean; CI audit sweep 34 run, 0 failed. Tests, 0 failed anywhere: `pdfcer-core` 3287 (lib 2372); `pdfcer-render` 590 + 680; `pdfcer-cli` 122 + 1102 + 286 + 40; reduced-feature core `--no-default-features` 3197, CLI `--no-default-features` 117 + 1014. No manifest changed, so the `cargo tree` invariant is unaffected.
+- **Still open:** `Pass 717.2`, `720.0`, `720.1` (Next up); `717.3` (Backlog).
+- **FEATURES:** the group/ungroup page-objects row now names the nested verbs (core and cli ticked, gui open); the `717.1` Planned row replaced by a `717.3` Planned row. No decision, no rule.
+
 ### `6e40897a` `test(ocr): the hash-mismatch test runs without the paddle feature`, 2026-11-17: fixes the test failure found with `ac29b6d0` (1579th filing)
 
 Engineer-reported; no shell here, git, push and CI state not checked from here. `6e40897a`, no new Pass ID, test-only. In `crates/pdfcer-cli/tests/ocr_addons.rs`, `a_hash_mismatch_is_refused` ran `ocr --ocr-model tampered`, which without the `paddle` Cargo feature is refused ("compiled without the `paddle` feature") before reaching the hash check. That half is now compiled only under `#[cfg(feature = "paddle")]`; the listing/verify half still runs in every build.
@@ -27341,7 +27355,7 @@ closes out the *prior* filing's business rather than opening this one's.
 >
 > **`Pass 718.2` SHIPPED 2026-11-17 (1579th filing), `ac29b6d0`; see its *Shipped* entry, removed from this list.** Also closes `Pass 713.1` (same gap).
 >
-> **`Pass 717.1` (OPEN; moved here from Backlog; owed by `Pass 717.0`, `G280` ask 3).** `EditSession::group_objects_in_form` / `ungroup_form_in_form`, and CLI `--leaf` on `group-objects` and `ungroup-form`. Acceptance: pixel-identical before and after; depth 2; a form drawn twice is edited in place with the reach disclosed (decision 076); refusals for a form inheriting page resources, the depth cap, and an inner form with `/Group` or `/OC`; one undo entry.
+> **`Pass 717.1` SHIPPED 2026-11-17 (1580th filing), `b46412cc`; see its *Shipped* entry, removed from this list.** `Pass 717.3` (new, Backlog) is the residue; next free ID `Pass 717.4`.
 >
 > **`Pass 717.2` (OPEN; new): groups of groups for markup annotations.** ISO 32000-1 12.5.6.2 defines a FLAT group (`/IRT` plus `/RT /Group` to one primary), so there is no chained `/IRT`. Ship: adding an existing group to another group merges them under one primary (a `merge_annotation_groups`-style verb plus CLI), disclosed; the flat model stated in the verb docs and the CLI help. Open design point, decided inside the Pass by the engineer (ship both, pick the default, per the operator's standing preference): whether pdfcer also records nesting in its own private data.
 >
@@ -38618,6 +38632,8 @@ real Pass entries as the engineer reaches it — this list exists so
 nothing gets forgotten, not as a commitment to build in this order.
 
 - **`Pass 719.1` (OPEN, NOT STARTED; filed 1576th filing, request `X083`):** glTF node under two parents: import by copying the shared subtree under each parent within a fixed budget (e.g. 100,000 node copies, depth 64), with what is left out counted in a note; today `write_prc` refuses it (`NotATree`). The consumer offered code; the engine replied yes.
+
+- **`Pass 717.3` (OPEN, NOT STARTED; filed 1580th filing, found by `Pass 717.1`, pre-existing):** leaves inherit the graphics state at the form's `Do`. A leaf inside a form reports graphics state from the form's own stream only; stroke width and colour set before the `Do` are not seen by the decomposer (only alpha is inherited). `717.1` works around it for a nested group's `/BBox` by taking the container's own box. Next free IDs: `Pass 717.4`, `Pass 720.2`, `Pass 721.0`.
 
 `Pass 718.2`, `Pass 717.1` and `Pass 713.1` moved to *Next up* (1578th filing). `Pass 718.2` (and with it `713.1`) SHIPPED in the 1579th filing (`ac29b6d0`; see *Shipped*). The OCR test failure found with it was filed here and fixed in the same filing (`6e40897a`; item removed).
 
