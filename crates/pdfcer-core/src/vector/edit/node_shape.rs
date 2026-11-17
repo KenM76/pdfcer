@@ -13,6 +13,9 @@
 
 use crate::content::ContentStream;
 
+mod extend;
+pub use extend::{plan_extend_path, plan_open_subpath};
+
 use super::super::decompose::{PathObject, Segment, Subpath};
 use super::super::geometry::{Matrix, Point, sub};
 use super::{
@@ -175,8 +178,9 @@ impl Work {
         };
         let nodes = nodes_of(sp, sites, rect.is_some());
         let segs = segs_of(sp, sites, rect.is_some())?;
+        // `None` for a subpath the painting operator closes: it has no `h`.
         let close_at = if sp.closed && rect.is_none() {
-            Some(close_of(content, obj, sites)?)
+            close_of(content, obj, sites).ok()
         } else {
             None
         };

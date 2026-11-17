@@ -4438,6 +4438,11 @@ pub(crate) fn run() -> ExitCode {
         Command::SegmentConvert { target, to } => {
             cmd_node_shape(&target, &NodeShapeOp::Segment(to))
         }
+        Command::PathExtend { target, to } => cmd_node_shape(
+            &target,
+            &NodeShapeOp::Extend(to.into_iter().map(|s| s.0).collect()),
+        ),
+        Command::PathOpen { target } => cmd_node_shape(&target, &NodeShapeOp::Open),
         Command::NodeMove {
             input,
             page,

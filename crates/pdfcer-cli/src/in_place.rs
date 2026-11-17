@@ -125,6 +125,8 @@ pub(crate) const IN_PLACE_COMMANDS: &[&str] = &[
     "paste-clipboard",
     "paste-field",
     "paste-fields",
+    "path-extend",
+    "path-open",
     "place-stamp",
     "promote-dr-fonts",
     "purge-password-values",

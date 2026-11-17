@@ -1,9 +1,10 @@
-//! `node-insert`, `node-convert` and `segment-convert`: add a point to a path,
-//! or change what kind of point or segment it is.
+//! `node-insert`, `node-convert`, `segment-convert`, `path-extend` and
+//! `path-open`: add a point to a path, change what kind of point or segment it
+//! is, continue an open path, or open a closed one.
 
 use super::*;
 use pdfcer_core::edit::{EditError, EditSession, FormSurgeryOutcome};
-use pdfcer_core::vector::{NodeKind, SegmentKind};
+use pdfcer_core::vector::{NodeKind, Point, Segment, SegmentKind};
 
 /// The path node a node-shape command acts on, and how to save.
 #[derive(Debug, Clone, clap::Args)]
@@ -91,11 +92,47 @@ impl SegmentKindArg {
     }
 }
 
+/// One `--to` of `path-extend`: `X,Y` for a line, `X1,Y1,X2,Y2,X,Y` for a
+/// curve.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub(crate) struct SegmentArg(pub(crate) Segment);
+
+/// Parses a `--to` value.
+pub(crate) fn parse_segment_arg(text: &str) -> Result<SegmentArg, String> {
+    let mut n = Vec::new();
+    for part in text.split(',') {
+        let v: f64 = part
+            .trim()
+            .parse()
+            .map_err(|_| format!("`{part}` is not a number"))?;
+        if !v.is_finite() {
+            return Err(format!("`{part}` is not a finite number"));
+        }
+        n.push(v);
+    }
+    match n[..] {
+        [x, y] => Ok(SegmentArg(Segment::Line {
+            to: Point::new(x, y),
+        })),
+        [x1, y1, x2, y2, x, y] => Ok(SegmentArg(Segment::Cubic {
+            c1: Point::new(x1, y1),
+            c2: Point::new(x2, y2),
+            to: Point::new(x, y),
+        })),
+        _ => Err(format!(
+            "expected X,Y for a line or X1,Y1,X2,Y2,X,Y for a curve, got {} numbers",
+            n.len()
+        )),
+    }
+}
+
 /// What a node-shape command does to the session.
 pub(crate) enum NodeShapeOp {
     Insert(f64),
     Convert(NodeKindArg),
     Segment(SegmentKindArg),
+    Extend(Vec<Segment>),
+    Open,
 }
 
 impl NodeShapeOp {
@@ -104,6 +141,8 @@ impl NodeShapeOp {
             Self::Insert(_) => "node-insert",
             Self::Convert(_) => "node-convert",
             Self::Segment(_) => "segment-convert",
+            Self::Extend(_) => "path-extend",
+            Self::Open => "path-open",
         }
     }
 
@@ -112,6 +151,8 @@ impl NodeShapeOp {
             Self::Insert(t) => format!("at={t}"),
             Self::Convert(k) => format!("kind={}", k.name()),
             Self::Segment(k) => format!("to={}", k.name()),
+            Self::Extend(s) => format!("segments={}", s.len()),
+            Self::Open => "opened=1".to_owned(),
         }
     }
 
@@ -142,6 +183,18 @@ impl NodeShapeOp {
             (Self::Segment(k), GeometryTarget::Leaf(l)) => session
                 .convert_segment_in_form(page, l, node, k.core())
                 .map(leaf),
+            (Self::Extend(s), GeometryTarget::Page(o)) => {
+                session.extend_path(page, o, node, s).map(|d| (d, None))
+            }
+            (Self::Extend(s), GeometryTarget::Leaf(l)) => {
+                session.extend_path_in_form(page, l, node, s).map(leaf)
+            }
+            (Self::Open, GeometryTarget::Page(o)) => {
+                session.open_subpath(page, o, node).map(|d| (d, None))
+            }
+            (Self::Open, GeometryTarget::Leaf(l)) => {
+                session.open_subpath_in_form(page, l, node).map(leaf)
+            }
         }
     }
 }

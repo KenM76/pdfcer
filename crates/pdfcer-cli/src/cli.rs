@@ -14402,6 +14402,39 @@ pub(crate) enum Command {
         #[arg(long, value_enum)]
         to: SegmentKindArg,
     },
+    /// **Continue an open path** from one of its ends: draw each `--to`, in
+    /// the order given, onward from `--node`, which must be the first or the
+    /// last point of an open path.
+    ///
+    /// From the last point the new points follow it. From the first point the
+    /// last `--to` becomes the path's new first point, so every point of the
+    /// path is renumbered up by the number of `--to` given. Coordinates are
+    /// page space, in points, including for a path inside a form.
+    ///
+    /// Refused on a closed path (open it with `path-open` first) and at a
+    /// point that is not an end.
+    PathExtend {
+        #[command(flatten)]
+        target: NodeTargetArgs,
+        /// A segment to add: X,Y for a straight line to that point, or
+        /// X1,Y1,X2,Y2,X,Y for a curve to X,Y whose handles are X1,Y1 (at the
+        /// end being continued) and X2,Y2 (at X,Y). Repeat to add several.
+        #[arg(long, required = true, value_parser = parse_segment_arg, allow_hyphen_values = true)]
+        to: Vec<SegmentArg>,
+    },
+    /// **Open a closed path** at `--node`, without changing what is drawn:
+    /// the point becomes both the first and the last point of its path, so
+    /// the path gains a point and can be continued with `path-extend`.
+    ///
+    /// The edges all stay, so a filled shape fills as before. A rectangle is
+    /// rewritten as lines, and a painting operator that would close the path
+    /// again is replaced by the one that does not; both are printed on
+    /// stderr where they change the file's form. Refused on a path that is
+    /// already open.
+    PathOpen {
+        #[command(flatten)]
+        target: NodeTargetArgs,
+    },
     /// **Drag a node** of a path object:
     /// move ONE anchor to a page-space point via surgery.
     /// `--node` is the anchor's 0-based index in decomposition order (start,

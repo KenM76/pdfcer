@@ -16,7 +16,12 @@ const BIN: &str = env!("CARGO_BIN_EXE_pdfcer");
 /// Object 0 on the page: `0 0 m 40 0 l 40 40 l S`. `Fm0`, drawn at
 /// `2 0 0 2 100 100 cm`, holds one leaf: `0 0 m 10 0 l 10 10 l S`.
 fn input(tag: &str) -> PathBuf {
-    let page = "0 0 m 40 0 l 40 40 l S\nq 2 0 0 2 100 100 cm /Fm0 Do Q\n";
+    input_with(tag, "0 0 m 40 0 l 40 40 l S")
+}
+
+/// As [`input`], with `first` as object 0 on the page.
+fn input_with(tag: &str, first: &str) -> PathBuf {
+    let page = &format!("{first}\nq 2 0 0 2 100 100 cm /Fm0 Do Q\n");
     let fm0 = "0 0 m 10 0 l 10 10 l S\n";
     let stream = |dict: &str, body: &str| {
         format!(
@@ -217,4 +222,122 @@ fn a_refusal_names_the_problem_and_writes_nothing() {
         String::from_utf8_lossy(&out.stderr)
     );
     assert!(!o.exists());
+}
+
+fn ok(out: &Output) -> String {
+    assert!(
+        out.status.success(),
+        "{}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+    String::from_utf8_lossy(&out.stdout).into_owned()
+}
+
+#[test]
+fn path_extend_continues_from_the_last_point_on_the_page() {
+    let (i, o) = (input("ext"), out_path("ext"));
+    let args = [
+        "path-extend",
+        "--object",
+        "0",
+        "--node",
+        "2",
+        "--to",
+        "0,40",
+        "--to",
+        "-5,45,-5,55,0,60",
+        "--verify-undo",
+    ];
+    let stdout = ok(&run(&args, &i, &o));
+    assert!(stdout.starts_with("path-extend "), "{stdout}");
+    assert!(stdout.contains("object=0 node=2 segments=2"), "{stdout}");
+    assert!(stdout.contains("undo_identical=1"), "{stdout}");
+    let (start, segs) = path_segments(&o, false);
+    assert!(near(start, 0.0, 0.0));
+    assert_eq!(segs.len(), 4);
+    assert!(near(segs[2].end(), 0.0, 40.0));
+    assert!(matches!(segs[3], Segment::Cubic { c1, to, .. }
+        if near(c1, -5.0, 45.0) && near(to, 0.0, 60.0)));
+}
+
+/// The form is drawn at `2 0 0 2 100 100 cm`; `--to` is page space.
+#[test]
+fn path_extend_continues_from_the_first_point_inside_a_form() {
+    let (i, o) = (input("extleaf"), out_path("extleaf"));
+    let args = [
+        "path-extend",
+        "--leaf",
+        "0",
+        "--node",
+        "0",
+        "--to",
+        "90,110",
+    ];
+    let stdout = ok(&run(&args, &i, &o));
+    assert!(stdout.contains("leaf=0 node=0 segments=1"), "{stdout}");
+    let (start, segs) = path_segments(&o, true);
+    assert!(near(start, 90.0, 110.0), "{start:?}");
+    assert_eq!(segs.len(), 3);
+    assert!(near(segs[0].end(), 100.0, 100.0));
+}
+
+#[test]
+fn path_open_opens_a_closed_path_and_the_result_can_be_continued() {
+    let i = input_with("open", "0 0 m 40 0 l 40 40 l h S");
+    let (o, o2) = (out_path("open"), out_path("open2"));
+    let stdout = ok(&run(&["path-open", "--object", "0", "--node", "1"], &i, &o));
+    assert!(stdout.starts_with("path-open "), "{stdout}");
+    let (start, segs) = path_segments(&o, false);
+    assert!(near(start, 40.0, 0.0));
+    assert_eq!(segs.len(), 3);
+    assert!(near(segs[2].end(), 40.0, 0.0));
+
+    let args = [
+        "path-extend",
+        "--object",
+        "0",
+        "--node",
+        "3",
+        "--to",
+        "60,0",
+    ];
+    ok(&run(&args, &o, &o2));
+    assert_eq!(path_segments(&o2, false).1.len(), 4);
+}
+
+#[test]
+fn the_path_commands_refuse_by_name_and_write_nothing() {
+    let closed = input_with("refuse", "0 0 m 40 0 l 40 40 l h S");
+    let o = out_path("refuse");
+    let _ = std::fs::remove_file(&o);
+    let args = ["path-extend", "--object", "0", "--node", "0", "--to", "1,1"];
+    let out = run(&args, &closed, &o);
+    assert!(!out.status.success());
+    let stderr = String::from_utf8_lossy(&out.stderr);
+    assert!(stderr.contains("closed path"), "{stderr}");
+    assert!(!o.exists());
+
+    let out = run(
+        &["path-open", "--object", "0", "--node", "0"],
+        &input("refuse2"),
+        &o,
+    );
+    assert!(!out.status.success());
+    let stderr = String::from_utf8_lossy(&out.stderr);
+    assert!(stderr.contains("already open"), "{stderr}");
+    assert!(!o.exists());
+
+    let args = [
+        "path-extend",
+        "--object",
+        "0",
+        "--node",
+        "2",
+        "--to",
+        "1,2,3",
+    ];
+    let out = run(&args, &input("refuse3"), &o);
+    assert!(!out.status.success());
+    let stderr = String::from_utf8_lossy(&out.stderr);
+    assert!(stderr.contains("got 3 numbers"), "{stderr}");
 }

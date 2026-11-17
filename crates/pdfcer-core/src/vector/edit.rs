@@ -115,7 +115,8 @@ use super::geometry::{Matrix, Point, rect_corners};
 
 mod node_shape;
 pub use node_shape::{
-    NodeKind, SegmentKind, plan_convert_node, plan_convert_segment, plan_insert_node,
+    NodeKind, SegmentKind, plan_convert_node, plan_convert_segment, plan_extend_path,
+    plan_insert_node, plan_open_subpath,
 };
 
 /// Why a vector-edit surgery could not be planned.
@@ -363,6 +364,42 @@ pub enum VectorEditError {
     /// the end of an open subpath.
     #[error("node {index} is the end of an open path, so it has only one side to line up")]
     NodeHasOneSide {
+        /// The object-scoped node index that was asked for.
+        index: usize,
+    },
+    /// A path was to be continued with no segments.
+    #[error("no segments were given to add to the path")]
+    NoSegmentsGiven,
+    /// A point of a segment to add is not a finite number.
+    #[error("a point of a segment to add is not a finite number")]
+    NonFinitePoint,
+    /// A path can be continued only from an open end, and this node's subpath
+    /// is closed: by an `h`, as an `re` rectangle, or by its painting
+    /// operator. Open it first.
+    #[error("node {index} is on a closed path, which has no end to continue from; open it first")]
+    SubpathClosed {
+        /// The object-scoped node index that was asked for.
+        index: usize,
+    },
+    /// A path can be continued only from its first or last node.
+    #[error("node {index} is in the middle of its path, not at either end")]
+    NotAnEndNode {
+        /// The object-scoped node index that was asked for.
+        index: usize,
+    },
+    /// A subpath to open is already open.
+    #[error("node {index} is on a path that is already open")]
+    SubpathAlreadyOpen {
+        /// The object-scoped node index that was asked for.
+        index: usize,
+    },
+    /// The edit has to rewrite the subpath's opening `m`, and this subpath
+    /// has none: it starts where the one before it closed.
+    #[error(
+        "node {index} is on a path that starts where the one before it closed, with no start \
+         point of its own to rewrite"
+    )]
+    SubpathStartsImplicitly {
         /// The object-scoped node index that was asked for.
         index: usize,
     },
@@ -4910,6 +4947,7 @@ enum AnchorKind {
 }
 
 /// One anchor, with the operator that defines it (for the editable case).
+#[derive(Clone)]
 struct AnchorSite {
     kind: AnchorKind,
     byte_start: usize,

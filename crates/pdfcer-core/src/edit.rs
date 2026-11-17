@@ -1389,6 +1389,11 @@ pub enum CommandKind {
     /// A segment was turned into a line or a curve
     /// ([`EditSession::convert_segment`]).
     ConvertSegment,
+    /// An open path was continued from one of its ends
+    /// ([`EditSession::extend_path`]).
+    ExtendPath,
+    /// A closed path was opened at a node ([`EditSession::open_subpath`]).
+    OpenSubpath,
     /// A raster image was placed on a page: the image XObject, its optional
     /// `/SMask`, the `q … cm … Do … Q` overlay stream, and the page's
     /// `/Contents` + `/Resources /XObject` patches — all ONE undo entry.

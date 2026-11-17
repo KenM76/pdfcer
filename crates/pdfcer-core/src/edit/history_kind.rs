@@ -338,6 +338,8 @@ kind_codec! {
     InsertNode,
     ConvertNode,
     ConvertSegment,
+    ExtendPath,
+    OpenSubpath,
     AddImage,
     AddSvg,
     AddEmf,

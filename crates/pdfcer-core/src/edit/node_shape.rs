@@ -4,8 +4,8 @@
 use super::{CommandKind, EditError, EditSession, FormSurgeryOutcome, vector_object_as_path};
 use crate::content::ContentStream;
 use crate::vector::{
-    NodeKind, PageObjects, PathObject, PlannedEdit, SegmentKind, VectorEditError,
-    plan_convert_node, plan_convert_segment, plan_insert_node,
+    NodeKind, PageObjects, PathObject, PlannedEdit, Segment, SegmentKind, VectorEditError,
+    plan_convert_node, plan_convert_segment, plan_extend_path, plan_insert_node, plan_open_subpath,
 };
 
 fn page_path(model: &PageObjects, object_index: usize) -> Result<&PathObject, EditError> {
@@ -192,5 +192,100 @@ impl EditSession {
             leaf_index,
             |s, p| plan_convert_segment(s, p, node_index, kind),
         )
+    }
+
+    /// **Continue an open path**: draw `segments`, in order and in page
+    /// space, onward from node `node_index`, which must be the first or last
+    /// node of an open subpath, as one [`CommandKind::ExtendPath`].
+    ///
+    /// From the last node the new nodes follow it; from the first node the
+    /// far end of the new segments becomes the subpath's first node. Either
+    /// way later node indices in the object shift up by `segments.len()`
+    /// (see [`crate::vector::plan_extend_path`]).
+    ///
+    /// # Errors
+    ///
+    /// [`EditError::VectorEdit`] wrapping `NoSegmentsGiven`, `NonFinitePoint`,
+    /// `SubpathClosed`, `NotAnEndNode`, `SubpathStartsImplicitly`,
+    /// `NodeOutOfRange`, `ObjectOutOfRange`, `NotAPath`, `DegenerateCtm` or
+    /// `MalformedOperand`; plus the page, contents, encryption and
+    /// certification guards. Nothing changes on an error.
+    ///
+    /// # Returns
+    ///
+    /// The plan's disclosures (a clipping path extended), which the caller
+    /// must surface.
+    pub fn extend_path(
+        &mut self,
+        page_index: usize,
+        object_index: usize,
+        node_index: usize,
+        segments: &[Segment],
+    ) -> Result<Vec<String>, EditError> {
+        self.node_shape_on_page(CommandKind::ExtendPath, page_index, object_index, |s, p| {
+            plan_extend_path(s, p, node_index, segments)
+        })
+    }
+
+    /// **Open a closed path** at node `node_index`, as one
+    /// [`CommandKind::OpenSubpath`]. The shape drawn is unchanged; the node
+    /// becomes both ends of its subpath (see
+    /// [`crate::vector::plan_open_subpath`] for the renumbering).
+    ///
+    /// # Errors
+    ///
+    /// As [`Self::extend_path`], with `SubpathAlreadyOpen` in place of the
+    /// segment and end-node refusals.
+    ///
+    /// # Returns
+    ///
+    /// Disclosures: a rectangle rewritten as lines.
+    pub fn open_subpath(
+        &mut self,
+        page_index: usize,
+        object_index: usize,
+        node_index: usize,
+    ) -> Result<Vec<String>, EditError> {
+        self.node_shape_on_page(
+            CommandKind::OpenSubpath,
+            page_index,
+            object_index,
+            |s, p| plan_open_subpath(s, p, node_index),
+        )
+    }
+
+    /// [`Self::extend_path`] for a path inside a form XObject; as
+    /// [`Self::insert_node_in_form`]. `segments` stay in page space.
+    ///
+    /// # Errors
+    ///
+    /// As [`Self::extend_path`], with [`EditError::FormLeafOutOfRange`].
+    pub fn extend_path_in_form(
+        &mut self,
+        page_index: usize,
+        leaf_index: usize,
+        node_index: usize,
+        segments: &[Segment],
+    ) -> Result<FormSurgeryOutcome, EditError> {
+        self.node_shape_in_form(CommandKind::ExtendPath, page_index, leaf_index, |s, p| {
+            plan_extend_path(s, p, node_index, segments)
+        })
+    }
+
+    /// [`Self::open_subpath`] for a path inside a form XObject; as
+    /// [`Self::insert_node_in_form`].
+    ///
+    /// # Errors
+    ///
+    /// As [`Self::open_subpath`], with [`EditError::FormLeafOutOfRange`].
+    pub fn open_subpath_in_form(
+        &mut self,
+        page_index: usize,
+        leaf_index: usize,
+        node_index: usize,
+    ) -> Result<FormSurgeryOutcome, EditError> {
+        self.node_shape_in_form(CommandKind::OpenSubpath, page_index, leaf_index, |s, p| {
+            plan_open_subpath(s, p, node_index)
+        })
     }
 }
