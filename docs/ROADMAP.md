@@ -112,6 +112,19 @@ wherever it appears.*
 
 ## Shipped
 
+### `66ce4fd7` `Pass 721.5`: the light meter counts light from glowing surfaces, 2026-11-17 (1593rd filing)
+
+Engineer-reported; no shell here, git, push and CI state not checked from here. `66ce4fd7` `feat(3d): the light meter counts light from glowing surfaces (Pass 721.5)`. `pdfcer-gui` request `G291` (`D:\Dev\FeatureRequests\pdfce_FeatureRequests\open\request_G291_glowing_parts_light_nothing_in_the_meter.md`, pinned `1fee82da` / `v0.156.0`). Opened and shipped in one filing. **Unreleased at filing** (goes out in `v0.157.0`, not yet tagged). Reasoning is in the commit message.
+- **Problem:** with every lamp left out and glowing parts (emissive material, the operator's "fake lights") the light meter read total 0 lux with no reason and said nothing about the glow.
+- **Delivered (`pdfcer-3d`):** a mesh whose `MaterialFinish::emissive` is not black lights what it faces. New `Illuminance::emitted` (light straight from glowing meshes, shadowed by the model, gathered with the meter's gather rays; a point seeing only emissive white reads 1); `total = direct + bounced + ambient + emitted`. With bounce on, the glow's reflected light lands in `bounced`; with bounce off, `IlluminanceNote::GlowNotBounced`. New `GlowLight { Counted (default), LeftOut }` (`#[non_exhaustive]`) and `MeterSettings::glow`. `Counted` with n glowing meshes makes the reading relative with `RelativeReason::GlowingParts(n)` (a glow has no physical strength); `LeftOut` keeps lamps-only figures with `IlluminanceNote::GlowLeftOut(n)`. No glowing mesh: neither reason nor note. Both answers ship as a setting (two defensible answers ship both).
+- **Pictures unchanged:** `render` names no glowing mesh in its bounce; decision 224 stands, untouched.
+- **CLI:** `3d-render --illuminance` prints `emitted=` on the reading line; new `--illuminance-glow counted|left-out`.
+- **Docs:** `docs/core-api/01-reading-and-model.md` gained "Glowing surfaces (`G291`)" in the illuminance section; `check-core-api-verbs.py` PASS.
+- **Tests (engineer-reported):** `pdfcer-3d` 542 passed, 0 failed (3 new meter tests: closed-form view factor of a glowing ceiling; left-out says so and black emissive is no glow; a glow reaches an unseeing surface only by bounce, confirmed by sabotage of the probe trace). `pdfcer-cli` `tests/all.rs` 1112 passed, 0 failed, 2 ignored (1 new); unit 131 passed.
+- **Gates (engineer-reported):** fmt and clippy `-D warnings` clean for `pdfcer-3d` and `pdfcer-cli` all targets; `check-core-api-verbs`, `check-public-fns-documented`, `check-code-structure` (no new debt), `check-clap-help`, `check-cli-help-leads`, `check-suite-name-absent` green. No manifest touched, so no `cargo tree` run; no dependency change; no writer change.
+- **FEATURES:** new row "The light meter counts glowing surfaces" next to the light-meter row; core, cli ticked, gui open (`pdfcer-gui` shows its own workaround sentence). No decision, no rule.
+- **Next free IDs:** `Pass 717.4`, `Pass 720.3`, `Pass 721.6`, `Pass 722.3`, `Pass 647.3h`.
+
 ### `1fee82da` `v0.156.0` PUBLISHED, 2026-11-17 (1592nd filing)
 
 Engineer-reported; no shell here, nothing checked from here. Bump `a40088c4` (filed 1590th); `1fee82da` is the 1591st filing commit. Docs-only filing: no new code commit. Tag `v0.156.0` (annotated) is on `1fee82da`, pushed. CI green at that commit (run 44151413440, read from GitHub by the engineer).
@@ -27539,6 +27552,8 @@ closes out the *prior* filing's business rather than opening this one's.
 > **`Pass 721.3` SHIPPED 2026-11-17 (1590th filing), `b5eb72e6`; see its *Shipped* entry, removed from this list.** The `v0.156.0` round is complete except publication: bump `a40088c4` is filed (1590th), tag and publish are a separate filing.
 
 > **`Pass 721.4` SHIPPED 2026-11-17 (1591st filing), `9b288250`; see its *Shipped* entry (opened and shipped in one filing, `G290`).** Next free IDs: `Pass 717.4`, `Pass 720.3`, `Pass 721.5`, `Pass 722.3`, `Pass 647.3h`.
+
+> **`Pass 721.5` SHIPPED 2026-11-17 (1593rd filing), `66ce4fd7`; see its *Shipped* entry (opened and shipped in one filing, `G291`; unreleased, `v0.157.0`).** Next free IDs: `Pass 717.4`, `Pass 720.3`, `Pass 721.6`, `Pass 722.3`, `Pass 647.3h`. `Pass 721.2` (rest of the assembly measure tool) stays next.
 
 > **`Pass 647.3g` (OPEN, NOT STARTED; NOT gating `v0.156.0` unless the operator says so): XFA page-background fields bind per page (request `X016` item 1, the only unshipped part of `X016`).** Part of the `Pass 647.x` arc (decision 204, paced slowly). The criteria sit under the `Pass 647.3` heading further down this file (heading status corrected this filing: `647.3a` to `647.3f` shipped); the fresh slice is the per-page instance index (`Area[0]`, `Area[1]`, ...), a per-page value surviving save and reopen, and `match="global"` or an explicit `<bind ref>` staying one shared value, synthetic templates only. Reply to `X016` owed when it ships.
 

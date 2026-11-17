@@ -4,6 +4,15 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-11-17 (1593rd filing) — `Pass 721.5` SHIPPED (`66ce4fd7`, the light meter counts light from glowing surfaces, `G291`); opened and shipped in one filing; unreleased
+
+**Filed (engineer-reported; no shell here, git, push and CI state not checked from here):**
+- `66ce4fd7` `feat(3d): the light meter counts light from glowing surfaces (Pass 721.5)`. Problem: every lamp left out plus glowing parts read 0 lux with no reason and no word about the glow. `pdfcer-3d`: a mesh with non-black `MaterialFinish::emissive` lights what it faces; new `Illuminance::emitted` (shadowed, gathered with the meter's gather rays; a point seeing only emissive white reads 1); `total = direct + bounced + ambient + emitted`; with bounce on the glow's reflected light lands in `bounced`, with bounce off `IlluminanceNote::GlowNotBounced`. `GlowLight { Counted (default), LeftOut }` (`#[non_exhaustive]`) via `MeterSettings::glow`: `Counted` with n glowing meshes makes the reading relative (`RelativeReason::GlowingParts(n)`); `LeftOut` keeps lamps-only figures and notes `GlowLeftOut(n)`; no glowing mesh, neither reason nor note. Two defensible answers, both shipped as a setting. Pictures unchanged (`render` names no glowing mesh in its bounce; decision 224 untouched). CLI: `--illuminance` prints `emitted=`; `--illuminance-glow counted|left-out`. Contract paragraph "Glowing surfaces (`G291`)" in `docs/core-api/01-reading-and-model.md`.
+- Tests (engineer-reported): `pdfcer-3d` 542 passed, 0 failed (3 new; the glow-reaches-an-unseeing-surface-only-by-bounce test failed when the glow was removed from the probe trace); `pdfcer-cli` `tests/all.rs` 1112 passed, 0 failed, 2 ignored (1 new), unit 131. fmt, clippy `-D warnings`, `check-core-api-verbs`, `check-public-fns-documented`, `check-code-structure` (no new debt), `check-clap-help`, `check-cli-help-leads`, `check-suite-name-absent` green. No manifest touched (no `cargo tree`), no writer change.
+- Boxes: core and cli ticked, gui open (`pdfcer-gui` shows its own workaround sentence). New FEATURES row beside the light-meter row; existing row not lengthened.
+
+**Open:** UNRELEASED at filing; goes out in `v0.157.0` (not yet tagged). `Pass 721.2` (rest of the assembly measure tool) stays next; `722.2` (Backlog), `722.1` (awaits operator ruling), `647.3g` (Next up) unchanged. Next free IDs: `Pass 717.4`, `Pass 720.3`, `Pass 721.6`, `Pass 722.3`, `Pass 647.3h`; decision `225`, rule `R264` (premises as relayed, not re-measured; none minted). Reply to `G291` is the engineer's to write in `D:\Dev\FeatureRequests\pdfce_FeatureRequests\open`; not checked from here.
+
 ## 2026-11-17 (1592nd filing) — `v0.156.0` PUBLISHED (carries `Pass 721.4`)
 
 **Filed (engineer-reported; no shell here, nothing checked from here):**
