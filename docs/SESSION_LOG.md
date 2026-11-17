@@ -4,6 +4,17 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-11-17 (1584th filing) — `70030d61` (two paste test helpers unused off Windows; CI repair)
+
+**Filed (engineer-reported; no shell here, nothing checked from here):**
+- `70030d61`, no Pass ID: `#[cfg(windows)]` on the `CLIPBOARD` static and the `stdout` helper in `crates/pdfcer-cli/tests/copy_page.rs` and `paste_clipboard.rs`. CI at `dfd87f64` was red in the Linux clippy job (`dead_code`) from `928f40cc`; `928f40cc`, `dfd87f64`, `ed006b9e`, `0e53d27b` are on origin/main with that defect (CI for `0e53d27b` not read). No release cut from them. CI on `70030d61` not yet run when reported.
+
+**Decisions:** none. **FEATURES:** no change.
+
+**Gotcha:** a `pub(crate)` test helper shared between test modules and used only under `#[cfg(windows)]` is dead code on Linux; only a cross-target lint with `--all-targets` sees it. The local cross-target gate was `cargo check` (no tests compiled); it is now `cargo clippy -p pdfcer-cli --all-targets --target x86_64-unknown-linux-gnu -- -D warnings`, still without `--all-features` (`ring` needs a Linux C compiler absent here), so the signing feature is unchecked cross-target locally.
+
+**For next session:** read CI's colour for `70030d61` from GitHub; then release `v0.155.0` (OneDrive slot `pdfcer2`).
+
 ## 2026-11-17 (1583rd filing) — `ed006b9e` `Pass 720.1` (font parser moves to the line egui 0.37 uses)
 
 **Filed (engineer-reported; no shell here, nothing checked from here):**

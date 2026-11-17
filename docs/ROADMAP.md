@@ -112,6 +112,15 @@ wherever it appears.*
 
 ## Shipped
 
+### `70030d61` `fix(cli): two paste test helpers were unused off Windows`, 2026-11-17: repairs the red CI left by `928f40cc` (1584th filing)
+
+Engineer-reported; no shell here, git, push and CI state not checked from here. `70030d61`, no new Pass ID, test-only: a `#[cfg(windows)]` attribute added in each of `crates/pdfcer-cli/tests/copy_page.rs` and `crates/pdfcer-cli/tests/paste_clipboard.rs`.
+- **Cause:** CI at `dfd87f64` (1582nd filing, on `928f40cc` `Pass 720.0`) went RED in the Linux "cargo clippy -D warnings" job: "static CLIPBOARD is never used" and "function stdout is never used" in the CLI `all` test binary. Both are used only by the Windows-gated clipboard round trips.
+- **Why local gates passed:** the local cross-target gate was `cargo check -p pdfcer-cli --target x86_64-unknown-linux-gnu`, which compiles the binary but not its tests. It is now `cargo clippy -p pdfcer-cli --all-targets --target x86_64-unknown-linux-gnu -- -D warnings`, without `--all-features` (`ring`'s build script needs a Linux C compiler this machine lacks), so the signing feature is still unchecked cross-target locally.
+- **Record:** `928f40cc`, `dfd87f64`, `ed006b9e` and `0e53d27b` are on origin/main with CI red at `dfd87f64` (engineer-reported; the CI result for `0e53d27b` was not read, it carries the same defect). `70030d61` is the repair. No release was cut from the red commits.
+- **Measured by the engineer:** new cross-target clippy clean; Windows clippy for the CLI, all targets and all features, clean; the 4 clipboard tests pass with `PDFCER_CLIPBOARD_TESTS=1`. CI on `70030d61` not yet run when reported.
+- **FEATURES:** no change, no capability changed. No decision, no rule.
+
 ### `ed006b9e` `Pass 720.1`: the font parser moves to the line egui 0.37 uses, 2026-11-17 (1583rd filing)
 
 Engineer-reported; no shell here, git, push and CI state not checked from here. `ed006b9e` `build(fonts): move the font parser to the line egui 0.37 uses (Pass 720.1)`; files `Cargo.lock`, `THIRD_PARTY_LICENSES.md`, `crates/pdfcer-emf/Cargo.toml`, `crates/pdfcer-render/Cargo.toml`. The engine side of the operator's "upgrade to the latest egui" request (Ken, chat, 2026-11-17). Reasoning is in the commit message. **Build only: core, cli, gui capability boxes unchanged.**
