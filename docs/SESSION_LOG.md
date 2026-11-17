@@ -4,6 +4,14 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-11-17 (1577th filing) — `39c3a39e` doc-comment fix and `36f8e138` `v0.154.0` version bump (not yet published)
+
+**Filed (engineer-reported; no shell here, nothing checked from here):**
+- `39c3a39e` `docs(3d)`: follow-up to `Pass 719.0`; the `transparency` helper had been inserted between the `globals` doc comment and `globals` in `crates/pdfcer-3d/src/write/sections.rs`. Comment move only. Found by `check-public-fns-documented.py` in the pre-tag sweep (34 audits, that one failed, now clean) after `78650261` was pushed, so CI on `78650261` is expected red on that audit. fmt, clippy `-D warnings`, `write::` tests (29) pass.
+- `36f8e138` `chore(release): v0.154.0`: workspace version and 16 engine-crate pins 0.153.0 to 0.154.0; `Cargo.lock`, `fuzz/Cargo.lock`. Version bump only. Carries `14f14ed8` and `39c3a39e`.
+
+**Open:** NOT yet tagged or published; publication is the 1578th filing. ROADMAP: two new Shipped notes. FEATURES: no change. No decision, no rule.
+
 ## 2026-11-17 (1576th filing) — `14f14ed8` `Pass 719.0` (`X083`/`X084`/`X085`)
 
 **Filed (engineer-reported; no shell here, nothing checked from here):**

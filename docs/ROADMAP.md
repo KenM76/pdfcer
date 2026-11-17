@@ -112,6 +112,19 @@ wherever it appears.*
 
 ## Shipped
 
+### `36f8e138` `chore(release): v0.154.0`, 2026-11-17: version bump filed; NOT yet published (1577th filing)
+
+Engineer-reported; no shell here, git, tag, push, CI, crates.io and backup state not checked from here. `36f8e138` on `main` bumps the workspace version and the 16 engine-crate pins from 0.153.0 to 0.154.0 in `Cargo.toml`, plus `Cargo.lock` and `fuzz/Cargo.lock`. Version bump only: no code change, no dependency change.
+- **Planned contents of `v0.154.0`:** `14f14ed8` (`Pass 719.0`, filed 1576th) and `39c3a39e` (below). Publication (tag, GitHub release, OneDrive `pdfcer1`, crates.io) will be the 1578th filing.
+- **FEATURES:** no change (crates.io row stays 0.153.0). No decision, no rule.
+
+### `39c3a39e` `docs(3d): put the globals doc comment back on globals`, 2026-11-17: follow-up to `Pass 719.0` (1577th filing)
+
+Engineer-reported; no shell here, git, push and CI state not checked from here. `39c3a39e`, no new Pass ID. `14f14ed8` (`Pass 719.0`) inserted the `transparency` helper between the `globals` doc comment and the function in `crates/pdfcer-3d/src/write/sections.rs`, so the helper carried both comments and `globals` had none. Comment move only; no behaviour change.
+- **Found by:** `tools/check-public-fns-documented.py` in the pre-tag audit sweep (34 audits run, that one failed, now clean), after `78650261` (the 1576th filing) was already pushed. CI on `78650261` is therefore expected red on that audit; `39c3a39e` is the fix (CI colour not read from here).
+- **Verification (engineer-reported):** fmt, clippy `-D warnings` and the `write::` tests (29) pass after the move.
+- **FEATURES:** no change. No decision, no rule. Rides `v0.154.0`.
+
 ### `14f14ed8` `Pass 719.0`: glTF repeated roots and scene notes; PRC writer depth, normals, alpha, emissive, 2026-11-17 (1576th filing)
 
 Engineer-reported; no shell here, git, push and CI state not checked from here. `14f14ed8` `fix(3d): glTF repeated roots and scene notes; PRC writer depth, normals, alpha, emissive (X083-X085)`. Answers crates-consumer requests `X083`, `X084`, `X085` (channel `pdfce_FeatureRequests`). Reasoning is in the commit message. Crate `pdfcer-3d` only; core, visible through the CLI (`3d-convert`, `3d-embed` print the notes; no new subcommand or flag); gui none.
