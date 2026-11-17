@@ -4,6 +4,18 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-11-17 (1586th filing) — `v0.155.0` PUBLISHED; `Pass 721.0` (illuminance at a 3D surface point, `G288`) filed, in progress
+
+**Filed (engineer-reported; no shell here, nothing checked from here):**
+- Tag `v0.155.0` (annotated) on `2873da60` (the 1585th filing commit), pushed; CI green there (read from GitHub). Carries `ac29b6d0` (`Pass 718.2`), `b46412cc` (`Pass 717.1`), `3e65dc61` (`Pass 717.2`), `928f40cc` (`Pass 720.0`), `ed006b9e` (`Pass 720.1`), `6e40897a`, `70030d61`, bump `6e9ed395`.
+- GitHub release "pdfcer v0.155.0", 8 assets (portable zip, three `ocr-addon-*.zip`, each with `.sha256`). Fresh-folder smoke (merge, paste-clipboard) passed.
+- OneDrive `pdfcer2` holds 0.155.0; `pdfcer1` keeps 0.154.0; the next release writes `pdfcer1`. `verify-release.py v0.155.0`: all ok except "working tree clean" (known). crates.io: 16 crates at 0.155.0.
+- Release notice `open/notice_2026-11-17_release_v0.155.0.md` written.
+
+**Request `G288` (`pdfcer-gui` row `O437`) filed as `Pass 721.0`, IN PROGRESS (engineer working it):** illuminance at a point on a 3D model's surface, `pdfcer-3d` plus CLI; acceptance criteria A1-A9 and the out-of-scope list are in ROADMAP *Next up*. Rider: `paste-clipboard` bitmap-paste note names a temp file path and compression mode the user did not ask for. ID chosen by grep (zero hits for `Pass 721.0`, `G288`, `O437` in `docs/*.md` and `docs/history/`).
+
+**Open:** `721.0` in progress; `717.3` Backlog. Next free IDs: `Pass 717.4`, `Pass 720.2`, `Pass 721.1`. ROADMAP: one Shipped entry, the `6e9ed395` note amended, one Next up block. FEATURES: crates.io row to 0.155.0; one Planned row. No decision, no rule.
+
 ## 2026-11-17 (1585th filing) — `6e9ed395` `v0.155.0` version bump (not yet published)
 
 **Filed (engineer-reported; no shell here, nothing checked from here):**

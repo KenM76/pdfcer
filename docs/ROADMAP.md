@@ -112,7 +112,21 @@ wherever it appears.*
 
 ## Shipped
 
-### `6e9ed395` `chore(release): v0.155.0`, 2026-11-17: version bump filed; NOT yet published (1585th filing)
+### `2873da60` `v0.155.0` PUBLISHED, 2026-11-17 (1586th filing)
+
+Engineer-reported; no shell here, nothing checked from here. Bump `6e9ed395`, filed by `2873da60` (1585th). Docs-only filing: no new code commit. Tag `v0.155.0` (annotated) is on `2873da60`, pushed. CI green at that commit (read from GitHub by the engineer).
+- **Carries, since `v0.154.0`:** `ac29b6d0` (`Pass 718.2`, merge and insert carry ce dimensions with their groups), `b46412cc` (`Pass 717.1`, group and ungroup inside a form XObject), `3e65dc61` (`Pass 717.2`, merge annotation groups, ungroup one level at a time), `928f40cc` (`Pass 720.0`, CLI `paste-clipboard`; `object-copy --clipboard` / `--cut`), `ed006b9e` (`Pass 720.1`, `skrifa` 0.44), `6e40897a` and `70030d61` (test-only fixes), bump `6e9ed395`.
+- **GitHub release:** "pdfcer v0.155.0", 8 assets: `pdfcer-v0.155.0-windows-x64.zip`, `ocr-addon-tesseract.zip`, `ocr-addon-ocrs.zip`, `ocr-addon-ocrcer.zip`, each with a `.sha256`.
+- **Smoke:** fresh-folder smoke test passed (merge, paste-clipboard).
+- **OneDrive:** slot `pdfcer2` now holds 0.155.0; `pdfcer1` keeps 0.154.0; the next release writes `pdfcer1`.
+- **`verify-release.py v0.155.0`:** every check passed except "working tree clean" (the known untracked agent-memory files and `docs/research` drafts; none in the release).
+- **crates.io:** 16 crates at 0.155.0: `pdfcer-color`, `-flatten`, `-jpeg-remux`, `-json`, `-model`, `-vec3`, `-3d`, `-fonts`, `-function`, `-image-codec`, `-pkix`, `-3d-nav`, `-text`, `-core`, `-render`, `-emf` (the engineer's publication order).
+- **Channel:** notice `D:\Dev\FeatureRequests\pdfce_FeatureRequests\open\notice_2026-11-17_release_v0.155.0.md` written.
+- **FEATURES:** `Engine crates on crates.io` row advanced to 0.155.0; no capability row changed. No decision, no rule. Supersedes the "NOT yet published" status of the `6e9ed395` note below.
+
+### `6e9ed395` `chore(release): v0.155.0`, 2026-11-17: version bump filed; published in the 1586th filing above (1585th filing)
+
+*(Amended 1586th filing: this note said "NOT yet published"; tag, release, OneDrive `pdfcer2` and crates.io are in the entry above.)*
 
 Engineer-reported; no shell here, git, tag, push, CI, crates.io and backup state not checked from here. `6e9ed395` on `main`, local only when reported, bumps the workspace version and the 16 engine-crate pins from 0.154.0 to 0.155.0: 17 version strings in `Cargo.toml`, plus `Cargo.lock` and `fuzz/Cargo.lock`. Version bump only: no source change.
 - **Planned contents of `v0.155.0`** (code commits since `v0.154.0`, oldest first): `ac29b6d0` (`Pass 718.2`, merge and insert carry ce dimensions with their groups), `6e40897a` (OCR test fix), `b46412cc` (`Pass 717.1`, group and ungroup inside a form XObject), `3e65dc61` (`Pass 717.2`, merge annotation groups, ungroup one level at a time), `928f40cc` (`Pass 720.0`, paste the OS clipboard as vectors; copy or cut a selection to it), `ed006b9e` (`Pass 720.1`, font parser on the egui 0.37 line), `70030d61` (paste test helpers gated to Windows).
@@ -27406,6 +27420,20 @@ closes out the *prior* filing's business rather than opening this one's.
 ---
 
 ## Next up
+
+> **`Pass 721.0` (1586th filing; IN PROGRESS, engineer working it): illuminance at a point on a 3D model's surface (`pdfcer-3d` + CLI).** Request `G288` (`D:\Dev\FeatureRequests\pdfce_FeatureRequests\open\request_G288_illuminance_at_a_surface_point.md`, `pdfcer-gui` operator row `O437`). ID by grep: zero hits for `Pass 721.0`, `G288`, `O437` across `docs/*.md` and `docs/history/` before this filing (no shell; not run through `tools/check-ledger-numbers.py`). New arc, hence `721.0`, not `717.4` or `720.2`. Next free IDs: `Pass 717.4`, `Pass 720.2`, `Pass 721.1`.
+> - **A1:** `ModelLight` gains an optional physical intensity (candela for point and spot lights, lux for directional), set by the glTF importer from `KHR_lights_punctual` in every `GltfLights` mode, beside the scaled unitless intensity. The importer's inferred ambient fill carries none.
+> - **A2:** it survives glTF to PRC to read as a PRC attribute on the light entity (PRC WD 7.2.3.3, 7.4.3; spec RAG `D:\Dev\Rag-Specialized\PDF_Spec\threed\prc__8137__base_content_graphics.md`); files without it read exactly as before.
+> - **A3:** public read-only query in `pdfcer-3d`: given the assembled/prepared model, the camera and render options in force (the model's lights, the sun, bounce settings), a picked mesh, a point and its normal: illuminance there, occluded by the model's own geometry.
+> - **A4:** average over a disc of a given radius in model units on the picked surface; reports samples that landed on the picked surface and samples that fell off its edge; off-edge samples are excluded from the average.
+> - **A5:** split into direct and bounced parts, and each light's direct contribution with the light's name and kind.
+> - **A6:** units: lux only when every contributing light has a physical intensity and (when a point or spot light contributes) the model has length units; otherwise a relative figure, the value saying which and every reason why (PRC lights unitless; headlight / scheme / sun lights unitless; no model units; inferred ambient; importer exposure factor). Light colour in lux has two readings (ignore tint / weigh by luminance): both ship as an option, default ignore tint.
+> - **A7:** named caps on samples and rays, with a named refusal.
+> - **A8:** CLI subcommand in the same Pass, printing the figure, its basis and every inferred input (CLAUDE.md rule 4, fuzzy-never-sneaky).
+> - **A9:** `docs/core-api/` updated; `tools/check-core-api-verbs.py` green; no GUI/windowing or network dependency added to any engine crate.
+> - **Not in scope (the request says so):** luminance toward the eye, glare indices, daylight factors, IES photometric files.
+> - **Rider (same Pass, small): `paste-clipboard` wart.** A bitmap paste prints a note naming a temp file path and a compression mode the user never asked for; fix it.
+> - **FEATURES at completion (nothing ticked now):** new 3D row "illuminance at a surface point", core and cli to be ticked when it ships, gui unticked. The Planned row is already filed.
 
 > **1578th filing: operator request (Ken, chat, 2026-11-17), five Passes, all OPEN, none started. `720.0`, `720.1`, `717.2` had zero hits across `docs/*.md` and `docs/history/` by grep (no shell; not run through `tools/check-ledger-numbers.py`). Next free IDs: `Pass 717.3`, `Pass 720.2`, `Pass 721.0`.** Ken's words: *"One thing deferred: carrying ce dimension groups through merge and insert so that count becomes zero. It's in the backlog; the GUI project has been told. Can you please complete this and grouping within groups. Also not sure if it was addressed but if I use the copy as vector commands (I assume if I use cut instead it has the same issue and if there isn't a cut yet to do this there should be) and paste into pdfcer instead of inkscape the paste is done as a bitmap instead of a vector - this was with an older version and haven't tried in the newest. Also please upgrade to the latest egui and refactor as nessecary."*
 >
