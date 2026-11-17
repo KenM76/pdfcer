@@ -4,6 +4,16 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-11-17 (1587th filing) — `Pass 721.0` SHIPPED (`ce8fa9d2`, illuminance at a 3D surface point); new request filed as `Pass 721.1` (OPEN, next) and `Pass 721.2` (Backlog)
+
+**Filed (engineer-reported; no shell here, git, push and CI state not checked from here):**
+- `ce8fa9d2` `feat(3d): illuminance at a surface point (Pass 721.0, G288)`: `LightMeter` / `IlluminanceQuery` / `Illuminance` in `pdfcer-3d`; lux only when every contributing light is photometric and the model has units, else Relative with named reasons; `ModelLight::photometric` carried glTF to PRC (`pdfcer:photometric`) and back; sample and ray caps with named refusals; CLI `3d-render --illuminance X,Y` and five tuning flags. Measured: 5 cd at 0.5 m over a floor reads 20 lux. Tests: `pdfcer-3d` 528, `pdfcer-cli` 1106 (2 ignored), no-default 124 + 1017. Two audits failed pre-commit and were fixed. Full list in ROADMAP *Shipped*.
+- Reply `reply_G288_illuminance_at_a_surface_point_SHIPPED.md` written.
+
+**New operator request (Ken, chat, 2026-11-17), filed OPEN:** light meter first and asap; then measure distance between selected surfaces with an adjustable parallel tolerance (beyond it, measure angle); then a SolidWorks-assembly-style measure window. `Pass 721.1` (Next up banner): two-surface measure in `pdfcer-3d` + `3d-render`, plane fit with disclosed residual, tolerance modelled on `ParallelPolicy { epsilon_degrees, force_parallel }`. `Pass 721.2` (Backlog): the further engine verbs the window needs. The window is `pdfcer-gui`'s (decisions 073, 128), notice `open/notice_2026-11-17_operator_asks_3d_measure_tool_window.md`. IDs chosen by grep (no `721.1`-as-Pass, no `721.2` before this filing).
+
+**Open:** release `v0.156.0` carries `721.0` alone, first (OneDrive `pdfcer1`); `721.1` next; `717.3`, `721.2` Backlog; `paste-clipboard` bitmap-note rider (filed 1586th) not reported done. Next free IDs: `Pass 717.4`, `Pass 720.2`, `Pass 721.3`. ROADMAP: one Shipped entry, Next up banner replaced, one Backlog item, `717.3` ID line updated. FEATURES: illuminance row Planned to Implemented (core, cli ticked), two Planned rows added. No decision, no rule.
+
 ## 2026-11-17 (1586th filing) — `v0.155.0` PUBLISHED; `Pass 721.0` (illuminance at a 3D surface point, `G288`) filed, in progress
 
 **Filed (engineer-reported; no shell here, nothing checked from here):**
