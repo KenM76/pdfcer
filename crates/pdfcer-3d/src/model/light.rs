@@ -26,6 +26,13 @@ pub struct ModelLight {
     pub specular: Option<[f64; 3]>,
     /// The light's name, if the file gives one.
     pub name: Option<String>,
+    /// The assembly-tree node that carries it: an index into
+    /// [`crate::AssembledModel::tree`], for a light read from a PRC product
+    /// occurrence or from a view of one (the occurrence, or the occurrence
+    /// whose part holds the view). `None` for any other light. The node may
+    /// be hidden or suppressed ([`crate::ModelNode::drawn`] false): its
+    /// lights are listed all the same.
+    pub node: Option<usize>,
     /// Its physical strength, when the source gave one. Nothing here is
     /// drawn: [`Self::colour`] and [`Self::intensity`] are. `None` for a
     /// light PRC stored without one, which is every PRC light pdfcer did
@@ -127,6 +134,7 @@ impl ModelLight {
             intensity: 1.0,
             specular: None,
             name: None,
+            node: None,
             photometric: None,
         }
     }
@@ -195,6 +203,10 @@ pub struct ViewLights {
     pub default: bool,
     /// `is_active` of the view's scene display parameters.
     pub active: bool,
+    /// The assembly-tree node the view belongs to: an index into
+    /// [`crate::AssembledModel::tree`], the occurrence that holds the view
+    /// or whose part does. Each of [`Self::lights`] names the same node.
+    pub node: Option<usize>,
     /// Its lights.
     pub lights: Vec<ModelLight>,
 }
@@ -251,6 +263,7 @@ impl StoredView {
             view: self.name.clone(),
             default: self.default,
             active: self.scene.active,
+            node: None,
             lights: self
                 .scene
                 .lights
@@ -313,6 +326,7 @@ impl StoredLight {
             intensity: self.intensity,
             specular: s.filter(|&s| self.colours[2] != self.colours[0] && s != colour),
             name: self.name.clone(),
+            node: None,
             photometric: self.photometric,
         }
     }

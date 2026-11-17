@@ -3716,7 +3716,7 @@ let image = render_coloured(&meshes, &colours, &camera, &RenderOptions { width: 
   reads every view (`MKP_View` 501) with scene display parameters, on an
   occurrence or the part it draws: `ViewLights { view: Option<String>
   (its name), default: bool (is_default_view, 8016 on), active: bool,
-  lights: Vec<ModelLight> }` (`#[non_exhaustive]`). `AssembledModel::lights:
+  node: Option<usize>, lights: Vec<ModelLight> }` (`#[non_exhaustive]`). `AssembledModel::lights:
   Vec<ModelLight>` holds the lights it is drawn with in the meshes' space
   (empty when placements were not applied), `view_lights` every lit view,
   `lights_view: Option<usize>` which view supplied `lights` (`None`: the
@@ -3725,9 +3725,24 @@ let image = render_coloured(&meshes, &colours, &camera, &RenderOptions { width: 
   replaces the occurrences' lights, the scene the model opens on; PRC does
   not say which wins), Ignore}`. `ModelLight { kind, colour: [f64; 3] (0-1), ambient:
   [f64; 3] (an added ambient part), intensity, name: Option<String>,
+  node: Option<usize>,
   specular: Option<[f64; 3]> (the colour its highlights take, when the
   file gives one apart from `colour`; `None` highlights in `colour`) }`
-  (`#[non_exhaustive]`; build with `ModelLight::new(kind, colour)`); `ModelLightKind::{Ambient, Point {
+  (`#[non_exhaustive]`; build with `ModelLight::new(kind, colour)`).
+  **Which tree node carries a light (`G289`).** `ModelLight::node` and
+  `ViewLights::node` index `AssembledModel::tree` (and
+  `PrcFile::model_tree()`): the product occurrence whose scene display
+  parameters hold the light, or, for a view, the occurrence that holds the
+  view or whose part does; every light in a `ViewLights` names its view's
+  node, so `AssembledModel::lights[i].node` is valid whichever of the
+  occurrences or a default view supplied `lights`. `None` for a light not
+  read from a PRC occurrence (glTF, one built with `ModelLight::new`).
+  **A hidden or suppressed occurrence's lights are listed** in `lights` and
+  `view_lights` like any other and are drawn with: the walk does not test
+  `drawn` for lights, under either `StoredVisibility`. A caller that wants
+  a node's lamps to go dark with it leaves out the lights whose `node` is
+  that node or a descendant (`tree[node].drawn` says what the file
+  stored). `ModelLightKind::{Ambient, Point {
   position, attenuation }, Directional { direction }, Spot { position,
   direction, attenuation, angle (half-angle, radians), exponent }}`
   (`#[non_exhaustive]`; `name()` gives `ambient`/`point`/`directional`/
@@ -3742,7 +3757,8 @@ let image = render_coloured(&meshes, &colours, &camera, &RenderOptions { width: 
   viewer's side dark. The brightest directional light is the shadow key;
   under `ShadowCasters::EveryLight` (the default) the others cast too. Show the list off-canvas: `3d-render` prints one
   `light index=… kind=… name=… [position=… direction=… attenuation=…
-  angle=… exponent=…] colour=… intensity=…` line per light under Artwork,
+  angle=… exponent=…] colour=… intensity=… [specular=…] [node=N]` line per light
+  under Artwork (`node` the tree row that carries it, when it has one),
   and one `view-light view=… view-name=… default=yes|no active=yes|no
   used=yes|no index=… kind=…` line per view light, after a note naming the
   view whose lights are used. CLI: `3d-render --artwork-headlight

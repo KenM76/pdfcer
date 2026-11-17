@@ -134,7 +134,8 @@ pub(crate) fn print_view_lights(views: &[pdfcer_3d::ViewLights], used: Option<us
     }
 }
 
-/// A light's `kind=… name=… [place] colour=… intensity=…` fields.
+/// A light's `kind=… name=… [place] colour=… intensity=…` fields, then
+/// `node=N` (the assembly-tree row that carries it) when it has one.
 #[cfg(feature = "3d")]
 fn light_fields(l: &pdfcer_3d::ModelLight) -> String {
     use pdfcer_3d::ModelLightKind as K;
@@ -161,13 +162,15 @@ fn light_fields(l: &pdfcer_3d::ModelLight) -> String {
         _ => String::new(),
     };
     let specular = l.specular.map(|s| format!(" specular={}", v(s)));
+    let node = l.node.map(|n| format!(" node={n}"));
     format!(
-        "kind={} name={:?}{place} colour={} intensity={:.6}{}",
+        "kind={} name={:?}{place} colour={} intensity={:.6}{}{}",
         l.kind.name(),
         l.name.as_deref().unwrap_or("-"),
         v(l.colour),
         l.intensity,
-        specular.unwrap_or_default()
+        specular.unwrap_or_default(),
+        node.unwrap_or_default()
     )
 }
 

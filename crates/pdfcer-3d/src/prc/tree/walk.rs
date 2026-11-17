@@ -153,6 +153,7 @@ impl<'t> Walk<'t> {
             Some(l) => multiply(father, l),
             None => *father,
         };
+        let (lit, lit_views) = (self.lights.len(), self.view_lights.len());
         self.collect_lights(fs, p, &m);
         let mut chain = graphics.to_vec();
         chain.push(Graphics { fs, ..p.graphics });
@@ -164,6 +165,7 @@ impl<'t> Walk<'t> {
             self.activate(r.overrides.0, r.overrides.1);
         }
         let node = self.nodes.len();
+        self.name_lights(node, lit, lit_views);
         let (name, name_from) = self.name_of(p, &r);
         let first = self.out.len();
         let notes = self.notes_of(p, &r);
@@ -218,6 +220,20 @@ impl<'t> Walk<'t> {
             let at = if set.absolute { &IDENTITY } else { m };
             for l in &set.lights {
                 self.lights.push(l.resolve(globals, at));
+            }
+        }
+    }
+
+    /// Names `node` as the carrier of every light collected from index
+    /// `lit` on and every view from `lit_views` on.
+    fn name_lights(&mut self, node: usize, lit: usize, lit_views: usize) {
+        for l in self.lights.iter_mut().skip(lit) {
+            l.node = Some(node);
+        }
+        for v in self.view_lights.iter_mut().skip(lit_views) {
+            v.node = Some(node);
+            for l in &mut v.lights {
+                l.node = Some(node);
             }
         }
     }

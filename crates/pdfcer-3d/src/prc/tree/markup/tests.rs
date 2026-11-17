@@ -128,7 +128,7 @@ fn light(w: &mut W, t: u32, version: u32) {
 }
 
 /// Scene parameters with every light kind and one clipping plane.
-fn scene(w: &mut W, version: u32) {
+pub(in crate::prc::tree) fn scene(w: &mut W, version: u32) {
     w.uint(741);
     ref_base(w);
     w.bit(true).uint(4);

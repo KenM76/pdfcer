@@ -41,6 +41,16 @@ fn a_part_under_markups_and_a_view_is_placed_and_coloured() {
             .iter()
             .all(|v| v.default && v.active && v.lights.len() == 4)
     );
+    assert_eq!(
+        views.iter().map(|v| v.node).collect::<Vec<_>>(),
+        [Some(0), Some(1)],
+        "each view names the occurrence that holds it"
+    );
+    assert!(
+        views
+            .iter()
+            .all(|v| v.lights.iter().all(|l| l.node == v.node))
+    );
     assert!(f.lights().unwrap().is_empty(), "no occurrence lights");
     let mut options = crate::AssembleOptions::default();
     let m = crate::assemble_with_options(&bytes, &options).unwrap();
@@ -399,4 +409,44 @@ fn a_material_keeps_its_specular_emissive_and_ambient_terms() {
     assert_eq!(finish(3).unwrap().ambient, orange);
     assert_eq!(finish(4), None, "diffuse-coloured ambient, no light terms");
     assert_eq!(finish(5), None, "indices that name nothing are unset");
+}
+
+/// A suppressed occurrence's lights are listed with the drawn ones, and
+/// each names the tree node that carries it.
+#[test]
+fn an_occurrence_light_names_its_tree_node_drawn_or_not() {
+    let tess = crate::PrcFile::parse(include_bytes!(
+        "../../../../../../fixtures/synthetic/prc/square.prc"
+    ))
+    .unwrap();
+    let tess = tess.file_structures[0].section(crate::SectionKind::Tessellation);
+    let lit = Occ {
+        part: 1,
+        lit: true,
+        ..OCC
+    };
+    let occs = [
+        Occ {
+            sons: &[1, 2],
+            ..OCC
+        },
+        lit,
+        Occ {
+            suppressed: true,
+            ..lit
+        },
+    ];
+    let bytes = crate::prc::testw::prc_container(
+        &coloured_globals(false).bytes(),
+        &tree(&occs, 0, false).bytes(),
+        tess,
+        &placed_model(),
+    );
+    let m = crate::assemble(&bytes).unwrap();
+    assert!(m.tree[1].drawn && !m.tree[2].drawn);
+    let nodes: Vec<_> = m.lights.iter().map(|l| l.node).collect();
+    assert_eq!(nodes[..4], [Some(1); 4]);
+    assert_eq!(nodes[4..], [Some(2); 4]);
+    let free = crate::ModelLight::new(crate::ModelLightKind::Ambient, [1.0; 3]);
+    assert_eq!(free.node, None);
 }

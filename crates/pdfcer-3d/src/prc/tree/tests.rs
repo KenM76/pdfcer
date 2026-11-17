@@ -108,6 +108,8 @@ struct Occ<'a> {
     location: Option<[f64; 3]>,
     mirror: bool,
     camera: bool,
+    /// Active scene parameters holding one light of each kind.
+    lit: bool,
     /// One of each markup entity and a view, not none.
     markups: bool,
     /// `(prototype + 1, its file structure)`, `None` meaning this one.
@@ -171,6 +173,7 @@ const OCC: Occ<'static> = Occ {
     location: None,
     mirror: false,
     camera: false,
+    lit: false,
     markups: false,
     prototype: None,
     name: None,

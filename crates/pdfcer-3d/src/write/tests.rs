@@ -411,7 +411,10 @@ fn lights_read_back_in_model_space() {
     assert!(close(attenuation, [0.5, 0.0, 0.25]), "{attenuation:?}");
     assert_eq!(m.lights[1].intensity, 0.5);
     assert!(close(m.lights[1].colour, [1.0; 3]));
-    assert_eq!(m.lights[2], spot);
+    // Read back, each light names the occurrence the writer put it on.
+    let node = m.lights[2].node;
+    assert!(node.is_some_and(|n| n < m.tree.len()), "{node:?}");
+    assert_eq!(m.lights[2], ModelLight { node, ..spot });
     assert_eq!(m.lights[3].kind, ModelLightKind::Ambient);
     assert!(close(m.lights[3].colour, [0.2; 3]));
     // The materials' colours are untouched by the lights'.

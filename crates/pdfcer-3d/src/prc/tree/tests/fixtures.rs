@@ -46,6 +46,9 @@ pub(super) fn occurrence(w: &mut W, o: &Occ<'_>, extra: bool) {
             w.double(f64::from(i) + 0.5);
         }
         w.bit(false).uint(0).uint(19).uint(0).uint(0).bit(false);
+    } else if o.lit {
+        w.uint(1);
+        markup::tests::scene(w, 8137);
     } else {
         w.uint(0);
     }
