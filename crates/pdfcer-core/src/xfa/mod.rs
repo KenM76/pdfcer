@@ -14,6 +14,7 @@ mod paint;
 mod picture;
 mod relevant;
 mod template;
+mod widget;
 
 pub use layout::{
     Fragment, LayoutError, LayoutItem, LayoutOptions, LayoutPage, LayoutRect, LayoutWarning,
@@ -44,6 +45,7 @@ pub use template::{
     AnchorType, ContainerKind, LayoutStrategy, Measurement, Occur, Presence, Template, XfaNode,
     read_template,
 };
+pub use widget::{ChoiceOpen, FieldWidget, field_widget};
 
 use crate::graph::ObjectGraph;
 use crate::object::Object;

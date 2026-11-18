@@ -752,3 +752,25 @@ fn a_choice_subform_set_lays_the_member_its_data_picks() {
     let (_, one, _) = run("choice-one", &bytes, &["--choice-instances", "one"]);
     assert_eq!(lines(&one).len(), 1, "{one}");
 }
+
+#[test]
+fn each_field_prints_the_entry_it_takes() {
+    let t = format!(
+        r#"<subform name="f" layout="tb">{PAGE}<field name="t" w="50pt" h="10pt"><ui><textEdit multiLine="1"/></ui><value><text maxChars="4"/></value></field><field name="c" w="10pt" h="10pt"><ui><checkButton/></ui><items><text>Y</text><text>N</text></items></field><field name="l" w="50pt" h="10pt"><ui><choiceList open="onEntry"/></ui><items><text>Red</text></items><items save="1"><text>r</text></items></field><draw name="d" w="10pt" h="10pt"/></subform>"#
+    );
+    let (code, stdout, stderr) = run("widget", &pdf(Some(&t)), &[]);
+    assert_eq!(code, 0, "{stderr}");
+    let widgets: Vec<&str> = stdout
+        .lines()
+        .filter(|l| l.starts_with("widget "))
+        .collect();
+    assert_eq!(
+        widgets,
+        [
+            "widget path=0.1 kind=text multiline=yes max-chars=4",
+            r#"widget path=0.2 kind=check on="Y" off="N""#,
+            r#"widget path=0.3 kind=choice open=on-entry text-entry=no items=1 item="Red":"r""#,
+        ],
+        "{stdout}"
+    );
+}

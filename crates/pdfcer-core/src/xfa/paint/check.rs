@@ -35,7 +35,7 @@ fn value_of(holder: &XfaNode) -> Option<&str> {
 }
 
 /// The field's on, off and neutral values (p.759; missing ones are null).
-fn states(node: &XfaNode) -> Option<[&str; 3]> {
+pub(in crate::xfa) fn states(node: &XfaNode) -> Option<[&str; 3]> {
     let items = node.child("items")?;
     let get = |i: usize| items.children.get(i).map_or("", |c| c.text.trim());
     Some([get(0), get(1), get(2)])

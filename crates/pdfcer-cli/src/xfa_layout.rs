@@ -3,8 +3,8 @@
 use super::*;
 
 use pdfcer_core::xfa::{
-    ContainerKind, LayoutItem, LayoutOptions, LayoutPage, LayoutWarning, MergeOptions, MergedForm,
-    XfaLayout,
+    ChoiceOpen, ContainerKind, FieldWidget, LayoutItem, LayoutOptions, LayoutPage, LayoutWarning,
+    MergeOptions, MergedForm, XfaLayout, field_widget,
 };
 
 /// `xfa-layout --negative-coordinates` (gap G-L1).
@@ -431,6 +431,9 @@ fn print_layout(layout: &XfaLayout, merged: &MergedForm) {
         print_page(i, page);
         for item in &page.items {
             print_item(i, item, merged.value_at(&item.path));
+            if item.kind == ContainerKind::Field {
+                print_widget(merged, &item.path);
+            }
         }
     }
     for w in &layout.warnings {
@@ -488,6 +491,58 @@ fn print_item(page: usize, item: &LayoutItem, value: Option<&str>) {
         yes_no(item.background),
         yes_no(item.visible)
     );
+}
+
+/// The `widget` line for the field at `path` (pdfcer-gui request G300).
+fn print_widget(merged: &MergedForm, path: &[usize]) {
+    let Some(w) = field_widget(&merged.template, path) else {
+        return;
+    };
+    let fields = match w {
+        FieldWidget::Text {
+            multiline,
+            max_chars,
+        } => {
+            let max = max_chars.map_or_else(String::new, |n| format!(" max-chars={n}"));
+            format!("text multiline={}{max}", yes_no(multiline))
+        }
+        FieldWidget::Numeric => "numeric".to_owned(),
+        FieldWidget::Date => "date".to_owned(),
+        FieldWidget::CheckButton {
+            on,
+            off,
+            neutral,
+            group,
+        } => {
+            let neutral = neutral.map_or_else(String::new, |n| format!(" neutral={n:?}"));
+            let group = group.map_or_else(String::new, |g| format!(" group={}", dotted(&g)));
+            format!("check on={on:?} off={off:?}{neutral}{group}")
+        }
+        FieldWidget::ChoiceList {
+            items,
+            open,
+            text_entry,
+        } => {
+            let open = match open {
+                ChoiceOpen::OnEntry => "on-entry",
+                ChoiceOpen::Always => "always",
+                ChoiceOpen::MultiSelect => "multi-select",
+                _ => "user-control",
+            };
+            let listed: String = items
+                .iter()
+                .map(|(d, s)| format!(" item={d:?}:{s:?}"))
+                .collect();
+            format!(
+                "choice open={open} text-entry={} items={}{listed}",
+                yes_no(text_entry),
+                items.len()
+            )
+        }
+        FieldWidget::Other(tag) => format!("other ui={tag}"),
+        _ => "other".to_owned(),
+    };
+    println!("widget path={} kind={fields}", dotted(path));
 }
 
 const fn yes_no(b: bool) -> &'static str {

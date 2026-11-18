@@ -29,6 +29,13 @@ impl Template {
         self.root.child("subform")
     }
 
+    /// The node `path` leads to by child indices from [`Template::element`]
+    /// (a [`crate::xfa::LayoutItem::path`]); `None` when it leads nowhere.
+    #[must_use]
+    pub fn node_at(&self, path: &[usize]) -> Option<&XfaNode> {
+        path.iter().try_fold(&self.root, |n, &i| n.children.get(i))
+    }
+
     /// The `template` element, for a merge to set field values in.
     pub(super) fn element_mut(&mut self) -> &mut XfaNode {
         &mut self.root

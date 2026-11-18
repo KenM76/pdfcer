@@ -6891,9 +6891,19 @@ pub(crate) enum Command {
     ///
     ///   page index=N name="..." width= height= page_area= content_areas= items=
     ///   item page=N kind= name="..." path= x= y= w= h= area= background= visible= [fragment=OFFSET/HEIGHT] [rotate=DEG] [value="..."]
+    ///   widget path= kind=text multiline= [max-chars=N]
+    ///   widget path= kind=numeric | kind=date | kind=other ui=TAG
+    ///   widget path= kind=check on="..." off="..." [neutral="..."] [group=PATH]
+    ///   widget path= kind=choice open= text-entry= items=N [item="DISPLAY":"SAVE" ...]
     ///   warning kind= path= [target= | attribute= | strategy= | ref="..."]
     ///   data unfilled=N unbound-values=N
     ///   xfa-layout pages= items= warnings=
+    ///
+    /// A widget line follows each field's item line and says what entry it
+    /// takes. The on, off and item save values are what xfa-fill --set
+    /// writes to select them; a check box with group= is a radio button,
+    /// set by giving the group's path its on value. open is user-control or
+    /// on-entry for a drop-down, always or multi-select for a shown list.
     ///
     /// The data line appears when the form has data: unfilled counts the
     /// fields that looked for a value and found none, unbound-values the

@@ -827,6 +827,28 @@ file.
   (`--data-creation create|refuse`). Show `shared_with` and `created`
   off-canvas: other fields changed with the one edited, and data nodes
   the fill added.
+- **Field entry** (`xfa/widget.rs`, G300). `field_widget(&Template, path)
+  -> Option<FieldWidget>` says what entry the `field` at `path` takes (`None`
+  for anything that is not a field). Pass `MergedForm::template`, so
+  `bindItems` lists are filled. `Template::node_at(path) -> Option<&XfaNode>`
+  follows a path. `FieldWidget` (`#[non_exhaustive]`), read from the `ui`
+  widget, or from the value's content type when there is none or it is
+  `defaultUi` (pp.478, 490-491):
+  - `Text { multiline, max_chars }`: `textEdit`; `max_chars` is the value
+    `text`'s positive `maxChars`.
+  - `Numeric`, `Date`: `numericEdit`, `dateTimeEdit`.
+  - `CheckButton { on, off, neutral, group }`: `items` entries 1-3 (a
+    missing 2nd is the null string, p.759), else `"1"`/`"0"`. `neutral` is
+    `None` when empty or in an exclusion group. `group` is the enclosing
+    `exclGroup`'s path: select a radio button with
+    `fill_xfa_field(group, on)` (p.715).
+  - `ChoiceList { items: Vec<(display, save)>, open: ChoiceOpen, text_entry }`.
+    `ChoiceOpen` = `UserControl` (default) | `OnEntry` | `Always` |
+    `MultiSelect`; `is_drop_down()` for the first two.
+  - `Other(tag)`: `passwordEdit`, `imageEdit`, `signature`, `button`,
+    `barcode`.
+  The values carried are what `fill_xfa_field` takes. CLI `xfa-layout`
+  prints `widget path= kind=…` after each field's item line.
 - **Materialize.** `EditSession::materialize_xfa(&Template, &[LayoutPage],
   &PaintOptions, &XfaFonts, XfaSignatures) -> Result<XfaMaterializeOutcome, EditError>` replaces a
   dynamic form's placeholder pages with the given layout pages, painted

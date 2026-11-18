@@ -16,7 +16,7 @@ const BUTTON_MAX: f64 = 15.0;
 /// `node`'s display and save item texts, positionally paired (p.484): the
 /// `items` with `save="1"` holds values, the other display text; one list
 /// serves as both.
-fn items(node: &XfaNode) -> (Vec<&str>, Vec<&str>) {
+pub(in crate::xfa) fn items(node: &XfaNode) -> (Vec<&str>, Vec<&str>) {
     let lists: Vec<&XfaNode> = node.children.iter().filter(|c| c.tag == "items").collect();
     let save = lists.iter().copied().find(|l| l.attr("save") == Some("1"));
     let display = lists

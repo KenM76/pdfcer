@@ -542,6 +542,8 @@ mod size;
 mod text;
 mod turn;
 mod widgets;
+pub(super) use check::states as check_states;
+pub(super) use choice::items as choice_items;
 pub(super) use image::{natural_size, value_image};
 pub(super) use size::content_size;
 pub(super) use text::{line_pitch, widget};

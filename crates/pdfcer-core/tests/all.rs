@@ -328,5 +328,6 @@ mod writer_roundtrip;
 mod xfa_fill;
 mod xfa_fonts;
 mod xfa_materialize;
+mod xfa_widget;
 mod xref_eol;
 mod xref_recover;
