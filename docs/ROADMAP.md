@@ -112,6 +112,14 @@ wherever it appears.*
 
 ## Shipped
 
+### `d278cc2a` follow-up fix to `Pass 647.12` (`e7dcdb8c`): `xfa-materialize --fillable` help no longer breaks `cargo doc`, 2026-11-18 (1617th filing)
+
+Engineer-reported; no shell here, git, push and CI state not checked from here. `d278cc2a` `fix(cli): xfa-materialize --fillable help no longer breaks cargo doc`. No new Pass ID (a follow-up to `647.12`, not a capability). **Unreleased**: joins the open `v0.159.0` round. Reasoning is in the commit message. **cli** help text only; core/gui unchanged.
+- **Defect:** the `--fillable` doc comment in `crates/pdfcer-cli/src/cli.rs` quoted a path as `form1[0].name[0]`; rustdoc read the `[0]`s as unresolved intra-doc links, so CI's "cargo doc, broken intra-doc links denied" job failed on HEAD `58d48f01` (run `44413898934`).
+- **Fix:** the sentence now reads "named by its full template path, instance numbers included". Escaping the brackets was rejected: the backslashes would print in `--help`. Behaviour unchanged.
+- **Verified (engineer-reported):** `RUSTDOCFLAGS="-D rustdoc::broken_intra_doc_links" cargo doc --workspace --no-deps` clean; `cargo fmt --check` clean. Tests unchanged.
+- **FEATURES:** no rows affected.
+
 ### `e5c436cb` `Pass 723.1`: inferred heading levels never skip going down, 2026-11-18 (1616th filing)
 
 Engineer-reported; no shell here, git, push and CI state not checked from here. `e5c436cb` `fix(layout): inferred heading levels never skip going down (Pass 723.1)`. Request `X091` (from the operator as a `crates` consumer; `open/request_X091_inferred_heading_levels_never_skip.md`, reply `open/reply_X091_inferred_heading_levels_never_skip_SHIPPED.md`). Opened and shipped in one filing. **Unreleased**: joins the open `v0.159.0` round (bump `b61fb116`). Reasoning is in the commit message. **core** only; cli/gui unchanged.
@@ -27842,6 +27850,8 @@ closes out the *prior* filing's business rather than opening this one's.
 > **`Pass 721.13` (`fe99f7da`, `E068`) SHIPPED 2026-11-18 (1615th filing); see its *Shipped* entry (opened and shipped in one filing; unreleased, joins the `v0.159.0` round).** Next free IDs: `Pass 647.13`, `Pass 717.4`, `Pass 718.5`, `Pass 720.3`, `Pass 721.14`, `Pass 722.10`, `Pass 723.1`, `Pass 647.3h`; decision `225`, rule `R264`. `721.13` was the next free ID per the 1613th banner (not re-grepped beyond that; no shell).
 
 > **`Pass 723.1` (`e5c436cb`, `X091`) SHIPPED 2026-11-18 (1616th filing); see its *Shipped* entry (opened and shipped in one filing; unreleased, joins the `v0.159.0` round).** Next free IDs: `Pass 647.13`, `Pass 717.4`, `Pass 718.5`, `Pass 720.3`, `Pass 721.14`, `Pass 722.10`, `Pass 723.2`, `Pass 647.3h`; decision `225`, rule `R264`. `723.1` was the next free ID per the 1615th banner (not re-grepped beyond that; no shell).
+
+> **`d278cc2a` (follow-up fix to `Pass 647.12`, no new ID) FILED 2026-11-18 (1617th filing); see its *Shipped* entry (unreleased, joins the `v0.159.0` round).** Next free IDs unchanged from the 1616th banner.
 
 > **`Pass 647.3g` (OPEN, NOT STARTED; NOT gating `v0.156.0` unless the operator says so): XFA page-background fields bind per page (request `X016` item 1, the only unshipped part of `X016`).** Part of the `Pass 647.x` arc (decision 204, paced slowly). The criteria sit under the `Pass 647.3` heading further down this file (heading status corrected this filing: `647.3a` to `647.3f` shipped); the fresh slice is the per-page instance index (`Area[0]`, `Area[1]`, ...), a per-page value surviving save and reopen, and `match="global"` or an explicit `<bind ref>` staying one shared value, synthetic templates only. Reply to `X016` owed when it ships.
 

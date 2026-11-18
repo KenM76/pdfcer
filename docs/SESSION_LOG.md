@@ -4,6 +4,14 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-11-18 (1617th filing) — `d278cc2a` FIXED: `xfa-materialize --fillable` help broke `cargo doc`; unreleased
+
+**Filed (engineer-reported; no shell here, git, push and CI state not checked from here):**
+- `d278cc2a` `fix(cli): xfa-materialize --fillable help no longer breaks cargo doc`: follow-up to `Pass 647.12` (`e7dcdb8c`), no new Pass ID. The clap doc comment in `crates/pdfcer-cli/src/cli.rs` quoted `form1[0].name[0]`; rustdoc took the `[0]`s as broken intra-doc links and CI's "cargo doc, broken intra-doc links denied" job failed on `58d48f01` (run `44413898934`). Now "named by its full template path, instance numbers included"; escaping rejected (backslashes would show in `--help`). Behaviour unchanged.
+- Verified (engineer-reported): `RUSTDOCFLAGS="-D rustdoc::broken_intra_doc_links" cargo doc --workspace --no-deps` and `cargo fmt --check` clean. Tests unchanged. FEATURES: no rows affected.
+
+**Open:** next free IDs unchanged (`Pass 723.2` next in the 723 family); decision `225`; rule `R264`. Joins the open `v0.159.0` round; tag, package and publish still to do. CI colour after this commit is not checked from here.
+
 ## 2026-11-18 (1616th filing) — `Pass 723.1` (`e5c436cb`, `X091`) SHIPPED: inferred heading levels never skip going down; unreleased
 
 **Filed (engineer-reported; no shell here, git, push and CI state not checked from here):**
