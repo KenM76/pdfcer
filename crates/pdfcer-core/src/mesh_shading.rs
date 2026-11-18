@@ -36,7 +36,7 @@ mod tessellate;
 mod write;
 
 pub use decode::{MeshStreamFormat, decode_mesh};
-pub use reexpress::{Reexpress, ReexpressReport, reexpress_mesh};
+pub use reexpress::{Reexpress, ReexpressReport, reexpress_mesh, reexpress_mesh_with_breaks};
 pub use tessellate::{Tessellation, tessellate_patches};
 pub use write::{MeshWriteOptions, MeshWriteReport, WrittenMesh, write_free_form_mesh};
 

@@ -6,7 +6,7 @@
 use pdfcer_core::filters::decode_stream;
 use pdfcer_core::mesh_shading::{
     MeshError, MeshGeometry, MeshStreamFormat, MeshTriangle, MeshVertex, MeshWriteOptions,
-    Reexpress, decode_mesh, reexpress_mesh, write_free_form_mesh,
+    Reexpress, decode_mesh, reexpress_mesh, reexpress_mesh_with_breaks, write_free_form_mesh,
 };
 use pdfcer_core::object::{Dict, Name, Object};
 use pdfcer_core::settings::MeshPatchPadding;
@@ -309,4 +309,53 @@ fn a_narrow_function_band_between_the_probes_splits_the_triangle() {
     m.parametric = false;
     let (blind, _) = reexpress_mesh(&m, 4, band, &Reexpress::default()).unwrap();
     assert_eq!(blind.len(), 1, "without the grid the probes miss the band");
+}
+
+/// The parametric triangle `t` = 0, 1, 1.
+fn parametric_triangle() -> pdfcer_core::mesh_shading::DecodedMesh {
+    let tri = [
+        v(0.0, 0.0, &[0.0]),
+        v(100.0, 0.0, &[1.0]),
+        v(0.0, 100.0, &[1.0]),
+    ];
+    let mut m = gray_mesh(&[tri]);
+    m.parametric = true;
+    m
+}
+
+#[test]
+fn the_function_breaks_find_a_band_narrower_than_a_grid_step() {
+    let m = parametric_triangle();
+    let band = |s: &[f64]| {
+        let t = s.first().copied()?;
+        Some(vec![
+            f64::from(u8::from((0.126..0.127).contains(&t))),
+            0.0,
+            0.0,
+            0.0,
+        ])
+    };
+    let (blank, _) = reexpress_mesh(&m, 4, band, &Reexpress::default()).unwrap();
+    assert_eq!(blank.len(), 1, "the grid steps over the band");
+    let breaks = [0.0, 0.126, 0.127, 1.0];
+    let (tris, report) =
+        reexpress_mesh_with_breaks(&m, 4, band, &breaks, &Reexpress::default()).unwrap();
+    assert!(tris.len() > 1, "split where the band is");
+    assert!(report.over_tolerance > 0, "the band's edges are jumps");
+}
+
+#[test]
+fn a_step_of_one_and_a_half_tolerances_is_never_accepted() {
+    let m = parametric_triangle();
+    let params = Reexpress::default();
+    let tol = 1.0 / 255.0;
+    let step = move |s: &[f64]| {
+        let t = s.first().copied()?;
+        Some(vec![if t < 0.5 { 0.0 } else { 1.5 * tol }, 0.0, 0.0, 0.0])
+    };
+    let (_, report) = reexpress_mesh_with_breaks(&m, 4, step, &[0.0, 0.5, 1.0], &params).unwrap();
+    assert!(report.over_tolerance > 0, "{report:?}");
+    let ramp = |s: &[f64]| Some(vec![s[0], 0.0, 0.0, 0.0]);
+    let (one, report) = reexpress_mesh_with_breaks(&m, 4, ramp, &[0.0, 1.0], &params).unwrap();
+    assert_eq!((one.len(), report.subdivisions), (1, 0));
 }

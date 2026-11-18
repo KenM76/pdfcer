@@ -151,6 +151,8 @@ builds `--no-default-features`, so both configurations compile.
 | Convert sRGB to the CMYK that renders as it | `color::{srgb_to_cmyk, srgb_to_cmyk_with}` — `color/inverse.rs` | §11.3 |
 | Resolve a full `/ColorSpace` object (Separation, ICCBased, Indexed…) | **Not in `pdfcer-core`** — `pdfcer_render::ColorSpace`, `pdfcer-render/src/color.rs` | §11.3 |
 | Evaluate a PDF function (type 0/2/3/4) | `function::PdfFunction::load(&DocumentView, &Object)` then `::eval` / `::eval_into` — `function.rs` | §11.4 |
+| Where a one-input function stops being affine (exact break list, `None` for type 4 or a curved type 2) | `function::PdfFunction::affine_breaks(cap)` — `function/breaks.rs` | §7.10 |
+| Re-express a mesh shading in another colour space as triangles, split to a tolerance | `mesh_shading::reexpress_mesh`; with a parametric mesh's function breaks (misses no band) `mesh_shading::reexpress_mesh_with_breaks` — `mesh_shading/reexpress.rs` | §8.7.4.5.5 |
 | Enumerate bookmarks as a tree, pages already resolved | `outline::read_outline(&graph)` — `outline.rs`; flat list `Outline::flatten()` — `outline.rs` | §12.1 |
 | List embedded attachments | `attachments::list_attachments_with_notes(&graph)` — `attachments.rs` | §12.2 |
 | Extract an attachment's bytes | `attachments::extract_attachment(&DocumentView, &Attachment)` — `attachments.rs` | §12.2 |

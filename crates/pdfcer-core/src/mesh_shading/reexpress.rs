@@ -12,7 +12,9 @@
 //! sampled on a [`GRID`]-step grid over the mesh's `t` range, and a
 //! triangle whose `t` span holds a grid value off the line through its
 //! extreme corners is split too. A feature narrower than one grid step can
-//! still be missed.
+//! still be missed. [`reexpress_mesh_with_breaks`] replaces the grid with
+//! the function's own break list (`PdfFunction::affine_breaks`), which
+//! misses nothing for a conversion affine in the function's outputs.
 
 use super::tessellate::{Tessellation, tessellate_patches};
 use super::{DecodedMesh, MAX_TRIANGLES, MeshError, MeshGeometry, MeshTriangle, MeshVertex};
@@ -116,7 +118,54 @@ pub struct ReexpressReport {
 pub fn reexpress_mesh<F>(
     mesh: &DecodedMesh,
     out_components: usize,
+    convert: F,
+    params: &Reexpress,
+) -> Result<(Vec<MeshTriangle>, ReexpressReport), MeshError>
+where
+    F: FnMut(&[f64]) -> Option<Vec<f64>>,
+{
+    run(mesh, out_components, convert, None, params)
+}
+
+/// [`reexpress_mesh`] for a parametric mesh whose function's breaks are
+/// known: `breaks` lists the `t` between which every output of the
+/// shading's `/Function` is affine (`PdfFunction::affine_breaks`).
+///
+/// Instead of the grid, each triangle is checked at every break inside its
+/// closed corner `t` range, at the floats just either side of each, and
+/// midway between neighbouring breaks, against the line through its
+/// lowest and highest corners' converted values, to half the tolerance.
+/// For a conversion affine in the function's outputs that bounds the error
+/// everywhere in the triangle, so a band of any width is found; a
+/// conversion that is itself curved is covered by the midpoint probes as in
+/// [`reexpress_mesh`]. A jump larger than the tolerance never passes and
+/// ends in [`ReexpressReport::over_tolerance`]. `breaks` is ignored for a
+/// mesh that is not parametric.
+///
+/// # Errors
+///
+/// As [`reexpress_mesh`].
+pub fn reexpress_mesh_with_breaks<F>(
+    mesh: &DecodedMesh,
+    out_components: usize,
+    convert: F,
+    breaks: &[f64],
+    params: &Reexpress,
+) -> Result<(Vec<MeshTriangle>, ReexpressReport), MeshError>
+where
+    F: FnMut(&[f64]) -> Option<Vec<f64>>,
+{
+    let mut sorted = breaks.to_vec();
+    sorted.retain(|t| t.is_finite());
+    sorted.sort_by(f64::total_cmp);
+    run(mesh, out_components, convert, Some(&sorted), params)
+}
+
+fn run<F>(
+    mesh: &DecodedMesh,
+    out_components: usize,
     mut convert: F,
+    breaks: Option<&[f64]>,
     params: &Reexpress,
 ) -> Result<(Vec<MeshTriangle>, ReexpressReport), MeshError>
 where
@@ -142,10 +191,13 @@ where
         params,
         out: Vec::new(),
         report,
-        grid: None,
+        check: Check::Probes,
     };
     if mesh.parametric {
-        cx.grid = Some(cx.grid(source)?);
+        cx.check = match breaks {
+            Some(b) => Check::Breaks(b),
+            None => Check::Grid(cx.grid(source)?),
+        };
     }
     for tri in source {
         let converted = [
@@ -165,7 +217,17 @@ struct Splitter<'a, F> {
     params: &'a Reexpress,
     out: Vec<MeshTriangle>,
     report: ReexpressReport,
-    grid: Option<Grid>,
+    check: Check<'a>,
+}
+
+/// What a parametric mesh is checked with beyond the midpoint probes.
+enum Check<'a> {
+    /// Nothing more: not parametric.
+    Probes,
+    /// [`GRID`] samples of the function.
+    Grid(Grid),
+    /// The function's sorted breaks.
+    Breaks(&'a [f64]),
 }
 
 /// `convert` on [`GRID`] steps over a parametric mesh's corner `t` range,
@@ -179,24 +241,29 @@ fn t_of(v: &MeshVertex) -> f64 {
     v.color.first().copied().unwrap_or(0.0)
 }
 
+/// A corner's `t` and converted vertex.
+type Corner<'a> = (f64, &'a MeshVertex);
+
+/// `src`'s lowest- and highest-`t` corners: each `t` with the matching
+/// corner of `dst`.
+fn extremes<'a>(src: &MeshTriangle, dst: &'a MeshTriangle) -> Option<(Corner<'a>, Corner<'a>)> {
+    let ends = |pick: fn(f64, f64) -> bool| {
+        src.iter()
+            .map(t_of)
+            .zip(dst)
+            .reduce(|best, v| if pick(v.0, best.0) { v } else { best })
+    };
+    Some((ends(|a, b| a < b)?, ends(|a, b| a > b)?))
+}
+
 impl Grid {
     /// Most a grid value strictly between `src`'s lowest and highest corner
     /// `t` is from the line through those corners' converted values in
     /// `dst`.
     fn off(&self, src: &MeshTriangle, dst: &MeshTriangle) -> f64 {
-        let ends = |pick: fn(f64, f64) -> bool| {
-            src.iter().zip(dst).reduce(|best, v| {
-                if pick(t_of(v.0), t_of(best.0)) {
-                    v
-                } else {
-                    best
-                }
-            })
-        };
-        let (Some((lo, f_lo)), Some((hi, f_hi))) = (ends(|a, b| a < b), ends(|a, b| a > b)) else {
+        let Some(((t_lo, f_lo), (t_hi, f_hi))) = extremes(src, dst) else {
             return 0.0;
         };
-        let (t_lo, t_hi) = (t_of(lo), t_of(hi));
         if t_hi <= t_lo {
             return 0.0;
         }
@@ -251,6 +318,43 @@ where
         Ok(Grid { samples })
     }
 
+    /// Most `convert` at the `breaks` inside `src`'s closed corner `t`
+    /// range, just either side of each, and midway between neighbours, is
+    /// from the line through the lowest and highest corners' values in
+    /// `dst`.
+    fn break_off(
+        &mut self,
+        breaks: &[f64],
+        src: &MeshTriangle,
+        dst: &MeshTriangle,
+    ) -> Result<f64, MeshError> {
+        let Some(((t_lo, f_lo), (t_hi, f_hi))) = extremes(src, dst) else {
+            return Ok(0.0);
+        };
+        if t_hi <= t_lo {
+            return Ok(0.0);
+        }
+        let a = breaks.partition_point(|b| *b < t_lo);
+        let b = breaks.partition_point(|b| *b <= t_hi);
+        let inside = breaks.get(a..b).unwrap_or_default();
+        let mut probes = Vec::with_capacity(inside.len() * 4);
+        for (k, &t) in inside.iter().enumerate() {
+            probes.extend([t, t.next_down().max(t_lo), t.next_up().min(t_hi)]);
+            if let Some(&next) = inside.get(k + 1) {
+                probes.push(t + (next - t) / 2.0);
+            }
+        }
+        let mut off = 0.0_f64;
+        for t in probes {
+            let v = self.color(&[t])?;
+            let w = (t - t_lo) / (t_hi - t_lo);
+            for ((x, y), v) in f_lo.color.iter().zip(&f_hi.color).zip(&v) {
+                off = off.max((x + (y - x) * w - v).abs());
+            }
+        }
+        Ok(off)
+    }
+
     fn vertex(&mut self, v: &MeshVertex) -> Result<MeshVertex, MeshError> {
         Ok(MeshVertex {
             xy: v.xy,
@@ -271,8 +375,13 @@ where
                 conv.push(self.color(&m.color)?);
             }
             let mut dev = deviation(&dst, &conv);
-            if let Some(grid) = &self.grid {
-                dev = dev.max(grid.off(&src, &dst));
+            match &self.check {
+                Check::Probes => {}
+                Check::Grid(grid) => dev = dev.max(grid.off(&src, &dst)),
+                Check::Breaks(b) => {
+                    let b: &[f64] = b;
+                    dev = dev.max(2.0 * self.break_off(b, &src, &dst)?);
+                }
             }
             let within = dev <= self.params.tolerance;
             if within || depth >= self.params.max_depth {

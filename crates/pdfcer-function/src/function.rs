@@ -158,6 +158,8 @@ use pdfcer_model::lexer::{LexError, Lexer, TokenKind};
 use pdfcer_model::object::{Dict, Object, Stream};
 use pdfcer_model::view::DocumentView;
 
+mod breaks;
+
 // ---------------------------------------------------------------------------
 // Resource bounds
 // ---------------------------------------------------------------------------
@@ -5474,5 +5476,86 @@ mod tests {
                 assert_eq!(op.name(), token);
             }
         }
+    }
+
+    /// `affine_breaks`: sample positions, stitch bounds mapped through
+    /// `/Encode`, `/Range` clip points, and `None` where no list exists.
+    #[test]
+    fn affine_breaks_list_where_each_type_bends() {
+        let sampled = load_stream(
+            &[
+                (b"FunctionType", Object::Integer(0)),
+                (b"Domain", arr(&[0.0, 1.0])),
+                (b"Range", arr(&[0.0, 1.0])),
+                (b"Size", Object::Array(vec![Object::Integer(3)])),
+                (b"BitsPerSample", Object::Integer(8)),
+            ],
+            &[0x00, 0xFF, 0x00],
+        )
+        .unwrap();
+        assert_eq!(sampled.affine_breaks(16), Some(vec![0.0, 0.5, 1.0]));
+        assert_eq!(sampled.affine_breaks(2), None);
+        let band = load_dict(&[
+            (b"FunctionType", Object::Integer(3)),
+            (b"Domain", arr(&[0.0, 1.0])),
+            (
+                b"Functions",
+                Object::Array(vec![
+                    ramp(&[0.0, 1.0], &[0.0], &[0.0]),
+                    ramp(&[0.0, 1.0], &[1.0], &[1.0]),
+                    ramp(&[0.0, 1.0], &[0.0], &[0.0]),
+                ]),
+            ),
+            (b"Bounds", arr(&[0.126, 0.127])),
+            (b"Encode", arr(&[0.0, 1.0, 0.0, 1.0, 0.0, 1.0])),
+        ])
+        .unwrap();
+        assert_eq!(band.affine_breaks(16), Some(vec![0.0, 0.126, 0.127, 1.0]));
+        let clipped = load_dict(&[
+            (b"FunctionType", Object::Integer(2)),
+            (b"Domain", arr(&[0.0, 1.0])),
+            (b"Range", arr(&[0.0, 1.0])),
+            (b"N", Object::Integer(1)),
+            (b"C0", arr(&[-1.0])),
+            (b"C1", arr(&[3.0])),
+        ])
+        .unwrap();
+        let b = clipped.affine_breaks(16).unwrap();
+        assert_eq!(b.len(), 4, "{b:?}");
+        close(&b, &[0.0, 0.25, 0.5, 1.0]);
+        let squared = load_dict(&[
+            (b"FunctionType", Object::Integer(2)),
+            (b"Domain", arr(&[0.0, 1.0])),
+            (b"N", Object::Integer(2)),
+        ])
+        .unwrap();
+        assert_eq!(squared.affine_breaks(16), None);
+        let clip_obj = Object::Dict(dict(&[
+            (b"FunctionType", Object::Integer(2)),
+            (b"Domain", arr(&[0.0, 1.0])),
+            (b"Range", arr(&[0.0, 1.0])),
+            (b"N", Object::Integer(1)),
+            (b"C0", arr(&[-1.0])),
+            (b"C1", arr(&[3.0])),
+        ]));
+        let stitched = |second: Object| {
+            load_dict(&[
+                (b"FunctionType", Object::Integer(3)),
+                (b"Domain", arr(&[0.0, 2.0])),
+                (b"Functions", Object::Array(vec![clip_obj.clone(), second])),
+                (b"Bounds", arr(&[1.0])),
+                (b"Encode", arr(&[1.0, 0.0, 0.0, 1.0])),
+            ])
+            .unwrap()
+        };
+        let b = stitched(clip_obj.clone()).affine_breaks(16).unwrap();
+        close(&b, &[0.0, 0.5, 0.75, 1.0, 1.25, 1.5, 2.0]);
+        let curve = Object::Dict(dict(&[
+            (b"FunctionType", Object::Integer(2)),
+            (b"Domain", arr(&[0.0, 1.0])),
+            (b"Range", arr(&[0.0, 1.0])),
+            (b"N", Object::Integer(2)),
+        ]));
+        assert_eq!(stitched(curve).affine_breaks(16), None);
     }
 }
