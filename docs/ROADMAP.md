@@ -112,6 +112,17 @@ wherever it appears.*
 
 ## Shipped
 
+### `fb9db0cc` `Pass 721.8`: minimum, maximum and centre distance between two picked entities of a 3D model, 2026-11-17 (1601st filing)
+
+Engineer-reported; no shell here, git, push and CI state not checked from here. `fb9db0cc` `feat(3d): minimum, maximum and centre distance between two picked entities (Pass 721.8)`. Third slice of `Pass 721.2` (after `721.6`, `339c9295`, and `721.7`, `9e54fb55`); `721.8` was the next free ID. **Unreleased** (ships in `v0.158.0`). Reasoning is in the commit message. Delivers **core** and **cli**; **gui none** (the measure window is `pdfcer-gui`'s).
+- **Engine (`pdfcer-3d`):** `entity_distance(meshes, a, b, flat_degrees, corner_degrees) -> EntityDistance { minimum, maximum, centres: Option<Span> }`; each operand a `Selection { pick, entity: MeasureEntity::{Vertex, Edge, Face} }`; `Span { length, from, to }` with `delta()`. `face.rs` gained a shared `face_triangles` helper.
+- **Method:** minimum is exact over points, segments and triangles (Ericson point-segment, point-triangle, segment-segment closest points; 0 when a segment crosses a triangle, Moller-Trumbore); pairs pruned by bounding-box gap. Maximum is the farthest pair of corners, so on a tessellated circle it falls short of the true curve (disclosed in the CLI note and the docs). Centres are reported only when both sides have one: a vertex, or a circular edge's fitted centre (rule 4).
+- **CLI:** `3d-render --measure-distance A B`, repeatable; operands `vertex:X,Y`, `edge:X,Y`, `face:X,Y`.
+- **Tests (engineer-run):** `pdfcer-3d` lib 558 pass, 4 new (`two_faces_report_their_nearest_and_farthest_points`, `a_vertex_over_a_face_measures_straight_down`, `two_rims_of_a_tube_measure_centre_to_centre`, `crossing_faces_are_no_distance_apart`; the last sabotage-verified: removing both crossing branches fails it). CLI unit test `a_target_is_a_kind_and_a_position` and the face integration test extended. clippy `-D warnings` clean with all features and with no default features; `check-core-api-verbs` PASS; `check-code-structure` clean (543 baseline). No manifest change, no new dependency, so `cargo tree` unaffected. `docs/core-api` gained "Measure between two entities"; `index.md` now says 5,542 lines.
+- **Still open in `Pass 721.2`:** point-to-point; projection onto a plane; XYZ relative to a coordinate system; projected area; units and precision; measurement history.
+- **FEATURES:** new Implemented row (core, cli ticked; gui open); the Planned measure row trimmed. No decision, no rule.
+- **Next free IDs:** `Pass 717.4`, `Pass 718.5`, `Pass 720.3`, `Pass 721.9`, `Pass 722.7`, `Pass 647.3h`; decision `225`, rule `R264` (none minted).
+
 ### `9e54fb55` `Pass 721.7`: measure one picked edge or vertex of a 3D model: length, line or circle fit, XYZ, 2026-11-17 (1600th filing)
 
 Engineer-reported; no shell here, git, push and CI state not checked from here. `9e54fb55` `feat(3d): measure one picked edge (length, line or circle) and vertex (Pass 721.7)`. Second slice of `Pass 721.2` (after `Pass 721.6`, `339c9295`); `721.7` was the next free ID. **Unreleased** (ships in `v0.158.0`). Reasoning is in the commit message. Delivers **core** and **cli**; **gui none** (the measure window is `pdfcer-gui`'s).
@@ -27656,6 +27667,8 @@ closes out the *prior* filing's business rather than opening this one's.
 > **`Pass 721.6` SHIPPED 2026-11-17 (1599th filing), `339c9295`; see its *Shipped* entry (opened and shipped in one filing; first slice of `Pass 721.2`; unreleased, `v0.158.0`).** Next free IDs: `Pass 717.4`, `Pass 718.5`, `Pass 720.3`, `Pass 721.7`, `Pass 722.7`, `Pass 647.3h`; decision `225`, rule `R264`. `Pass 721.2` (rest of the assembly measure tool) stays next.
 
 > **`Pass 721.7` SHIPPED 2026-11-17 (1600th filing), `9e54fb55`; see its *Shipped* entry (opened and shipped in one filing; second slice of `Pass 721.2`; unreleased, `v0.158.0`).** Next free IDs: `Pass 717.4`, `Pass 718.5`, `Pass 720.3`, `Pass 721.8`, `Pass 722.7`, `Pass 647.3h`; decision `225`, rule `R264`. `Pass 721.2` (rest of the assembly measure tool) stays next.
+
+> **`Pass 721.8` SHIPPED 2026-11-17 (1601st filing), `fb9db0cc`; see its *Shipped* entry (opened and shipped in one filing; third slice of `Pass 721.2`; unreleased, `v0.158.0`).** Next free IDs: `Pass 717.4`, `Pass 718.5`, `Pass 720.3`, `Pass 721.9`, `Pass 722.7`, `Pass 647.3h`; decision `225`, rule `R264`. `Pass 721.2` (rest of the assembly measure tool) stays next.
 
 > **`Pass 647.3g` (OPEN, NOT STARTED; NOT gating `v0.156.0` unless the operator says so): XFA page-background fields bind per page (request `X016` item 1, the only unshipped part of `X016`).** Part of the `Pass 647.x` arc (decision 204, paced slowly). The criteria sit under the `Pass 647.3` heading further down this file (heading status corrected this filing: `647.3a` to `647.3f` shipped); the fresh slice is the per-page instance index (`Area[0]`, `Area[1]`, ...), a per-page value surviving save and reopen, and `match="global"` or an explicit `<bind ref>` staying one shared value, synthetic templates only. Reply to `X016` owed when it ships.
 

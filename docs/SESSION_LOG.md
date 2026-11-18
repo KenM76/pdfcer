@@ -4,6 +4,17 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-11-17 (1601st filing) — `Pass 721.8` SHIPPED (`fb9db0cc`, minimum/maximum/centre distance between two picked entities, third slice of `Pass 721.2`); unreleased
+
+**Filed (engineer-reported; no shell here, git, push and CI state not checked from here):**
+- `fb9db0cc` `feat(3d): minimum, maximum and centre distance between two picked entities (Pass 721.8)`; `721.8` was the next free ID.
+- `pdfcer-3d` `entity_distance` (exact minimum, 0 on crossing; farthest-corner maximum, short of the true curve on a tessellated circle and disclosed; centres when both sides have one); CLI `3d-render --measure-distance A B` with operands `vertex:`, `edge:`, `face:`.
+- Tests: `pdfcer-3d` lib 558 pass (4 new, the crossing test sabotage-verified); CLI unit and integration tests extended. clippy clean (all features and no default features), `check-core-api-verbs`, `check-code-structure` (543 baseline) clean. No manifest change. `docs/core-api` updated.
+
+**Decisions / findings:** none; no decision, no rule.
+
+**Open:** `Pass 721.2` remainder (point-to-point, plane projection, coordinate-system XYZ, projected area, units/precision, history). Ships in `v0.158.0`. Next free IDs: `Pass 717.4`, `718.5`, `720.3`, `721.9`, `722.7`, `647.3h`; decision `225`, rule `R264`. FEATURES: new row (core, cli); Planned measure row trimmed.
+
 ## 2026-11-17 (1600th filing) — `Pass 721.7` SHIPPED (`9e54fb55`, measure one picked edge or vertex, second slice of `Pass 721.2`); unreleased
 
 **Filed (engineer-reported; no shell here, git, push and CI state not checked from here):**
