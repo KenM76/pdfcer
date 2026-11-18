@@ -4,6 +4,19 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-11-17 (1597th filing) — `Pass 722.4` SHIPPED (`36fae116`, `X086`, write mesh shadings in any colour space); unreleased
+
+**Filed (engineer-reported; no shell here, git, push and CI state not checked from here):**
+- `36fae116` `feat(core): write mesh shadings in any colour space (Pass 722.4)`, on `main`, not pushed at filing. Request `X086`, opened and shipped in one filing; ID `722.4` free by grep.
+- New `pdfcer_core::mesh_shading`: `decode_mesh`/`MeshStreamFormat::from_dict` (types 4 to 7, `f64`), `tessellate_patches` (renderer's lattice, MSH32), `write_free_form_mesh` (type 4 in any declared colour space, 8 or 16 bits, flags 1/2, FlateDecode; `Indexed`/`Pattern` refused), `reexpress_mesh` (subdivide to tolerance, default one 8-bit level, depth 8 max 12, `ReexpressReport` with `over_tolerance` for the caller to disclose), `MAX_TRIANGLES` 4,000,000, `MeshError`.
+- Tests: core `tests/mesh_shading.rs` 8, unit 3, doctests 2; render `tests/mesh_rewrite.rs` 2 (CMYK round trip; six type 6/7 fixtures rewritten as type 4 within one 8-bit level per pixel). Sabotage: floor-for-round and 10x tolerance each fail. New fuzz target `mesh_rewrite`. fmt, clippy `-D warnings`, code-structure clean; no manifest change, so no `cargo tree` effect; `docs/core-api` unchanged.
+- Delivers core only; cli and gui unticked in FEATURES (the GUI project is the caller; no subcommand this Pass).
+
+**Findings + decisions:**
+- A tessellated rewrite finer than the renderer's own patch lattice moves silhouette pixels on curved patch boundaries (chord versus curve): pixel-equality tests must tessellate at the renderer's density (4 device px per cell). Specific to pdfcer's rasteriser, so not filed to `personal_rag/pdf`. No decision, no rule.
+
+**Open:** the engineer writes the `note_` to `pdfcer-gui` and the `X086` SHIPPED reply; release follows when the round is complete. `Pass 721.2`, `722.1` (awaits operator), `722.2`, `647.3g`. Next free IDs: `Pass 717.4`, `718.5`, `720.3`, `721.6`, `722.5`, `647.3h`; decision `225`, rule `R264`. FEATURES: one new Implemented row (core only).
+
 ## 2026-11-17 (1596th filing) — `Pass 718.4` and `Pass 722.3` SHIPPED (`fcd0fe49`, `G298` and `G295`); unreleased
 
 **Filed (engineer-reported; no shell here, git, push and CI state not checked from here):**

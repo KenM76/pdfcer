@@ -112,6 +112,20 @@ wherever it appears.*
 
 ## Shipped
 
+### `36fae116` `Pass 722.4`: write mesh shadings in any colour space, 2026-11-17 (1597th filing)
+
+Engineer-reported; no shell here, git, push and CI state not checked from here. `36fae116` `feat(core): write mesh shadings in any colour space (Pass 722.4)`. Request `X086` (`D:\Dev\FeatureRequests\pdfce_FeatureRequests\open\request_X086_write_mesh_shadings_in_any_colour_space.md`), opened and shipped in one filing. ID `722.4` confirmed unused by grep of `docs/` (only "next free" mentions). **Unreleased; on `main`, not pushed at filing.** Reasoning is in the commit message. Delivers **core**; **cli none** (no subcommand this Pass); **gui none** (the GUI project is the caller and asked for it).
+- **New module `pdfcer_core::mesh_shading`:** `decode_mesh` plus `MeshStreamFormat::from_dict` decode shading types 4 to 7 in `f64` (MSH11 field map, flag continuations, Coons internals, tensor points, the `MeshPatchPadding` setting honoured), agreeing with `pdfcer-render`'s mesh parser. `tessellate_patches` turns type 6 and 7 patches into triangles on the renderer's own lattice (MSH32), with a caller cell size and a triangle cap.
+- **Writer:** `write_free_form_mesh` writes a type 4 stream in any declared colour space: DeviceGray, DeviceRGB, DeviceCMYK, CalGray, CalRGB, Lab, ICCBased, Separation and DeviceN kept verbatim; `Indexed` and `Pattern` refused. 8 or 16 bits per component (default 16), 32-bit coordinates, flag 1 and 2 continuations where edges are shared, FlateDecode; optional `Background`, `BBox`, `AntiAlias`, `Function`.
+- **Re-expression:** `reexpress_mesh` converts through a caller transform, splitting each triangle in four until edge midpoints and centroid are within tolerance (default one 8-bit level), depth limit 8 (max 12) and a triangle cap. `ReexpressReport` counts subdivisions and pieces left over tolerance; the caller must surface `over_tolerance` (fuzzy-never-sneaky).
+- **Bounds:** `MAX_TRIANGLES` = 4,000,000 everywhere; `MeshError` is a `thiserror` enum; past the cap it declines with no output.
+- **Tests (engineer-measured):** core `tests/mesh_shading.rs` 8, unit 3, doctests 2; render `tests/mesh_rewrite.rs` 2 (a CMYK type 4 round trip; six type 6/7 fixtures `type6_coons`, `type6_flag1`, `type6_flag2`, `type6_flag3`, `type7_tensor`, `type7_flag1` rewritten as type 4 render within one 8-bit level on every pixel at the renderer's density). Sabotage checked: rounding to floor, and tolerance times 10, each fail tests. New fuzz target `fuzz/fuzz_targets/mesh_rewrite.rs` (decode, tessellate, write, re-decode count equality, reexpress; never panic).
+- **Gates:** fmt, clippy `-D warnings`, `check-code-structure` clean. `cargo tree`: no manifest change (`flate2` already a core dependency), GUI-core invariant unaffected. No `pub` change to `EditSession` or `DocumentView`, so `docs/core-api` unchanged. Not pushed; CI not read.
+- **Finding:** a tessellated rewrite finer than the renderer's own patch lattice moves silhouette pixels on curved patch boundaries (chord versus curve), so a pixel-equality test must tessellate at the renderer's density (4 device px per cell). Not written to `personal_rag/pdf`: it is a property of pdfcer's own rasteriser, not of real-world producers.
+- **Owed:** the `note_` to `pdfcer-gui` telling it the writer is available (the engineer writes it, per the request); reply to `X086` when shipped. No CLI subcommand: a future Pass if wanted.
+- **FEATURES:** new Implemented row (core ticked; cli and gui open). No decision, no rule.
+- **Next free IDs:** `Pass 717.4`, `Pass 718.5`, `Pass 720.3`, `Pass 721.6`, `Pass 722.5`, `Pass 647.3h`; decision `225`, rule `R264` (none minted).
+
 ### `fcd0fe49` `Pass 722.3`: ask a node whether continue or open would refuse, before staging anything, 2026-11-17 (1596th filing)
 
 Engineer-reported; no shell here, git, push and CI state not checked from here. `fcd0fe49` `fix(edit): count an adopted default ce dimension group; node preflights (Pass 718.4, Pass 722.3)`; one commit, two Passes (the other is `Pass 718.4`, next entry). `pdfcer-gui` request `G295` (`D:\Dev\FeatureRequests\pdfce_FeatureRequests\open\request_G295_path_end_preflight.md`). **Unreleased** (on top of `v0.157.0`). Reasoning is in the commit message. Core only; cli none (the CLI invocation is the commit and already refuses); gui none (the GUI consumes it).
@@ -27592,6 +27606,8 @@ closes out the *prior* filing's business rather than opening this one's.
 > **`Pass 721.4` SHIPPED 2026-11-17 (1591st filing), `9b288250`; see its *Shipped* entry (opened and shipped in one filing, `G290`).** Next free IDs: `Pass 717.4`, `Pass 720.3`, `Pass 721.5`, `Pass 722.3`, `Pass 647.3h`.
 
 > **`Pass 721.5` SHIPPED 2026-11-17 (1593rd filing), `66ce4fd7`; see its *Shipped* entry (opened and shipped in one filing, `G291`; unreleased, `v0.157.0`).** Next free IDs: `Pass 717.4`, `Pass 720.3`, `Pass 721.6`, `Pass 722.3`, `Pass 647.3h`. `Pass 721.2` (rest of the assembly measure tool) stays next.
+
+> **`Pass 722.4` SHIPPED 2026-11-17 (1597th filing), `36fae116`; see its *Shipped* entry (opened and shipped in one filing, `X086`; unreleased).** Next free IDs: `Pass 717.4`, `Pass 718.5`, `Pass 720.3`, `Pass 721.6`, `Pass 722.5`, `Pass 647.3h`.
 
 > **`Pass 647.3g` (OPEN, NOT STARTED; NOT gating `v0.156.0` unless the operator says so): XFA page-background fields bind per page (request `X016` item 1, the only unshipped part of `X016`).** Part of the `Pass 647.x` arc (decision 204, paced slowly). The criteria sit under the `Pass 647.3` heading further down this file (heading status corrected this filing: `647.3a` to `647.3f` shipped); the fresh slice is the per-page instance index (`Area[0]`, `Area[1]`, ...), a per-page value surviving save and reopen, and `match="global"` or an explicit `<bind ref>` staying one shared value, synthetic templates only. Reply to `X016` owed when it ships.
 
