@@ -679,6 +679,44 @@ fn measure_surfaces_reports_the_distance_between_parallel_surfaces() {
     );
 }
 
+/// `--measure-face`: a picked face's area, perimeter and fitted plane.
+#[test]
+fn measure_face_reports_a_faces_area_perimeter_and_plane() {
+    let s = Scratch::new("face");
+    std::fs::write(s.path("m.glb"), floor_and_square()).unwrap();
+    let pdf = format!(
+        "{}/../../fixtures/synthetic/minimal.pdf",
+        env!("CARGO_MANIFEST_DIR")
+    );
+    let (m, out, png) = (s.path("m.glb"), s.path("out.pdf"), s.path("x.png"));
+    let args = ["3d-embed", &pdf, "--model", &m, "--page", "1"];
+    stdout(&run(&[
+        &args[..],
+        &["--rect", "10,10,190,190", "--apply", "-o", &out],
+    ]
+    .concat()));
+    let read = |extra: &[&str]| {
+        let mut args = vec!["3d-render", &out, "--index", "0", "--eye=1,-3,4"];
+        args.extend_from_slice(&["--width", "120", "--height", "80", "-o", &png]);
+        args.extend_from_slice(extra);
+        stdout(&run(&args))
+    };
+    let face = read(&["--measure-face", "60,40"]);
+    assert!(
+        face.contains("measure-face at=60,40 triangle=1 mesh=1 face=0 triangles=2 area=1.000000"),
+        "{face}"
+    );
+    assert!(face.contains("perimeter=4.000000"), "{face}");
+    assert!(face.contains("shape=plane normal="), "{face}");
+    assert!(face.contains("flatness=0.000000"), "{face}");
+    assert!(
+        face.contains("note: measure-face: the shape is fitted"),
+        "{face}"
+    );
+    let miss = read(&["--measure-face", "2,2"]);
+    assert!(miss.contains("measure-face at=2,2 miss"), "{miss}");
+}
+
 /// [`floor_and_square`] with a square that glows white and no lamp.
 fn floor_and_glowing_square() -> Vec<u8> {
     glb_of(

@@ -10,7 +10,10 @@ use crate::render::corners;
 use crate::vec3::{add, cross, dot, length, normalize, scale, sub};
 use crate::{Hit, TriangleMesh};
 
+mod face;
 mod types;
+
+pub use face::{FaceFigures, FaceShape, face_figures};
 
 pub use types::{
     DEFAULT_FLAT_DEGREES, DEFAULT_PARALLEL_DEGREES, SurfaceMeasure, SurfaceMeasureError,

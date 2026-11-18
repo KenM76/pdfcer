@@ -176,8 +176,9 @@ pub use shadow::lamp::{DEFAULT_LAMP_SHADOW_MAP_SIZE, MAX_LAMP_SHADOW_MAP_SIZE};
 pub use shadow::{DEFAULT_SHADOW_MAP_SIZE, LightSense, MAX_SHADOW_MAP_SIZE, ShadowLight};
 #[cfg(feature = "render")]
 pub use surface_measure::{
-    DEFAULT_FLAT_DEGREES, DEFAULT_PARALLEL_DEGREES, SurfaceMeasure, SurfaceMeasureError,
-    SurfacePatch, SurfacePick, SurfaceRelation, SurfaceTolerance, measure_surfaces, surface_at,
+    DEFAULT_FLAT_DEGREES, DEFAULT_PARALLEL_DEGREES, FaceFigures, FaceShape, SurfaceMeasure,
+    SurfaceMeasureError, SurfacePatch, SurfacePick, SurfaceRelation, SurfaceTolerance,
+    face_figures, measure_surfaces, surface_at,
 };
 pub use texture::{MAX_TEXTURE_PIXELS, Texture, TextureFunction, TextureOrigin, TextureWrap};
 pub use write::{

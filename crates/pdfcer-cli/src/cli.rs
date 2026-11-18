@@ -3339,6 +3339,10 @@ pub(crate) enum Command {
     /// are parallel within `--measure-parallel-tolerance`, the angle
     /// between them otherwise.
     ///
+    /// `--measure-face X,Y` measures the whole face drawn at an image
+    /// position: its area and perimeter, and the plane or cylinder fitted
+    /// to it, with the cylinder's radius, diameter and axis.
+    ///
     /// `--360` draws the whole sphere around the camera as an
     /// equirectangular panorama (2048 x 1024 unless a size is given); a
     /// `.jpg` output carries the Google Photo Sphere (GPano) XMP tag, so

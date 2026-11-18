@@ -41,6 +41,14 @@ pub(crate) struct SurfaceArgs {
     /// plane. Raise it to take a slightly bowed face as one surface.
     #[arg(long, value_name = "DEG", default_value_t = pdfcer_3d_default::FLAT)]
     pub(crate) measure_flat_tolerance: f64,
+    /// Measure the whole face drawn at image position X,Y (as --pick): its
+    /// area and perimeter, and the plane or the cylinder fitted to it (a
+    /// cylinder's radius, diameter, axis, length along the axis and how far
+    /// round it the face reaches), with how far the triangles lie off the
+    /// fit. A triangle counts as on the plane, or square to the axis,
+    /// within --measure-flat-tolerance. Repeatable.
+    #[arg(long, value_name = "X,Y", value_parser = crate::arg_types::parse_point2, allow_hyphen_values = true)]
+    pub(crate) measure_face: Vec<[f64; 2]>,
 }
 
 /// The engine's defaults, restated so the flags exist in a build without
@@ -61,6 +69,7 @@ impl SurfaceArgs {
         options: &pdfcer_3d::RenderOptions,
     ) {
         use pdfcer_3d::{SurfacePick, SurfaceTolerance, measure_surfaces};
+        self.print_faces(model, camera, options);
         if self.measure_surfaces.is_empty() {
             return;
         }
@@ -112,6 +121,99 @@ impl SurfaceArgs {
             );
         }
     }
+}
+
+#[cfg(feature = "3d")]
+impl SurfaceArgs {
+    /// One `measure-face` line per `--measure-face`, then what was fitted.
+    fn print_faces(
+        &self,
+        model: &pdfcer_3d::AssembledModel,
+        camera: &pdfcer_3d::Camera,
+        options: &pdfcer_3d::RenderOptions,
+    ) {
+        let mut measured = false;
+        for &[x, y] in &self.measure_face {
+            let at = format!("measure-face at={x},{y}");
+            let hit = camera
+                .ray_through(x, y, options.width, options.height)
+                .map_err(|err| format!("refused: {err}"))
+                .and_then(|ray| {
+                    pdfcer_3d::pick(&model.meshes, &ray).ok_or_else(|| "miss".to_owned())
+                });
+            let hit = match hit {
+                Ok(hit) => hit,
+                Err(why) => {
+                    println!("{at} {why}");
+                    continue;
+                }
+            };
+            let pick = pdfcer_3d::SurfacePick::from(&hit);
+            match pdfcer_3d::face_figures(&model.meshes, &pick, self.measure_flat_tolerance) {
+                Err(err) => println!("{at} refused: {err}"),
+                Ok(f) => {
+                    measured = true;
+                    println!(
+                        "{at} triangle={} {}",
+                        pick.triangle,
+                        face_line(&f, model.units)
+                    );
+                }
+            }
+        }
+        if measured {
+            println!(
+                "note: measure-face: the shape is fitted from the face's triangles, not read                  from the file; residual is the farthest a corner lies off the fit, and a                  curved outline's perimeter is the sum of its straight edges"
+            );
+        }
+    }
+}
+
+/// The figures of one face.
+#[cfg(feature = "3d")]
+fn face_line(f: &pdfcer_3d::FaceFigures, units: Option<pdfcer_3d::ModelUnits>) -> String {
+    use pdfcer_3d::FaceShape;
+    let mm = |v: f64| units.map_or(String::new(), |u| format!(" ({:.6} mm)", v * u.mm_per_unit));
+    let triple = |v: [f64; 3]| v.map(|c| format!("{c:.6}")).join(",");
+    let shape = match f.shape {
+        FaceShape::Plane {
+            normal,
+            flatness_degrees,
+        } => format!(
+            "shape=plane normal={} flatness={flatness_degrees:.6}",
+            triple(normal)
+        ),
+        FaceShape::Cylinder {
+            centre,
+            axis,
+            radius,
+            residual,
+            length,
+            sweep_degrees,
+        } => format!(
+            "shape=cylinder radius={radius:.6}{} diameter={:.6}{} centre={} axis={}              length={length:.6}{} sweep={sweep_degrees:.6} residual={residual:.6}",
+            mm(radius),
+            2.0 * radius,
+            mm(2.0 * radius),
+            triple(centre),
+            triple(axis),
+            mm(length),
+        ),
+        _ => "shape=unfitted".to_owned(),
+    };
+    format!(
+        "mesh={} face={} triangles={} area={:.6}{} perimeter={:.6}{} {shape}",
+        f.mesh,
+        f.face.map_or("none".to_owned(), |i| i.to_string()),
+        f.triangles,
+        f.area,
+        units.map_or(String::new(), |u| format!(
+            " ({:.6} mm2)",
+            f.area * u.mm_per_unit.powi(2)
+        )),
+        f.perimeter,
+        mm(f.perimeter),
+    )
 }
 
 /// The figures of one measurement.

@@ -224,3 +224,136 @@ fn a_hit_converts_into_a_pick() {
     };
     assert_eq!(SurfacePick::from(&hit), pick(2, 7, [1.0, 2.0, 3.0]));
 }
+
+/// A tube of radius `r` round the Z axis from z=0 to z=`h`, `n` facets
+/// over `sweep` degrees, as one face.
+fn tube(r: f64, h: f64, n: usize, sweep: f64) -> TriangleMesh {
+    let full = (sweep - 360.0).abs() < 1e-9;
+    let rim = if full { n } else { n + 1 };
+    let mut positions = Vec::new();
+    for i in 0..rim {
+        let a = (sweep * i as f64 / n as f64).to_radians();
+        positions.push([r * a.cos(), r * a.sin(), 0.0]);
+        positions.push([r * a.cos(), r * a.sin(), h]);
+    }
+    let mut triangles = Vec::new();
+    for i in 0..n {
+        let j = (i + 1) % rim;
+        let (a, b, c, d) = (
+            2 * i as u32,
+            2 * i as u32 + 1,
+            2 * j as u32,
+            2 * j as u32 + 1,
+        );
+        triangles.push([a, c, d]);
+        triangles.push([a, d, b]);
+    }
+    let count = triangles.len();
+    TriangleMesh {
+        positions,
+        triangles,
+        faces: vec![0..count],
+        ..TriangleMesh::default()
+    }
+}
+
+#[test]
+fn a_whole_tube_fits_a_cylinder() {
+    let meshes = [tube(5.0, 8.0, 64, 360.0)];
+    let f = face_figures(&meshes, &pick(0, 3, [0.0; 3]), 10.0).unwrap();
+    let FaceShape::Cylinder {
+        centre,
+        axis,
+        radius,
+        residual,
+        length,
+        sweep_degrees,
+    } = f.shape
+    else {
+        panic!("{:?}", f.shape)
+    };
+    assert!((radius - 5.0).abs() < 1e-9 && residual < 1e-9);
+    assert!((axis[2].abs() - 1.0).abs() < 1e-9);
+    assert!((length - 8.0).abs() < 1e-9);
+    assert!(centre[0].abs() < 1e-9 && centre[1].abs() < 1e-9);
+    assert!((centre[2] - 4.0).abs() < 1e-9);
+    assert_eq!(sweep_degrees, 360.0);
+    // Two rims of 64 chords each.
+    let chord = 2.0 * 5.0 * (std::f64::consts::PI / 64.0).sin();
+    assert!((f.perimeter - 128.0 * chord).abs() < 1e-9);
+    assert_eq!((f.face, f.triangles), (Some(0), 128));
+}
+
+#[test]
+fn a_half_tube_reports_its_sweep() {
+    let meshes = [tube(2.0, 1.0, 32, 180.0)];
+    let f = face_figures(&meshes, &pick(0, 0, [0.0; 3]), 10.0).unwrap();
+    let FaceShape::Cylinder {
+        radius,
+        sweep_degrees,
+        ..
+    } = f.shape
+    else {
+        panic!("{:?}", f.shape)
+    };
+    assert!((radius - 2.0).abs() < 1e-9);
+    assert!((sweep_degrees - 180.0).abs() < 1e-9);
+}
+
+#[test]
+fn a_tube_coarser_than_the_tolerance_is_not_called_a_plane() {
+    // 8 facets turn 45 degrees each: no plane, and a cylinder only once
+    // the tolerance lets a facet lean that far off square.
+    let meshes = [tube(1.0, 1.0, 8, 360.0)];
+    let f = face_figures(&meshes, &pick(0, 0, [0.0; 3]), 0.5).unwrap();
+    assert!(
+        matches!(f.shape, FaceShape::Cylinder { .. }),
+        "{:?}",
+        f.shape
+    );
+    let skew = [strip(0.0, 0.0), strip(0.0, 30.0)];
+    let mut both = skew[0].clone();
+    let base = both.positions.len() as u32;
+    both.positions
+        .extend(skew[1].positions.iter().map(|p| [p[0], p[1] + 9.0, p[2]]));
+    both.triangles
+        .extend(skew[1].triangles.iter().map(|t| t.map(|i| i + base)));
+    let f = face_figures(&[both], &pick(0, 0, [0.0; 3]), 0.5).unwrap();
+    assert!(matches!(
+        f.shape,
+        FaceShape::Cylinder { .. } | FaceShape::Unfitted
+    ));
+    assert!(!matches!(f.shape, FaceShape::Plane { .. }));
+}
+
+#[test]
+fn a_plate_face_reports_its_area_and_outline() {
+    // Stored as loose triangles: the shared diagonal still welds.
+    let mut plate = strip(0.0, 0.0);
+    let p = plate.positions.clone();
+    plate.positions = vec![p[0], p[1], p[2], p[0], p[2], p[3]];
+    plate.triangles = vec![[0, 1, 2], [3, 4, 5]];
+    let f = face_figures(&[plate], &pick(0, 1, [0.0; 3]), 0.5).unwrap();
+    assert_eq!((f.area, f.perimeter, f.face), (12.0, 14.0, None));
+    let FaceShape::Plane {
+        normal,
+        flatness_degrees,
+    } = f.shape
+    else {
+        panic!("{:?}", f.shape)
+    };
+    assert_eq!((normal, flatness_degrees), ([0.0, 0.0, 1.0], 0.0));
+}
+
+#[test]
+fn a_face_measure_refuses_a_bad_pick_or_tolerance() {
+    let meshes = [strip(0.0, 0.0)];
+    assert!(matches!(
+        face_figures(&meshes, &pick(0, 9, [0.0; 3]), 0.5),
+        Err(SurfaceMeasureError::NoSuchTriangle { .. })
+    ));
+    assert!(matches!(
+        face_figures(&meshes, &pick(0, 0, [0.0; 3]), 91.0),
+        Err(SurfaceMeasureError::BadTolerance(_))
+    ));
+}

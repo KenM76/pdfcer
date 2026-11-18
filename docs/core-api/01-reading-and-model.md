@@ -3592,8 +3592,9 @@ let image = render_coloured(&meshes, &colours, &camera, &RenderOptions { width: 
   face within `flat_degrees` of it and lie in its plane, and fits an
   area-weighted plane. `whole_face == false` means the patch is only the
   flat part round the pick (a curved or stepped face, or a file that
-  separates no faces): disclose it (rule 4). No cylinders, edges or
-  points yet: a curved face measures as the flat patch at the pick.
+  separates no faces): disclose it (rule 4). No edges or points yet: a
+  curved face measures as the flat patch at the pick (use `face_figures`
+  for its cylinder).
   Refusals: `SurfaceMeasureError::{NoSuchTriangle { mesh, triangle },
   Degenerate, BadTolerance("parallel tolerance" | "flat tolerance"),
   BadPoint}`.
@@ -3606,6 +3607,33 @@ let image = render_coloured(&meshes, &colours, &camera, &RenderOptions { width: 
   area= flatness= point= normal=` line per side, `miss at X,Y` or
   `refused: <why>`, and `note: measure-surfaces: ...` when a patch is not
   a whole face.
+- **Measure one face** (`pdfcer-3d`, feature `render`):
+  `face_figures(&model.meshes, &pick, flat_degrees) -> Result<FaceFigures,
+  SurfaceMeasureError>` measures the whole face the pick is on (the whole
+  mesh when the file separates no faces, `face == None`).
+  `FaceFigures { mesh, face: Option<usize>, triangles, area, perimeter,
+  shape }` (`#[non_exhaustive]`): `perimeter` sums the edges no second
+  triangle of the face shares (outline plus hole rims; corners at the same
+  position weld, so loose triangles still give the true outline; a curved
+  rim is the sum of its chords). `shape: FaceShape` is
+  `Plane { normal, flatness_degrees }` when every triangle faces within
+  `flat_degrees` of the area-weighted normal, else
+  `Cylinder { centre (axis point midway along the face), axis (unit, sign
+  arbitrary), radius, residual (farthest corner off the fitted cylinder),
+  length (extent along the axis), sweep_degrees (360 for a whole tube,
+  less for an arc face) }` when every normal lies within `flat_degrees` of
+  square to the least-scatter axis of the normals and the corners fit a
+  circle (algebraic least squares) round it, else `Unfitted`. Diameter is
+  `2 * radius`. Fitted, never read from the file: show `residual` /
+  `flatness_degrees` beside the figure (rule 4). All lengths are model
+  units (scale by `AssembledModel::units`). Refusals as `surface_at`.
+  CLI: `3d-render ... --measure-face X,Y` (repeatable; tolerance
+  `--measure-flat-tolerance`) prints `measure-face at=X,Y triangle= mesh=
+  face= triangles= area= perimeter=` then `shape=plane normal= flatness=`,
+  `shape=cylinder radius= diameter= centre= axis= length= sweep=
+  residual=` or `shape=unfitted` (lengths also in mm, area in mm2, when
+  the model's unit is known), `miss` or `refused: <why>`, and a `note:
+  measure-face: ...` line saying the shape is fitted.
 - `Placement::colour: Option<[f64; 4]>` is the part's colour from its tree
   (style inheritance and father/son heritage resolved, material diffuse and
   transparency applied), straight RGBA 0–1. `None`: no style reaches it or it
