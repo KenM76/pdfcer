@@ -4,6 +4,19 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-11-18 (1613th filing) — `Pass 647.12` (`e7dcdb8c`, `G301`) and `Pass 723.0` (`c52d1fbe`, `X090`) SHIPPED; operator ruling on hiding vs lights; unreleased
+
+**Filed (engineer-reported; no shell here, git, push and CI state not checked from here):**
+- `Pass 647.12`: `xfa-materialize --fillable` / `PaintOptions::with_fields(FieldOutput::Fillable)` writes XFA fields as AcroForm fields, appearance identical to the flat page; per-field `field_notes` for what cannot carry over; verb count 428. 7 core + 1 CLI test (also a temp-dir race fix in the CLI test helper).
+- `Pass 723.0`: running-header detection counts each page once (`best_window`, one sliding pass), fixing text on 3 of 10 pages passing a 0.5 fraction. 2 unit + 2 end-to-end tests; sabotage run fails the end-to-end test.
+- Gates (engineer-reported): fmt, clippy `-D warnings` (text, core, cli), code-structure, core-api-verbs all clean; no manifest change. Last full test run predates two small fixes; affected suites re-run green.
+- FEATURES: one NEW row (647.12; core [x], cli [x], gui [ ]); one sentence appended to the block-layout row (723.0, no box change). ROADMAP: two Shipped entries and a Next up banner.
+- `v0.159.0` follows this filing; it carries `647.10`, `647.11`, `647.12`, `723.0`.
+
+**Operator ruling (Ken, 2026-11-18, verbatim):** "Hiding the folder shouldn't turn off its lights, that should be a separate checkbox option next to folders and objects." The `pdfcer-gui` 3D viewer already behaves this way: every row has a per-row light checkbox beside show/hide (`partlights.rs`, `glow_box`). Note `E067` sent to the GUI (`open/note_E067_hiding_and_lights_are_separate_switches.md`). Recorded here, not in `ARCHITECTURE.md` section 12: it is a GUI-behaviour ruling with no engine, crate-boundary or invariant consequence.
+
+**Open:** next free IDs `Pass 647.13`, `717.4`, `718.5`, `720.3`, `721.13`, `722.10`, `723.1`, `647.3h`; decision `225`; rule `R264`. GUI-side: a fillable toggle for materialize.
+
 ## 2026-11-18 (1612th filing) — `Pass 647.10` (`871dd4cd`, `5aa275b2`, `G299`) and `Pass 647.11` (`e5cd14ec`, `G300`) SHIPPED; `v0.159.0` round opened; unreleased
 
 **Filed (engineer-reported; no shell here, git, push and CI state not checked from here):**

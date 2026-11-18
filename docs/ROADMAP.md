@@ -112,6 +112,26 @@ wherever it appears.*
 
 ## Shipped
 
+### `c52d1fbe` `Pass 723.0`: running text counts each page once, 2026-11-18 (1613th filing)
+
+Engineer-reported; no shell here, git, push and CI state not checked from here. `c52d1fbe` `fix(layout): running text counts each page once (Pass 723.0)`. Request `X090` (from the operator, as a `crates` consumer; reply `open/reply_X090_running_text_counts_distinct_pages_SHIPPED.md`). Opened and shipped in one filing. **Unreleased** (`v0.159.0`). Reasoning is in the commit message. Bug fix: **core** only, no FEATURES box changed.
+- **Defect:** `classify_running` in `crates/pdfcer-text/src/block_layout.rs` counted the pages in its window with `dedup` over members sorted by distance, so copies of a line on one page each counted; text on 3 of 10 pages could pass a 0.5 `running_min_fraction` and be set aside as a running header.
+- **Fix:** `best_window`, one sliding pass with a per-page tally (O(n) rather than O(n^2)). The chosen window still extends to every member within 4 pt of its first.
+- **Tests (engineer-reported):** 2 unit; 2 end-to-end in `crates/pdfcer-core/tests/block_layout.rs` (`copies_on_one_page_count_that_page_once`, `text_on_every_page_once_is_still_running`). Sabotage (count members, not pages) fails the end-to-end test.
+- **FEATURES:** one sentence added to the existing "Block-level layout for an untagged page" row (row stays under the cap); no box changed.
+
+### `e7dcdb8c` `Pass 647.12`: write a materialized form's fields fillable, 2026-11-18 (1613th filing)
+
+Engineer-reported; no shell here, git, push and CI state not checked from here. `e7dcdb8c` `feat(xfa): write a materialized form's fields fillable (Pass 647.12)`. Request `G301` (reply `open/reply_G301_xfa_materialize_fillable_fields_SHIPPED.md`). `647.12` was reserved by the 1612th filing; opened and shipped here. **Unreleased** (`v0.159.0`). Reasoning is in the commit message. Delivers **core** and **cli**; **gui none**.
+- **What:** `EditSession::materialize_merged_xfa` with `PaintOptions::with_fields(FieldOutput::Fillable)` writes each XFA field as an AcroForm field (ISO 32000-1 section 12.7.3). The widget `/AP` is drawn exactly as the flat page draws it; flat and fillable renders are pixel-identical on the fixture.
+- **Mapping:** text-like to Tx; checkButton to check; exclGroup to radio; choiceList to Ch (combo, list, multi-select list); signature to unsigned Sig; readOnly/protected/nonInteractive to ReadOnly; nullTest=error to Required; invisible to a hidden widget; fields bound to one data node to one field.
+- **Disclosed, not silent:** what cannot carry over is reported per field in `XfaMaterializeOutcome::field_notes` (Script, Picture, Flat(imageEdit|button|barcode), Split, Neutral, Other); `fields_written` also reported.
+- **CLI:** `pdfcer xfa-materialize --fillable` prints `field-note` lines and `fields_written=N`. Flat stays the default.
+- **Tests (engineer-reported):** 7 core (`crates/pdfcer-core/tests/xfa_fillable.rs`); CLI `fillable_writes_form_fields_and_notes` (4 `xfa_materialize` CLI tests pass). Same commit fixes a temp-dir race in that CLI test file's `kind()` helper. Last full run predates two small fixes; affected suites re-run green.
+- **Gates (engineer-reported):** fmt clean; clippy `-D warnings` on pdfcer-text, pdfcer-core, pdfcer-cli clean; check-code-structure clean; check-core-api-verbs PASS (verb count now 428). `cargo tree`: no manifest change.
+- **Docs:** `docs/core-api` updated.
+- **FEATURES:** new row "Dynamic XFA, materialize with fillable fields", core [x], cli [x], gui [ ].
+
 ### `e5cd14ec` `Pass 647.11`: say what entry an XFA field takes and the values it writes, 2026-11-18 (1612th filing)
 
 Engineer-reported; no shell here, git, push and CI state not checked from here. `e5cd14ec` `feat(xfa): say what entry an XFA field takes and the values it writes (Pass 647.11)`. Request `G300` (`open\request_G300_xfa_field_widget_kind.md`, reply `open\reply_G300_xfa_field_widget_kind_SHIPPED.md`). Opened and shipped in one filing. **Unreleased** (the `v0.159.0` round, opened this filing). Reasoning is in the commit message. Delivers **core** and **cli**; **gui none** (the entry control is `pdfcer-gui`'s).
@@ -27790,6 +27810,8 @@ closes out the *prior* filing's business rather than opening this one's.
 > **`Pass 722.9` SHIPPED 2026-11-18 (1606th filing), `77344e5b`; see its *Shipped* entry (opened and shipped in one filing, `X089` follow-up; unreleased, `v0.158.0`).** Next free IDs: `Pass 717.4`, `Pass 718.5`, `Pass 720.3`, `Pass 721.10`, `Pass 722.10`, `Pass 647.3h`; decision `225`, rule `R264`.
 
 > **`Pass 647.10` (`871dd4cd`, `5aa275b2`, `G299`) and `Pass 647.11` (`e5cd14ec`, `G300`) SHIPPED 2026-11-18 (1612th filing); see their *Shipped* entries (opened and shipped in one filing; unreleased). The `v0.159.0` round is OPEN with these two.** `Pass 647.12` is RESERVED for `G301`, OPEN and in progress (not yet shipped). Next free IDs: `Pass 647.13`, `Pass 717.4`, `Pass 718.5`, `Pass 720.3`, `Pass 721.13`, `Pass 722.10`, `Pass 647.3h`; decision `225`, rule `R264`. `647.10` and `647.11` had zero hits in `ROADMAP.md` and `docs/history` by the engineer's grep before filing.
+
+> **`Pass 647.12` (`e7dcdb8c`, `G301`) and `Pass 723.0` (`c52d1fbe`, `X090`) SHIPPED 2026-11-18 (1613th filing); see their *Shipped* entries (unreleased; the `v0.159.0` round now carries `647.10`, `647.11`, `647.12`, `723.0`).** This supersedes the "`647.12` RESERVED" sentence in the banner above. Next free IDs: `Pass 647.13`, `Pass 717.4`, `Pass 718.5`, `Pass 720.3`, `Pass 721.13`, `Pass 722.10`, `Pass 723.1`, `Pass 647.3h`; decision `225`, rule `R264`. `647.12` and `723.0` had zero hits in `ROADMAP.md` and `docs/history` before filing (grep of `docs/` by this role; `tools/check-ledger-numbers.py` not run, no shell).
 
 > **`Pass 647.3g` (OPEN, NOT STARTED; NOT gating `v0.156.0` unless the operator says so): XFA page-background fields bind per page (request `X016` item 1, the only unshipped part of `X016`).** Part of the `Pass 647.x` arc (decision 204, paced slowly). The criteria sit under the `Pass 647.3` heading further down this file (heading status corrected this filing: `647.3a` to `647.3f` shipped); the fresh slice is the per-page instance index (`Area[0]`, `Area[1]`, ...), a per-page value surviving save and reopen, and `match="global"` or an explicit `<bind ref>` staying one shared value, synthetic templates only. Reply to `X016` owed when it ships.
 
