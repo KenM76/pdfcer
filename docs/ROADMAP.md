@@ -112,6 +112,16 @@ wherever it appears.*
 
 ## Shipped
 
+### `e5c436cb` `Pass 723.1`: inferred heading levels never skip going down, 2026-11-18 (1616th filing)
+
+Engineer-reported; no shell here, git, push and CI state not checked from here. `e5c436cb` `fix(layout): inferred heading levels never skip going down (Pass 723.1)`. Request `X091` (from the operator as a `crates` consumer; `open/request_X091_inferred_heading_levels_never_skip.md`, reply `open/reply_X091_inferred_heading_levels_never_skip_SHIPPED.md`). Opened and shipped in one filing. **Unreleased**: joins the open `v0.159.0` round (bump `b61fb116`). Reasoning is in the commit message. **core** only; cli/gui unchanged.
+- **Rule:** `assign_headings` in `crates/pdfcer-text/src/block_layout.rs`: each inferred level is style rank + 1, capped at previous heading + 1 and at 6, in reading order across pages. First heading is H1; no downward skips; upward jumps allowed. Tagged headings unchanged.
+- **Clause:** ISO 14289-1 section 7.4.2, Matterhorn 14-002/14-003; sourced in `D:\Dev\Rag-Specialized\PDF_Spec\pdfua\pdfua__s__7.4.md`. PDF/UA-2 section 8.2.5.12 drops the no-skip rule and wants numbered headings at their numbered level; the code reads style, not numbering, so one rule serves both. No setting: the old rank-only behaviour satisfied neither version, so there is no second defensible answer.
+- **Behaviour change:** the `pdfcer-core` test `headings_paragraphs_lists_and_captions_on_page_one` had locked in H1 then H3; it now expects H2.
+- **Tests (engineer-reported):** 3 new `pdfcer-text` unit tests (sabotage, removing the clamp, fails the first); `pdfcer-text` all green (37+72+18); core `block_layout` and structure filters green. Clippy, fmt, code-structure clean. No dependency change.
+- **Invariants:** `docs/core-api/01-reading-and-model.md` states the rule, index counts updated, `check-core-api-verbs` green (engineer-reported).
+- **FEATURES:** one sentence added to the "Block-level layout for an untagged page" row; boxes unchanged.
+
 ### `fe99f7da` `Pass 721.13`: a glTF import lit by its own lamps alone, 2026-11-18 (1615th filing)
 
 Engineer-reported; no shell here, git, push and CI state not checked from here. `fe99f7da` `feat(3d): a glTF import lit by its own lamps alone (Pass 721.13)`. Request `E068` (`open/request_E068_gltf_lamps_only_no_ambient.md`, reply `open/reply_E068_gltf_lamps_only_no_ambient_SHIPPED.md`). Opened and shipped in one filing. **Unreleased**: joins the open `v0.159.0` round (bump `b61fb116`, filed 1614th). Reasoning is in the commit message. Delivers **core** and **cli**; **gui none**.
@@ -27830,6 +27840,8 @@ closes out the *prior* filing's business rather than opening this one's.
 > **`Pass 647.12` (`e7dcdb8c`, `G301`) and `Pass 723.0` (`c52d1fbe`, `X090`) SHIPPED 2026-11-18 (1613th filing); see their *Shipped* entries (unreleased; the `v0.159.0` round now carries `647.10`, `647.11`, `647.12`, `723.0`).** This supersedes the "`647.12` RESERVED" sentence in the banner above. Next free IDs: `Pass 647.13`, `Pass 717.4`, `Pass 718.5`, `Pass 720.3`, `Pass 721.13`, `Pass 722.10`, `Pass 723.1`, `Pass 647.3h`; decision `225`, rule `R264`. `647.12` and `723.0` had zero hits in `ROADMAP.md` and `docs/history` before filing (grep of `docs/` by this role; `tools/check-ledger-numbers.py` not run, no shell).
 
 > **`Pass 721.13` (`fe99f7da`, `E068`) SHIPPED 2026-11-18 (1615th filing); see its *Shipped* entry (opened and shipped in one filing; unreleased, joins the `v0.159.0` round).** Next free IDs: `Pass 647.13`, `Pass 717.4`, `Pass 718.5`, `Pass 720.3`, `Pass 721.14`, `Pass 722.10`, `Pass 723.1`, `Pass 647.3h`; decision `225`, rule `R264`. `721.13` was the next free ID per the 1613th banner (not re-grepped beyond that; no shell).
+
+> **`Pass 723.1` (`e5c436cb`, `X091`) SHIPPED 2026-11-18 (1616th filing); see its *Shipped* entry (opened and shipped in one filing; unreleased, joins the `v0.159.0` round).** Next free IDs: `Pass 647.13`, `Pass 717.4`, `Pass 718.5`, `Pass 720.3`, `Pass 721.14`, `Pass 722.10`, `Pass 723.2`, `Pass 647.3h`; decision `225`, rule `R264`. `723.1` was the next free ID per the 1615th banner (not re-grepped beyond that; no shell).
 
 > **`Pass 647.3g` (OPEN, NOT STARTED; NOT gating `v0.156.0` unless the operator says so): XFA page-background fields bind per page (request `X016` item 1, the only unshipped part of `X016`).** Part of the `Pass 647.x` arc (decision 204, paced slowly). The criteria sit under the `Pass 647.3` heading further down this file (heading status corrected this filing: `647.3a` to `647.3f` shipped); the fresh slice is the per-page instance index (`Area[0]`, `Area[1]`, ...), a per-page value surviving save and reopen, and `match="global"` or an explicit `<bind ref>` staying one shared value, synthetic templates only. Reply to `X016` owed when it ships.
 

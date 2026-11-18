@@ -4,6 +4,16 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-11-18 (1616th filing) — `Pass 723.1` (`e5c436cb`, `X091`) SHIPPED: inferred heading levels never skip going down; unreleased
+
+**Filed (engineer-reported; no shell here, git, push and CI state not checked from here):**
+- `e5c436cb` `fix(layout): inferred heading levels never skip going down (Pass 723.1)`: `assign_headings` level = style rank + 1, capped at previous heading + 1 and at 6, across pages; first heading H1; tagged headings unchanged. ISO 14289-1 section 7.4.2, Matterhorn 14-002/14-003 (`D:\Dev\Rag-Specialized\PDF_Spec\pdfua\pdfua__s__7.4.md`); PDF/UA-2 section 8.2.5.12 differs but one style-based rule serves both, so no setting.
+- Behaviour change: core test `headings_paragraphs_lists_and_captions_on_page_one` now expects H2, not H3.
+- Tests (engineer-reported): 3 new `pdfcer-text` (sabotage fails the first); `pdfcer-text` 37+72+18 green; gates clean; core-api doc and index counts updated.
+- FEATURES: a sentence on the "Block-level layout" row; no box change. Joins the open `v0.159.0` round.
+
+**Open:** next free IDs `Pass 647.13`, `717.4`, `718.5`, `720.3`, `721.14`, `722.10`, `723.2`, `647.3h`; decision `225`; rule `R264`. The 1614th "round carries" list now lacks `721.13` and `723.1`; tag, package and publish still to do.
+
 ## 2026-11-18 (1615th filing) — `Pass 721.13` (`fe99f7da`, `E068`) SHIPPED: glTF import with no ambient fill; unreleased
 
 **Filed (engineer-reported; no shell here, git, push and CI state not checked from here):**
