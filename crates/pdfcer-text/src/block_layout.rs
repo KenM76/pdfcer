@@ -1364,17 +1364,22 @@ pub fn list_marker(text: &str) -> Option<(&str, &str)> {
     Some((marker, rest.trim_start()))
 }
 
+/// A caption lead in any letter case (`FIGURE 3`, `table 2`), then a number.
 fn is_caption(text: &str) -> bool {
     let t = text.trim_start();
     ["Figure", "Fig.", "Table", "Chart", "Exhibit", "Plate"]
         .iter()
         .any(|lead| {
-            t.strip_prefix(lead).is_some_and(|rest| {
-                rest.trim_start()
-                    .chars()
-                    .next()
-                    .is_some_and(|c| c.is_ascii_digit())
-            })
+            // `get` is None off a char boundary, so a multi-byte start is safe.
+            t.get(..lead.len())
+                .filter(|head| head.eq_ignore_ascii_case(lead))
+                .and_then(|_| t.get(lead.len()..))
+                .is_some_and(|rest| {
+                    rest.trim_start()
+                        .chars()
+                        .next()
+                        .is_some_and(|c| c.is_ascii_digit())
+                })
         })
 }
 
@@ -1558,6 +1563,16 @@ mod tests {
         assert!(is_caption("Figure 3: A plot"));
         assert!(is_caption("Table 12 Results"));
         assert!(!is_caption("Tables are useful"));
+    }
+
+    #[test]
+    fn a_caption_lead_matches_in_any_case() {
+        assert!(is_caption("FIGURE 3: Architecture"));
+        assert!(is_caption("table 2"));
+        assert!(is_caption("FIG. 4"));
+        assert!(!is_caption("TABLES are useful"));
+        assert!(!is_caption("Fig\u{e9} 3"));
+        assert!(!is_caption("\u{e9}t\u{e9} 3"));
     }
 
     #[test]

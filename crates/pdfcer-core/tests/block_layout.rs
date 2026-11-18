@@ -393,6 +393,20 @@ fn draft_on_three_of_ten() -> Document {
 }
 
 #[test]
+fn a_large_bold_capitals_caption_is_a_caption_not_a_heading() {
+    let page = line("F1", 11, 72, 700, "Body text on this page.")
+        + &line("F2", 16, 72, 500, "FIGURE 3: Architecture")
+        + &line("F1", 11, 72, 300, "More body text below the figure.");
+    let out = layout(&doc_from_pages(&[&page], 0));
+    let got = kinds_and_text(&out.pages[0]);
+    let caption = got
+        .iter()
+        .find(|(_, t)| t.starts_with("FIGURE"))
+        .expect("caption block");
+    assert_eq!(caption.0, BlockKind::Caption, "{got:#?}");
+}
+
+#[test]
 fn copies_on_one_page_count_that_page_once() {
     let doc = draft_on_three_of_ten();
     let out = analyze_layout(
