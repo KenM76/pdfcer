@@ -4,6 +4,17 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-11-18 (1605th filing) — `Pass 722.8` SHIPPED (`3f89304e`, a parametric mesh is checked against its function's exact breaks, request `X089` addendum); unreleased
+
+**Filed (engineer-reported; no shell here, git, push and CI state not checked from here):**
+- `3f89304e` `feat(core): check a parametric mesh against its function's exact breaks (Pass 722.8)`; `722.8` was the next free ID, next is `722.9`. Follows `172f9990` (`Pass 722.7`, the 256-step grid). The operator had already updated the `X089` reply; not touched.
+- `PdfFunction::affine_breaks(cap)` (new `crates/pdfcer-function/src/function/breaks.rs`) lists the inputs between which every output is affine (types 0, 2, 3, `/Range` crossings; type 4, more than one input, or over `cap`: `None`). `mesh_shading::reexpress_mesh_with_breaks` probes every break, its `next_down`/`next_up`, and midpoints between neighbours, so no band of any width is missed for a conversion affine in the function outputs. `reexpress_mesh` keeps the grid. Array-of-functions break union is the caller's job.
+- Tests: `affine_breaks_list_where_each_type_bends`, `the_function_breaks_find_a_band_narrower_than_a_grid_step`, `a_step_of_one_and_a_half_tolerances_is_never_accepted`; sabotage fails both mesh tests; 11 mesh_shading + 103 pdfcer-function pass; clippy clean; 36 audits green; no manifest change. `docs/core-api` gained two rows (engineer-reported counts: 5549 lines, 275 clauses).
+
+**Decisions / findings:** none; no decision, no rule.
+
+**Open:** ships in `v0.158.0`. Next free IDs: `Pass 717.4`, `718.5`, `720.3`, `721.10`, `722.9`, `647.3h`; decision `225`, rule `R264`. FEATURES: mesh-shading write row gained a clause, boxes unchanged (core only).
+
 ## 2026-11-18 (1604th filing) — `Pass 722.7` SHIPPED (`172f9990`, a parametric mesh's function band between the probes splits the triangle, request `X089`); unreleased
 
 **Filed (engineer-reported; no shell here, git, push and CI state not checked from here):**
