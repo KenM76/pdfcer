@@ -3689,6 +3689,26 @@ let image = render_coloured(&meshes, &colours, &camera, &RenderOptions { width: 
   `3d-render` prints `inferred: N mesh(es) drawn opaque: each material's
   alpha is 0 and its style states no transparency, read as unset rather
   than invisible`.
+- **Measure between two entities** (`pdfcer-3d`, feature `render`):
+  `entity_distance(&model.meshes, &a, &b, flat_degrees, corner_degrees) ->
+  Result<EntityDistance, SurfaceMeasureError>`, where each side is a
+  `Selection { pick: SurfacePick, entity: MeasureEntity }` and
+  `MeasureEntity` (`#[non_exhaustive]`) is `Vertex` (as `vertex_at`),
+  `Edge` (as `edge_at`, tolerances passed through) or `Face` (every
+  triangle of the picked face). `EntityDistance { minimum, maximum,
+  centres: Option<Span> }` (`#[non_exhaustive]`); `Span { length, from (on
+  a), to (on b) }` with `delta() = to - from`. `minimum` is exact over the
+  triangles and segments (0 when they touch or cross); `maximum` is between
+  corners, so a curved entity's can fall short of the true curve's;
+  `centres` is present when both sides have a centre: a vertex, or a
+  `Circle` edge's fitted centre (rule 4). Refusals: those of `vertex_at` /
+  `edge_at`, `NoSuchTriangle`, and `Degenerate` for a face with no
+  triangles. CLI: `3d-render ... --measure-distance A B` (repeatable; each
+  operand `vertex:X,Y`, `edge:X,Y` or `face:X,Y`) prints
+  `measure-distance a= b= minimum= minimum_from= minimum_to=
+  minimum_delta= maximum= ... centres=none|centres= ...` (lengths also in
+  mm when the unit is known), a refusal or miss on the same head, then one
+  `note: measure-distance:` line.
 - **Textures** (ISO 14739-1 picture / texture definition / texture
   application; `prc__8137__graphics_materials.md` §13). Draw a model with
   them in one call: `let m = pdfcer_3d::assemble_with_options(data,

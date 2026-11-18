@@ -94,11 +94,7 @@ pub fn face_figures(
         return Err(missing);
     }
     let face = Face::of(mesh, pick.triangle);
-    let tris: Vec<[[f64; 3]; 3]> = (0..mesh.triangles.len())
-        .filter(|&i| face.holds(mesh, i))
-        .filter_map(|i| mesh.triangles.get(i).and_then(|t| corners(mesh, t)))
-        .filter(|w| normalize(area_and_centre(w).0).is_some())
-        .collect();
+    let tris = face_triangles(mesh, &face);
     let doubled: f64 = tris.iter().map(|w| length(area_and_centre(w).0)).sum();
     if tris.is_empty() || doubled <= 0.0 {
         return Err(SurfaceMeasureError::Degenerate);
@@ -111,6 +107,15 @@ pub fn face_figures(
         perimeter: perimeter(&tris),
         shape: fit_shape(&tris, flat_degrees),
     })
+}
+
+/// The corners of each triangle of `face` that has an area.
+pub(super) fn face_triangles(mesh: &TriangleMesh, face: &Face) -> Vec<[[f64; 3]; 3]> {
+    (0..mesh.triangles.len())
+        .filter(|&i| face.holds(mesh, i))
+        .filter_map(|i| mesh.triangles.get(i).and_then(|t| corners(mesh, t)))
+        .filter(|w| normalize(area_and_centre(w).0).is_some())
+        .collect()
 }
 
 /// The summed length of the edges only one triangle uses.

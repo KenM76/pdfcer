@@ -3348,6 +3348,10 @@ pub(crate) enum Command {
     /// or circle fitted to it (radius, diameter, centre). `--measure-vertex
     /// X,Y` reports the X, Y, Z of the nearest model vertex.
     ///
+    /// `--measure-distance A B` measures between two entities, each
+    /// `vertex:X,Y`, `edge:X,Y` or `face:X,Y`: the minimum and maximum
+    /// distance and, between two centres, centre to centre.
+    ///
     /// `--360` draws the whole sphere around the camera as an
     /// equirectangular panorama (2048 x 1024 unless a size is given); a
     /// `.jpg` output carries the Google Photo Sphere (GPano) XMP tag, so

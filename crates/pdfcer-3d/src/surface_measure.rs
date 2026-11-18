@@ -10,11 +10,13 @@ use crate::render::corners;
 use crate::vec3::{add, cross, dot, length, normalize, scale, sub};
 use crate::{Hit, TriangleMesh};
 
+mod distance;
 mod edge;
 mod face;
 mod fit;
 mod types;
 
+pub use distance::{EntityDistance, MeasureEntity, Selection, Span, entity_distance};
 pub use edge::{EdgeFigures, EdgeShape, edge_at, vertex_at};
 pub use face::{FaceFigures, FaceShape, face_figures};
 

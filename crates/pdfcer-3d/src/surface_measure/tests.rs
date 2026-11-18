@@ -468,3 +468,118 @@ fn edges_between_faces_and_where_none_is() {
         Err(SurfaceMeasureError::BadTolerance("flat tolerance"))
     );
 }
+
+/// One face of two triangles over the four corners in order.
+fn square(c: [[f64; 3]; 4]) -> TriangleMesh {
+    TriangleMesh {
+        positions: c.to_vec(),
+        triangles: vec![[0, 1, 2], [0, 2, 3]],
+        faces: vec![0..2],
+        ..TriangleMesh::default()
+    }
+}
+
+fn select(mesh: usize, triangle: usize, point: [f64; 3], entity: MeasureEntity) -> Selection {
+    Selection {
+        pick: pick(mesh, triangle, point),
+        entity,
+    }
+}
+
+fn near(a: [f64; 3], b: [f64; 3]) -> bool {
+    a.iter().zip(&b).all(|(x, y)| (x - y).abs() < 1e-9)
+}
+
+#[test]
+fn two_faces_report_their_nearest_and_farthest_points() {
+    let meshes = [
+        square([
+            [0.0, 0.0, 0.0],
+            [1.0, 0.0, 0.0],
+            [1.0, 1.0, 0.0],
+            [0.0, 1.0, 0.0],
+        ]),
+        square([
+            [2.0, 0.0, 3.0],
+            [3.0, 0.0, 3.0],
+            [3.0, 1.0, 3.0],
+            [2.0, 1.0, 3.0],
+        ]),
+    ];
+    let a = select(0, 0, [0.5, 0.2, 0.0], MeasureEntity::Face);
+    let b = select(1, 0, [2.5, 0.2, 3.0], MeasureEntity::Face);
+    let d = entity_distance(&meshes, &a, &b, 10.0, 45.0).unwrap();
+    assert!((d.minimum.length - 10.0_f64.sqrt()).abs() < 1e-12);
+    assert!((d.minimum.from[0] - 1.0).abs() < 1e-12 && d.minimum.from[2] == 0.0);
+    assert!((d.minimum.to[0] - 2.0).abs() < 1e-12 && d.minimum.to[2] == 3.0);
+    assert!((d.minimum.delta()[1]).abs() < 1e-12);
+    assert!((d.maximum.length - 19.0_f64.sqrt()).abs() < 1e-12);
+    assert_eq!(d.centres, None);
+}
+
+#[test]
+fn a_vertex_over_a_face_measures_straight_down() {
+    let meshes = [
+        square([
+            [0.0, 0.0, 0.0],
+            [4.0, 0.0, 0.0],
+            [4.0, 4.0, 0.0],
+            [0.0, 4.0, 0.0],
+        ]),
+        square([
+            [1.0, 2.0, 5.0],
+            [2.0, 2.0, 5.0],
+            [2.0, 3.0, 5.0],
+            [1.0, 3.0, 5.0],
+        ]),
+    ];
+    let a = select(1, 0, [1.01, 2.01, 5.0], MeasureEntity::Vertex);
+    let b = select(0, 0, [3.0, 1.0, 0.0], MeasureEntity::Face);
+    let d = entity_distance(&meshes, &a, &b, 10.0, 45.0).unwrap();
+    assert!((d.minimum.length - 5.0).abs() < 1e-12);
+    assert!(near(d.minimum.to, [1.0, 2.0, 0.0]), "{:?}", d.minimum);
+    assert_eq!(d.centres, None);
+}
+
+#[test]
+fn two_rims_of_a_tube_measure_centre_to_centre() {
+    let meshes = [tube(5.0, 8.0, 64, 360.0)];
+    let a = (360.0_f64 * 3.5 / 64.0).to_radians();
+    let (x, y) = (5.0 * a.cos(), 5.0 * a.sin());
+    let bottom = select(0, 6, [x, y, 0.01], MeasureEntity::Edge);
+    let top = select(0, 7, [x, y, 7.99], MeasureEntity::Edge);
+    let d = entity_distance(&meshes, &bottom, &top, 10.0, 45.0).unwrap();
+    let c = d.centres.unwrap();
+    assert!((c.length - 8.0).abs() < 1e-9, "{c:?}");
+    assert!(near(c.delta(), [0.0, 0.0, 8.0]) || near(c.delta(), [0.0, 0.0, -8.0]));
+    assert!((d.minimum.length - 8.0).abs() < 1e-9);
+    assert!((d.maximum.length - 164.0_f64.sqrt()).abs() < 1e-9);
+}
+
+#[test]
+fn crossing_faces_are_no_distance_apart() {
+    let meshes = [
+        square([
+            [-1.0, -1.0, 0.0],
+            [1.0, -1.0, 0.0],
+            [1.0, 1.0, 0.0],
+            [-1.0, 1.0, 0.0],
+        ]),
+        square([
+            [0.0, 0.2, -1.0],
+            [0.0, 0.8, -1.0],
+            [0.0, 0.8, 1.0],
+            [0.0, 0.2, 1.0],
+        ]),
+    ];
+    let a = select(0, 0, [0.5, -0.5, 0.0], MeasureEntity::Face);
+    let b = select(1, 0, [0.0, 0.6, -0.5], MeasureEntity::Face);
+    let d = entity_distance(&meshes, &a, &b, 10.0, 45.0).unwrap();
+    assert!(d.minimum.length < 1e-12, "{:?}", d.minimum);
+    assert!(d.minimum.from[2].abs() < 1e-12);
+    let missing = select(0, 9, [0.0; 3], MeasureEntity::Face);
+    assert!(matches!(
+        entity_distance(&meshes, &a, &missing, 10.0, 45.0),
+        Err(SurfaceMeasureError::NoSuchTriangle { .. })
+    ));
+}

@@ -732,6 +732,26 @@ fn measure_face_reports_a_faces_area_perimeter_and_plane() {
         "{edge}"
     );
     assert!(!edge.contains("  "), "{edge}");
+    let far = read(&[
+        "--measure-distance",
+        "vertex:60,40",
+        "face:60,40",
+        "--measure-distance",
+        "vertex:60,40",
+        "vertex:60,40",
+    ]);
+    assert!(
+        far.contains("measure-distance a=vertex:60,40 b=face:60,40 minimum=0.000000"),
+        "{far}"
+    );
+    assert!(far.contains("centres=none"), "{far}");
+    assert!(
+        far.contains("b=vertex:60,40 minimum=0.000000") && far.contains("centres=0.000000"),
+        "{far}"
+    );
+    assert!(far.contains("maximum_delta="), "{far}");
+    assert!(far.contains("note: measure-distance: maximum"), "{far}");
+    assert!(!far.contains("  "), "{far}");
 }
 
 /// [`floor_and_square`] with a square that glows white and no lamp.

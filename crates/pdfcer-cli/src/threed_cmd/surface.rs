@@ -3,7 +3,10 @@
 //! face, edge or vertex.
 
 #[cfg(feature = "3d")]
+mod distance;
+#[cfg(feature = "3d")]
 mod edge;
+mod target;
 #[cfg(feature = "3d")]
 use edge::picked;
 
@@ -71,6 +74,12 @@ pub(crate) struct SurfaceArgs {
     /// on the triangle drawn there. Repeatable.
     #[arg(long, value_name = "X,Y", value_parser = crate::arg_types::parse_point2, allow_hyphen_values = true)]
     pub(crate) measure_vertex: Vec<[f64; 2]>,
+    /// Measure between two picked entities, each `vertex:X,Y`, `edge:X,Y`
+    /// or `face:X,Y` at an image position: the nearest points, the
+    /// farthest corners and, when both have a centre (a vertex, a circular
+    /// edge), centre to centre, each with its X, Y, Z delta. Repeatable.
+    #[arg(long, num_args = 2, value_names = ["A", "B"], value_parser = target::parse_target, allow_hyphen_values = true)]
+    pub(crate) measure_distance: Vec<target::Target>,
 }
 
 /// The engine's defaults, restated so the flags exist in a build without
@@ -94,6 +103,7 @@ impl SurfaceArgs {
         use pdfcer_3d::{SurfacePick, SurfaceTolerance, measure_surfaces};
         self.print_faces(model, camera, options);
         self.print_edges(model, camera, options);
+        self.print_distances(model, camera, options);
         if self.measure_surfaces.is_empty() {
             return;
         }
