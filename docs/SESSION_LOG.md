@@ -4,6 +4,17 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-11-18 (1609th filing) — `Pass 721.12` SHIPPED (`6d615581`, read measurements in a chosen unit and precision, seventh slice of `Pass 721.2`); unreleased
+
+**Filed (engineer-reported; no shell here, git, push and CI state not checked from here; engineer says HEAD is `6d615581`, not yet pushed):**
+- `6d615581` `feat(3d): read measurements out in a chosen unit and precision (Pass 721.12)`; `721.12` was the next free ID, next is `721.13`. Follows `ab8005d2` (1608th, pushed).
+- `pdfcer_3d::LengthUnit` (um, mm, cm, m, in, ft; `FromStr`, `UnknownLengthUnit`). CLI `3d-render --measure-units`, `--measure-dual-units`, `--measure-decimals` (0 to 12, default 6, unit figures only); default mm leaves output unchanged.
+- Tests: engine `every_unit_reads_back_from_its_symbol_and_converts` plus doctest; CLI `a_readout_converts_into_each_unit_at_the_chosen_decimals` (sabotage fails it); integration test extended. 562 `pdfcer-3d` lib tests pass; clippy clean both feature sets; core-api verbs green; 36 audits green. `docs/core-api` gained a bullet.
+
+**Decisions / findings:** none; no decision, no rule.
+
+**Open:** ships in `v0.158.0`. Still open in `Pass 721.2`: measurement history only. Next free IDs: `Pass 717.4`, `718.5`, `720.3`, `721.13`, `722.10`, `647.3h`; decision `225`, rule `R264`. FEATURES: new row (core, cli ticked, gui open); Planned measure row trimmed to measurement history.
+
 ## 2026-11-18 (1608th filing) — `Pass 721.11` SHIPPED (`ab8005d2`, measure a face's projected area, sixth slice of `Pass 721.2`); unreleased
 
 **Filed (engineer-reported; no shell here, git, push and CI state not checked from here; engineer says HEAD is `ab8005d2`, not yet pushed):**

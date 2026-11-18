@@ -112,6 +112,16 @@ wherever it appears.*
 
 ## Shipped
 
+### `6d615581` `Pass 721.12`: read measurements in a chosen unit and precision, 2026-11-18 (1609th filing)
+
+Engineer-reported; no shell here, git, push and CI state not checked from here (engineer states HEAD is `6d615581`, on main, not yet pushed). `6d615581` `feat(3d): read measurements out in a chosen unit and precision (Pass 721.12)`. Seventh slice of `Pass 721.2` (after `721.6` to `721.11`); `721.12` was the next free ID, so the next is `721.13`. **Unreleased** (ships in `v0.158.0`). Reasoning is in the commit message. Delivers **core** and **cli**; **gui none** (the measure window is `pdfcer-gui`'s).
+- **Engine (`pdfcer-3d`):** `LengthUnit` (no feature gate; `Micrometre`, `Millimetre`, `Centimetre`, `Metre`, `Inch`, `Foot`; `non_exhaustive`), `LengthUnit::ALL`, `mm_per_unit()`, `symbol()` / `Display` (`um mm cm m in ft`), `FromStr` with error `UnknownLengthUnit`.
+- **CLI:** `3d-render --measure-units UNIT` (default `mm`, so existing output is unchanged), `--measure-dual-units UNIT`, `--measure-decimals N` (0 to 12, default 6; applies to unit figures only, model-unit figures keep 6 places). They apply to every bracketed unit figure on the `measure-surfaces`, `measure-face`, `measure-edge` and `measure-distance` lines, and to `measure-vertex`'s `point_UNIT=`.
+- **Tests (engineer-reported):** engine `every_unit_reads_back_from_its_symbol_and_converts` plus a doctest; CLI unit test `a_readout_converts_into_each_unit_at_the_chosen_decimals` (sabotage: fixing decimals at 6 fails it); integration `measure_face_reports_a_faces_area_perimeter_and_plane` extended (metre model in `in`/`mm` at 2 places reads `perimeter=4.000000 (157.48 in / 4000.00 mm)`; `yd` refused). 562 `pdfcer-3d` lib tests pass; clippy clean with and without default features; core-api verbs green; 36 CI audits pass. `docs/core-api` gained a "Length units for a readout" bullet.
+- **Still open in `Pass 721.2`:** measurement history only (engine/CLI side; the window is `pdfcer-gui`'s).
+- **FEATURES:** new Implemented row (core, cli ticked; gui open); the Planned measure row trimmed (units and precision moved to its shipped list). No decision, no rule.
+- **Next free IDs:** `Pass 717.4`, `Pass 718.5`, `Pass 720.3`, `Pass 721.13`, `Pass 722.10`, `Pass 647.3h`; decision `225`, rule `R264` (none minted).
+
 ### `ab8005d2` `Pass 721.11`: measure a face's projected area, 2026-11-18 (1608th filing)
 
 Engineer-reported; no shell here, git, push and CI state not checked from here (engineer states HEAD is `ab8005d2`, on main, not yet pushed). `ab8005d2` `feat(3d): measure a face's projected area (Pass 721.11)`. Sixth slice of `Pass 721.2` (after `721.6` to `721.10`); `721.11` was the next free ID, so the next is `721.12`. **Unreleased** (ships in `v0.158.0`). Reasoning is in the commit message. Delivers **core** and **cli**; **gui none** (the measure window is `pdfcer-gui`'s).
