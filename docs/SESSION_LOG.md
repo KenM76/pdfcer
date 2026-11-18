@@ -4,6 +4,15 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-11-18 (1615th filing) — `Pass 721.13` (`fe99f7da`, `E068`) SHIPPED: glTF import with no ambient fill; unreleased
+
+**Filed (engineer-reported; no shell here, git, push and CI state not checked from here):**
+- `fe99f7da` `feat(3d): a glTF import lit by its own lamps alone (Pass 721.13)`: `GltfOptions::ambient` (`GltfAmbient::{Fill, None}`), CLI `3d-embed` / `3d-convert --gltf-ambient fill|none`; lamps keep scale and stored photometry; disclosed. `3d-render --illuminance` now notes `--illuminance-glow left-out` when glow alone makes a reading relative (counted default kept).
+- Tests (engineer-reported): `pdfcer-3d` lib 564 (2 new), `pdfcer-cli` `three_d_gltf` 17 (1 new); gates clean; no dependency change; core-api unaffected.
+- FEATURES: a sentence on each of two existing rows; no box change. Joins the open `v0.159.0` round (bump `b61fb116`).
+
+**Open:** next free IDs `Pass 647.13`, `717.4`, `718.5`, `720.3`, `721.14`, `722.10`, `723.1`, `647.3h`; decision `225`; rule `R264`. The 1614th entry's "round carries" list now lacks `721.13`; tag, package and publish still to do.
+
 ## 2026-11-18 (1614th filing) — `v0.159.0` release bump (`b61fb116`); not yet tagged, deployed or published
 
 **Filed (engineer-reported; no shell here, git, push, CI and OneDrive state not checked from here):**

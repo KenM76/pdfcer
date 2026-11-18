@@ -112,6 +112,16 @@ wherever it appears.*
 
 ## Shipped
 
+### `fe99f7da` `Pass 721.13`: a glTF import lit by its own lamps alone, 2026-11-18 (1615th filing)
+
+Engineer-reported; no shell here, git, push and CI state not checked from here. `fe99f7da` `feat(3d): a glTF import lit by its own lamps alone (Pass 721.13)`. Request `E068` (`open/request_E068_gltf_lamps_only_no_ambient.md`, reply `open/reply_E068_gltf_lamps_only_no_ambient_SHIPPED.md`). Opened and shipped in one filing. **Unreleased**: joins the open `v0.159.0` round (bump `b61fb116`, filed 1614th). Reasoning is in the commit message. Delivers **core** and **cli**; **gui none**.
+- **Engine:** `pdfcer_3d::GltfOptions::ambient`, new `GltfAmbient::{Fill (default), None}`.
+- **CLI:** `3d-embed` and `3d-convert` take `--gltf-ambient fill|none`. With `none`, exposure and normalise add no 20% ambient light; lamps keep the same metered scale and stored candela/lux, so `3d-render --illuminance` reads the same lux. The inferred line says "with no ambient light, as asked". `stored` and `drop` ignore the switch.
+- **Glow note:** when glowing surfaces are the ONLY reason an illuminance reading is relative, `3d-render --illuminance` prints a note pointing at `--illuminance-glow left-out`. The counted default is kept: guessing a lamp sits at a glow would be a silent inference.
+- **Tests (engineer-reported):** `pdfcer-3d` lib 564 pass (2 new); `pdfcer-cli` `three_d_gltf` 17 pass (1 new acceptance test plus hint assertions). Clippy (default and `--no-default-features`), fmt, code-structure clean. No dependency change.
+- **Invariants:** `docs/core-api` unaffected (`pdfcer-3d` is outside the `EditSession`/`DocumentView` surface); `check-core-api-verbs` passes (engineer-reported).
+- **FEATURES:** one sentence appended to the "glTF/GLB lights" row (`--gltf-ambient`); one to the "Illuminance at a point" row (glow note). Boxes unchanged (core [x], cli [x], gui [ ]).
+
 ### `b61fb116` `v0.159.0` release bump, 2026-11-18 (1614th filing)
 
 Engineer-reported; no shell here, git, push, CI and OneDrive state not checked from here. `b61fb116` `chore: bump workspace to 0.159.0`: `Cargo.toml`, `Cargo.lock` and `fuzz/Cargo.lock` 0.158.0 -> 0.159.0. **NOT yet tagged, deployed or published.** The release writes OneDrive slot `pdfcer2`.
@@ -27818,6 +27828,8 @@ closes out the *prior* filing's business rather than opening this one's.
 > **`Pass 647.10` (`871dd4cd`, `5aa275b2`, `G299`) and `Pass 647.11` (`e5cd14ec`, `G300`) SHIPPED 2026-11-18 (1612th filing); see their *Shipped* entries (opened and shipped in one filing; unreleased). The `v0.159.0` round is OPEN with these two.** `Pass 647.12` is RESERVED for `G301`, OPEN and in progress (not yet shipped). Next free IDs: `Pass 647.13`, `Pass 717.4`, `Pass 718.5`, `Pass 720.3`, `Pass 721.13`, `Pass 722.10`, `Pass 647.3h`; decision `225`, rule `R264`. `647.10` and `647.11` had zero hits in `ROADMAP.md` and `docs/history` by the engineer's grep before filing.
 
 > **`Pass 647.12` (`e7dcdb8c`, `G301`) and `Pass 723.0` (`c52d1fbe`, `X090`) SHIPPED 2026-11-18 (1613th filing); see their *Shipped* entries (unreleased; the `v0.159.0` round now carries `647.10`, `647.11`, `647.12`, `723.0`).** This supersedes the "`647.12` RESERVED" sentence in the banner above. Next free IDs: `Pass 647.13`, `Pass 717.4`, `Pass 718.5`, `Pass 720.3`, `Pass 721.13`, `Pass 722.10`, `Pass 723.1`, `Pass 647.3h`; decision `225`, rule `R264`. `647.12` and `723.0` had zero hits in `ROADMAP.md` and `docs/history` before filing (grep of `docs/` by this role; `tools/check-ledger-numbers.py` not run, no shell).
+
+> **`Pass 721.13` (`fe99f7da`, `E068`) SHIPPED 2026-11-18 (1615th filing); see its *Shipped* entry (opened and shipped in one filing; unreleased, joins the `v0.159.0` round).** Next free IDs: `Pass 647.13`, `Pass 717.4`, `Pass 718.5`, `Pass 720.3`, `Pass 721.14`, `Pass 722.10`, `Pass 723.1`, `Pass 647.3h`; decision `225`, rule `R264`. `721.13` was the next free ID per the 1613th banner (not re-grepped beyond that; no shell).
 
 > **`Pass 647.3g` (OPEN, NOT STARTED; NOT gating `v0.156.0` unless the operator says so): XFA page-background fields bind per page (request `X016` item 1, the only unshipped part of `X016`).** Part of the `Pass 647.x` arc (decision 204, paced slowly). The criteria sit under the `Pass 647.3` heading further down this file (heading status corrected this filing: `647.3a` to `647.3f` shipped); the fresh slice is the per-page instance index (`Area[0]`, `Area[1]`, ...), a per-page value surviving save and reopen, and `match="global"` or an explicit `<bind ref>` staying one shared value, synthetic templates only. Reply to `X016` owed when it ships.
 
