@@ -112,6 +112,16 @@ wherever it appears.*
 
 ## Shipped
 
+### `172f9990` `Pass 722.7`: a parametric mesh's function band between the probes splits the triangle, 2026-11-18 (1604th filing)
+
+Engineer-reported; no shell here, git, push and CI state not checked from here. `172f9990` `fix(core): a parametric mesh's function band between the probes splits the triangle (Pass 722.7)`. Request `X089` (`D:\Dev\FeatureRequests\pdfce_FeatureRequests\open\request_X089_reexpress_mesh_misses_narrow_function_features.md`), opened and shipped in one filing; `722.7` was the next free ID, so the next is `722.8`. Fixes a defect in `reexpress_mesh` from `Pass 722.4` (`36fae116`). **Unreleased.** Reasoning is in the commit message. Delivers **core**; **cli none**; **gui none**. Reply: `reply_X089_..._SHIPPED.md` in the same folder.
+- **Defect:** `pdfcer_core::mesh_shading::reexpress_mesh` checked each triangle only at its three edge midpoints and its centroid. A parametric mesh's `/Function` (type 3 stitch, finely sampled type 0, type 4) can change between those probes; a triangle with `t` = 0, 1, 1 and a cyan band on `[0.125, 0.375)` was accepted as all zero, losing the band.
+- **Fix:** for a parametric mesh, `convert` is evaluated on a 256-step grid over the corner `t` range. A triangle is also out of tolerance when a grid value strictly between its lowest and highest corner `t` is off the line through those corners' converted values. A feature narrower than one grid step can still be missed; disclosed in the module doc.
+- **Behaviour change:** `convert` is now called at 257 grid points, so a decline there is an error. No `pub` signature change; `docs/core-api` does not cover `reexpress_mesh`, so unchanged.
+- **Tests (engineer-measured):** `a_narrow_function_band_between_the_probes_splits_the_triangle` in `crates/pdfcer-core/tests/mesh_shading.rs`; fails with the grid check removed. All 9 `mesh_shading` tests pass; clippy clean; all 36 CI python/shell audits pass. No manifest change, so no `cargo tree` effect.
+- **FEATURES:** unchanged (a bug fix to an existing capability; the `Pass 722.4` row's boxes stand). No decision, no rule.
+- **Next free IDs:** `Pass 717.4`, `Pass 718.5`, `Pass 720.3`, `Pass 721.10`, `Pass 722.8`, `Pass 647.3h`; decision `225`, rule `R264` (none minted).
+
 ### `6080b695` `Pass 721.9`: project a measured distance onto a plane or the screen, 2026-11-18 (1603rd filing)
 
 Engineer-reported; no shell here, git, push and CI state not checked from here. `6080b695` `feat(3d): project a measured distance onto a plane or the screen (Pass 721.9)`. Fourth slice of `Pass 721.2` (after `721.6`, `721.7`, `721.8`); `721.9` was the next free ID, so the next is `721.10`. **Unreleased** (ships in `v0.158.0`). Reasoning is in the commit message. Delivers **core** and **cli**; **gui none** (the measure window is `pdfcer-gui`'s).
@@ -27680,6 +27690,8 @@ closes out the *prior* filing's business rather than opening this one's.
 > **`Pass 721.7` SHIPPED 2026-11-17 (1600th filing), `9e54fb55`; see its *Shipped* entry (opened and shipped in one filing; second slice of `Pass 721.2`; unreleased, `v0.158.0`).** Next free IDs: `Pass 717.4`, `Pass 718.5`, `Pass 720.3`, `Pass 721.8`, `Pass 722.7`, `Pass 647.3h`; decision `225`, rule `R264`. `Pass 721.2` (rest of the assembly measure tool) stays next.
 
 > **`Pass 721.8` SHIPPED 2026-11-17 (1601st filing), `fb9db0cc`; see its *Shipped* entry (opened and shipped in one filing; third slice of `Pass 721.2`; unreleased, `v0.158.0`).** Next free IDs: `Pass 717.4`, `Pass 718.5`, `Pass 720.3`, `Pass 721.9`, `Pass 722.7`, `Pass 647.3h`; decision `225`, rule `R264`. `Pass 721.2` (rest of the assembly measure tool) stays next.
+
+> **`Pass 722.7` SHIPPED 2026-11-18 (1604th filing), `172f9990`; see its *Shipped* entry (opened and shipped in one filing, `X089`; unreleased).** Next free IDs: `Pass 717.4`, `Pass 718.5`, `Pass 720.3`, `Pass 721.10`, `Pass 722.8`, `Pass 647.3h`; decision `225`, rule `R264`.
 
 > **`Pass 647.3g` (OPEN, NOT STARTED; NOT gating `v0.156.0` unless the operator says so): XFA page-background fields bind per page (request `X016` item 1, the only unshipped part of `X016`).** Part of the `Pass 647.x` arc (decision 204, paced slowly). The criteria sit under the `Pass 647.3` heading further down this file (heading status corrected this filing: `647.3a` to `647.3f` shipped); the fresh slice is the per-page instance index (`Area[0]`, `Area[1]`, ...), a per-page value surviving save and reopen, and `match="global"` or an explicit `<bind ref>` staying one shared value, synthetic templates only. Reply to `X016` owed when it ships.
 

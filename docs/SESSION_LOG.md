@@ -4,6 +4,17 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-11-18 (1604th filing) — `Pass 722.7` SHIPPED (`172f9990`, a parametric mesh's function band between the probes splits the triangle, request `X089`); unreleased
+
+**Filed (engineer-reported; no shell here, git, push and CI state not checked from here):**
+- `172f9990` `fix(core): a parametric mesh's function band between the probes splits the triangle (Pass 722.7)`; `722.7` was the next free ID, next is `722.8`. Opened and shipped in one filing (`X089`).
+- `reexpress_mesh` (`Pass 722.4`) probed only edge midpoints and centroid, so a type 3 / fine type 0 / type 4 band between probes was lost. Now `convert` is evaluated on a 256-step grid over the corner `t` range and a triangle is out of tolerance when an interior grid value is off the corner line; features narrower than one step can still be missed (module doc). `convert` is called at 257 grid points, so a decline there is an error. No `pub` signature change.
+- Tests: `a_narrow_function_band_between_the_probes_splits_the_triangle` (fails with the grid removed); 9 `mesh_shading` tests pass; clippy clean; 36 CI audits pass. No manifest change.
+
+**Decisions / findings:** none; no decision, no rule.
+
+**Open:** ships in the next tag. Next free IDs: `Pass 717.4`, `718.5`, `720.3`, `721.10`, `722.8`, `647.3h`; decision `225`, rule `R264`. FEATURES unchanged. Reply `reply_X089_..._SHIPPED.md` written.
+
 ## 2026-11-18 (1603rd filing) — `Pass 721.9` SHIPPED (`6080b695`, project a measured distance onto a plane or the screen, fourth slice of `Pass 721.2`); unreleased
 
 **Filed (engineer-reported; no shell here, git, push and CI state not checked from here):**
