@@ -216,7 +216,6 @@ fn cylinder(tris: &[[[f64; 3]; 3]], axis: [f64; 3]) -> Option<FaceShape> {
 /// How far round the axis the triangles reach, from their corners' angles
 /// `tri_angles`: a full turn less the widest gap between neighbouring
 /// corners that no triangle spans.
-#[allow(clippy::indexing_slicing)] // Indices are below 3 or reduced mod `g`.
 fn sweep(tri_angles: &[[f64; 3]]) -> f64 {
     use std::f64::consts::TAU;
     let mut at: Vec<f64> = tri_angles.iter().flatten().copied().collect();
@@ -231,21 +230,29 @@ fn sweep(tri_angles: &[[f64; 3]]) -> f64 {
     for t in tri_angles {
         let mut c = *t;
         c.sort_by(f64::total_cmp);
-        let gaps = [c[1] - c[0], c[2] - c[1], c[0] + TAU - c[2]];
-        let widest = (0..3)
-            .max_by(|&a, &b| gaps[a].total_cmp(&gaps[b]))
-            .unwrap_or(2);
-        let (start, end) = (index(c[(widest + 1) % 3]), index(c[widest]));
+        let [c0, c1, c2] = c;
+        // The arc a triangle spans is its three angles less the widest gap.
+        let (start, end) = [(c1, c0), (c2, c1), (c0, c2)]
+            .into_iter()
+            .zip([c1 - c0, c2 - c1, c0 + TAU - c2])
+            .max_by(|a, b| a.1.total_cmp(&b.1))
+            .map_or((c0, c2), |(ends, _)| ends);
+        let (start, end) = (index(start), index(end));
         let mut k = start;
         while k != end {
-            covered[k] = true;
+            if let Some(slot) = covered.get_mut(k) {
+                *slot = true;
+            }
             k = (k + 1) % g;
         }
     }
-    let gap = |k: usize| {
-        let next = at.get(k + 1).copied().unwrap_or(at[0] + TAU);
-        next - at[k]
-    };
-    let open = (0..g).filter(|&k| !covered[k]).map(gap).fold(0.0, f64::max);
+    let first = at.first().copied().unwrap_or(0.0);
+    let open = at
+        .iter()
+        .zip(at.iter().skip(1).copied().chain([first + TAU]))
+        .zip(&covered)
+        .filter(|(_, covered)| !**covered)
+        .map(|((here, next), _)| next - here)
+        .fold(0.0, f64::max);
     TAU - open
 }

@@ -46,7 +46,6 @@ pub(super) fn fit_circle(points: &[(f64, f64)]) -> Option<(f64, f64, f64)> {
 
 /// The unit eigenvector of the symmetric `m`'s smallest eigenvalue, by
 /// cyclic Jacobi rotations.
-#[allow(clippy::indexing_slicing)] // Every index is below 3.
 pub(super) fn least_eigenvector(mut m: [[f64; 3]; 3]) -> [f64; 3] {
     let mut v = [[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]];
     for _ in 0..50 {
@@ -55,36 +54,54 @@ pub(super) fn least_eigenvector(mut m: [[f64; 3]; 3]) -> [f64; 3] {
             break;
         }
         for (p, q) in [(0, 1), (0, 2), (1, 2)] {
-            if m[p][q].abs() < 1e-300 {
+            let (mpp, mqq, mpq) = (at(&m, p, p), at(&m, q, q), at(&m, p, q));
+            if mpq.abs() < 1e-300 {
                 continue;
             }
-            let theta = (m[q][q] - m[p][p]) / (2.0 * m[p][q]);
+            let theta = (mqq - mpp) / (2.0 * mpq);
             let t = theta.signum() / (theta.abs() + (theta * theta + 1.0).sqrt());
             let c = 1.0 / (t * t + 1.0).sqrt();
             let s = t * c;
             rotate(&mut m, &mut v, p, q, c, s);
         }
     }
-    let k = (0..3)
-        .min_by(|&a, &b| m[a][a].total_cmp(&m[b][b]))
-        .unwrap_or(0);
-    normalize([v[0][k], v[1][k], v[2][k]]).unwrap_or([0.0, 0.0, 1.0])
+    let diagonal = [m[0][0], m[1][1], m[2][2]];
+    let k = diagonal
+        .iter()
+        .enumerate()
+        .min_by(|a, b| a.1.total_cmp(b.1))
+        .map_or(0, |(k, _)| k);
+    normalize(v.map(|row| row.get(k).copied().unwrap_or(0.0))).unwrap_or([0.0, 0.0, 1.0])
+}
+
+/// `m[i][j]`, 0 off the matrix.
+fn at(m: &[[f64; 3]; 3], i: usize, j: usize) -> f64 {
+    m.get(i).and_then(|r| r.get(j)).copied().unwrap_or(0.0)
+}
+
+/// Replaces entries `p` and `q` of `pair` by `mix` of them.
+fn turn<T: Copy>(pair: &mut [T; 3], p: usize, q: usize, mix: impl Fn(T, T) -> (T, T)) {
+    if let (Some(&a), Some(&b)) = (pair.get(p), pair.get(q)) {
+        let (x, y) = mix(a, b);
+        if let Some(e) = pair.get_mut(p) {
+            *e = x;
+        }
+        if let Some(e) = pair.get_mut(q) {
+            *e = y;
+        }
+    }
 }
 
 /// One Jacobi rotation in the `p`,`q` plane: `m = Jᵀ m J`, `v = v J`.
-#[allow(clippy::indexing_slicing)] // p, q < 3 by the caller's loop.
 fn rotate(m: &mut [[f64; 3]; 3], v: &mut [[f64; 3]; 3], p: usize, q: usize, c: f64, s: f64) {
-    for row in m.iter_mut() {
-        let (a, b) = (row[p], row[q]);
-        row[p] = c * a - s * b;
-        row[q] = s * a + c * b;
+    let mix = |a: f64, b: f64| (c * a - s * b, s * a + c * b);
+    for row in m.iter_mut().chain(v.iter_mut()) {
+        turn(row, p, q, mix);
     }
-    let (rp, rq) = (m[p], m[q]);
-    m[p] = std::array::from_fn(|k| c * rp[k] - s * rq[k]);
-    m[q] = std::array::from_fn(|k| s * rp[k] + c * rq[k]);
-    for row in v.iter_mut() {
-        let (a, b) = (row[p], row[q]);
-        row[p] = c * a - s * b;
-        row[q] = s * a + c * b;
-    }
+    turn(m, p, q, |mut rp: [f64; 3], mut rq: [f64; 3]| {
+        for (a, b) in rp.iter_mut().zip(rq.iter_mut()) {
+            (*a, *b) = mix(*a, *b);
+        }
+        (rp, rq)
+    });
 }
