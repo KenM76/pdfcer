@@ -4,6 +4,17 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-11-17 (1600th filing) — `Pass 721.7` SHIPPED (`9e54fb55`, measure one picked edge or vertex, second slice of `Pass 721.2`); unreleased
+
+**Filed (engineer-reported; no shell here, git, push and CI state not checked from here):**
+- `9e54fb55` `feat(3d): measure one picked edge (length, line or circle) and vertex (Pass 721.7)`; `721.7` was the next free ID.
+- `pdfcer-3d` `edge_at` (length, chord, closed, faces either side, `EdgeShape` Line/Circle/Curve, fitted with residual) and `vertex_at`; refusal `NoEdge`; CLI `3d-render --measure-edge`, `--measure-vertex`, `--measure-corner-tolerance`. Also fixes a `721.6` defect (14 to 18 space runs in two `--measure-face` strings), now test-guarded.
+- Tests: 4 new engine tests, `pdfcer-3d` lib 554 pass; 73 CLI 3D tests pass. clippy, fmt, `check-code-structure` (543 baseline, none new), `check-core-api-verbs` clean. No manifest change. `docs/core-api/01-reading-and-model.md` updated.
+
+**Decisions / findings:** none; no decision, no rule.
+
+**Open:** `Pass 721.2` remainder (minimum distance between entities, arc centre-to-centre/min/max, point-to-point, plane projection, coordinate-system XYZ, projected area, units/precision, history). Ships in `v0.158.0`. Next free IDs: `Pass 717.4`, `718.5`, `720.3`, `721.8`, `722.7`, `647.3h`; decision `225`, rule `R264`. FEATURES: new row (core, cli); Planned measure row trimmed.
+
 ## 2026-11-17 (1599th filing) — `Pass 721.6` SHIPPED (`339c9295`, measure one picked face, first slice of `Pass 721.2`); unreleased
 
 **Filed (engineer-reported; no shell here, git, push and CI state not checked from here):**
