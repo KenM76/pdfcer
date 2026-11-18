@@ -4595,7 +4595,8 @@ pub struct InsertOutcome {
     /// still ce dimensions here and follow a dimension group.
     pub ce_dimensions_carried: usize,
     /// Source dimension groups that arrived as groups of their own,
-    /// renamed ones included.
+    /// renamed ones included, and the source's default group when this
+    /// document had no ce dimension groups and adopted it.
     pub ce_dimension_groups_carried: usize,
     /// Source dimension groups that joined a group already here: same name
     /// and the same scale, number format, drafting standard and style.
@@ -4630,7 +4631,8 @@ pub struct MergeOutcome {
     /// still ce dimensions here and follow a dimension group.
     pub ce_dimensions_carried: usize,
     /// Source dimension groups that arrived as groups of their own,
-    /// renamed ones included.
+    /// renamed ones included, and the source's default group when this
+    /// document had no ce dimension groups and adopted it.
     pub ce_dimension_groups_carried: usize,
     /// Source dimension groups that joined a group already here: same name
     /// and the same scale, number format, drafting standard and style.
@@ -19539,6 +19541,40 @@ impl EditSession {
             usize,
         ) -> Result<crate::vector::PlannedEdit, EditError>,
     ) -> Result<FormSurgeryOutcome, EditError> {
+        let (planned, form_id, form_dict) =
+            self.form_plan(page_index, leaf_index, extras.form_dict, plan)?;
+
+        // The reach is returned as counts, not pushed onto `disclosures`:
+        // each shell words it (the CLI as a line, a GUI as its unshare offer).
+        let reach = self.form_invocation_reach(form_id);
+        let mut disclosures = planned.disclosures.clone();
+        disclosures.extend(extras.disclosures);
+
+        let mut command = self.form_edit_command_kind(kind, form_id, &form_dict, planned.content);
+        command.objects.extend(extras.writes);
+        self.commit(command);
+        Ok(FormSurgeryOutcome {
+            form: form_id,
+            invocations: reach.invocations,
+            pages: reach.pages,
+            disclosures,
+        })
+    }
+
+    /// The planning half of [`Self::form_surgery_extras`], staging nothing:
+    /// the plan, the form it rewrites and the dictionary the rewrite keeps
+    /// (`form_dict`, else the form's own).
+    fn form_plan(
+        &mut self,
+        page_index: usize,
+        leaf_index: usize,
+        form_dict: Option<Dict>,
+        plan: impl FnOnce(
+            &crate::content::ContentStream,
+            &crate::vector::PageObjects,
+            usize,
+        ) -> Result<crate::vector::PlannedEdit, EditError>,
+    ) -> Result<(crate::vector::PlannedEdit, ObjId, Dict), EditError> {
         // The same guard set the page path runs, in the same order. Any change
         // to one belongs in the other; `vector_surgery_inner` carries the twin
         // of this note.
@@ -19561,24 +19597,9 @@ impl EditSession {
                 key: "Subtype",
             });
         };
-        let form_dict = extras.form_dict.unwrap_or_else(|| form_stream.dict.clone());
+        let form_dict = form_dict.unwrap_or_else(|| form_stream.dict.clone());
         let planned = self.plan_in_form(page_index, &stream, &form_dict, &leaf, plan)?;
-
-        // The reach is returned as counts, not pushed onto `disclosures`:
-        // each shell words it (the CLI as a line, a GUI as its unshare offer).
-        let reach = self.form_invocation_reach(form_id);
-        let mut disclosures = planned.disclosures.clone();
-        disclosures.extend(extras.disclosures);
-
-        let mut command = self.form_edit_command_kind(kind, form_id, &form_dict, planned.content);
-        command.objects.extend(extras.writes);
-        self.commit(command);
-        Ok(FormSurgeryOutcome {
-            form: form_id,
-            invocations: reach.invocations,
-            pages: reach.pages,
-            disclosures,
-        })
+        Ok((planned, form_id, form_dict))
     }
 
     /// The leaf at `leaf_index` and the form XObject that holds it.

@@ -18,7 +18,7 @@ answers *"I want to do X — what do I call, in what order, and what will bite m
 | **Date** | 2026-08-29 |
 | **Verified against** | `5c37c7c` (`git rev-parse --short HEAD`) — *"he gave no reason" was a claim, and it has been corrected* |
 | **Primary subject** | `crates/pdfcer-core/src/edit.rs` (35655) |
-| **Covers** | `EditSession` end to end: construction, the command/undo/redo model, **all 423 public methods**, the `EditError` taxonomy, the save path (incremental vs full rewrite), the guard/refusal model (encryption, certification, sidecar version, `/Size` suppression), object allocation and byte staging |
+| **Covers** | `EditSession` end to end: construction, the command/undo/redo model, **all 427 public methods**, the `EditError` taxonomy, the save path (incremental vs full rewrite), the guard/refusal model (encryption, certification, sidecar version, `/Size` suppression), object allocation and byte staging |
 | **Does NOT cover** | Document loading and the read-only object model → **`01-reading-and-model.md`**. Per-feature capability guides (ce dimensions, forms, annotations, redaction, OCR, printing) → **`03-capabilities.md`**. This document covers the *session mechanics* those features flow through; part 3 covers the features. |
 | **Terminology** | Project rule 15. **ce dimensions** = the dimension objects pdfcer authors (`/Line` + `/IT /LineDimension` + baked `/AP` + `/PieceInfo` sidecar). **pdf dimensions** = dimensions already present in the page content, exported by CAD. Never bare "dimension". This document only concerns ce dimensions. |
 
@@ -69,9 +69,9 @@ Five consequences a GUI author must internalise before writing any code:
 
 ---
 
-## 1. Verb index — all 423 public `EditSession` methods
+## 1. Verb index — all 427 public `EditSession` methods
 
-**Count: 423.** Established by brace-matched extraction of the
+**Count: 427.** Established by brace-matched extraction of the
 `impl EditSession` blocks in `edit.rs` and its `edit/` child modules, matching `pub fn` / `pub const fn`, and checked
 on every run by `tools/check-core-api-verbs.py` — which is what caught this
 figure at 120 when `add_outline_item` landed, and caught it again at 227 when
@@ -96,7 +96,7 @@ added `add_file_attachment_annotation`, and at 274 when `Pass 261.1` added
 `add_caret_annotation` and `add_replace_text`, and at 275 when `Pass 261.2`
 added `add_sound_annotation`, and at 276 when `Pass 261.3` added
 `add_screen_annotation`, and at 277 when `Pass 142.3` added
-`preview_style_ladder_with_donors`, and at 279 when `Pass 375.0` added `set_crop_boxes` and `resize_pages`, at 283 when Bates numbering added `stamp_bates`, and at 284 when `remove_bates` followed, and at 348 when `G154` added `insert_node`, `convert_node`, `convert_segment` and their three `_in_form` twins, and at 349 when `G160` added `turn_widget`, and at 350 when `G168` added `set_3d_views`, and at 352 when `G164` added `metadata_inventory` and `remove_metadata`, and at 355 when `G165` added `page_scan_image`, `detect_image_skew` and `deskew_image`, and at 356 when `G171` added `coalesce_last_same`, and at 371 when `G198` added `upscale_image`, and at 385 when `Pass 55.10` added `stamp_running_text`, and at 386 when `Pass 55.11` added `add_printer_marks`, and at 387 when `G238` added `decorate_for_print`, and at 388 when `G247` added `set_3d_opening_view`, and at 391 when `G243` added `fork_for_print` and `decorated_for_print`, and at 401 when `Pass 694.2` added `set_page_boxes`, and at 402 when `Pass 700.9` added `fill_rich_text_field`, and at 404 when its follow-up added `set_rich_style_precedence` and `rich_style_precedence`, and at 423 when `Pass 722.0` added `extend_path`, `open_subpath` and their two `_in_form` twins.
+`preview_style_ladder_with_donors`, and at 279 when `Pass 375.0` added `set_crop_boxes` and `resize_pages`, at 283 when Bates numbering added `stamp_bates`, and at 284 when `remove_bates` followed, and at 348 when `G154` added `insert_node`, `convert_node`, `convert_segment` and their three `_in_form` twins, and at 349 when `G160` added `turn_widget`, and at 350 when `G168` added `set_3d_views`, and at 352 when `G164` added `metadata_inventory` and `remove_metadata`, and at 355 when `G165` added `page_scan_image`, `detect_image_skew` and `deskew_image`, and at 356 when `G171` added `coalesce_last_same`, and at 371 when `G198` added `upscale_image`, and at 385 when `Pass 55.10` added `stamp_running_text`, and at 386 when `Pass 55.11` added `add_printer_marks`, and at 387 when `G238` added `decorate_for_print`, and at 388 when `G247` added `set_3d_opening_view`, and at 391 when `G243` added `fork_for_print` and `decorated_for_print`, and at 401 when `Pass 694.2` added `set_page_boxes`, and at 402 when `Pass 700.9` added `fill_rich_text_field`, and at 404 when its follow-up added `set_rich_style_precedence` and `rich_style_precedence`, and at 423 when `Pass 722.0` added `extend_path`, `open_subpath` and their two `_in_form` twins, and at 427 when `G295` added `can_extend_path`, `can_open_subpath` and their two `_in_form` twins.
 There are no `EditSession` methods in any other file
 (`grep -rn "impl EditSession" crates/pdfcer-core/src/` returns those lines only).
 
@@ -1560,6 +1560,8 @@ said nothing about identity across edits — this section is that gap closed.*
 | **Make the segment leaving a node a line or a curve** (`G154`) | `convert_segment(page_index, object_index, node_index, SegmentKind) -> Result<Vec<String>, EditError>` |
 | **Continue an open path** from its first or last node with page-space segments (`Pass 722.0`) | `extend_path(page_index, object_index, node_index, segments: &[Segment]) -> Result<Vec<String>, EditError>` |
 | **Open a closed path** at a node, drawing unchanged (`Pass 722.0`) | `open_subpath(page_index, object_index, node_index) -> Result<Vec<String>, EditError>` |
+| **Ask whether a node can be continued**, staging nothing (`G295`) | `can_extend_path(page_index, object_index, node_index) -> Result<(), EditError>` |
+| **Ask whether a node can be opened**, staging nothing (`G295`) | `can_open_subpath(page_index, object_index, node_index) -> Result<(), EditError>` |
 | Delete one subpath | `delete_subpath(page_index, object_index, subpath_index)` |
 | Delete one show operator (text run) | `delete_text_run(page_index, object_index, run_index)` |
 | Move one subpath | `move_subpath(page_index, object_index, subpath_index, dx, dy)` |
@@ -1716,6 +1718,8 @@ These verbs are addressed by an index into `PageObjects::leaves`:
 | **Make a segment a line or a curve** (`G154`) | `convert_segment_in_form(page_index, leaf_index, node_index, SegmentKind) -> Result<FormSurgeryOutcome, EditError>` |
 | **Continue an open path** (`Pass 722.0`) | `extend_path_in_form(page_index, leaf_index, node_index, segments: &[Segment]) -> Result<FormSurgeryOutcome, EditError>` |
 | **Open a closed path** (`Pass 722.0`) | `open_subpath_in_form(page_index, leaf_index, node_index) -> Result<FormSurgeryOutcome, EditError>` |
+| **Ask whether a node can be continued** (`G295`) | `can_extend_path_in_form(page_index, leaf_index, node_index) -> Result<(), EditError>` |
+| **Ask whether a node can be opened** (`G295`) | `can_open_subpath_in_form(page_index, leaf_index, node_index) -> Result<(), EditError>` |
 | **Delete one show operator (text run)** | `delete_text_run_in_form(page_index, leaf_index, run_index)` |
 | **Fit one show operator to a width** (`G158`) | `set_text_run_width_in_form(page_index, leaf_index, run_index, width_pts) -> Result<FormTextOutcome<FormatReport>, FormatError>` |
 | **Merge consecutive show operators** (`G158`) | `merge_text_runs_in_form(page_index, leaf_index, runs: &[usize], &MergeOptions) -> Result<FormTextOutcome<MergeReport>, FormatError>` |
@@ -1780,6 +1784,17 @@ Undo kinds `CommandKind::ExtendPath`, `OpenSubpath`, one entry each. CLI:
 [--to ..] -o OUT` and `path-open IN (--object I | --leaf L) --node N -o OUT`;
 stdout as above with `segments=COUNT` / `opened=1` in the detail position.
 Not shipped: joining two open ends, and closing an open path.
+
+**Preflight (`G295`).** `can_extend_path` / `can_open_subpath` and their
+`_in_form` twins answer, for one node, with exactly the refusal the verb
+would return (`SubpathClosed`, `NotAnEndNode`, `SubpathAlreadyOpen`,
+`SubpathStartsImplicitly`, `NodeOutOfRange`, `ObjectOutOfRange`,
+`NotAPath`, the page, encryption and certification guards,
+`FormLeafOutOfRange`), or `Ok(())`. They stage nothing and push no undo
+entry. `can_extend_path` never returns `NoSegmentsGiven` or
+`NonFinitePoint`: those are about the run of points, which a preflight
+does not have. A per-press question, not a per-frame one: each call reads
+the page's memoised decomposition, so it costs what `page_objects` costs.
 
 The width and merge twins return the page verb's report inside
 `FormTextOutcome<R> { report, form, invocations, pages }` (`#[non_exhaustive]`)
@@ -3502,7 +3517,9 @@ document's, staged in the same undo step as the pages.
 drafting standard and style all equal a group already present joins it
 (`*_groups_matched`), and its copied layer is retired so the result has
 one layer per group. A group whose name is free is brought with its
-settings and layer (`*_groups_carried`). A group whose name is taken by a
+settings and layer (`*_groups_carried`). A destination with no ce
+dimension groups adopts the source's default group, settings included,
+and that also counts in `*_groups_carried` (`G298`). A group whose name is taken by a
 group with different settings is brought under the first free
 `name (2)`, `name (3)`, ... (`*_groups_renamed`, also counted in
 carried): the name was chosen by pdfcer, so a non-zero count is a

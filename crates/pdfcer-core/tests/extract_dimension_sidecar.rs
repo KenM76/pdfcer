@@ -202,7 +202,7 @@ fn a_file_merge_combines_the_sidecars() {
             report.ce_dimension_groups_matched,
             report.ce_dimension_groups_renamed
         ),
-        (1, 2, 0)
+        (2, 2, 0)
     );
 
     // One layer per group: the second copy's layers are not kept.
@@ -254,7 +254,8 @@ fn insert_carries_the_ce_dimensions_as_one_undo_step() {
             out.ce_dimension_groups_matched,
             out.ce_dimension_groups_renamed
         ),
-        (1, 0, 0)
+        // Arch, and the default the plain destination adopted (G298).
+        (2, 0, 0)
     );
     let model = s.dimension_model();
     assert_eq!(model.groups().len(), 2);

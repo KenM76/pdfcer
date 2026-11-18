@@ -21,7 +21,8 @@ pub(crate) struct Combined {
     pub carried: usize,
     /// Source records whose annotation was not copied.
     pub left: usize,
-    /// Source groups that arrived as new groups, renamed ones included.
+    /// Source groups that arrived as new groups, renamed ones included, and
+    /// a source default group adopted by a destination that had none.
     pub groups_carried: usize,
     /// Source groups that joined a destination group of the same settings.
     pub groups_matched: usize,
@@ -64,7 +65,7 @@ pub(crate) fn combine(
 
     let mut homes: BTreeMap<GroupId, GroupId> = BTreeMap::new();
     if dest.group(DEFAULT_GROUP_ID).is_none() {
-        seed_default(dest, source, mapped, &mut homes);
+        seed_default(dest, source, mapped, &mut homes, &mut out);
     }
     for (record, annot) in live {
         let group = source.group(record.group);
@@ -107,11 +108,13 @@ fn seed_default(
     source: &DimensionModel,
     mapped: &dyn Fn(ObjId) -> Option<ObjId>,
     homes: &mut BTreeMap<GroupId, GroupId>,
+    out: &mut Combined,
 ) {
     let default = source.group(DEFAULT_GROUP_ID).map_or_else(
         || Group::new(DEFAULT_GROUP_ID, "Default", Unit::Millimeter),
         |group| {
             homes.insert(DEFAULT_GROUP_ID, DEFAULT_GROUP_ID);
+            out.groups_carried += 1;
             let mut group = group.clone();
             group.ocg = group.ocg.and_then(mapped);
             group
@@ -205,7 +208,8 @@ mod tests {
         let mut dest = DimensionModel::empty();
         let out = combine(&mut dest, &source(), &shifted);
         assert_eq!((out.carried, out.left), (2, 0));
-        assert_eq!((out.groups_carried, out.groups_matched), (1, 0));
+        // The adopted default counts as carried, beside Arch.
+        assert_eq!((out.groups_carried, out.groups_matched), (2, 0));
         assert!(out.relayer.is_empty());
         assert_eq!(dest.groups().len(), 2);
         assert_eq!(dest.groups()[1].ocg, Some(ObjId::new(120, 0)));

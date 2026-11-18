@@ -4,9 +4,18 @@
 use super::{CommandKind, EditError, EditSession, FormSurgeryOutcome, vector_object_as_path};
 use crate::content::ContentStream;
 use crate::vector::{
-    NodeKind, PageObjects, PathObject, PlannedEdit, Segment, SegmentKind, VectorEditError,
+    NodeKind, PageObjects, PathObject, PlannedEdit, Point, Segment, SegmentKind, VectorEditError,
     plan_convert_node, plan_convert_segment, plan_extend_path, plan_insert_node, plan_open_subpath,
 };
+
+/// What a preflight plans with. The node refusals of
+/// [`plan_extend_path`] do not depend on where the new segments go, so any
+/// finite segment reaches the same answer the operator's run will.
+fn probe() -> [Segment; 1] {
+    [Segment::Line {
+        to: Point::new(0.0, 0.0),
+    }]
+}
 
 fn page_path(model: &PageObjects, object_index: usize) -> Result<&PathObject, EditError> {
     let count = model.objects.len();
@@ -31,6 +40,35 @@ impl EditSession {
         self.vector_surgery(kind, page_index, |stream, model| {
             Ok(plan(stream, page_path(model, object_index)?)?)
         })
+    }
+
+    fn node_check_on_page(
+        &mut self,
+        page_index: usize,
+        object_index: usize,
+        plan: impl Fn(&ContentStream, &PathObject) -> Result<PlannedEdit, VectorEditError>,
+    ) -> Result<(), EditError> {
+        self.vector_surgery_inner(None, page_index, |stream, model| {
+            Ok(plan(stream, page_path(model, object_index)?)?)
+        })
+        .map(drop)
+    }
+
+    fn node_check_in_form(
+        &mut self,
+        page_index: usize,
+        leaf_index: usize,
+        plan: impl Fn(&ContentStream, &PathObject) -> Result<PlannedEdit, VectorEditError>,
+    ) -> Result<(), EditError> {
+        self.form_plan(
+            page_index,
+            leaf_index,
+            None,
+            |stream, model, object_index| {
+                Ok(plan(stream, Self::leaf_as_path(model, object_index)?)?)
+            },
+        )
+        .map(drop)
     }
 
     fn node_shape_in_form(
@@ -285,6 +323,79 @@ impl EditSession {
         node_index: usize,
     ) -> Result<FormSurgeryOutcome, EditError> {
         self.node_shape_in_form(CommandKind::OpenSubpath, page_index, leaf_index, |s, p| {
+            plan_open_subpath(s, p, node_index)
+        })
+    }
+
+    /// **Whether [`Self::extend_path`] would accept node `node_index`**, asked
+    /// before the operator draws (pdfcer-gui request G295). Stages nothing.
+    ///
+    /// # Errors
+    ///
+    /// The refusal [`Self::extend_path`] would return for this node:
+    /// `SubpathClosed`, `NotAnEndNode`, `SubpathStartsImplicitly`,
+    /// `NodeOutOfRange`, `ObjectOutOfRange`, `NotAPath`, `DegenerateCtm` or
+    /// `MalformedOperand` inside [`EditError::VectorEdit`], or a page,
+    /// contents, encryption or certification guard. The segment refusals
+    /// (`NoSegmentsGiven`, `NonFinitePoint`) are about the run, not the node,
+    /// and are never returned.
+    pub fn can_extend_path(
+        &mut self,
+        page_index: usize,
+        object_index: usize,
+        node_index: usize,
+    ) -> Result<(), EditError> {
+        self.node_check_on_page(page_index, object_index, |s, p| {
+            plan_extend_path(s, p, node_index, &probe())
+        })
+    }
+
+    /// **Whether [`Self::open_subpath`] would accept node `node_index`**.
+    /// Stages nothing.
+    ///
+    /// # Errors
+    ///
+    /// The refusal [`Self::open_subpath`] would return, `SubpathAlreadyOpen`
+    /// included.
+    pub fn can_open_subpath(
+        &mut self,
+        page_index: usize,
+        object_index: usize,
+        node_index: usize,
+    ) -> Result<(), EditError> {
+        self.node_check_on_page(page_index, object_index, |s, p| {
+            plan_open_subpath(s, p, node_index)
+        })
+    }
+
+    /// [`Self::can_extend_path`] for a path inside a form XObject.
+    ///
+    /// # Errors
+    ///
+    /// As [`Self::can_extend_path`], with [`EditError::FormLeafOutOfRange`].
+    pub fn can_extend_path_in_form(
+        &mut self,
+        page_index: usize,
+        leaf_index: usize,
+        node_index: usize,
+    ) -> Result<(), EditError> {
+        self.node_check_in_form(page_index, leaf_index, |s, p| {
+            plan_extend_path(s, p, node_index, &probe())
+        })
+    }
+
+    /// [`Self::can_open_subpath`] for a path inside a form XObject.
+    ///
+    /// # Errors
+    ///
+    /// As [`Self::can_open_subpath`], with [`EditError::FormLeafOutOfRange`].
+    pub fn can_open_subpath_in_form(
+        &mut self,
+        page_index: usize,
+        leaf_index: usize,
+        node_index: usize,
+    ) -> Result<(), EditError> {
+        self.node_check_in_form(page_index, leaf_index, |s, p| {
             plan_open_subpath(s, p, node_index)
         })
     }

@@ -397,3 +397,77 @@ fn the_form_verbs_reach_the_form_and_take_page_space_points() {
         EditError::FormLeafOutOfRange { .. }
     ));
 }
+
+// --- preflight (G295) --------------------------------------------------------
+
+/// `can` and the real verb, run on fresh sessions, agree on `Ok` or on the
+/// exact refusal.
+fn agree(can: Result<(), EditError>, real: Result<impl std::fmt::Debug, EditError>) {
+    match (can, real) {
+        (Ok(()), Ok(_)) => {}
+        (Err(a), Err(b)) => assert_eq!(format!("{a:?}"), format!("{b:?}")),
+        (a, b) => panic!("preflight {a:?}, verb {b:?}"),
+    }
+}
+
+#[test]
+fn the_page_preflights_answer_as_the_verbs_do_and_stage_nothing() {
+    // An open path, a closed one, and a subpath that starts at the `h`.
+    let bytes =
+        page_bytes("0 0 m 40 0 l 40 20 l S 0 30 m 40 30 l 40 50 l h S 0 60 m 9 60 l h 9 70 l S");
+    let untouched = saved(&mut session(bytes.clone()));
+    let mut refusals = 0;
+    for object in 0..4 {
+        for node in 0..6 {
+            let mut s = session(bytes.clone());
+            let can = s.can_extend_path(0, object, node);
+            refusals += usize::from(can.is_err());
+            agree(
+                can,
+                session(bytes.clone()).extend_path(0, object, node, &[line(1.0, 1.0)]),
+            );
+            agree(
+                s.can_open_subpath(0, object, node),
+                session(bytes.clone()).open_subpath(0, object, node),
+            );
+            assert_eq!(s.undo(), None);
+            assert_eq!(saved(&mut s), untouched);
+        }
+    }
+    assert!(refusals > 0 && refusals < 24, "{refusals}");
+    let mut s = session(bytes);
+    assert!(matches!(
+        s.can_extend_path(0, 0, 1).unwrap_err(),
+        EditError::VectorEdit(VectorEditError::NotAnEndNode { index: 1 })
+    ));
+    assert!(matches!(
+        s.can_extend_path(0, 1, 0).unwrap_err(),
+        EditError::VectorEdit(VectorEditError::SubpathClosed { index: 0 })
+    ));
+    assert!(matches!(
+        s.can_open_subpath(0, 0, 0).unwrap_err(),
+        EditError::VectorEdit(VectorEditError::SubpathAlreadyOpen { index: 0 })
+    ));
+}
+
+#[test]
+fn the_form_preflights_answer_as_the_verbs_do_and_stage_nothing() {
+    for node in 0..6 {
+        let mut s = form_session();
+        agree(
+            s.can_extend_path_in_form(0, 0, node),
+            form_session().extend_path_in_form(0, 0, node, &[line(1.0, 1.0)]),
+        );
+        agree(
+            s.can_open_subpath_in_form(0, 0, node),
+            form_session().open_subpath_in_form(0, 0, node),
+        );
+        assert_eq!(s.undo(), None);
+    }
+    let mut s = form_session();
+    assert!(s.can_open_subpath_in_form(0, 0, 0).is_ok());
+    assert!(matches!(
+        s.can_extend_path_in_form(0, 9, 0).unwrap_err(),
+        EditError::FormLeafOutOfRange { .. }
+    ));
+}

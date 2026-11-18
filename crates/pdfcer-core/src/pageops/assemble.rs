@@ -477,7 +477,8 @@ pub struct AssembleReport {
     /// sidecar is carried. A shell says so.
     pub ce_dimensions_as_lines: Vec<usize>,
     /// ce-dimension groups that arrived as groups of their own when several
-    /// sidecars were combined, renamed ones included.
+    /// sidecars were combined, renamed ones included; the first source's
+    /// default group, adopted as the result's, counts here.
     pub ce_dimension_groups_carried: usize,
     /// ce-dimension groups that joined an earlier source's group of the
     /// same name and settings.
