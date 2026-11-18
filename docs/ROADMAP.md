@@ -112,11 +112,24 @@ wherever it appears.*
 
 ## Shipped
 
+### `7a2090a8` `v0.158.0` PUBLISHED, 2026-11-18 (1611th filing)
+
+Engineer-reported; no shell here, nothing checked from here. Bump `4137502e` (filed 1610th); `7a2090a8` is the 1610th filing commit (`docs: file 4137502e - v0.158.0 release bump (1610th)`). Docs-only filing: no new code commit. HEAD and tag `v0.158.0` are both on `7a2090a8`, pushed. CI green at that commit (run 44277134986, success, read from GitHub by the engineer).
+- **Carries, since `v0.157.0`:** the 14 code commits and 18 Pass IDs listed in the `4137502e` entry below (`718.4` through `721.12`, `722.3` through `722.9`), plus the bump. Nothing else.
+- **GitHub release:** "pdfcer v0.158.0", 8 assets (uploaded at local sizes, `gh-release.py` PASS): `pdfcer-v0.158.0-windows-x64.zip` 32,680,685 bytes; `ocr-addon-ocrcer.zip` 3,789,155; `ocr-addon-ocrs.zip` 11,352,262; `ocr-addon-tesseract.zip` 4,483,685; a `.sha256` for each. Staged in `D:\builds\rel158`.
+- **Smoke:** build folder `D:\builds\pdfcer-20261118-0426-4137502` (`pdfcer.exe` 52,190,208 bytes, folder total 68,135,473 bytes); fresh-folder smoke in `D:\builds\smoke158`: `pdfcer --version` prints 0.158.0, `3d-render --help` lists `--measure-units`, `render-page` of `fixtures/synthetic/minimal.pdf` exit 0. The binary was built before the tag, so its revision line reads `v0.157.0-30-g4137502e`.
+- **OneDrive:** `deploy-onedrive.py` wrote slot `pdfcer1` (6 items, 87,756,289 bytes); `pdfcer2` keeps 0.157.0; the next release writes `pdfcer2`.
+- **`verify-release.py v0.158.0`:** every check ok except "working tree clean" (uncommitted agent-memory files and untracked research notes, as at `v0.157.0`; no code).
+- **crates.io:** all 16 engine crates at 0.158.0, 16 "Uploaded" lines, no HTTP 429; one multi-package `cargo publish` in the standing order, from the repo at the tag, `CARGO_TARGET_DIR=target/pub`.
+- **Channel:** `notice_2026-11-18_release_v0.158.0.md` written in `D:\Dev\FeatureRequests\pdfce_FeatureRequests\open`.
+- **Next free IDs (premises, not re-measured):** `Pass 721.13`, `722.10`, `717.4`, `718.5`, `720.3`, `647.3h`; decision `225`; rule `R264`.
+- **FEATURES:** `Engine crates on crates.io` row advanced to 0.158.0 (0.157.0 also published). No capability box changed. No Pass, decision or rule minted. Supersedes the "NOT yet tagged" status of the `4137502e` note below.
+
 ### `4137502e` `v0.158.0` release bump, 2026-11-18 (1610th filing)
 
-Engineer-reported; no shell here, git, push and CI state not checked from here. `4137502e` `chore(release): bump the workspace to 0.158.0`: workspace version `0.157.0` to `0.158.0` (pdfcer crates only) in `Cargo.toml`, `Cargo.lock` and `fuzz/Cargo.lock`. No code change. On `main`, not yet pushed. **NOT yet tagged, deployed or published**; the engineer tags after CI is green, and a separate publication filing follows.
+Engineer-reported; no shell here, git, push and CI state not checked from here. `4137502e` `chore(release): bump the workspace to 0.158.0`: workspace version `0.157.0` to `0.158.0` (pdfcer crates only) in `Cargo.toml`, `Cargo.lock` and `fuzz/Cargo.lock`. No code change. On `main`, not yet pushed. **NOT yet tagged, deployed or published**; the engineer tags after CI is green, and a separate publication filing follows. *(Amended 1611th filing: tagged, deployed and published; see the `v0.158.0` PUBLISHED entry above.)*
 - **Round contents, since `v0.157.0`** (code commits, each filed in its own earlier filing): `fcd0fe49` (`Pass 718.4`, `Pass 722.3`); `36fae116` (`Pass 722.4`); `1a75c23c` (`Pass 722.5`, `Pass 722.6`); `339c9295` (`Pass 721.6`); `9e54fb55` (`Pass 721.7`); `fb9db0cc` (`Pass 721.8`) and its fix `443d11fe`; `6080b695` (`Pass 721.9`); `172f9990` (`Pass 722.7`); `3f89304e` (`Pass 722.8`); `77344e5b` (`Pass 722.9`); `f969d8c2` (`Pass 721.10`); `ab8005d2` (`Pass 721.11`); `6d615581` (`Pass 721.12`, filed 1609th, pushed). 14 code commits, 18 Pass IDs.
-- **FEATURES:** no change (no version marker or capability row affected; the `Engine crates on crates.io` row stays at 0.157.0 until publication). No decision, no rule.
+- **FEATURES:** no change at the bump (the `Engine crates on crates.io` row advanced at publication, 1611th filing). No decision, no rule.
 - **Next free IDs** (engineer-measured premises): `Pass 721.13`, `722.10`, `717.4`, `718.5`, `720.3`, `647.3h`; decision `225`, rule `R264` (none minted).
 
 ### `6d615581` `Pass 721.12`: read measurements in a chosen unit and precision, 2026-11-18 (1609th filing)

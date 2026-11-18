@@ -4,6 +4,17 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-11-18 (1611th filing) — `v0.158.0` PUBLISHED (tag on `7a2090a8`)
+
+**Filed (engineer-reported; no shell here, nothing checked from here):**
+- Tag `v0.158.0` and HEAD both on `7a2090a8` (the 1610th filing commit for bump `4137502e`), pushed; CI green (run 44277134986). Docs-only filing, no code commit.
+- GitHub release with 8 assets (`gh-release.py` PASS): windows-x64 zip 32,680,685 bytes; OCR add-ons ocrcer 3,789,155, ocrs 11,352,262, tesseract 4,483,685, each with a `.sha256`. Build folder `D:\builds\pdfcer-20261118-0426-4137502` (`pdfcer.exe` 52,190,208; folder 68,135,473 bytes); smoke in `D:\builds\smoke158` passed (`--version` 0.158.0, `3d-render --help` lists `--measure-units`, `render-page` exit 0).
+- OneDrive slot `pdfcer1` written (6 items, 87,756,289 bytes); `pdfcer2` keeps 0.157.0. `verify-release.py`: all ok except "working tree clean" (uncommitted agent-memory and research notes, as at `v0.157.0`).
+- crates.io: 16 of 16 crates at 0.158.0, no 429. GUI notice `notice_2026-11-18_release_v0.158.0.md` written.
+- ROADMAP: new `v0.158.0` PUBLISHED entry; 1610th bump entry amended to published. FEATURES: crates.io row to 0.158.0.
+
+**Open:** nothing minted; next free IDs (engineer-measured): `Pass 721.13`, `722.10`, `717.4`, `718.5`, `720.3`, `647.3h`; decision `225`; rule `R264`.
+
 ## 2026-11-18 (1610th filing) — `v0.158.0` release bump (`4137502e`, not yet published)
 
 **Filed (engineer-reported; no shell here, git, push and CI state not checked from here):**
