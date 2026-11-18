@@ -233,7 +233,8 @@ fn headings_paragraphs_lists_and_captions_on_page_one() {
             &BlockKind::Heading { level: 1 },
             &BlockKind::Paragraph,
             &BlockKind::Paragraph,
-            &BlockKind::Heading { level: 3 },
+            // Third-ranked style, but one below the H1 before it.
+            &BlockKind::Heading { level: 2 },
             &BlockKind::Paragraph,
             &BlockKind::ListItem {
                 marker: "\u{2022}".to_owned()

@@ -1485,6 +1485,9 @@ let n = layout.diagnostics.inferred();          // untagged blocks, paragraphs i
 - Headings: at most 3 lines, size ≥ 1.15 × body, or bold (≤ 2 lines) when
   body text is not. Levels rank (size, bold) across the whole document,
   capped at 6 — level 1 is the largest style in the file, not on the page.
+  A heading is never more than one level below the previous one in reading
+  order, so the first is level 1 and none is skipped going down (ISO 14289-1
+  §7.4.2); tagged headings (`tagged_layout`) keep the file's own levels.
 - Heading weight comes from `ExtractedGlyph::weight` (§8.4): `/FontWeight`,
   then the font name, then synthetic bold from `Tr` 2/6.
 - Columns need a gutter ≥ 0.5 em with lines on both sides at the same

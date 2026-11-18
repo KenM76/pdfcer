@@ -34,7 +34,8 @@
 //! - **Heading:** at most 3 lines and 200 characters, and either 15%
 //!   larger than the body size or bold (at most 2 lines) where the body
 //!   is not. Levels are ranked over the whole document by (size, bold),
-//!   largest first, capped at 6.
+//!   largest first, capped at 6, and never more than one below the
+//!   previous heading in reading order (ISO 14289-1 §7.4.2).
 
 use std::collections::HashMap;
 
@@ -1410,6 +1411,11 @@ fn assign_headings(
     }
     styles.sort_by(|a, b| b.cmp(a));
     styles.dedup();
+    // A heading's level is its style's rank, but never more than one below
+    // the previous heading in reading order, so the first is H1 and none is
+    // skipped going down (ISO 14289-1 §7.4.2; Matterhorn 14-002,
+    // 14-003). Going up is fine.
+    let mut previous = 0usize;
     for page in pages.iter_mut() {
         let verdicts: Vec<Option<bool>> =
             page.blocks.iter().map(|b| is_candidate(b, page)).collect();
@@ -1417,8 +1423,11 @@ fn assign_headings(
             let Some(from_size) = verdict else { continue };
             let key = (half_points(f64::from(b.font_size)), b.bold);
             let rank = styles.iter().position(|s| *s == key).unwrap_or(0);
+            let level = rank.saturating_add(1).min(previous + 1).min(6);
+            previous = level;
+            // At most 6 by the clamp above.
             #[allow(clippy::cast_possible_truncation)]
-            let level = (rank + 1).min(6) as u8;
+            let level = level as u8;
             b.kind = BlockKind::Heading { level };
             if from_size {
                 diag.headings_from_size += 1;
@@ -1433,6 +1442,67 @@ fn assign_headings(
 #[allow(clippy::unwrap_used, clippy::indexing_slicing)]
 mod tests {
     use super::*;
+
+    /// One page per heading size, each a one-line paragraph block.
+    fn heading_pages(sizes: &[f32]) -> Vec<PageLayout> {
+        let r = Rect::from_corners(0.0, 0.0, 100.0, 20.0);
+        sizes
+            .iter()
+            .enumerate()
+            .map(|(i, &size)| PageLayout {
+                page_index: i,
+                columns: Vec::new(),
+                lines: vec![LayoutLine {
+                    runs: Vec::new(),
+                    text: format!("Heading {i}"),
+                    bbox: r,
+                    font_size: size,
+                    bold: false,
+                }],
+                blocks: vec![Block {
+                    kind: BlockKind::Paragraph,
+                    source: BlockSource::Inferred,
+                    lines: vec![0],
+                    bbox: r,
+                    column: None,
+                    alignment: Alignment::Left,
+                    first_line_indent: 0.0,
+                    font_size: size,
+                    bold: false,
+                }],
+            })
+            .collect()
+    }
+
+    fn levels(sizes: &[f32]) -> Vec<u8> {
+        let mut pages = heading_pages(sizes);
+        assign_headings(&mut pages, 10.0, false, &mut LayoutDiagnostics::default());
+        pages
+            .iter()
+            .flat_map(|p| &p.blocks)
+            .map(|b| match b.kind {
+                BlockKind::Heading { level } => level,
+                _ => 0,
+            })
+            .collect()
+    }
+
+    #[test]
+    fn a_heading_never_skips_a_level_going_down() {
+        assert_eq!(levels(&[14.0, 24.0, 14.0, 18.0]), [1, 1, 2, 2]);
+        assert_eq!(levels(&[24.0, 14.0]), [1, 2]);
+    }
+
+    #[test]
+    fn levels_in_rank_order_are_unchanged_and_may_jump_up() {
+        assert_eq!(levels(&[24.0, 18.0, 14.0, 18.0, 24.0]), [1, 2, 3, 2, 1]);
+    }
+
+    #[test]
+    fn seven_heading_styles_stop_at_six() {
+        let sizes = [40.0, 36.0, 32.0, 28.0, 24.0, 20.0, 16.0];
+        assert_eq!(levels(&sizes), [1, 2, 3, 4, 5, 6, 6]);
+    }
 
     #[test]
     fn a_window_counts_a_page_once_however_many_copies_it_holds() {
