@@ -7,13 +7,21 @@
 //! centroid: where the converted source colour differs from the linear
 //! blend of the converted corners by more than the tolerance, the triangle
 //! is split into four at its edge midpoints and each piece is checked
-//! again.
+//! again. A parametric mesh's function can change between those probes (a
+//! type 3 stitch, a finely sampled type 0), so its conversion is also
+//! sampled on a [`GRID`]-step grid over the mesh's `t` range, and a
+//! triangle whose `t` span holds a grid value off the line through its
+//! extreme corners is split too. A feature narrower than one grid step can
+//! still be missed.
 
 use super::tessellate::{Tessellation, tessellate_patches};
 use super::{DecodedMesh, MAX_TRIANGLES, MeshError, MeshGeometry, MeshTriangle, MeshVertex};
 
 /// Splits per source triangle at most; `4⁸` pieces.
 const DEFAULT_MAX_DEPTH: u32 = 8;
+
+/// Steps of a parametric mesh's function grid over its `t` range.
+const GRID: usize = 256;
 
 /// Tolerance and limits for [`reexpress_mesh`].
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -134,7 +142,11 @@ where
         params,
         out: Vec::new(),
         report,
+        grid: None,
     };
+    if mesh.parametric {
+        cx.grid = Some(cx.grid(source)?);
+    }
     for tri in source {
         let converted = [
             cx.vertex(&tri[0])?,
@@ -153,6 +165,52 @@ struct Splitter<'a, F> {
     params: &'a Reexpress,
     out: Vec<MeshTriangle>,
     report: ReexpressReport,
+    grid: Option<Grid>,
+}
+
+/// `convert` on [`GRID`] steps over a parametric mesh's corner `t` range,
+/// `t` increasing; empty when the range is a single value.
+struct Grid {
+    samples: Vec<(f64, Vec<f64>)>,
+}
+
+/// A parametric vertex's `t`.
+fn t_of(v: &MeshVertex) -> f64 {
+    v.color.first().copied().unwrap_or(0.0)
+}
+
+impl Grid {
+    /// Most a grid value strictly between `src`'s lowest and highest corner
+    /// `t` is from the line through those corners' converted values in
+    /// `dst`.
+    fn off(&self, src: &MeshTriangle, dst: &MeshTriangle) -> f64 {
+        let ends = |pick: fn(f64, f64) -> bool| {
+            src.iter().zip(dst).reduce(|best, v| {
+                if pick(t_of(v.0), t_of(best.0)) {
+                    v
+                } else {
+                    best
+                }
+            })
+        };
+        let (Some((lo, f_lo)), Some((hi, f_hi))) = (ends(|a, b| a < b), ends(|a, b| a > b)) else {
+            return 0.0;
+        };
+        let (t_lo, t_hi) = (t_of(lo), t_of(hi));
+        if t_hi <= t_lo {
+            return 0.0;
+        }
+        let a = self.samples.partition_point(|(s, _)| *s <= t_lo);
+        let b = self.samples.partition_point(|(s, _)| *s < t_hi);
+        let mut off = 0.0_f64;
+        for (s, values) in self.samples.get(a..b).unwrap_or_default() {
+            let w = (s - t_lo) / (t_hi - t_lo);
+            for ((x, y), v) in f_lo.color.iter().zip(&f_hi.color).zip(values) {
+                off = off.max((x + (y - x) * w - v).abs());
+            }
+        }
+        off
+    }
 }
 
 impl<F> Splitter<'_, F>
@@ -171,6 +229,26 @@ where
             return Err(MeshError::ConversionDeclined);
         }
         Ok(c)
+    }
+
+    /// The function grid over `source`'s corner `t` range.
+    fn grid(&mut self, source: &[MeshTriangle]) -> Result<Grid, MeshError> {
+        let (lo, hi) = source
+            .iter()
+            .flatten()
+            .map(t_of)
+            .fold((f64::INFINITY, f64::NEG_INFINITY), |(lo, hi), t| {
+                (lo.min(t), hi.max(t))
+            });
+        let mut samples = Vec::new();
+        if lo < hi {
+            for k in 0..=GRID {
+                #[allow(clippy::cast_precision_loss)] // k <= GRID = 256
+                let t = lo + (hi - lo) * (k as f64 / GRID as f64);
+                samples.push((t, self.color(&[t])?));
+            }
+        }
+        Ok(Grid { samples })
     }
 
     fn vertex(&mut self, v: &MeshVertex) -> Result<MeshVertex, MeshError> {
@@ -192,7 +270,11 @@ where
             for m in &mids {
                 conv.push(self.color(&m.color)?);
             }
-            let within = deviation(&dst, &conv) <= self.params.tolerance;
+            let mut dev = deviation(&dst, &conv);
+            if let Some(grid) = &self.grid {
+                dev = dev.max(grid.off(&src, &dst));
+            }
+            let within = dev <= self.params.tolerance;
             if within || depth >= self.params.max_depth {
                 if !within {
                     self.report.over_tolerance += 1;

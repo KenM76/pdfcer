@@ -274,3 +274,39 @@ fn a_declining_or_misshapen_conversion_is_an_error() {
         MeshError::TooManyTriangles { .. }
     ));
 }
+
+/// A type 3 stitch can be zero at every probe and still carry a band:
+/// the function grid sees it and splits there.
+#[test]
+fn a_narrow_function_band_between_the_probes_splits_the_triangle() {
+    let band = |s: &[f64]| {
+        let t = s.first().copied()?;
+        Some(vec![
+            if (0.125..0.375).contains(&t) {
+                1.0
+            } else {
+                0.0
+            },
+            0.0,
+            0.0,
+            0.0,
+        ])
+    };
+    let tri = [
+        v(0.0, 0.0, &[0.0]),
+        v(100.0, 0.0, &[1.0]),
+        v(0.0, 100.0, &[1.0]),
+    ];
+    let mut m = gray_mesh(&[tri]);
+    m.parametric = true;
+    let (tris, report) = reexpress_mesh(&m, 4, band, &Reexpress::default()).unwrap();
+    assert!(tris.len() > 1, "split where the band is");
+    assert!(tris.iter().flatten().any(|v| v.color[0] == 1.0));
+    assert!(report.subdivisions > 0);
+    let ramp = |s: &[f64]| Some(vec![s[0], 0.0, 0.0, 0.0]);
+    let (one, report) = reexpress_mesh(&m, 4, ramp, &Reexpress::default()).unwrap();
+    assert_eq!((one.len(), report.subdivisions), (1, 0));
+    m.parametric = false;
+    let (blind, _) = reexpress_mesh(&m, 4, band, &Reexpress::default()).unwrap();
+    assert_eq!(blind.len(), 1, "without the grid the probes miss the band");
+}
