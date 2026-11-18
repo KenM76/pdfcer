@@ -112,6 +112,12 @@ wherever it appears.*
 
 ## Shipped
 
+### `b61fb116` `v0.159.0` release bump, 2026-11-18 (1614th filing)
+
+Engineer-reported; no shell here, git, push, CI and OneDrive state not checked from here. `b61fb116` `chore: bump workspace to 0.159.0`: `Cargo.toml`, `Cargo.lock` and `fuzz/Cargo.lock` 0.158.0 -> 0.159.0. **NOT yet tagged, deployed or published.** The release writes OneDrive slot `pdfcer2`.
+- **Round carries (code commits since `v0.158.0`):** `871dd4cd` and `5aa275b2` (`Pass 647.10`, `G299`); `e5cd14ec` (`Pass 647.11`, `G300`); `e7dcdb8c` (`Pass 647.12`, `G301`); `c52d1fbe` (`Pass 723.0`, `X090`). Filed in the 1612th (`94858834`) and 1613th (`7336629d`) filings.
+- **FEATURES:** no change.
+
 ### `c52d1fbe` `Pass 723.0`: running text counts each page once, 2026-11-18 (1613th filing)
 
 Engineer-reported; no shell here, git, push and CI state not checked from here. `c52d1fbe` `fix(layout): running text counts each page once (Pass 723.0)`. Request `X090` (from the operator, as a `crates` consumer; reply `open/reply_X090_running_text_counts_distinct_pages_SHIPPED.md`). Opened and shipped in one filing. **Unreleased** (`v0.159.0`). Reasoning is in the commit message. Bug fix: **core** only, no FEATURES box changed.

@@ -4,6 +4,15 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-11-18 (1614th filing) — `v0.159.0` release bump (`b61fb116`); not yet tagged, deployed or published
+
+**Filed (engineer-reported; no shell here, git, push, CI and OneDrive state not checked from here):**
+- `b61fb116` `chore: bump workspace to 0.159.0`: `Cargo.toml`, `Cargo.lock`, `fuzz/Cargo.lock` 0.158.0 -> 0.159.0.
+- Round carries `Pass 647.10` (`871dd4cd`, `5aa275b2`, `G299`), `Pass 647.11` (`e5cd14ec`, `G300`), `Pass 647.12` (`e7dcdb8c`, `G301`), `Pass 723.0` (`c52d1fbe`, `X090`); filed in the 1612th and 1613th filings.
+- Release writes OneDrive slot `pdfcer2`. No FEATURES change.
+
+**Open:** tag, package, smoke-test, `verify-release.py`, deploy and publish still to do; next filing records the outcome.
+
 ## 2026-11-18 (1613th filing) — `Pass 647.12` (`e7dcdb8c`, `G301`) and `Pass 723.0` (`c52d1fbe`, `X090`) SHIPPED; operator ruling on hiding vs lights; unreleased
 
 **Filed (engineer-reported; no shell here, git, push and CI state not checked from here):**
