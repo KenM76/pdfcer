@@ -636,3 +636,25 @@ fn a_coordinate_frame_reads_points_and_deltas_in_its_own_axes() {
     assert!(CoordinateFrame::new([0.0; 3], [1.0, 0.0, 0.0], [-2.0, 0.0, 0.0]).is_none());
     assert!(CoordinateFrame::new([f64::NAN, 0.0, 0.0], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]).is_none());
 }
+
+#[test]
+fn a_projected_area_is_the_faces_shadow_on_each_side() {
+    // A 4 x 3 plate tilted 60 degrees: its shadow on XY is half its area.
+    let plate = [strip(0.0, 60.0)];
+    let up = face_projected_area(&plate, &pick(0, 0, [0.0; 3]), [0.0, 0.0, 7.0]).unwrap();
+    assert!((up.toward - 6.0).abs() < 1e-9 && up.away == 0.0, "{up:?}");
+    let down = face_projected_area(&plate, &pick(0, 0, [0.0; 3]), [0.0, 0.0, -1.0]).unwrap();
+    assert!((down.away - 6.0).abs() < 1e-9 && down.toward == 0.0);
+    // A whole tube seen side-on: each side covers the 10 x 8 silhouette.
+    let tube = [tube(5.0, 8.0, 64, 360.0)];
+    let side = face_projected_area(&tube, &pick(0, 3, [0.0; 3]), [1.0, 0.0, 0.0]).unwrap();
+    assert!((side.toward - 80.0).abs() < 1e-9 && (side.away - 80.0).abs() < 1e-9);
+    let end = face_projected_area(&tube, &pick(0, 3, [0.0; 3]), [0.0, 0.0, 1.0]).unwrap();
+    assert!(end.toward < 1e-9 && end.away < 1e-9);
+    for bad in [[0.0; 3], [f64::NAN, 0.0, 1.0]] {
+        let e = face_projected_area(&plate, &pick(0, 0, [0.0; 3]), bad);
+        assert_eq!(e, Err(SurfaceMeasureError::BadDirection));
+    }
+    let e = face_projected_area(&plate, &pick(0, 9, [0.0; 3]), [0.0, 0.0, 1.0]);
+    assert!(matches!(e, Err(SurfaceMeasureError::NoSuchTriangle { .. })));
+}

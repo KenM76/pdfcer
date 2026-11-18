@@ -3716,6 +3716,16 @@ let image = render_coloured(&meshes, &colours, &camera, &RenderOptions { width: 
   `note: measure-distance:` line. `--measure-project-onto screen|NX,NY,NZ`
   adds `NAME_projected=` and `NAME_normal=` after each figure (`screen` is
   the view direction, target minus eye).
+- **Projected area of a face** (`pdfcer-3d`, feature `render`):
+  `face_projected_area(meshes, &SurfacePick, direction) -> Result<ProjectedArea, SurfaceMeasureError>`
+  projects the face `face_figures` would measure onto the plane square to
+  `direction` (any length). `ProjectedArea { toward, away }` splits it by
+  which way each triangle faces; a face that never turns edge-on has one
+  zero and the other is its shadow, while a face that turns past edge-on
+  (a whole cylinder side-on) counts overlap once per side. Refusals:
+  `NoSuchTriangle`, `Degenerate`, `BadDirection` (zero or non-finite).
+  CLI: `--measure-project-onto` adds `projected_toward=`/`projected_away=`
+  to each `--measure-face` line.
 - **Measure in a coordinate system** (`pdfcer-3d`, feature `render`):
   `CoordinateFrame::new(origin, x_axis, y_toward) -> Option<CoordinateFrame>`
   (right-handed: X along `x_axis`, Y the part of `y_toward` square to X,

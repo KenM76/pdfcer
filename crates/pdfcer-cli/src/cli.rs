@@ -3352,7 +3352,8 @@ pub(crate) enum Command {
     /// `vertex:X,Y`, `edge:X,Y` or `face:X,Y`: the minimum and maximum
     /// distance and, between two centres, centre to centre.
     /// `--measure-project-onto screen|NX,NY,NZ` adds each figure's length
-    /// in that plane and its part along the plane's normal.
+    /// in that plane and its part along the plane's normal, and each
+    /// measured face's projected area on each side.
     /// `--measure-frame OX,OY,OZ,XX,XY,XZ,YX,YY,YZ` adds vertex and
     /// distance positions and deltas in that coordinate system.
     ///

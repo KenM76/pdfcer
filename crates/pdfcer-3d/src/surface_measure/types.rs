@@ -152,4 +152,7 @@ pub enum SurfaceMeasureError {
     /// No side of the picked triangle is a model edge.
     #[error("the picked triangle has no model edge")]
     NoEdge,
+    /// A direction has no length or is not finite.
+    #[error("the direction has no length")]
+    BadDirection,
 }

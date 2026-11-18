@@ -13,6 +13,14 @@ impl SurfaceArgs {
         pdfcer_3d::CoordinateFrame::new(f.origin, f.x_axis, f.y_toward)
     }
 
+    /// The model-space normal of the --measure-project-onto plane.
+    pub(super) fn projection_normal(&self, camera: &pdfcer_3d::Camera) -> Option<[f64; 3]> {
+        self.measure_project_onto.map(|onto| match onto {
+            Onto::Screen => pdfcer_3d::vec3::sub(camera.target, camera.eye),
+            Onto::Normal(n) => n,
+        })
+    }
+
     /// The note naming the `--measure-frame` axes, after the lines that
     /// used them.
     pub(super) fn print_frame_note(&self) {
@@ -64,10 +72,7 @@ impl SurfaceArgs {
                 Err(err) => println!("{head} refused: {err}"),
                 Ok(d) => {
                     measured = true;
-                    let normal = self.measure_project_onto.map(|onto| match onto {
-                        Onto::Screen => pdfcer_3d::vec3::sub(camera.target, camera.eye),
-                        Onto::Normal(n) => n,
-                    });
+                    let normal = self.projection_normal(camera);
                     let frame = self.frame();
                     println!("{head} {}", distance_line(&d, model.units, normal, frame));
                 }

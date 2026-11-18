@@ -83,7 +83,11 @@ pub(crate) struct SurfaceArgs {
     /// Also report each --measure-distance figure projected onto a plane:
     /// `screen` (the image plane) or a plane normal NX,NY,NZ in model
     /// coordinates. Each figure gains `_projected=` (its length in that
-    /// plane) and `_normal=` (its signed part along the normal).
+    /// plane) and `_normal=` (its signed part along the normal). Each
+    /// --measure-face gains `projected_toward=` and `projected_away=`: the
+    /// projected area of its triangles facing along the normal and against
+    /// it. A face that never turns edge-on has one of them zero, and the
+    /// other is its shadow's area.
     #[arg(long, value_name = "screen|NX,NY,NZ", value_parser = target::parse_onto, allow_hyphen_values = true)]
     pub(crate) measure_project_onto: Option<target::Onto>,
     /// Also report --measure-vertex and --measure-distance positions and
@@ -192,10 +196,17 @@ impl SurfaceArgs {
                 Err(err) => println!("{at} refused: {err}"),
                 Ok(f) => {
                     measured = true;
+                    let shadow = self
+                        .projection_normal(camera)
+                        .and_then(|n| pdfcer_3d::face_projected_area(&model.meshes, &pick, n).ok());
                     println!(
-                        "{at} triangle={} {}",
+                        "{at} triangle={} {}{}",
                         pick.triangle,
-                        face_line(&f, model.units)
+                        face_line(&f, model.units),
+                        shadow.map_or(String::new(), |p| format!(
+                            " projected_toward={:.6} projected_away={:.6}",
+                            p.toward, p.away
+                        ))
                     );
                 }
             }

@@ -714,6 +714,18 @@ fn measure_face_reports_a_faces_area_perimeter_and_plane() {
         "{face}"
     );
     assert!(!face.contains("  "), "{face}");
+    assert!(!face.contains("projected_"), "{face}");
+    // The level unit square's shadow straight down is all of it, on one
+    // side; seen edge-on it has none.
+    let shadow = |onto: &str| read(&["--measure-face", "60,40", "--measure-project-onto", onto]);
+    let down = shadow("0,0,-3");
+    let one_side = down.contains("projected_toward=1.000000 projected_away=0.000000")
+        || down.contains("projected_toward=0.000000 projected_away=1.000000");
+    assert!(one_side, "{down}");
+    assert!(
+        shadow("1,0,0").contains("projected_toward=0.000000 projected_away=0.000000"),
+        "edge-on"
+    );
     let miss = read(&["--measure-face", "2,2"]);
     assert!(miss.contains("measure-face at=2,2 miss"), "{miss}");
     let edge = read(&["--measure-edge", "60,40", "--measure-vertex", "60,40"]);

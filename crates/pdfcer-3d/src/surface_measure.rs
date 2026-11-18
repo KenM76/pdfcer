@@ -15,12 +15,14 @@ mod edge;
 mod face;
 mod fit;
 mod frame;
+mod projected;
 mod types;
 
 pub use distance::{EntityDistance, MeasureEntity, Selection, Span, entity_distance};
 pub use edge::{EdgeFigures, EdgeShape, edge_at, vertex_at};
 pub use face::{FaceFigures, FaceShape, face_figures};
 pub use frame::CoordinateFrame;
+pub use projected::{ProjectedArea, face_projected_area};
 
 pub use types::{
     DEFAULT_CORNER_DEGREES, DEFAULT_FLAT_DEGREES, DEFAULT_PARALLEL_DEGREES, SurfaceMeasure,
