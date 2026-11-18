@@ -112,6 +112,25 @@ wherever it appears.*
 
 ## Shipped
 
+### `fcd0fe49` `Pass 722.3`: ask a node whether continue or open would refuse, before staging anything, 2026-11-17 (1596th filing)
+
+Engineer-reported; no shell here, git, push and CI state not checked from here. `fcd0fe49` `fix(edit): count an adopted default ce dimension group; node preflights (Pass 718.4, Pass 722.3)`; one commit, two Passes (the other is `Pass 718.4`, next entry). `pdfcer-gui` request `G295` (`D:\Dev\FeatureRequests\pdfce_FeatureRequests\open\request_G295_path_end_preflight.md`). **Unreleased** (on top of `v0.157.0`). Reasoning is in the commit message. Core only; cli none (the CLI invocation is the commit and already refuses); gui none (the GUI consumes it).
+- **Verbs (`EditSession`):** `can_extend_path(page_index, object_index, node_index)`, `can_open_subpath(..)`, `can_extend_path_in_form(page_index, leaf_index, node_index)`, `can_open_subpath_in_form(..)`, each `-> Result<(), EditError>`: the refusal the real verb would return for that node, or `Ok`, staging nothing and adding no undo entry. `can_extend_path` never returns `NoSegmentsGiven` or `NonFinitePoint` (no segments are given).
+- **Internal:** `form_surgery_extras` split into a plan-only `form_plan` plus its commit half, so the preflight and the verb share one refusal path.
+- **Docs:** `docs/core-api/` updated, 427 verbs, `check-core-api-verbs.py` PASS.
+- **Tests and gates (engineer-measured):** fmt; clippy `-D warnings` on `pdfcer-core` all targets; `check-code-structure` clean (543 baseline entries, none new); `pdfcer-core` lib 2376 passed, `tests/all.rs` 3320 passed, 2 ignored, doctests 288; `pdfcer-cli` `tests/all.rs` 1112 passed, 2 ignored, unit 131. No manifest change, so no `cargo tree`. Not pushed at filing; CI not read.
+- **FEATURES:** the `Pass 722.0` continue/open row gained one sentence on the preflights; boxes unchanged (core, cli ticked there for the verbs; the preflights themselves are core only). No decision, no rule.
+- **Next free IDs:** `Pass 717.4`, `Pass 718.5`, `Pass 720.3`, `Pass 721.6`, `Pass 722.4`, `Pass 647.3h`; decision `225`, rule `R264` (none minted).
+
+### `fcd0fe49` `Pass 718.4`: a ce dimension group a copy brings into a document with none is counted, 2026-11-17 (1596th filing)
+
+Engineer-reported; no shell here, git, push and CI state not checked from here. Same commit as `Pass 722.3` above. `pdfcer-gui` request `G298` (`D:\Dev\FeatureRequests\pdfce_FeatureRequests\open\request_G298_seeded_default_group_uncounted.md`). ID `718.4` confirmed unused by grep of `docs/` (highest 718 was `718.3`). **Unreleased.** Reasoning is in the commit message. Delivers core; cli unchanged in code (its existing `ce_dim_groups_carried=` line now includes the adopted default); gui none.
+- **Problem:** ce dimensions (pdfcer-authored) copied by merge or insert into a document with no ce dimension groups: the destination adopts the source's default group (scale, number format). That arrival was counted nowhere.
+- **Fix:** the adopted default now counts in `ce_dimension_groups_carried` on `InsertOutcome`, `MergeOutcome` and `AssembleReport` (core `dimension::combine::seed_default`). A synthesised default (the source had no default group) is NOT counted. No new field.
+- **Expectations moved (tests):** unit test 1 to 2; merge sidecar test (1,2,0) to (2,2,0); insert test (1,0,0) to (2,0,0).
+- **Gates:** as `Pass 722.3` above (same commit, same measurements).
+- **FEATURES:** the all-routes ce-dimension row now says an adopted default group counts as carried; boxes unchanged. No decision, no rule.
+
 ### `ed4cbfd8` `v0.157.0` PUBLISHED, 2026-11-17 (1595th filing)
 
 Engineer-reported; no shell here, nothing checked from here. Bump `e96fe055` (filed 1594th); `ed4cbfd8` is the 1594th filing commit (`docs: file e96fe055 - v0.157.0 release bump (1594th)`). Docs-only filing: no new code commit. Tag `v0.157.0` (annotated) is on `ed4cbfd8`, pushed. CI green at that commit (run 44174888251, read from GitHub by the engineer).

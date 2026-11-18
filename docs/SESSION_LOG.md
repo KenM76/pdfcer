@@ -4,6 +4,16 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-11-17 (1596th filing) — `Pass 718.4` and `Pass 722.3` SHIPPED (`fcd0fe49`, `G298` and `G295`); unreleased
+
+**Filed (engineer-reported; no shell here, git, push and CI state not checked from here):**
+- `fcd0fe49` `fix(edit): count an adopted default ce dimension group; node preflights (Pass 718.4, Pass 722.3)`, one commit, two Passes, on top of `v0.157.0`.
+- `Pass 718.4` (`G298`): a default ce dimension group a merge or insert brings into a document with none is now counted in `ce_dimension_groups_carried` (`InsertOutcome`, `MergeOutcome`, `AssembleReport`; `dimension::combine::seed_default`); a synthesised default is not counted; no new field. Test expectations moved: unit 1 to 2, merge sidecar (1,2,0) to (2,2,0), insert (1,0,0) to (2,0,0). CLI code unchanged; its `ce_dim_groups_carried=` now includes the adopted default.
+- `Pass 722.3` (`G295`): `EditSession::can_extend_path`, `can_open_subpath`, `can_extend_path_in_form`, `can_open_subpath_in_form` return the refusal the real verb would give for a node, or `Ok`, staging nothing, no undo entry; `can_extend_path` never returns `NoSegmentsGiven`/`NonFinitePoint`. `form_surgery_extras` split into plan-only `form_plan` plus commit half. Core only; core-api 427 verbs, `check-core-api-verbs` PASS.
+- Engineer-measured: fmt, clippy `-D warnings` (`pdfcer-core`, all targets), `check-code-structure` clean (543 baseline, none new); `pdfcer-core` lib 2376, `all.rs` 3320 passed 2 ignored, doctests 288; `pdfcer-cli` `all.rs` 1112 passed 2 ignored, unit 131. No manifest change. Not pushed; CI not read.
+
+**Open:** the engineer writes SHIPPED replies to `G298` and `G295`; release follows when the round is complete. Next free IDs: `Pass 717.4`, `718.5`, `720.3`, `721.6`, `722.4`, `647.3h`; decision `225`, rule `R264` (none minted). FEATURES: two existing rows gained a clause each (rows still under the 1,200-character cap); no box changed.
+
 ## 2026-11-17 (1595th filing) — `v0.157.0` PUBLISHED (carries `Pass 721.5`)
 
 **Filed (engineer-reported; no shell here, nothing checked from here):**
