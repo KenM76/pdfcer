@@ -3353,6 +3353,8 @@ pub(crate) enum Command {
     /// distance and, between two centres, centre to centre.
     /// `--measure-project-onto screen|NX,NY,NZ` adds each figure's length
     /// in that plane and its part along the plane's normal.
+    /// `--measure-frame OX,OY,OZ,XX,XY,XZ,YX,YY,YZ` adds vertex and
+    /// distance positions and deltas in that coordinate system.
     ///
     /// `--360` draws the whole sphere around the camera as an
     /// equirectangular panorama (2048 x 1024 unless a size is given); a

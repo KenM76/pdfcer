@@ -67,6 +67,46 @@ pub(crate) fn parse_onto(s: &str) -> Result<Onto, String> {
     Ok(Onto::Normal(n))
 }
 
+/// A `--measure-frame` coordinate system: origin, X direction and a
+/// direction in the XY plane, model coordinates.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub(crate) struct Frame {
+    pub(crate) origin: [f64; 3],
+    pub(crate) x_axis: [f64; 3],
+    pub(crate) y_toward: [f64; 3],
+}
+
+/// Clap parser for `OX,OY,OZ,XX,XY,XZ,YX,YY,YZ`; refuses a zero X
+/// direction and a Y direction parallel to it.
+pub(crate) fn parse_frame(s: &str) -> Result<Frame, String> {
+    let bad = || {
+        format!(
+            "`{s}` is not nine numbers like 0,0,0,1,0,0,0,1,0 (origin, X direction, \
+             a direction in the XY plane not parallel to X)"
+        )
+    };
+    let parts: Vec<f64> = s
+        .split(',')
+        .map(|t| t.trim().parse::<f64>().ok().filter(|v| v.is_finite()))
+        .collect::<Option<_>>()
+        .ok_or_else(bad)?;
+    let [o0, o1, o2, x0, x1, x2, y0, y1, y2] = <[f64; 9]>::try_from(parts).map_err(|_| bad())?;
+    let (x, y) = ([x0, x1, x2], [y0, y1, y2]);
+    let cross = [
+        x[1] * y[2] - x[2] * y[1],
+        x[2] * y[0] - x[0] * y[2],
+        x[0] * y[1] - x[1] * y[0],
+    ];
+    if x == [0.0; 3] || cross == [0.0; 3] {
+        return Err(bad());
+    }
+    Ok(Frame {
+        origin: [o0, o1, o2],
+        x_axis: x,
+        y_toward: y,
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -83,5 +123,13 @@ mod tests {
         assert_eq!(parse_onto("0,-1,0"), Ok(Onto::Normal([0.0, -1.0, 0.0])));
         assert!(parse_onto("0,0,0").is_err());
         assert!(parse_onto("0,1").is_err());
+        let f = parse_frame("1,2,3,0,1,0,-1,0,0").unwrap();
+        assert_eq!(
+            (f.origin, f.x_axis, f.y_toward),
+            ([1.0, 2.0, 3.0], [0.0, 1.0, 0.0], [-1.0, 0.0, 0.0])
+        );
+        assert!(parse_frame("0,0,0,0,0,0,0,1,0").is_err());
+        assert!(parse_frame("0,0,0,1,0,0,2,0,0").is_err());
+        assert!(parse_frame("0,0,0,1,0,0,0,1").is_err());
     }
 }

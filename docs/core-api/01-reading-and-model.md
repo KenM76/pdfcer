@@ -3716,6 +3716,18 @@ let image = render_coloured(&meshes, &colours, &camera, &RenderOptions { width: 
   `note: measure-distance:` line. `--measure-project-onto screen|NX,NY,NZ`
   adds `NAME_projected=` and `NAME_normal=` after each figure (`screen` is
   the view direction, target minus eye).
+- **Measure in a coordinate system** (`pdfcer-3d`, feature `render`):
+  `CoordinateFrame::new(origin, x_axis, y_toward) -> Option<CoordinateFrame>`
+  (right-handed: X along `x_axis`, Y the part of `y_toward` square to X,
+  Z = X x Y; `None` for a non-finite value, a zero X or a Y parallel to it);
+  `origin()`, `axes() -> [[f64; 3]; 3]` (unit X, Y, Z),
+  `point_to_local(p)` and `vector_to_local(v)` (a delta: no origin). The
+  model has no coordinate-system features of its own, so the caller supplies
+  the frame. CLI: `3d-render ... --measure-frame OX,OY,OZ,XX,XY,XZ,YX,YY,YZ`
+  (refused at parse time when degenerate) adds `point_frame=` to each
+  `measure-vertex` line and `NAME_from_frame= NAME_to_frame=
+  NAME_delta_frame=` after each `--measure-distance` figure, then one
+  `note: measure-frame:` line naming the origin and the X, Y, Z used.
 - **Textures** (ISO 14739-1 picture / texture definition / texture
   application; `prc__8137__graphics_materials.md` §13). Draw a model with
   them in one call: `let m = pdfcer_3d::assemble_with_options(data,

@@ -86,6 +86,13 @@ pub(crate) struct SurfaceArgs {
     /// plane) and `_normal=` (its signed part along the normal).
     #[arg(long, value_name = "screen|NX,NY,NZ", value_parser = target::parse_onto, allow_hyphen_values = true)]
     pub(crate) measure_project_onto: Option<target::Onto>,
+    /// Also report --measure-vertex and --measure-distance positions and
+    /// deltas in a coordinate system: origin OX,OY,OZ, X axis along
+    /// XX,XY,XZ, and Y the part of YX,YY,YZ square to X (Z = X x Y), all
+    /// model coordinates. Points gain `_frame=` figures; the axes used are
+    /// printed on a note line.
+    #[arg(long, value_name = "OX,OY,OZ,XX,XY,XZ,YX,YY,YZ", value_parser = target::parse_frame, allow_hyphen_values = true)]
+    pub(crate) measure_frame: Option<target::Frame>,
 }
 
 /// The engine's defaults, restated so the flags exist in a build without
@@ -110,6 +117,9 @@ impl SurfaceArgs {
         self.print_faces(model, camera, options);
         self.print_edges(model, camera, options);
         self.print_distances(model, camera, options);
+        if !(self.measure_vertex.is_empty() && self.measure_distance.is_empty()) {
+            self.print_frame_note();
+        }
         if self.measure_surfaces.is_empty() {
             return;
         }

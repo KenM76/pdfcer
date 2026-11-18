@@ -6,6 +6,29 @@ use super::edge::picked;
 use super::target::{Kind, Onto};
 
 impl SurfaceArgs {
+    /// The `--measure-frame` system, when given (the parser refused the
+    /// frames this cannot build).
+    pub(super) fn frame(&self) -> Option<pdfcer_3d::CoordinateFrame> {
+        let f = self.measure_frame?;
+        pdfcer_3d::CoordinateFrame::new(f.origin, f.x_axis, f.y_toward)
+    }
+
+    /// The note naming the `--measure-frame` axes, after the lines that
+    /// used them.
+    pub(super) fn print_frame_note(&self) {
+        let Some(f) = self.frame() else { return };
+        let triple = |v: [f64; 3]| v.map(|c| format!("{c:.6}")).join(",");
+        let [x, y, z] = f.axes();
+        println!(
+            "note: measure-frame: _frame figures are in the system at origin={} with \
+             x={} y={} z={} (Y squared to X, Z = X x Y)",
+            triple(f.origin()),
+            triple(x),
+            triple(y),
+            triple(z)
+        );
+    }
+
     /// One `measure-distance` line per `--measure-distance` pair, then what
     /// was fitted.
     pub(super) fn print_distances(
@@ -45,7 +68,8 @@ impl SurfaceArgs {
                         Onto::Screen => pdfcer_3d::vec3::sub(camera.target, camera.eye),
                         Onto::Normal(n) => n,
                     });
-                    println!("{head} {}", distance_line(&d, model.units, normal));
+                    let frame = self.frame();
+                    println!("{head} {}", distance_line(&d, model.units, normal, frame));
                 }
             }
         }
@@ -64,6 +88,7 @@ fn distance_line(
     d: &pdfcer_3d::EntityDistance,
     units: Option<pdfcer_3d::ModelUnits>,
     normal: Option<[f64; 3]>,
+    frame: Option<pdfcer_3d::CoordinateFrame>,
 ) -> String {
     let triple = |v: [f64; 3]| v.map(|c| format!("{c:.6}")).join(",");
     let span = |name: &str, s: &pdfcer_3d::Span| {
@@ -75,8 +100,16 @@ fn distance_line(
             .map_or(String::new(), |(p, along)| {
                 format!(" {name}_projected={:.6} {name}_normal={along:.6}", p.length)
             });
+        let local = frame.map_or(String::new(), |f| {
+            format!(
+                " {name}_from_frame={} {name}_to_frame={} {name}_delta_frame={}",
+                triple(f.point_to_local(s.from)),
+                triple(f.point_to_local(s.to)),
+                triple(f.vector_to_local(s.delta())),
+            )
+        });
         format!(
-            "{name}={:.6}{mm} {name}_from={} {name}_to={} {name}_delta={}{projected}",
+            "{name}={:.6}{mm} {name}_from={} {name}_to={} {name}_delta={}{projected}{local}",
             s.length,
             triple(s.from),
             triple(s.to),

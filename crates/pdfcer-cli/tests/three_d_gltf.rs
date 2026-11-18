@@ -777,6 +777,49 @@ fn measure_face_reports_a_faces_area_perimeter_and_plane() {
         "{across}"
     );
     assert!(gap("screen").contains("minimum_projected="));
+    // In a system whose X is model Z the face gap is along local -X.
+    let framed = read(&[
+        "--measure-distance",
+        "face:60,40",
+        "face:20,40",
+        "--measure-vertex",
+        "60,40",
+        "--measure-frame",
+        "0,0,0,0,0,2,3,0,0",
+    ]);
+    assert!(
+        framed.contains("minimum_delta_frame=-1.000000,0.000000,0.000000"),
+        "{framed}"
+    );
+    assert!(
+        framed.contains("note: measure-frame: _frame figures are in the system at origin=0.000000,0.000000,0.000000 with x=0.000000,0.000000,1.000000 y=1.000000,0.000000,0.000000 z=0.000000,1.000000,0.000000"),
+        "{framed}"
+    );
+    let point = |key: &str| {
+        let at = framed.find(key).unwrap() + key.len();
+        framed[at..].split_whitespace().next().unwrap().to_owned()
+    };
+    let [x, y, z]: [f64; 3] = point(" point=")
+        .split(',')
+        .map(|c| c.parse().unwrap())
+        .collect::<Vec<_>>()
+        .try_into()
+        .unwrap();
+    let local: Vec<f64> = point("point_frame=")
+        .split(',')
+        .map(|c| c.parse().unwrap())
+        .collect();
+    assert_eq!(local, [z, x, y], "{framed}");
+    assert!(!framed.contains("  "), "{framed}");
+    assert!(
+        !read(&[
+            "--measure-face",
+            "60,40",
+            "--measure-frame",
+            "0,0,0,1,0,0,0,1,0"
+        ])
+        .contains("note: measure-frame")
+    );
 }
 
 /// [`floor_and_square`] with a square that glows white and no lamp.

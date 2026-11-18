@@ -70,8 +70,11 @@ impl SurfaceArgs {
                     let mm = model.units.map_or(String::new(), |u| {
                         format!(" point_mm={}", triple(p.map(|c| c * u.mm_per_unit)))
                     });
+                    let local = self.frame().map_or(String::new(), |f| {
+                        format!(" point_frame={}", triple(f.point_to_local(p)))
+                    });
                     println!(
-                        "{at} triangle={} mesh={} point={}{mm}",
+                        "{at} triangle={} mesh={} point={}{mm}{local}",
                         pick.triangle,
                         pick.mesh,
                         triple(p)

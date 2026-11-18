@@ -615,3 +615,24 @@ fn a_span_projects_onto_a_plane_and_keeps_its_normal_part() {
     assert_eq!(span.projected([0.0; 3]), None);
     assert_eq!(span.along([0.0; 3]), None);
 }
+
+#[test]
+fn a_coordinate_frame_reads_points_and_deltas_in_its_own_axes() {
+    // Origin (1, 2, 3), X along model Y, Y along model -X, so Z is model Z.
+    let f = CoordinateFrame::new([1.0, 2.0, 3.0], [0.0, 5.0, 0.0], [-3.0, 7.0, 0.0]).unwrap();
+    let close = |a: [f64; 3], b: [f64; 3]| a.iter().zip(b).all(|(x, y)| (x - y).abs() < 1e-12);
+    assert!(close(f.axes()[1], [-1.0, 0.0, 0.0]));
+    assert!(close(f.axes()[2], [0.0, 0.0, 1.0]));
+    assert!(close(f.point_to_local([1.0, 2.0, 3.0]), [0.0; 3]));
+    assert!(close(f.point_to_local([0.0, 6.0, 5.0]), [4.0, 1.0, 2.0]));
+    // A delta ignores the origin.
+    assert!(close(f.vector_to_local([0.0, 6.0, 5.0]), [6.0, 0.0, 5.0]));
+    // A tilted frame keeps lengths.
+    let g = CoordinateFrame::new([0.0; 3], [1.0, 1.0, 0.0], [0.0, 0.0, 1.0]).unwrap();
+    let v = g.vector_to_local([3.0, -4.0, 12.0]);
+    assert!((crate::vec3::length(v) - 13.0).abs() < 1e-12);
+    // Degenerate frames are refused.
+    assert!(CoordinateFrame::new([0.0; 3], [0.0; 3], [0.0, 1.0, 0.0]).is_none());
+    assert!(CoordinateFrame::new([0.0; 3], [1.0, 0.0, 0.0], [-2.0, 0.0, 0.0]).is_none());
+    assert!(CoordinateFrame::new([f64::NAN, 0.0, 0.0], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]).is_none());
+}
