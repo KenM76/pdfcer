@@ -4,6 +4,17 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-11-18 (1607th filing) — `Pass 721.10` SHIPPED (`f969d8c2`, read measured positions in a chosen coordinate system, fifth slice of `Pass 721.2`); unreleased
+
+**Filed (engineer-reported; no shell here, git, push and CI state not checked from here; engineer says HEAD is `f969d8c2`, not yet pushed):**
+- `f969d8c2` `feat(3d): read measured positions in a chosen coordinate system (Pass 721.10)`; `721.10` was the next free ID, next is `721.11`. Follows `575eb045` (1606th).
+- `pdfcer_3d::CoordinateFrame::new(origin, x_axis, y_toward)` (right-handed; Y derived square to X; `None` if degenerate) with `point_to_local` / `vector_to_local`. CLI `3d-render --measure-frame` adds `point_frame=` and `NAME_from_frame=`/`_to_frame=`/`_delta_frame=`, and a `note: measure-frame:` line disclosing the derived axes (rule 4).
+- Tests: engine test + doctest; CLI parse test; integration test extended; sabotage fails the engine test. 23 `surface_measure` pass; clippy clean both feature sets; core-api verbs green; 36 audits green. `docs/core-api` gained a bullet.
+
+**Decisions / findings:** none; no decision, no rule.
+
+**Open:** ships in `v0.158.0`. Still open in `Pass 721.2`: projected area; units and precision; measurement history. Edge circle centres and face fits are not re-expressed in the frame. Next free IDs: `Pass 717.4`, `718.5`, `720.3`, `721.11`, `722.10`, `647.3h`; decision `225`, rule `R264`. FEATURES: new row, core and cli ticked, gui open; Planned measure row trimmed.
+
 ## 2026-11-18 (1606th filing) — `Pass 722.9` SHIPPED (`77344e5b`, a mesh's break list also splits where a colour space clamps, request `X089` follow-up); unreleased
 
 **Filed (engineer-reported; no shell here, git, push and CI state not checked from here):**

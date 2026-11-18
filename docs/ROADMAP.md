@@ -112,6 +112,17 @@ wherever it appears.*
 
 ## Shipped
 
+### `f969d8c2` `Pass 721.10`: read measured positions in a chosen coordinate system, 2026-11-18 (1607th filing)
+
+Engineer-reported; no shell here, git, push and CI state not checked from here (engineer states HEAD is `f969d8c2`, on main, not yet pushed). `f969d8c2` `feat(3d): read measured positions in a chosen coordinate system (Pass 721.10)`. Fifth slice of `Pass 721.2` (after `721.6`, `721.7`, `721.8`, `721.9`); `721.10` was the next free ID, so the next is `721.11`. **Unreleased** (ships in `v0.158.0`). Reasoning is in the commit message. Delivers **core** and **cli**; **gui none** (the measure window is `pdfcer-gui`'s).
+- **Engine (`pdfcer-3d`):** `CoordinateFrame::new(origin, x_axis, y_toward) -> Option<Self>`: right-handed, X along `x_axis`, Y the part of `y_toward` square to X, Z = X x Y; `None` for non-finite, zero, or Y parallel to X. `origin()`, `axes()`, `point_to_local(p)`, `vector_to_local(v)`. A PDF 3D model has no coordinate-system features, so the caller supplies the frame.
+- **CLI:** `3d-render --measure-frame OX,OY,OZ,XX,XY,XZ,YX,YY,YZ` (degenerate frame refused at parse time) adds `point_frame=` to `--measure-vertex` lines and `NAME_from_frame=`, `NAME_to_frame=`, `NAME_delta_frame=` after each `--measure-distance` figure, plus a `note: measure-frame:` line naming the origin and axes actually used. Y is derived from `y_toward`, so it is disclosed (CLAUDE.md rule 4).
+- **Not re-expressed:** edge circle centres and face fits; only vertex and distance figures.
+- **Tests (engineer-reported):** engine `a_coordinate_frame_reads_points_and_deltas_in_its_own_axes` plus a doctest; CLI parse test `a_target_is_a_kind_and_a_position`; integration `measure_face_reports_a_faces_area_perimeter_and_plane` extended. Sabotage (`vector_to_local` returns `v`) fails the engine test. 23 `surface_measure` tests pass; clippy clean with and without default features; core-api verbs green; 36 CI audits pass locally. `docs/core-api` gained a "Measure in a coordinate system" bullet.
+- **Still open in `Pass 721.2`:** projected area; units and precision; measurement history.
+- **FEATURES:** new Implemented row (core, cli ticked; gui open); the Planned measure row trimmed (coordinate system removed). No decision, no rule.
+- **Next free IDs:** `Pass 717.4`, `Pass 718.5`, `Pass 720.3`, `Pass 721.11`, `Pass 722.10`, `Pass 647.3h`; decision `225`, rule `R264` (none minted).
+
 ### `77344e5b` `Pass 722.9`: a mesh's break list also splits where a colour space clamps, 2026-11-18 (1606th filing)
 
 Engineer-reported; no shell here, git, push and CI state not checked from here. `77344e5b` `feat(function): break a function's outputs where a colour space clamps them (Pass 722.9)`. Request `X089` follow-up "clamp crossings" (pdfceGUI channel); follows `Pass 722.8` (`3f89304e`, filed `01c083b3`). `722.9` was the next free ID, so the next is `722.10`. **Unreleased; ships in `v0.158.0`.** Reasoning is in the commit message. Delivers **core**; **cli none**; **gui none**. The `X089` reply file was already updated and was not touched here.
