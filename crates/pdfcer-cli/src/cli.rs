@@ -3343,6 +3343,11 @@ pub(crate) enum Command {
     /// position: its area and perimeter, and the plane or cylinder fitted
     /// to it, with the cylinder's radius, diameter and axis.
     ///
+    /// `--measure-edge X,Y` measures the model edge nearest an image
+    /// position: its length, the distance between its ends, and the line
+    /// or circle fitted to it (radius, diameter, centre). `--measure-vertex
+    /// X,Y` reports the X, Y, Z of the nearest model vertex.
+    ///
     /// `--360` draws the whole sphere around the camera as an
     /// equirectangular panorama (2048 x 1024 unless a size is given); a
     /// `.jpg` output carries the Google Photo Sphere (GPano) XMP tag, so

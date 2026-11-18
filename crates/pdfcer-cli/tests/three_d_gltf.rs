@@ -713,8 +713,25 @@ fn measure_face_reports_a_faces_area_perimeter_and_plane() {
         face.contains("note: measure-face: the shape is fitted"),
         "{face}"
     );
+    assert!(!face.contains("  "), "{face}");
     let miss = read(&["--measure-face", "2,2"]);
     assert!(miss.contains("measure-face at=2,2 miss"), "{miss}");
+    let edge = read(&["--measure-edge", "60,40", "--measure-vertex", "60,40"]);
+    assert!(
+        edge.contains("measure-edge at=60,40 triangle=1 mesh=1 faces=0,none points=2 closed=no length=1.000000"),
+        "{edge}"
+    );
+    assert!(edge.contains("chord=1.000000"), "{edge}");
+    assert!(edge.contains("shape=line direction="), "{edge}");
+    assert!(
+        edge.contains("note: measure-edge: an edge is where"),
+        "{edge}"
+    );
+    assert!(
+        edge.contains("measure-vertex at=60,40 triangle=1 mesh=1 point="),
+        "{edge}"
+    );
+    assert!(!edge.contains("  "), "{edge}");
 }
 
 /// [`floor_and_square`] with a square that glows white and no lamp.

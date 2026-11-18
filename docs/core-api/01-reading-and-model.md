@@ -3634,6 +3634,39 @@ let image = render_coloured(&meshes, &colours, &camera, &RenderOptions { width: 
   residual=` or `shape=unfitted` (lengths also in mm, area in mm2, when
   the model's unit is known), `miss` or `refused: <why>`, and a `note:
   measure-face: ...` line saying the shape is fitted.
+- **Measure one edge or vertex** (`pdfcer-3d`, feature `render`):
+  `edge_at(&model.meshes, &pick, flat_degrees, corner_degrees) ->
+  Result<EdgeFigures, SurfaceMeasureError>` measures the model edge of the
+  picked triangle nearest `pick.point`. A triangle edge is a model edge
+  where the faces either side differ, where one triangle alone uses it, or
+  (no faces in the file) where the triangles turn more than `flat_degrees`.
+  The edge runs on through each corner where exactly one more model edge
+  between the same two faces continues it, turning no more than
+  `corner_degrees` (0 to 180; `DEFAULT_CORNER_DEGREES` = 45, so a circle of
+  eight or more pieces is one edge and a square corner ends one).
+  `EdgeFigures { mesh, faces: [Option<usize>; 2], points (in order, a closed
+  edge's first not repeated), closed, length (sum of its pieces), chord
+  (end to end, 0 when closed), shape }` (`#[non_exhaustive]`).
+  `shape: EdgeShape` is `Line { direction }` when every corner lies on the
+  end-to-end line, `Circle { centre, axis (plane normal, sign arbitrary),
+  radius, residual (farthest corner off the circle, in or out of its
+  plane), sweep_degrees (360 when closed), arc_length }` when the corners
+  fit a circle (least-scatter plane, then algebraic least squares), else
+  `Curve`. Both fits allow a slack of 1e-5 of the edge's length. Fitted,
+  never read from the file (rule 4). Refusals: those of `surface_at`,
+  `BadTolerance("corner tolerance")`, and `NoEdge` when no side of the
+  picked triangle is a model edge.
+  `vertex_at(&model.meshes, &pick) -> Result<[f64; 3], SurfaceMeasureError>`
+  is the picked triangle's corner nearest `pick.point`.
+  CLI: `3d-render ... --measure-edge X,Y` (repeatable; tolerances
+  `--measure-flat-tolerance`, `--measure-corner-tolerance`) prints
+  `measure-edge at=X,Y triangle= mesh= faces=A,B points= closed=yes|no
+  length= chord=` then `shape=line direction=`, `shape=circle radius=
+  diameter= centre= axis= sweep= arc_length= residual=` or `shape=curve`
+  (lengths also in mm when the model's unit is known), and a `note:
+  measure-edge: ...` line. `--measure-vertex X,Y` prints `measure-vertex
+  at=X,Y triangle= mesh= point=X,Y,Z` (and `point_mm=` when the unit is
+  known). A face side with no face is `none`.
 - `Placement::colour: Option<[f64; 4]>` is the part's colour from its tree
   (style inheritance and father/son heritage resolved, material diffuse and
   transparency applied), straight RGBA 0–1. `None`: no style reaches it or it

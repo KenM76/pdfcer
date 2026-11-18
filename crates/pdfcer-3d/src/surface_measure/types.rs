@@ -8,6 +8,11 @@ pub const DEFAULT_PARALLEL_DEGREES: f64 = 0.5;
 /// The flat tolerance a surface starts from, in degrees.
 pub const DEFAULT_FLAT_DEGREES: f64 = 0.5;
 
+/// The sharpest turn, in degrees, a picked model edge runs on through:
+/// a circle tessellated into eight or more pieces stays one edge, and a
+/// square corner ends one.
+pub const DEFAULT_CORNER_DEGREES: f64 = 45.0;
+
 /// When two surfaces count as parallel, and what counts as one surface.
 ///
 /// Start from [`SurfaceTolerance::default`] and assign.
@@ -144,4 +149,7 @@ pub enum SurfaceMeasureError {
     /// A picked point is not finite.
     #[error("a picked point is not usable")]
     BadPoint,
+    /// No side of the picked triangle is a model edge.
+    #[error("the picked triangle has no model edge")]
+    NoEdge,
 }

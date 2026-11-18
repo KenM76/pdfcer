@@ -1,5 +1,11 @@
 //! `3d-render --measure-surfaces`: the distance or the angle between the
-//! surfaces drawn at two image positions.
+//! surfaces drawn at two image positions, and the figures of one picked
+//! face, edge or vertex.
+
+#[cfg(feature = "3d")]
+mod edge;
+#[cfg(feature = "3d")]
+use edge::picked;
 
 /// Clap parser for two image positions as `X1,Y1,X2,Y2`.
 fn parse_pair(s: &str) -> Result<[f64; 4], String> {
@@ -49,6 +55,22 @@ pub(crate) struct SurfaceArgs {
     /// within --measure-flat-tolerance. Repeatable.
     #[arg(long, value_name = "X,Y", value_parser = crate::arg_types::parse_point2, allow_hyphen_values = true)]
     pub(crate) measure_face: Vec<[f64; 2]>,
+    /// Measure the model edge nearest image position X,Y on the triangle
+    /// drawn there: its length, the distance between its ends, and the
+    /// line or circle fitted to it (a circle's radius, diameter, centre,
+    /// axis and how far round it reaches). The edge runs on through turns
+    /// no sharper than --measure-corner-tolerance. Repeatable.
+    #[arg(long, value_name = "X,Y", value_parser = crate::arg_types::parse_point2, allow_hyphen_values = true)]
+    pub(crate) measure_edge: Vec<[f64; 2]>,
+    /// The sharpest turn, in degrees (0 to 180), a measured edge runs on
+    /// through. Lower it to stop at the corners of a coarse polygon;
+    /// raise it to follow a circle drawn with few pieces.
+    #[arg(long, value_name = "DEG", default_value_t = pdfcer_3d_default::CORNER)]
+    pub(crate) measure_corner_tolerance: f64,
+    /// Report the X, Y, Z of the model vertex nearest image position X,Y
+    /// on the triangle drawn there. Repeatable.
+    #[arg(long, value_name = "X,Y", value_parser = crate::arg_types::parse_point2, allow_hyphen_values = true)]
+    pub(crate) measure_vertex: Vec<[f64; 2]>,
 }
 
 /// The engine's defaults, restated so the flags exist in a build without
@@ -56,6 +78,7 @@ pub(crate) struct SurfaceArgs {
 mod pdfcer_3d_default {
     pub(super) const PARALLEL: f64 = 0.5;
     pub(super) const FLAT: f64 = 0.5;
+    pub(super) const CORNER: f64 = 45.0;
 }
 
 #[cfg(feature = "3d")]
@@ -70,6 +93,7 @@ impl SurfaceArgs {
     ) {
         use pdfcer_3d::{SurfacePick, SurfaceTolerance, measure_surfaces};
         self.print_faces(model, camera, options);
+        self.print_edges(model, camera, options);
         if self.measure_surfaces.is_empty() {
             return;
         }
@@ -135,20 +159,9 @@ impl SurfaceArgs {
         let mut measured = false;
         for &[x, y] in &self.measure_face {
             let at = format!("measure-face at={x},{y}");
-            let hit = camera
-                .ray_through(x, y, options.width, options.height)
-                .map_err(|err| format!("refused: {err}"))
-                .and_then(|ray| {
-                    pdfcer_3d::pick(&model.meshes, &ray).ok_or_else(|| "miss".to_owned())
-                });
-            let hit = match hit {
-                Ok(hit) => hit,
-                Err(why) => {
-                    println!("{at} {why}");
-                    continue;
-                }
+            let Some(pick) = picked(&at, x, y, model, camera, options) else {
+                continue;
             };
-            let pick = pdfcer_3d::SurfacePick::from(&hit);
             match pdfcer_3d::face_figures(&model.meshes, &pick, self.measure_flat_tolerance) {
                 Err(err) => println!("{at} refused: {err}"),
                 Ok(f) => {
@@ -163,7 +176,9 @@ impl SurfaceArgs {
         }
         if measured {
             println!(
-                "note: measure-face: the shape is fitted from the face's triangles, not read                  from the file; residual is the farthest a corner lies off the fit, and a                  curved outline's perimeter is the sum of its straight edges"
+                "note: measure-face: the shape is fitted from the face's triangles, not read \
+                 from the file; residual is the farthest a corner lies off the fit, and a \
+                 curved outline's perimeter is the sum of its straight edges"
             );
         }
     }
@@ -191,7 +206,8 @@ fn face_line(f: &pdfcer_3d::FaceFigures, units: Option<pdfcer_3d::ModelUnits>) -
             length,
             sweep_degrees,
         } => format!(
-            "shape=cylinder radius={radius:.6}{} diameter={:.6}{} centre={} axis={}              length={length:.6}{} sweep={sweep_degrees:.6} residual={residual:.6}",
+            "shape=cylinder radius={radius:.6}{} diameter={:.6}{} centre={} axis={} \
+             length={length:.6}{} sweep={sweep_degrees:.6} residual={residual:.6}",
             mm(radius),
             2.0 * radius,
             mm(2.0 * radius),
@@ -278,5 +294,6 @@ mod tests {
             pdfcer_3d::DEFAULT_PARALLEL_DEGREES
         );
         assert_eq!(pdfcer_3d_default::FLAT, pdfcer_3d::DEFAULT_FLAT_DEGREES);
+        assert_eq!(pdfcer_3d_default::CORNER, pdfcer_3d::DEFAULT_CORNER_DEGREES);
     }
 }

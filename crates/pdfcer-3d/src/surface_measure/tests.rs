@@ -357,3 +357,114 @@ fn a_face_measure_refuses_a_bad_pick_or_tolerance() {
         Err(SurfaceMeasureError::BadTolerance(_))
     ));
 }
+
+#[test]
+fn a_tube_rim_is_a_closed_circle() {
+    let meshes = [tube(5.0, 8.0, 64, 360.0)];
+    let a = (360.0_f64 * 3.5 / 64.0).to_radians();
+    let at = [5.0 * a.cos(), 5.0 * a.sin(), 0.01];
+    let e = edge_at(&meshes, &pick(0, 6, at), 10.0, 45.0).unwrap();
+    assert!(e.closed);
+    assert_eq!(e.points.len(), 64);
+    assert_eq!(e.faces, [Some(0), None]);
+    assert_eq!(e.chord, 0.0);
+    let EdgeShape::Circle {
+        centre,
+        radius,
+        sweep_degrees,
+        arc_length,
+        ..
+    } = e.shape
+    else {
+        panic!("{:?}", e.shape)
+    };
+    assert!((radius - 5.0).abs() < 1e-9, "{radius}");
+    assert!((sweep_degrees - 360.0).abs() < 1e-9);
+    assert!((arc_length - 10.0 * std::f64::consts::PI).abs() < 1e-9);
+    assert!(centre.iter().all(|c| c.abs() < 1e-9), "{centre:?}");
+    assert!(e.length < arc_length && e.length > 0.99 * arc_length);
+}
+
+#[test]
+fn a_half_tube_has_a_straight_side_and_a_half_circle_rim() {
+    let meshes = [tube(5.0, 8.0, 32, 180.0)];
+    let side = edge_at(&meshes, &pick(0, 1, [5.0, 0.0, 4.0]), 10.0, 45.0).unwrap();
+    assert!(!side.closed);
+    assert!((side.length - 8.0).abs() < 1e-12);
+    assert!((side.chord - 8.0).abs() < 1e-12);
+    let EdgeShape::Line { direction } = side.shape else {
+        panic!("{:?}", side.shape)
+    };
+    assert!((direction[2].abs() - 1.0).abs() < 1e-12);
+    let a = (180.0_f64 * 0.5 / 32.0).to_radians();
+    let rim = edge_at(
+        &meshes,
+        &pick(0, 0, [5.0 * a.cos(), 5.0 * a.sin(), 0.0]),
+        10.0,
+        45.0,
+    )
+    .unwrap();
+    assert_eq!(rim.points.len(), 33);
+    assert!((rim.chord - 10.0).abs() < 1e-9);
+    let EdgeShape::Circle {
+        radius,
+        sweep_degrees,
+        ..
+    } = rim.shape
+    else {
+        panic!("{:?}", rim.shape)
+    };
+    assert!((radius - 5.0).abs() < 1e-9);
+    assert!((sweep_degrees - 180.0).abs() < 1e-9, "{sweep_degrees}");
+}
+
+#[test]
+fn a_vertex_is_the_picked_triangles_nearest_corner() {
+    let meshes = [tube(5.0, 8.0, 32, 180.0)];
+    let v = vertex_at(&meshes, &pick(0, 1, [4.9, 0.1, 7.5])).unwrap();
+    assert_eq!(v, [5.0, 0.0, 8.0]);
+}
+
+#[test]
+fn edges_between_faces_and_where_none_is() {
+    let p = vec![
+        [0.0, 0.0, 0.0],
+        [1.0, 0.0, 0.0],
+        [0.0, 1.0, 0.0],
+        [0.0, 0.0, 1.0],
+    ];
+    let triangles = vec![[0, 2, 1], [0, 1, 3], [0, 3, 2], [1, 2, 3]];
+    let one = [TriangleMesh {
+        positions: p.clone(),
+        triangles: triangles.clone(),
+        faces: vec![0..4],
+        ..TriangleMesh::default()
+    }];
+    let at = [0.3, 0.3, 0.0];
+    assert_eq!(
+        edge_at(&one, &pick(0, 0, at), 10.0, 45.0),
+        Err(SurfaceMeasureError::NoEdge)
+    );
+    let split = [TriangleMesh {
+        positions: p.clone(),
+        triangles: triangles.clone(),
+        faces: vec![0..1, 1..4],
+        ..TriangleMesh::default()
+    }];
+    let e = edge_at(&split, &pick(0, 0, [0.5, 0.01, 0.0]), 10.0, 45.0).unwrap();
+    assert_eq!(e.faces, [Some(0), Some(1)]);
+    assert!((e.length - 1.0).abs() < 1e-12);
+    assert!(matches!(e.shape, EdgeShape::Line { .. }));
+    let faceless = [TriangleMesh {
+        positions: p,
+        triangles,
+        ..TriangleMesh::default()
+    }];
+    let e = edge_at(&faceless, &pick(0, 0, [0.5, 0.01, 0.0]), 10.0, 45.0).unwrap();
+    assert_eq!(e.faces, [None, None]);
+    assert_eq!(e.points.len(), 2);
+    assert_eq!(
+        edge_at(&faceless, &pick(0, 0, at), 91.0, 45.0),
+        Err(SurfaceMeasureError::BadTolerance("flat tolerance"))
+    );
+}

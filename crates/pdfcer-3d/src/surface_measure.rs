@@ -10,14 +10,17 @@ use crate::render::corners;
 use crate::vec3::{add, cross, dot, length, normalize, scale, sub};
 use crate::{Hit, TriangleMesh};
 
+mod edge;
 mod face;
+mod fit;
 mod types;
 
+pub use edge::{EdgeFigures, EdgeShape, edge_at, vertex_at};
 pub use face::{FaceFigures, FaceShape, face_figures};
 
 pub use types::{
-    DEFAULT_FLAT_DEGREES, DEFAULT_PARALLEL_DEGREES, SurfaceMeasure, SurfaceMeasureError,
-    SurfacePatch, SurfacePick, SurfaceRelation, SurfaceTolerance,
+    DEFAULT_CORNER_DEGREES, DEFAULT_FLAT_DEGREES, DEFAULT_PARALLEL_DEGREES, SurfaceMeasure,
+    SurfaceMeasureError, SurfacePatch, SurfacePick, SurfaceRelation, SurfaceTolerance,
 };
 
 /// How far off the picked triangle's plane a corner may lie, as a share of
