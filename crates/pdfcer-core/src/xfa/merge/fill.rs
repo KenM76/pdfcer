@@ -12,7 +12,7 @@ use std::ops::Range;
 use super::super::packets::{XdpDocument, XfaError, parse_xml};
 use super::super::template::Template;
 use super::data::{DATA_NS, ValueSpan, content_span, node_at, read_data};
-use super::{DataCreation, MergeOptions, Unbound, merge_planned};
+use super::{DataCreation, MergeOptions, Merger, Unbound, merge_planned, som};
 use crate::object::ObjId;
 
 /// Why a value cannot be written into an XFA form.
@@ -241,4 +241,34 @@ fn escape(value: &str) -> String {
         }
     }
     out
+}
+
+impl Merger<'_> {
+    /// Record where a fill creates the node an unresolved data reference
+    /// names ([`som::creation`]). With no record group yet, a reference
+    /// from the scope or `$record` creates the record first.
+    pub(super) fn plan_ref_creation(&mut self, path: &[usize], reference: &str, scope: &[usize]) {
+        let Ok(r) = som::parse(reference) else {
+            return;
+        };
+        let cx = som::Context {
+            root: self.root,
+            scope,
+            record: self.record,
+            bound: &self.bound_nodes,
+            search: self.opts.scope_search,
+        };
+        let Some((at, mut groups, name)) = som::creation(&r, &cx) else {
+            return;
+        };
+        if self.record.is_empty() && at.is_empty() && r.start != som::Start::Data {
+            groups.splice(0..0, self.record_groups.iter().cloned());
+        }
+        self.unbound.push(Unbound {
+            path: path.to_vec(),
+            name,
+            scope: at,
+            groups,
+        });
+    }
 }
