@@ -4,6 +4,17 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-11-17 (1599th filing) — `Pass 721.6` SHIPPED (`339c9295`, measure one picked face, first slice of `Pass 721.2`); unreleased
+
+**Filed (engineer-reported; no shell here, git, push and CI state not checked from here):**
+- `339c9295` `feat(3d): measure one picked face: area, perimeter, plane or cylinder (Pass 721.6)`; engineer-opened and shipped in one filing; `721.6` free by grep.
+- `pdfcer-3d` `face_figures` returning area, perimeter and a fitted `FaceShape` (plane, cylinder with residual and sweep, or unfitted); CLI `3d-render --measure-face X,Y`. Fit is disclosed (rule 4).
+- Tests: 5 engine unit tests plus 1 CLI integration test; `surface_measure` 13/13; clippy, fmt, code-structure, `check-core-api-verbs` clean. No dependency change. `docs/core-api/01-reading-and-model.md` updated.
+
+**Decisions / findings:** none; no decision, no rule.
+
+**Open:** `Pass 721.2` remainder (edges and vertices, entity-to-entity minimum distance and cylinder arc distances, point-to-point, plane projection, coordinate-system XYZ, projected area, units/precision, history). Release `v0.158.0` follows when the round is complete. Next free IDs: `Pass 717.4`, `718.5`, `720.3`, `721.7`, `722.7`, `647.3h`; decision `225`, rule `R264`. FEATURES: new row (core, cli); Planned measure row narrowed.
+
 ## 2026-11-17 (1598th filing) — `Pass 722.5` and `Pass 722.6` SHIPPED (`1a75c23c`, `X087` and `X088`, PRC compressed-tessellation search); unreleased
 
 **Filed (engineer-reported; no shell here, git, push and CI state not checked from here):**
