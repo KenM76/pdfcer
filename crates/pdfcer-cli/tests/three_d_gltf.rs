@@ -752,6 +752,31 @@ fn measure_face_reports_a_faces_area_perimeter_and_plane() {
     assert!(far.contains("maximum_delta="), "{far}");
     assert!(far.contains("note: measure-distance: maximum"), "{far}");
     assert!(!far.contains("  "), "{far}");
+    let gap = |onto: &str| {
+        read(&[
+            "--measure-distance",
+            "face:60,40",
+            "face:20,40",
+            "--measure-project-onto",
+            onto,
+        ])
+    };
+    let down = gap("0,0,2");
+    assert!(
+        down.contains("minimum=1.000000")
+            && down.contains("minimum_delta=0.000000,0.000000,-1.000000"),
+        "{down}"
+    );
+    assert!(
+        down.contains("minimum_projected=0.000000 minimum_normal=-1.000000"),
+        "{down}"
+    );
+    let across = gap("1,0,0");
+    assert!(
+        across.contains("minimum_projected=1.000000 minimum_normal=0.000000"),
+        "{across}"
+    );
+    assert!(gap("screen").contains("minimum_projected="));
 }
 
 /// [`floor_and_square`] with a square that glows white and no lamp.

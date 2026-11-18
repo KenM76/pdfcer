@@ -5,7 +5,7 @@ use super::edge::{edge_at, vertex_at};
 use super::face::face_triangles;
 use super::{EdgeShape, Face, SurfaceMeasureError, SurfacePick};
 use crate::TriangleMesh;
-use crate::vec3::{add, cross, dot, length, scale, sub};
+use crate::vec3::{add, cross, dot, length, normalize, scale, sub};
 
 /// What a pick stands for.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -53,6 +53,27 @@ impl Span {
     #[must_use]
     pub fn delta(&self) -> [f64; 3] {
         sub(self.to, self.from)
+    }
+
+    /// The span projected onto a plane with normal `normal` (any length):
+    /// `to` moves along `normal` until `to - from` lies in the plane.
+    /// `None` when `normal` has no length.
+    #[must_use]
+    pub fn projected(&self, normal: [f64; 3]) -> Option<Span> {
+        let n = normalize(normal)?;
+        let d = self.delta();
+        Some(Span::between(
+            self.from,
+            add(self.from, sub(d, scale(n, dot(d, n)))),
+        ))
+    }
+
+    /// The signed length of the span along `direction` (any length): the
+    /// part [`Span::projected`] removes. `None` when `direction` has no
+    /// length.
+    #[must_use]
+    pub fn along(&self, direction: [f64; 3]) -> Option<f64> {
+        Some(dot(self.delta(), normalize(direction)?))
     }
 }
 

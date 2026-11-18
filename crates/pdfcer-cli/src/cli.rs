@@ -3351,6 +3351,8 @@ pub(crate) enum Command {
     /// `--measure-distance A B` measures between two entities, each
     /// `vertex:X,Y`, `edge:X,Y` or `face:X,Y`: the minimum and maximum
     /// distance and, between two centres, centre to centre.
+    /// `--measure-project-onto screen|NX,NY,NZ` adds each figure's length
+    /// in that plane and its part along the plane's normal.
     ///
     /// `--360` draws the whole sphere around the camera as an
     /// equirectangular panorama (2048 x 1024 unless a size is given); a

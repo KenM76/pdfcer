@@ -3,7 +3,7 @@
 
 use super::SurfaceArgs;
 use super::edge::picked;
-use super::target::Kind;
+use super::target::{Kind, Onto};
 
 impl SurfaceArgs {
     /// One `measure-distance` line per `--measure-distance` pair, then what
@@ -41,7 +41,11 @@ impl SurfaceArgs {
                 Err(err) => println!("{head} refused: {err}"),
                 Ok(d) => {
                     measured = true;
-                    println!("{head} {}", distance_line(&d, model.units));
+                    let normal = self.measure_project_onto.map(|onto| match onto {
+                        Onto::Screen => pdfcer_3d::vec3::sub(camera.target, camera.eye),
+                        Onto::Normal(n) => n,
+                    });
+                    println!("{head} {}", distance_line(&d, model.units, normal));
                 }
             }
         }
@@ -56,14 +60,23 @@ impl SurfaceArgs {
 }
 
 /// The figures of one distance.
-fn distance_line(d: &pdfcer_3d::EntityDistance, units: Option<pdfcer_3d::ModelUnits>) -> String {
+fn distance_line(
+    d: &pdfcer_3d::EntityDistance,
+    units: Option<pdfcer_3d::ModelUnits>,
+    normal: Option<[f64; 3]>,
+) -> String {
     let triple = |v: [f64; 3]| v.map(|c| format!("{c:.6}")).join(",");
     let span = |name: &str, s: &pdfcer_3d::Span| {
         let mm = units.map_or(String::new(), |u| {
             format!(" ({:.6} mm)", s.length * u.mm_per_unit)
         });
+        let projected = normal
+            .and_then(|n| Some((s.projected(n)?, s.along(n)?)))
+            .map_or(String::new(), |(p, along)| {
+                format!(" {name}_projected={:.6} {name}_normal={along:.6}", p.length)
+            });
         format!(
-            "{name}={:.6}{mm} {name}_from={} {name}_to={} {name}_delta={}",
+            "{name}={:.6}{mm} {name}_from={} {name}_to={} {name}_delta={}{projected}",
             s.length,
             triple(s.from),
             triple(s.to),

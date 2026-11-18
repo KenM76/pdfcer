@@ -583,3 +583,35 @@ fn crossing_faces_are_no_distance_apart() {
         Err(SurfaceMeasureError::NoSuchTriangle { .. })
     ));
 }
+
+#[test]
+fn a_span_projects_onto_a_plane_and_keeps_its_normal_part() {
+    let meshes = [
+        square([
+            [0.0, 0.0, 0.0],
+            [1.0, 0.0, 0.0],
+            [1.0, 1.0, 0.0],
+            [0.0, 1.0, 0.0],
+        ]),
+        square([
+            [4.0, 0.0, 3.0],
+            [5.0, 0.0, 3.0],
+            [5.0, 1.0, 3.0],
+            [4.0, 1.0, 3.0],
+        ]),
+    ];
+    let a = select(0, 0, [0.01, 0.01, 0.0], MeasureEntity::Vertex);
+    let b = select(1, 0, [4.01, 0.01, 3.0], MeasureEntity::Vertex);
+    let span = entity_distance(&meshes, &a, &b, 10.0, 45.0)
+        .unwrap()
+        .minimum;
+    assert!((span.length - 5.0).abs() < 1e-12);
+    let flat = span.projected([0.0, 0.0, 2.0]).unwrap();
+    assert!((flat.length - 4.0).abs() < 1e-12);
+    assert!(near(flat.from, span.from) && near(flat.to, [4.0, 0.0, 0.0]));
+    assert!((span.along([0.0, 0.0, -7.0]).unwrap() + 3.0).abs() < 1e-12);
+    let side = span.projected([1.0, 0.0, 0.0]).unwrap();
+    assert!((side.length - 3.0).abs() < 1e-12);
+    assert_eq!(span.projected([0.0; 3]), None);
+    assert_eq!(span.along([0.0; 3]), None);
+}

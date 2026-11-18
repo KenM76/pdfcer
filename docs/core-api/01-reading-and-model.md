@@ -3697,7 +3697,10 @@ let image = render_coloured(&meshes, &colours, &camera, &RenderOptions { width: 
   `Edge` (as `edge_at`, tolerances passed through) or `Face` (every
   triangle of the picked face). `EntityDistance { minimum, maximum,
   centres: Option<Span> }` (`#[non_exhaustive]`); `Span { length, from (on
-  a), to (on b) }` with `delta() = to - from`. `minimum` is exact over the
+  a), to (on b) }` with `delta() = to - from`, `projected(normal) ->
+  Option<Span>` (the span in the plane with that normal: `to` moves along
+  it) and `along(direction) -> Option<f64>` (the signed part removed);
+  both `None` for a zero vector. `minimum` is exact over the
   triangles and segments (0 when they touch or cross); `maximum` is between
   corners, so a curved entity's can fall short of the true curve's;
   `centres` is present when both sides have a centre: a vertex, or a
@@ -3708,7 +3711,9 @@ let image = render_coloured(&meshes, &colours, &camera, &RenderOptions { width: 
   `measure-distance a= b= minimum= minimum_from= minimum_to=
   minimum_delta= maximum= ... centres=none|centres= ...` (lengths also in
   mm when the unit is known), a refusal or miss on the same head, then one
-  `note: measure-distance:` line.
+  `note: measure-distance:` line. `--measure-project-onto screen|NX,NY,NZ`
+  adds `NAME_projected=` and `NAME_normal=` after each figure (`screen` is
+  the view direction, target minus eye).
 - **Textures** (ISO 14739-1 picture / texture definition / texture
   application; `prc__8137__graphics_materials.md` §13). Draw a model with
   them in one call: `let m = pdfcer_3d::assemble_with_options(data,

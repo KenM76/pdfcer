@@ -40,6 +40,33 @@ pub(crate) fn parse_target(s: &str) -> Result<Target, String> {
     Ok(Target { kind, at })
 }
 
+/// What `--measure-project-onto` projects distances onto.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub(crate) enum Onto {
+    /// The image plane: normal along the view direction.
+    Screen,
+    /// The plane with this normal.
+    Normal([f64; 3]),
+}
+
+/// Clap parser for `screen` or a plane normal `NX,NY,NZ`.
+pub(crate) fn parse_onto(s: &str) -> Result<Onto, String> {
+    if s.trim() == "screen" {
+        return Ok(Onto::Screen);
+    }
+    let bad = || format!("`{s}` is not `screen` or a normal like 0,0,1");
+    let parts: Vec<f64> = s
+        .split(',')
+        .map(|t| t.trim().parse::<f64>().ok().filter(|v| v.is_finite()))
+        .collect::<Option<_>>()
+        .ok_or_else(bad)?;
+    let n = <[f64; 3]>::try_from(parts).map_err(|_| bad())?;
+    if n == [0.0; 3] {
+        return Err(bad());
+    }
+    Ok(Onto::Normal(n))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -52,5 +79,9 @@ mod tests {
         assert!(parse_target("line:1,2").is_err());
         assert!(parse_target("face 1,2").is_err());
         assert!(parse_target("vertex:1").is_err());
+        assert_eq!(parse_onto("screen"), Ok(Onto::Screen));
+        assert_eq!(parse_onto("0,-1,0"), Ok(Onto::Normal([0.0, -1.0, 0.0])));
+        assert!(parse_onto("0,0,0").is_err());
+        assert!(parse_onto("0,1").is_err());
     }
 }

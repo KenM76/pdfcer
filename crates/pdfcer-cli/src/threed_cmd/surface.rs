@@ -80,6 +80,12 @@ pub(crate) struct SurfaceArgs {
     /// edge), centre to centre, each with its X, Y, Z delta. Repeatable.
     #[arg(long, num_args = 2, value_names = ["A", "B"], value_parser = target::parse_target, allow_hyphen_values = true)]
     pub(crate) measure_distance: Vec<target::Target>,
+    /// Also report each --measure-distance figure projected onto a plane:
+    /// `screen` (the image plane) or a plane normal NX,NY,NZ in model
+    /// coordinates. Each figure gains `_projected=` (its length in that
+    /// plane) and `_normal=` (its signed part along the normal).
+    #[arg(long, value_name = "screen|NX,NY,NZ", value_parser = target::parse_onto, allow_hyphen_values = true)]
+    pub(crate) measure_project_onto: Option<target::Onto>,
 }
 
 /// The engine's defaults, restated so the flags exist in a build without
