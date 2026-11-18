@@ -7153,8 +7153,8 @@ pub(crate) enum Command {
         remove_signatures: bool,
         /// Keep the fields fillable: each field's value becomes a form
         /// field drawn as the flat page would draw it, named by its
-        /// template path (form1[0].name[0]). Fields bound to one data value
-        /// share one form field. Image, button and barcode fields, and a
+        /// full template path, instance numbers included. Fields bound to
+        /// one data value share one form field. Image, button and barcode fields, and a
         /// field split across pages, stay drawn on the page.
         #[arg(long)]
         fillable: bool,
