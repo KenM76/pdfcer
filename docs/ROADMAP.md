@@ -112,6 +112,13 @@ wherever it appears.*
 
 ## Shipped
 
+### `4137502e` `v0.158.0` release bump, 2026-11-18 (1610th filing)
+
+Engineer-reported; no shell here, git, push and CI state not checked from here. `4137502e` `chore(release): bump the workspace to 0.158.0`: workspace version `0.157.0` to `0.158.0` (pdfcer crates only) in `Cargo.toml`, `Cargo.lock` and `fuzz/Cargo.lock`. No code change. On `main`, not yet pushed. **NOT yet tagged, deployed or published**; the engineer tags after CI is green, and a separate publication filing follows.
+- **Round contents, since `v0.157.0`** (code commits, each filed in its own earlier filing): `fcd0fe49` (`Pass 718.4`, `Pass 722.3`); `36fae116` (`Pass 722.4`); `1a75c23c` (`Pass 722.5`, `Pass 722.6`); `339c9295` (`Pass 721.6`); `9e54fb55` (`Pass 721.7`); `fb9db0cc` (`Pass 721.8`) and its fix `443d11fe`; `6080b695` (`Pass 721.9`); `172f9990` (`Pass 722.7`); `3f89304e` (`Pass 722.8`); `77344e5b` (`Pass 722.9`); `f969d8c2` (`Pass 721.10`); `ab8005d2` (`Pass 721.11`); `6d615581` (`Pass 721.12`, filed 1609th, pushed). 14 code commits, 18 Pass IDs.
+- **FEATURES:** no change (no version marker or capability row affected; the `Engine crates on crates.io` row stays at 0.157.0 until publication). No decision, no rule.
+- **Next free IDs** (engineer-measured premises): `Pass 721.13`, `722.10`, `717.4`, `718.5`, `720.3`, `647.3h`; decision `225`, rule `R264` (none minted).
+
 ### `6d615581` `Pass 721.12`: read measurements in a chosen unit and precision, 2026-11-18 (1609th filing)
 
 Engineer-reported; no shell here, git, push and CI state not checked from here (engineer states HEAD is `6d615581`, on main, not yet pushed). `6d615581` `feat(3d): read measurements out in a chosen unit and precision (Pass 721.12)`. Seventh slice of `Pass 721.2` (after `721.6` to `721.11`); `721.12` was the next free ID, so the next is `721.13`. **Unreleased** (ships in `v0.158.0`). Reasoning is in the commit message. Delivers **core** and **cli**; **gui none** (the measure window is `pdfcer-gui`'s).

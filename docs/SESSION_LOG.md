@@ -4,6 +4,14 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-11-18 (1610th filing) — `v0.158.0` release bump (`4137502e`, not yet published)
+
+**Filed (engineer-reported; no shell here, git, push and CI state not checked from here):**
+- `4137502e` `chore(release): bump the workspace to 0.158.0`: `0.157.0` to `0.158.0` (pdfcer crates only) in `Cargo.toml`, `Cargo.lock`, `fuzz/Cargo.lock`; no code change. On `main`, not pushed, not tagged. Follows the 1609th filing commit `953e40a5` (pushed).
+- Round carries 14 code commits since `v0.157.0`, 18 Pass IDs: `fcd0fe49` (`718.4`, `722.3`), `36fae116` (`722.4`), `1a75c23c` (`722.5`, `722.6`), `339c9295` (`721.6`), `9e54fb55` (`721.7`), `fb9db0cc` (`721.8`) + fix `443d11fe`, `6080b695` (`721.9`), `172f9990` (`722.7`), `3f89304e` (`722.8`), `77344e5b` (`722.9`), `f969d8c2` (`721.10`), `ab8005d2` (`721.11`), `6d615581` (`721.12`).
+
+**Open:** tag after green CI, package, deploy and publish are a separate filing; nothing is published. FEATURES: no change (crates.io row stays at 0.157.0 until publication). No Pass, decision or rule minted; next free IDs (engineer-measured): `Pass 721.13`, `722.10`, `717.4`, `718.5`, `720.3`, `647.3h`; decision `225`; rule `R264`.
+
 ## 2026-11-18 (1609th filing) — `Pass 721.12` SHIPPED (`6d615581`, read measurements in a chosen unit and precision, seventh slice of `Pass 721.2`); unreleased
 
 **Filed (engineer-reported; no shell here, git, push and CI state not checked from here; engineer says HEAD is `6d615581`, not yet pushed):**
