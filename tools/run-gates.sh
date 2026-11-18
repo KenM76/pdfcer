@@ -95,6 +95,10 @@ set -uo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT" || exit 2
 
+# Clean first as well as last: a gate run on a nearly full drive fails
+# with os error 112 halfway through, which reads as a broken build.
+python tools/clean-target-cache.py || true
+
 FULL=0
 LIST_ONLY=0
 for arg in "$@"; do
@@ -233,7 +237,7 @@ if [ "${#skipped[@]}" -gt 0 ]; then
     printf '\n'
 fi
 
-# Every gate run builds; drop outputs a newer release superseded (keeps 2).
+# Every gate run builds; drop what it superseded.
 python tools/clean-target-cache.py || true
 
 if [ "${#failed[@]}" -eq 0 ]; then

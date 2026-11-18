@@ -7,9 +7,9 @@ never removes the old. At several releases a day that grew `target/debug/deps`
 past 60 GB. This script removes a crate's output only when BOTH hold:
 
 * it was last written before the cutoff, which is the commit time of the
-  `--keep-versions`-th newest release commit (`chore(release): vX` or the older
-  `chore: bump version`) (default 2: the
-  current and the previous release's outputs are kept); and
+  `--keep-versions`-th newest commit that changed the workspace `version =`
+  line in `Cargo.toml` (default 2: the current and the previous release's
+  outputs are kept); and
 * the same crate has an output written after the cutoff, so it has been
   superseded. A dependency nothing has rebuilt since is still current and is
   kept, however old.
@@ -21,9 +21,14 @@ directories. An agent worktree's whole `target/` goes when nothing in it
 was written after the cutoff. Deleting something cargo still wants is safe:
 it rebuilds it.
 
+When the repo's drive then has under `--min-free-gb` free (default 50), it
+sweeps again keeping only the current release's outputs, and names any
+other large `target/` beside the repo, which it never deletes.
+
 Skips a profile whose `.cargo-lock` a running build holds (a build
-mid-write would lose outputs it is producing). Run automatically at the end of
-`package-portable.py` and `run-gates.sh`; by hand: `python tools/clean-target-cache.py [--dry-run]`.
+mid-write would lose outputs it is producing). Run by `package-portable.py`, by `run-gates.sh` (before and after), and
+daily by the `pdfcer-clean-target-cache` scheduled task
+(`tools/install-cache-clean-task.ps1`); by hand: `python tools/clean-target-cache.py [--dry-run]`.
 """
 
 from __future__ import annotations
@@ -40,15 +45,16 @@ REPO = Path(__file__).resolve().parent.parent
 HASHED = re.compile(r"^(?:lib)?(?P<stem>.+?)-(?P<hash>[0-9a-f]{16})(?:\..*)?$")
 INCREMENTAL = re.compile(r"^(?P<stem>.+)-(?P<hash>[0-9a-z]+)$")
 PROFILES = ("debug", "release")
-# Both spellings the release commit has used; matching only one silently
-# moved the cutoff back to whichever release last used it.
-BUMP = r"^chore(: bump version|\(release\): v[0-9])"
+# A bump is found by what it changes, not by its subject: the subject has
+# had at least four spellings, and each one missed pinned the cutoff at
+# whichever older release still matched, so nothing newer was ever cleaned.
+VERSION_LINE = r'^version = "'
 
 
 def cutoff_time(keep: int) -> float | None:
     """Commit time of the `keep`-th newest version bump; None if too few."""
     out = subprocess.run(
-        ["git", "log", "-E", "--format=%ct", f"-{keep}", f"--grep={BUMP}"],
+        ["git", "log", "--format=%ct", f"-{keep}", f"-G{VERSION_LINE}", "--", "Cargo.toml"],
         cwd=REPO, capture_output=True, text=True, check=True,
     ).stdout.split()
     return float(out[-1]) if len(out) >= keep else None
@@ -157,19 +163,11 @@ def stale_worktree_targets(cutoff: float) -> list[Path]:
     return out
 
 
-def main() -> int:
-    ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
-    ap.add_argument("--keep-versions", type=int, default=2,
-                    help="releases whose outputs are kept (default 2: current and previous)")
-    ap.add_argument("--dry-run", action="store_true", help="report, delete nothing")
-    a = ap.parse_args()
-    cutoff = cutoff_time(max(a.keep_versions, 1))
-    if cutoff is None:
-        print("clean-target-cache: skipped -- fewer version bumps than --keep-versions")
-        return 0
+def sweep_all(cutoff: float, dry_run: bool) -> tuple[int, int]:
+    """One pass over every stale worktree cache and every profile."""
     total_items = total_bytes = 0
     for t in stale_worktree_targets(cutoff):
-        freed = remove(t, a.dry_run)
+        freed = remove(t, dry_run)
         total_items += 1
         total_bytes += freed
         print(f"  {t.relative_to(REPO)}: whole stale cache, {freed / 2**30:.1f} GiB")
@@ -177,13 +175,50 @@ def main() -> int:
         if build_running(profile):
             print(f"  {profile.relative_to(REPO)}: skipped -- a cargo build holds it")
             continue
-        items, freed = sweep(profile, cutoff, a.dry_run)
+        items, freed = sweep(profile, cutoff, dry_run)
         total_items += items
         total_bytes += freed
         if items:
             print(f"  {profile.relative_to(REPO)}: {items} item(s), {freed / 2**30:.1f} GiB")
+    return total_items, total_bytes
+
+
+def free_gib() -> float:
+    return shutil.disk_usage(REPO).free / 2**30
+
+
+def warn_low_space(min_free: float) -> None:
+    """Name the other large caches beside the repo; this script never deletes them."""
+    print(f"clean-target-cache: WARNING -- {free_gib():.1f} GiB free, under {min_free:.0f} GiB")
+    own = (REPO / "target").resolve()
+    for t in sorted(REPO.parent.glob("*/target")):
+        if t.resolve() != own:
+            size = sum(p.stat().st_size for p in t.rglob("*") if p.is_file())
+            if size > 2**30:
+                print(f"  {t}: {size / 2**30:.1f} GiB (not swept: another project's cache)")
+
+
+def main() -> int:
+    ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
+    ap.add_argument("--keep-versions", type=int, default=2,
+                    help="releases whose outputs are kept (default 2: current and previous)")
+    ap.add_argument("--min-free-gb", type=float, default=50,
+                    help="below this much free space, sweep again keeping only the current release")
+    ap.add_argument("--dry-run", action="store_true", help="report, delete nothing")
+    a = ap.parse_args()
+    cutoff = cutoff_time(max(a.keep_versions, 1))
+    if cutoff is None:
+        print("clean-target-cache: skipped -- fewer version bumps than --keep-versions")
+        return 0
+    items, freed = sweep_all(cutoff, a.dry_run)
+    if not a.dry_run and a.keep_versions > 1 and free_gib() < a.min_free_gb:
+        print(f"clean-target-cache: under {a.min_free_gb:.0f} GiB free -- keeping only the current release")
+        more_items, more = sweep_all(cutoff_time(1) or cutoff, False)
+        items, freed = items + more_items, freed + more
     verb = "would free" if a.dry_run else "freed"
-    print(f"clean-target-cache: {verb} {total_bytes / 2**30:.1f} GiB in {total_items} item(s)")
+    print(f"clean-target-cache: {verb} {freed / 2**30:.1f} GiB in {items} item(s); {free_gib():.1f} GiB free")
+    if free_gib() < a.min_free_gb:
+        warn_low_space(a.min_free_gb)
     return 0
 
 
