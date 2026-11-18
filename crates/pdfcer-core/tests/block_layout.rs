@@ -370,3 +370,60 @@ fn an_indent_after_a_short_line_starts_a_paragraph_without_a_gap() {
     assert_eq!(lines, [&vec![0, 1, 2], &vec![3, 4]]);
     assert!((page.blocks[1].first_line_indent - 18.0).abs() < 0.5);
 }
+
+/// Pages 1-3 carry "Draft" three times each in the top margin, interleaved
+/// by distance from the edge; pages 4-10 carry none.
+fn draft_on_three_of_ten() -> Document {
+    let pages: Vec<String> = (0..10u8)
+        .map(|p| {
+            let mut c = line("F1", 11, 72, 400, "Body text on this page.");
+            if p < 3 {
+                for j in 0..3u8 {
+                    let y = 770.0 - f64::from(j) - 0.1 * f64::from(p);
+                    let x = 72 + 180 * u32::from(j);
+                    c.push_str(&format!("BT /F1 9 Tf {x} {y:.1} Td (Draft) Tj ET\n"));
+                }
+            }
+            c
+        })
+        .collect();
+    let refs: Vec<&str> = pages.iter().map(String::as_str).collect();
+    doc_from_pages(&refs, 0)
+}
+
+#[test]
+fn copies_on_one_page_count_that_page_once() {
+    let doc = draft_on_three_of_ten();
+    let out = analyze_layout(
+        &doc.view(),
+        &ExtractOptions::default(),
+        &LayoutOptions::default().with_running_min_fraction(0.5),
+    )
+    .expect("layout runs");
+    for page in &out.pages[..3] {
+        for (kind, text) in kinds_and_text(page) {
+            assert_ne!(kind, BlockKind::RunningHeader, "{text}");
+        }
+    }
+}
+
+#[test]
+fn text_on_every_page_once_is_still_running() {
+    let pages: Vec<String> = (0..10)
+        .map(|_| {
+            line("F1", 9, 72, 770, "Draft") + &line("F1", 11, 72, 400, "Body text on this page.")
+        })
+        .collect();
+    let refs: Vec<&str> = pages.iter().map(String::as_str).collect();
+    let out = analyze_layout(
+        &doc_from_pages(&refs, 0).view(),
+        &ExtractOptions::default(),
+        &LayoutOptions::default().with_running_min_fraction(0.5),
+    )
+    .expect("layout runs");
+    assert!(
+        out.pages
+            .iter()
+            .all(|p| p.blocks.first().map(|b| &b.kind) == Some(&BlockKind::RunningHeader))
+    );
+}

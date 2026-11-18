@@ -767,6 +767,49 @@ fn is_page_number(text: &str) -> bool {
 /// `(page, distance from the page edge, fragment)`.
 type Member = (usize, f64, usize);
 
+/// Distances within this many points of each other are one running line.
+const RUNNING_TOLERANCE: f64 = 4.0;
+
+/// The run of `members` (sorted by distance) spanning at most
+/// [`RUNNING_TOLERANCE`] that covers the most distinct pages, and that
+/// count, extended to every member within reach of its first. One sliding
+/// pass; a page with several copies counts once.
+fn best_window(members: &[Member]) -> (&[Member], usize) {
+    let mut on_page: HashMap<usize, usize> = HashMap::new();
+    let (mut low, mut best, mut most) = (0usize, (0usize, 0usize), 0usize);
+    for (high, &(page, distance, _)) in members.iter().enumerate() {
+        let n = on_page.entry(page).or_default();
+        *n = n.saturating_add(1);
+        while let Some(&(first, _, _)) = members
+            .get(low)
+            .filter(|m| distance - m.1 > RUNNING_TOLERANCE)
+        {
+            if let Some(n) = on_page.get_mut(&first) {
+                *n = n.saturating_sub(1);
+                if *n == 0 {
+                    on_page.remove(&first);
+                }
+            }
+            low = low.saturating_add(1);
+        }
+        if on_page.len() > most {
+            (most, best) = (on_page.len(), (low, high.saturating_add(1)));
+        }
+    }
+    // Every copy within reach of the window's first member belongs to it.
+    let end = members
+        .iter()
+        .skip(best.1)
+        .take_while(|m| {
+            members
+                .get(best.0)
+                .is_some_and(|f| m.1 - f.1 <= RUNNING_TOLERANCE)
+        })
+        .count()
+        .saturating_add(best.1);
+    (members.get(best.0..end).unwrap_or(&[]), most)
+}
+
 /// `body` is the body size before any running text is set aside; a
 /// heading-sized group whose text differs page to page (`Chapter 1`,
 /// `Chapter 2`) is a sequence of headings, not running text.
@@ -824,26 +867,7 @@ fn classify_running(
     let needed = ((page_count as f64 * fraction).ceil() as usize).max(2);
     for ((is_top, _), mut members) in groups {
         members.sort_by(|a, b| a.1.total_cmp(&b.1));
-        let mut best: &[Member] = &[];
-        let mut best_pages = 0;
-        for start in 0..members.len() {
-            let Some(&(_, d0, _)) = members.get(start) else {
-                continue;
-            };
-            let end = members
-                .iter()
-                .skip(start)
-                .take_while(|m| m.1 - d0 <= 4.0)
-                .count()
-                + start;
-            let window = members.get(start..end).unwrap_or(&[]);
-            let mut pages: Vec<usize> = window.iter().map(|m| m.0).collect();
-            pages.dedup();
-            if pages.len() > best_pages {
-                best_pages = pages.len();
-                best = window;
-            }
-        }
+        let (best, best_pages) = best_window(&members);
         if best_pages < needed {
             continue;
         }
@@ -1409,6 +1433,27 @@ fn assign_headings(
 #[allow(clippy::unwrap_used, clippy::indexing_slicing)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_window_counts_a_page_once_however_many_copies_it_holds() {
+        // Three copies on each of pages 0-2, interleaved by distance.
+        let mut members: Vec<Member> = (0..3)
+            .flat_map(|j| {
+                (0..3u8).map(move |p| (usize::from(p), 10.0 + f64::from(j) + 0.1 * f64::from(p), 0))
+            })
+            .collect();
+        members.sort_by(|a, b| a.1.total_cmp(&b.1));
+        let (window, pages) = best_window(&members);
+        assert_eq!(pages, 3);
+        assert_eq!(window.len(), 9);
+    }
+
+    #[test]
+    fn a_window_is_bounded_by_the_tolerance() {
+        let members: Vec<Member> = vec![(0, 10.0, 0), (1, 12.0, 0), (2, 14.5, 0), (3, 30.0, 0)];
+        let (window, pages) = best_window(&members);
+        assert_eq!((pages, window.len()), (2, 2));
+    }
 
     #[test]
     fn list_markers() {
