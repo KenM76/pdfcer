@@ -4,6 +4,17 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-11-17 (1595th filing) — `v0.157.0` PUBLISHED (carries `Pass 721.5`)
+
+**Filed (engineer-reported; no shell here, nothing checked from here):**
+- Tag `v0.157.0` (annotated) on `ed4cbfd8` (the 1594th filing commit), pushed; CI green there (run 44174888251, read from GitHub). Carries `66ce4fd7` (`721.5`, `G291`) and bump `e96fe055`.
+- GitHub release "pdfcer v0.157.0", 8 assets (portable zip 32,503,928 bytes; three `ocr-addon-*.zip` 3,789,155 / 11,352,262 / 4,483,685; each with `.sha256`); `gh-release.py` PASS at local sizes. Build folder `D:\builds\pdfcer-20261117-1558-ed4cbfd` (`pdfcer.exe` 51,981,824 bytes; 67,925,085 total). Fresh-folder smoke (`D:\builds\smoke157`): `--version` 0.157.0 (revision line `v0.156.0-5-ged4cbfd8`, binary built before the tag), `3d-render --help` lists `--illuminance-glow`, `render-page` of `minimal.pdf` wrote a 612x792 PNG, exit 0.
+- OneDrive `pdfcer2` (6 items, 87,547,904 bytes) holds 0.157.0; `pdfcer1` keeps 0.156.0; the next release writes `pdfcer1`. `verify-release.py v0.157.0`: all ok except "working tree clean" (29 uncommitted paths, none code). crates.io: 16 of 16 crates at 0.157.0, one multi-package publish, no 429.
+- Gates: 36 of 36 CI audits, fmt, clippy `-D warnings` (`pdfcer-3d`, `pdfcer-cli`), `pdfcer-3d` 269 and `pdfcer-cli` bin 125 passed with `--no-default-features`, wasm32 check ok; full-feature tests for `66ce4fd7` (542; 1112 + 131) ran before its commit.
+- Channel: `reply_G291_..._SHIPPED.md` and `notice_2026-11-17_release_v0.157.0.md` written by the engineer.
+
+**Open:** `Pass 721.2` (next), `722.1` (awaits operator ruling), `722.2`, `647.3g`. Next free IDs unchanged (premises: `Pass 717.4`, `720.3`, `721.6`, `722.3`, `647.3h`; decision `225`; rule `R264`). ROADMAP: one Shipped entry, two amendment notes (`e96fe055` and `66ce4fd7` entries). FEATURES: crates.io row to 0.157.0; glow row says released. No Pass, decision or rule.
+
 ## 2026-11-17 (1594th filing) — `v0.157.0` release bump (`e96fe055`, not yet published)
 
 **Filed (engineer-reported; no shell here, git, push and CI state not checked from here):**
