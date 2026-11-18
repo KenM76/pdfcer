@@ -4,6 +4,19 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-11-17 (1598th filing) — `Pass 722.5` and `Pass 722.6` SHIPPED (`1a75c23c`, `X087` and `X088`, PRC compressed-tessellation search); unreleased
+
+**Filed (engineer-reported; no shell here, git, push and CI state not checked from here):**
+- `1a75c23c` `fix(3d): an ambiguous or cut-short reading is never answered by the turned one (Pass 722.5, Pass 722.6)`, one commit, two Passes, on `main` on top of `v0.157.0`, not pushed at filing. Both opened and shipped in one filing; `722.5`/`722.6` free by grep.
+- `Pass 722.5` (`X087`): a refused first reading (two fits, or budget out after a fit) is no longer answered by the turned (`ortho_turned`) reading; a thin `Reversed` normal record is recorded as the walk's sliver so the last-sliver retry can invert it.
+- `Pass 722.6` (`X088`): new `Search::Exhausted` (budget out before any fit, combinations left) ends the reading instead of passing as no-fit; a stack emptied on the budget-crossing attempt is complete (`Unique`/`NoFit`), not `Refused`; the uniqueness contract doc says uniqueness is among the combinations searched.
+- Tests: 3 new (`a_refused_reading_is_not_answered_by_the_turned_one`, `a_search_cut_short_before_any_fit_is_exhausted`, `a_thin_reversed_record_is_a_sliver`), each fails with its fix sabotaged. `pdfcer-3d` 545 lib + 6 + 35 pass; all PRC fixture fits unchanged. clippy `-D warnings`, fmt, `check-code-structure` clean (543 baseline). No manifest change; all `pub(super)`, so no `docs/core-api` change. Core only.
+- Afterwards: `36fae116` and `f3fc4514` (the 1597th filing) were pushed to `origin/main`, engineer-reported, `run-gates` PASS (54 commands). The 1597th entry's "not pushed at filing" was true then.
+
+**Decisions / findings:** none; no decision, no rule.
+
+**Open:** SHIPPED replies to `X087` and `X088` are in the request folder; release follows when the round is complete. `Pass 721.2`, `722.1` (awaits operator), `722.2`, `647.3g`. Next free IDs: `Pass 717.4`, `718.5`, `720.3`, `721.6`, `722.7`, `647.3h`; decision `225`, rule `R264`. FEATURES: unchanged (a fix; no capability or box changed).
+
 ## 2026-11-17 (1597th filing) — `Pass 722.4` SHIPPED (`36fae116`, `X086`, write mesh shadings in any colour space); unreleased
 
 **Filed (engineer-reported; no shell here, git, push and CI state not checked from here):**

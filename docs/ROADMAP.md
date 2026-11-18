@@ -112,6 +112,25 @@ wherever it appears.*
 
 ## Shipped
 
+### `1a75c23c` `Pass 722.6`: an exhausted compressed-tessellation search ends the reading and the uniqueness contract is stated honestly, 2026-11-17 (1598th filing)
+
+Engineer-reported; no shell here, git, push and CI state not checked from here. `1a75c23c` `fix(3d): an ambiguous or cut-short reading is never answered by the turned one (Pass 722.5, Pass 722.6)`; one commit, two Passes (the other is `Pass 722.5`, next entry). Request `X088` (`D:\Dev\FeatureRequests\pdfce_FeatureRequests\open\request_X088_compressed_tess_exhausted_search_and_uniqueness_contract.md`), opened and shipped in one filing; IDs `722.5` and `722.6` free by grep of `docs/`. **Unreleased** (on top of `v0.157.0`); on `main`, not pushed at filing. Reasoning is in the commit message. Delivers **core** (the `pdfcer-3d` engine); **cli none**; **gui none**. Reply: `reply_X088_..._SHIPPED.md` in the same folder.
+- **`Search::Exhausted`:** a new outcome for a search whose budget ran out before any fit while combinations were left; it ends the reading instead of passing as a no-fit.
+- **Budget-crossing edge:** a stack emptied on the attempt that crossed the budget is now complete (`Unique` or `NoFit`), not `Refused`.
+- **Contract doc:** the uniqueness contract now says uniqueness is among the combinations searched; extensions of a fit are not tried.
+- **Tests (engineer-measured):** `a_search_cut_short_before_any_fit_is_exhausted`; fails with the fix sabotaged. Shared run with `Pass 722.5`: `pdfcer-3d` 545 lib tests plus 6 plus 35 pass; every PRC fixture fit unchanged. Clippy `-D warnings`, fmt, `check-code-structure` clean (543 baseline, none new). No manifest change, so no `cargo tree` effect. All changed items `pub(super)`, so `docs/core-api` unchanged.
+- **FEATURES:** unchanged (a fix; the PRC mesh-export row's capability and boxes stand, and the row is already over the entry cap). No decision, no rule.
+- **Next free IDs:** `Pass 717.4`, `Pass 718.5`, `Pass 720.3`, `Pass 721.6`, `Pass 722.7`, `Pass 647.3h`; decision `225`, rule `R264` (none minted).
+
+### `1a75c23c` `Pass 722.5`: a refused compressed-tessellation reading is not answered by the turned one; a thin reversed record is a sliver, 2026-11-17 (1598th filing)
+
+Engineer-reported; no shell here, git, push and CI state not checked from here. `1a75c23c`, one commit with `Pass 722.6` (previous entry). Request `X087` (`D:\Dev\FeatureRequests\pdfce_FeatureRequests\open\request_X087_compressed_tess_refused_search_and_thin_reversed_sliver.md`), opened and shipped in one filing. **Unreleased; not pushed at filing.** The two commits before it, `36fae116` and `f3fc4514` (the 1597th filing), were pushed to `origin/main` afterwards (engineer-reported: `run-gates` PASS, 54 commands); the 1597th entry's "not pushed at filing" was true then and is left. Core only; cli none; gui none. Reply: `reply_X087_..._SHIPPED.md`.
+- **Refused first reading:** in the PRC compressed-tessellation search, a first reading refused (two fits, or budget out after a fit) is no longer answered by the turned (`ortho_turned`) reading.
+- **Thin `Reversed` record:** a thin `Reversed` normal record is now recorded as the walk's sliver, so the last-sliver retry can invert it.
+- **Tests (engineer-measured):** `a_refused_reading_is_not_answered_by_the_turned_one`, `a_thin_reversed_record_is_a_sliver`; each fails with its fix sabotaged. Counts and gates as in `Pass 722.6`.
+- **FEATURES:** unchanged, as `Pass 722.6`. No decision, no rule.
+- **Next free IDs:** as in `Pass 722.6` (`722.7` next).
+
 ### `36fae116` `Pass 722.4`: write mesh shadings in any colour space, 2026-11-17 (1597th filing)
 
 Engineer-reported; no shell here, git, push and CI state not checked from here. `36fae116` `feat(core): write mesh shadings in any colour space (Pass 722.4)`. Request `X086` (`D:\Dev\FeatureRequests\pdfce_FeatureRequests\open\request_X086_write_mesh_shadings_in_any_colour_space.md`), opened and shipped in one filing. ID `722.4` confirmed unused by grep of `docs/` (only "next free" mentions). **Unreleased; on `main`, not pushed at filing.** Reasoning is in the commit message. Delivers **core**; **cli none** (no subcommand this Pass); **gui none** (the GUI project is the caller and asked for it).
@@ -27608,6 +27627,8 @@ closes out the *prior* filing's business rather than opening this one's.
 > **`Pass 721.5` SHIPPED 2026-11-17 (1593rd filing), `66ce4fd7`; see its *Shipped* entry (opened and shipped in one filing, `G291`; unreleased, `v0.157.0`).** Next free IDs: `Pass 717.4`, `Pass 720.3`, `Pass 721.6`, `Pass 722.3`, `Pass 647.3h`. `Pass 721.2` (rest of the assembly measure tool) stays next.
 
 > **`Pass 722.4` SHIPPED 2026-11-17 (1597th filing), `36fae116`; see its *Shipped* entry (opened and shipped in one filing, `X086`; unreleased).** Next free IDs: `Pass 717.4`, `Pass 718.5`, `Pass 720.3`, `Pass 721.6`, `Pass 722.5`, `Pass 647.3h`.
+>
+> **`Pass 722.5` and `Pass 722.6` SHIPPED 2026-11-17 (1598th filing), `1a75c23c`; see their *Shipped* entries (opened and shipped in one filing, `X087` and `X088`; unreleased).** Next free IDs: `Pass 717.4`, `Pass 718.5`, `Pass 720.3`, `Pass 721.6`, `Pass 722.7`, `Pass 647.3h`.
 
 > **`Pass 647.3g` (OPEN, NOT STARTED; NOT gating `v0.156.0` unless the operator says so): XFA page-background fields bind per page (request `X016` item 1, the only unshipped part of `X016`).** Part of the `Pass 647.x` arc (decision 204, paced slowly). The criteria sit under the `Pass 647.3` heading further down this file (heading status corrected this filing: `647.3a` to `647.3f` shipped); the fresh slice is the per-page instance index (`Area[0]`, `Area[1]`, ...), a per-page value surviving save and reopen, and `match="global"` or an explicit `<bind ref>` staying one shared value, synthetic templates only. Reply to `X016` owed when it ships.
 
