@@ -13,6 +13,17 @@ impl SurfaceArgs {
         pdfcer_3d::CoordinateFrame::new(f.origin, f.x_axis, f.y_toward)
     }
 
+    /// How unit figures are read out for a model in `units`.
+    pub(super) fn readout(&self, units: Option<pdfcer_3d::ModelUnits>) -> super::readout::Readout {
+        use super::readout::length_unit;
+        super::readout::Readout::new(
+            units.map(|u| u.mm_per_unit),
+            length_unit(self.measure_units),
+            self.measure_dual_units.map(length_unit),
+            usize::from(self.measure_decimals),
+        )
+    }
+
     /// The model-space normal of the --measure-project-onto plane.
     pub(super) fn projection_normal(&self, camera: &pdfcer_3d::Camera) -> Option<[f64; 3]> {
         self.measure_project_onto.map(|onto| match onto {
@@ -74,7 +85,10 @@ impl SurfaceArgs {
                     measured = true;
                     let normal = self.projection_normal(camera);
                     let frame = self.frame();
-                    println!("{head} {}", distance_line(&d, model.units, normal, frame));
+                    println!(
+                        "{head} {}",
+                        distance_line(&d, &self.readout(model.units), normal, frame)
+                    );
                 }
             }
         }
@@ -91,15 +105,13 @@ impl SurfaceArgs {
 /// The figures of one distance.
 fn distance_line(
     d: &pdfcer_3d::EntityDistance,
-    units: Option<pdfcer_3d::ModelUnits>,
+    r: &super::readout::Readout,
     normal: Option<[f64; 3]>,
     frame: Option<pdfcer_3d::CoordinateFrame>,
 ) -> String {
     let triple = |v: [f64; 3]| v.map(|c| format!("{c:.6}")).join(",");
     let span = |name: &str, s: &pdfcer_3d::Span| {
-        let mm = units.map_or(String::new(), |u| {
-            format!(" ({:.6} mm)", s.length * u.mm_per_unit)
-        });
+        let mm = r.length(s.length);
         let projected = normal
             .and_then(|n| Some((s.projected(n)?, s.along(n)?)))
             .map_or(String::new(), |(p, along)| {

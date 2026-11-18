@@ -38,6 +38,7 @@ mod gpu;
 mod illuminance;
 #[cfg(feature = "render")]
 mod indirect;
+mod length_unit;
 #[cfg(feature = "render")]
 mod lighting;
 mod model;
@@ -122,6 +123,7 @@ pub use illuminance::{
     LightMeter, LightShare, LightTint, MAX_ILLUMINANCE_RAYS, MAX_ILLUMINANCE_SAMPLES, MeterBasis,
     MeterSettings, RelativeReason,
 };
+pub use length_unit::{LengthUnit, UnknownLengthUnit};
 #[cfg(feature = "render")]
 pub use lighting::bounce::{Bounce, BounceSky, BounceStats, IndirectOptions, MAX_BOUNCE_STRENGTH};
 #[cfg(feature = "render")]

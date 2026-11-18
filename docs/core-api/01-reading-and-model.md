@@ -3716,6 +3716,15 @@ let image = render_coloured(&meshes, &colours, &camera, &RenderOptions { width: 
   `note: measure-distance:` line. `--measure-project-onto screen|NX,NY,NZ`
   adds `NAME_projected=` and `NAME_normal=` after each figure (`screen` is
   the view direction, target minus eye).
+- **Length units for a readout** (`pdfcer-3d`, no feature): `LengthUnit`
+  (`Micrometre`, `Millimetre`, `Centimetre`, `Metre`, `Inch`, `Foot`;
+  non_exhaustive), `LengthUnit::ALL` (smallest first), `mm_per_unit()`
+  (an inch is exactly 25.4), `symbol()` (`um mm cm m in ft`, also its
+  `Display`) and `FromStr` (the symbol; else `UnknownLengthUnit`). A model
+  length in a unit is `v * ModelUnits::mm_per_unit / unit.mm_per_unit()`;
+  an area uses both factors squared. CLI: `3d-render --measure-units`,
+  `--measure-dual-units`, `--measure-decimals` (0 to 12, the unit figures
+  only; model-unit figures keep 6).
 - **Projected area of a face** (`pdfcer-3d`, feature `render`):
   `face_projected_area(meshes, &SurfacePick, direction) -> Result<ProjectedArea, SurfaceMeasureError>`
   projects the face `face_figures` would measure onto the plane square to

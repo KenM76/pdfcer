@@ -6,6 +6,8 @@
 mod distance;
 #[cfg(feature = "3d")]
 mod edge;
+#[cfg(feature = "3d")]
+mod readout;
 mod target;
 #[cfg(feature = "3d")]
 use edge::picked;
@@ -97,6 +99,19 @@ pub(crate) struct SurfaceArgs {
     /// printed on a note line.
     #[arg(long, value_name = "OX,OY,OZ,XX,XY,XZ,YX,YY,YZ", value_parser = target::parse_frame, allow_hyphen_values = true)]
     pub(crate) measure_frame: Option<target::Frame>,
+    /// The unit measured lengths, areas and points are also read out in,
+    /// after each model-unit figure, when the model's unit is known: um,
+    /// mm, cm, m, in or ft.
+    #[arg(long, value_name = "UNIT", value_enum, default_value_t = target::Unit::Mm)]
+    pub(crate) measure_units: target::Unit,
+    /// A second unit each of those figures is read out in too, after the
+    /// first.
+    #[arg(long, value_name = "UNIT", value_enum)]
+    pub(crate) measure_dual_units: Option<target::Unit>,
+    /// Decimal places of the --measure-units figures (0 to 12). The
+    /// model-unit figures always carry 6.
+    #[arg(long, value_name = "N", default_value_t = 6, value_parser = clap::value_parser!(u8).range(0..=12))]
+    pub(crate) measure_decimals: u8,
 }
 
 /// The engine's defaults, restated so the flags exist in a build without
@@ -155,7 +170,7 @@ impl SurfaceArgs {
                 Ok(m) => {
                     measured = true;
                     partial |= !m.a.whole_face || !m.b.whole_face;
-                    println!("{at} {}", relation(&m, model.units));
+                    println!("{at} {}", relation(&m, &self.readout(model.units)));
                     side('a', &a, &m.a);
                     side('b', &b, &m.b);
                 }
@@ -202,7 +217,7 @@ impl SurfaceArgs {
                     println!(
                         "{at} triangle={} {}{}",
                         pick.triangle,
-                        face_line(&f, model.units),
+                        face_line(&f, &self.readout(model.units)),
                         shadow.map_or(String::new(), |p| format!(
                             " projected_toward={:.6} projected_away={:.6}",
                             p.toward, p.away
@@ -223,9 +238,9 @@ impl SurfaceArgs {
 
 /// The figures of one face.
 #[cfg(feature = "3d")]
-fn face_line(f: &pdfcer_3d::FaceFigures, units: Option<pdfcer_3d::ModelUnits>) -> String {
+fn face_line(f: &pdfcer_3d::FaceFigures, r: &readout::Readout) -> String {
     use pdfcer_3d::FaceShape;
-    let mm = |v: f64| units.map_or(String::new(), |u| format!(" ({:.6} mm)", v * u.mm_per_unit));
+    let mm = |v: f64| r.length(v);
     let triple = |v: [f64; 3]| v.map(|c| format!("{c:.6}")).join(",");
     let shape = match f.shape {
         FaceShape::Plane {
@@ -260,10 +275,7 @@ fn face_line(f: &pdfcer_3d::FaceFigures, units: Option<pdfcer_3d::ModelUnits>) -
         f.face.map_or("none".to_owned(), |i| i.to_string()),
         f.triangles,
         f.area,
-        units.map_or(String::new(), |u| format!(
-            " ({:.6} mm2)",
-            f.area * u.mm_per_unit.powi(2)
-        )),
+        r.area(f.area),
         f.perimeter,
         mm(f.perimeter),
     )
@@ -271,9 +283,9 @@ fn face_line(f: &pdfcer_3d::FaceFigures, units: Option<pdfcer_3d::ModelUnits>) -
 
 /// The figures of one measurement.
 #[cfg(feature = "3d")]
-fn relation(m: &pdfcer_3d::SurfaceMeasure, units: Option<pdfcer_3d::ModelUnits>) -> String {
+fn relation(m: &pdfcer_3d::SurfaceMeasure, r: &readout::Readout) -> String {
     use pdfcer_3d::SurfaceRelation;
-    let mm = |v: f64| units.map_or(String::new(), |u| format!(" ({:.6} mm)", v * u.mm_per_unit));
+    let mm = |v: f64| r.length(v);
     let head = match m.relation {
         SurfaceRelation::Parallel { distance, forced } => format!(
             "relation=parallel distance={distance:.6}{} forced={}",

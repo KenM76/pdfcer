@@ -726,6 +726,39 @@ fn measure_face_reports_a_faces_area_perimeter_and_plane() {
         shadow("1,0,0").contains("projected_toward=0.000000 projected_away=0.000000"),
         "edge-on"
     );
+    // The model is in metres: read out in inches and millimetres at 2 places.
+    let units = [
+        "--measure-units",
+        "in",
+        "--measure-dual-units",
+        "mm",
+        "--measure-decimals",
+        "2",
+    ];
+    let inches = read(
+        &[
+            &["--measure-face", "60,40", "--measure-vertex", "60,40"][..],
+            &units[..],
+        ]
+        .concat(),
+    );
+    assert!(
+        inches.contains("perimeter=4.000000 (157.48 in / 4000.00 mm)"),
+        "{inches}"
+    );
+    assert!(
+        inches.contains(" in2 / ") && inches.contains(" mm2)"),
+        "{inches}"
+    );
+    assert!(
+        inches.contains(" point_in=") && inches.contains(" point_mm="),
+        "{inches}"
+    );
+    let mut bad = vec!["3d-render", &out, "--index", "0", "-o", &png];
+    bad.extend_from_slice(&["--measure-face", "60,40", "--measure-units", "yd"]);
+    let refused = run(&bad);
+    assert!(!refused.status.success());
+    assert!(String::from_utf8_lossy(&refused.stderr).contains("yd"));
     let miss = read(&["--measure-face", "2,2"]);
     assert!(miss.contains("measure-face at=2,2 miss"), "{miss}");
     let edge = read(&["--measure-edge", "60,40", "--measure-vertex", "60,40"]);

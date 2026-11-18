@@ -76,6 +76,18 @@ pub(crate) struct Frame {
     pub(crate) y_toward: [f64; 3],
 }
 
+/// The length units the measure flags accept; a test holds them equal to
+/// the engine's `LengthUnit` symbols.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, clap::ValueEnum)]
+pub(crate) enum Unit {
+    Um,
+    Mm,
+    Cm,
+    M,
+    In,
+    Ft,
+}
+
 /// Clap parser for `OX,OY,OZ,XX,XY,XZ,YX,YY,YZ`; refuses a zero X
 /// direction and a Y direction parallel to it.
 pub(crate) fn parse_frame(s: &str) -> Result<Frame, String> {

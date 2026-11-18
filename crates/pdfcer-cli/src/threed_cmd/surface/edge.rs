@@ -54,7 +54,7 @@ impl SurfaceArgs {
                     println!(
                         "{at} triangle={} {}",
                         pick.triangle,
-                        edge_line(&e, model.units)
+                        edge_line(&e, &self.readout(model.units))
                     );
                 }
             }
@@ -67,9 +67,7 @@ impl SurfaceArgs {
             match pdfcer_3d::vertex_at(&model.meshes, &pick) {
                 Err(err) => println!("{at} refused: {err}"),
                 Ok(p) => {
-                    let mm = model.units.map_or(String::new(), |u| {
-                        format!(" point_mm={}", triple(p.map(|c| c * u.mm_per_unit)))
-                    });
+                    let mm = self.readout(model.units).point(p);
                     let local = self.frame().map_or(String::new(), |f| {
                         format!(" point_frame={}", triple(f.point_to_local(p)))
                     });
@@ -93,9 +91,9 @@ impl SurfaceArgs {
 }
 
 /// The figures of one edge.
-fn edge_line(e: &pdfcer_3d::EdgeFigures, units: Option<pdfcer_3d::ModelUnits>) -> String {
+fn edge_line(e: &pdfcer_3d::EdgeFigures, r: &super::readout::Readout) -> String {
     use pdfcer_3d::EdgeShape;
-    let mm = |v: f64| units.map_or(String::new(), |u| format!(" ({:.6} mm)", v * u.mm_per_unit));
+    let mm = |v: f64| r.length(v);
     let triple = |v: [f64; 3]| v.map(|c| format!("{c:.6}")).join(",");
     let face = |f: Option<usize>| f.map_or("none".to_owned(), |i| i.to_string());
     let shape = match e.shape {

@@ -3356,6 +3356,9 @@ pub(crate) enum Command {
     /// measured face's projected area on each side.
     /// `--measure-frame OX,OY,OZ,XX,XY,XZ,YX,YY,YZ` adds vertex and
     /// distance positions and deltas in that coordinate system.
+    /// `--measure-units UNIT` (um, mm, cm, m, in, ft; default mm),
+    /// `--measure-dual-units UNIT` and `--measure-decimals N` choose how
+    /// lengths, areas and points are read out after the model-unit figures.
     ///
     /// `--360` draws the whole sphere around the camera as an
     /// equirectangular panorama (2048 x 1024 unless a size is given); a
