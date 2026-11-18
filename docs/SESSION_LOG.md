@@ -4,6 +4,17 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-11-18 (1606th filing) — `Pass 722.9` SHIPPED (`77344e5b`, a mesh's break list also splits where a colour space clamps, request `X089` follow-up); unreleased
+
+**Filed (engineer-reported; no shell here, git, push and CI state not checked from here):**
+- `77344e5b` `feat(function): break a function's outputs where a colour space clamps them (Pass 722.9)`; `722.9` was the next free ID, next is `722.10`. Follows `3f89304e` (`Pass 722.8`, filed `01c083b3`). The `X089` reply was already updated; not touched.
+- `PdfFunction::affine_breaks_clamped(cap, bounds)` = `affine_breaks` plus each input where output `i` crosses `bounds[i]`; `None` past `cap`. `reexpress_mesh_with_breaks` doc names it as the list to pass.
+- Tests: `affine_breaks_list_where_each_type_bends` extended; new `a_function_clamped_by_its_colour_space_splits_where_it_clamps` (kinks at 1/6 and 5/6, since 0.25/0.75 land on dyadic split edges and hide the miss). 12 mesh_shading pass; clippy clean; core-api verbs green; 36 audits green; no manifest change.
+
+**Decisions / findings:** none; no decision, no rule.
+
+**Open:** ships in `v0.158.0`. Next free IDs: `Pass 717.4`, `718.5`, `720.3`, `721.10`, `722.10`, `647.3h`; decision `225`, rule `R264`. FEATURES: mesh-shading write row names the clamped variant, boxes unchanged (core only).
+
 ## 2026-11-18 (1605th filing) — `Pass 722.8` SHIPPED (`3f89304e`, a parametric mesh is checked against its function's exact breaks, request `X089` addendum); unreleased
 
 **Filed (engineer-reported; no shell here, git, push and CI state not checked from here):**

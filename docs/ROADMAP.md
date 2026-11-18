@@ -112,6 +112,16 @@ wherever it appears.*
 
 ## Shipped
 
+### `77344e5b` `Pass 722.9`: a mesh's break list also splits where a colour space clamps, 2026-11-18 (1606th filing)
+
+Engineer-reported; no shell here, git, push and CI state not checked from here. `77344e5b` `feat(function): break a function's outputs where a colour space clamps them (Pass 722.9)`. Request `X089` follow-up "clamp crossings" (pdfceGUI channel); follows `Pass 722.8` (`3f89304e`, filed `01c083b3`). `722.9` was the next free ID, so the next is `722.10`. **Unreleased; ships in `v0.158.0`.** Reasoning is in the commit message. Delivers **core**; **cli none**; **gui none**. The `X089` reply file was already updated and was not touched here.
+- **New verb (`pdfcer-function`):** `PdfFunction::affine_breaks_clamped(cap, bounds: &[[f64; 2]]) -> Option<Vec<f64>>` in `crates/pdfcer-function/src/function/breaks.rs`: `affine_breaks` plus each input where output `i` crosses `bounds[i]` (a colour space's component range, which a consumer's `convert` clamps to). `None` past `cap`. Shares the `/Range`-crossing helper.
+- **Doc:** `reexpress_mesh_with_breaks` (`pdfcer-core`) now names it as the list to pass.
+- **Tests (engineer-measured):** `affine_breaks_list_where_each_type_bends` extended (a requested C0 -0.5, C1 1.5 ramp gives `[0, 0.25, 0.75, 1]`; `None` at cap 3; a 0..1 ramp stays `[0, 1]`). New `a_function_clamped_by_its_colour_space_splits_where_it_clamps` (`crates/pdfcer-core/tests/mesh_shading.rs`): kinks at 1/6 and 5/6, because the 0.25/0.75 ramp's kinks land on dyadic split edges and cannot show the miss; with clamped breaks, 0 `over_tolerance` on a 17x17 grid per output triangle; with `[0, 1]`, off by more than tolerance; a 0..1 ramp stays one triangle. 12 `mesh_shading` tests pass; clippy clean; core-api verbs green; 36 CI audits green; no manifest or dependency change.
+- **Docs:** `docs/core-api/01-reading-and-model.md` `affine_breaks` row names the clamped variant (no line-count change).
+- **FEATURES:** the mesh-shading write row gained the clamped variant and the Pass ID; boxes unchanged, `core [x]`, `cli [ ]`, `gui [ ]`. No decision, no rule.
+- **Next free IDs:** `Pass 717.4`, `Pass 718.5`, `Pass 720.3`, `Pass 721.10`, `Pass 722.10`, `Pass 647.3h`; decision `225`, rule `R264` (none minted).
+
 ### `3f89304e` `Pass 722.8`: a parametric mesh is checked against its function's exact breaks, 2026-11-18 (1605th filing)
 
 Engineer-reported; no shell here, git, push and CI state not checked from here. `3f89304e` `feat(core): check a parametric mesh against its function's exact breaks (Pass 722.8)`. Request `X089` addendum (pdfceGUI channel); follows `Pass 722.7` (`172f9990`, the 256-step grid). `722.8` was the next free ID, so the next is `722.9`. **Unreleased; ships in `v0.158.0`.** Reasoning is in the commit message. Delivers **core**; **cli none**; **gui none**. The `X089` reply file was updated by the operator and was not touched here.
@@ -27705,6 +27715,8 @@ closes out the *prior* filing's business rather than opening this one's.
 > **`Pass 722.7` SHIPPED 2026-11-18 (1604th filing), `172f9990`; see its *Shipped* entry (opened and shipped in one filing, `X089`; unreleased).** Next free IDs: `Pass 717.4`, `Pass 718.5`, `Pass 720.3`, `Pass 721.10`, `Pass 722.8`, `Pass 647.3h`; decision `225`, rule `R264`.
 
 > **`Pass 722.8` SHIPPED 2026-11-18 (1605th filing), `3f89304e`; see its *Shipped* entry (opened and shipped in one filing, `X089` addendum; unreleased, `v0.158.0`).** Next free IDs: `Pass 717.4`, `Pass 718.5`, `Pass 720.3`, `Pass 721.10`, `Pass 722.9`, `Pass 647.3h`; decision `225`, rule `R264`.
+
+> **`Pass 722.9` SHIPPED 2026-11-18 (1606th filing), `77344e5b`; see its *Shipped* entry (opened and shipped in one filing, `X089` follow-up; unreleased, `v0.158.0`).** Next free IDs: `Pass 717.4`, `Pass 718.5`, `Pass 720.3`, `Pass 721.10`, `Pass 722.10`, `Pass 647.3h`; decision `225`, rule `R264`.
 
 > **`Pass 647.3g` (OPEN, NOT STARTED; NOT gating `v0.156.0` unless the operator says so): XFA page-background fields bind per page (request `X016` item 1, the only unshipped part of `X016`).** Part of the `Pass 647.x` arc (decision 204, paced slowly). The criteria sit under the `Pass 647.3` heading further down this file (heading status corrected this filing: `647.3a` to `647.3f` shipped); the fresh slice is the per-page instance index (`Area[0]`, `Area[1]`, ...), a per-page value surviving save and reopen, and `match="global"` or an explicit `<bind ref>` staying one shared value, synthetic templates only. Reply to `X016` owed when it ships.
 
