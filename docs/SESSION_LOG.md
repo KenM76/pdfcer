@@ -4,6 +4,15 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-11-18 (1618th filing) — `Pass 723.2` (`421da52f`, `X092`) SHIPPED: a caption lead matches in any letter case; unreleased
+
+**Filed (engineer-reported; no shell here, git, push and CI state not checked from here):**
+- `421da52f` `fix(layout): a caption lead matches in any letter case`: `is_caption` in `crates/pdfcer-text/src/block_layout.rs` matches Figure, Fig., Table, Chart, Exhibit, Plate in any ASCII case; a digit must still follow. `FIGURE 3: Architecture` was a paragraph, and large or bold it became a heading.
+- Tests (engineer-reported): unit `a_caption_lead_matches_in_any_case` plus end-to-end `a_large_bold_capitals_caption_is_a_caption_not_a_heading`; sabotage fails both; `pdfcer-text` and `pdfcer-core` green (0 failed); clippy and fmt clean.
+- FEATURES: no row changed.
+
+**Open:** next free IDs `Pass 647.13`, `717.4`, `718.5`, `720.3`, `721.14`, `722.10`, `723.3`, `647.3h`; decision `225`; rule `R264`. The `v0.159.0` round carries `721.13`, `723.1`, `d278cc2a`, `723.2`; tag, package and publish still to do.
+
 ## 2026-11-18 (1617th filing) — `d278cc2a` FIXED: `xfa-materialize --fillable` help broke `cargo doc`; unreleased
 
 **Filed (engineer-reported; no shell here, git, push and CI state not checked from here):**

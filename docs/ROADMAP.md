@@ -112,6 +112,14 @@ wherever it appears.*
 
 ## Shipped
 
+### `421da52f` `Pass 723.2`: a caption lead matches in any letter case, 2026-11-18 (1618th filing)
+
+Engineer-reported; no shell here, git, push and CI state not checked from here. `421da52f` `fix(layout): a caption lead matches in any letter case`. Request `X092` (from the operator as a `crates` consumer). Opened and shipped in one filing. **Unreleased**: joins the open `v0.159.0` round (`721.13`, `723.1`, `d278cc2a`, this). Reasoning is in the commit message. **core** only; cli/gui unchanged.
+- **Defect:** `FIGURE 3: Architecture` was classed a paragraph, and set large or bold it was promoted to a heading.
+- **Fix:** `is_caption` in `crates/pdfcer-text/src/block_layout.rs` matches the leads Figure, Fig., Table, Chart, Exhibit and Plate in any ASCII case (`eq_ignore_ascii_case` on a `get` slice). A digit must still follow the lead.
+- **Tests (engineer-reported):** unit `a_caption_lead_matches_in_any_case`; end-to-end `a_large_bold_capitals_caption_is_a_caption_not_a_heading` in `crates/pdfcer-core/tests/block_layout.rs`. Sabotage (a case-sensitive compare) fails both. `pdfcer-text` and `pdfcer-core` all green (2378, 3348, 290, 72, 38, 18, 1; 0 failed); clippy `-D warnings` and fmt clean.
+- **FEATURES:** no row changed (the layout row was already core-ticked).
+
 ### `d278cc2a` follow-up fix to `Pass 647.12` (`e7dcdb8c`): `xfa-materialize --fillable` help no longer breaks `cargo doc`, 2026-11-18 (1617th filing)
 
 Engineer-reported; no shell here, git, push and CI state not checked from here. `d278cc2a` `fix(cli): xfa-materialize --fillable help no longer breaks cargo doc`. No new Pass ID (a follow-up to `647.12`, not a capability). **Unreleased**: joins the open `v0.159.0` round. Reasoning is in the commit message. **cli** help text only; core/gui unchanged.
@@ -27850,6 +27858,8 @@ closes out the *prior* filing's business rather than opening this one's.
 > **`Pass 721.13` (`fe99f7da`, `E068`) SHIPPED 2026-11-18 (1615th filing); see its *Shipped* entry (opened and shipped in one filing; unreleased, joins the `v0.159.0` round).** Next free IDs: `Pass 647.13`, `Pass 717.4`, `Pass 718.5`, `Pass 720.3`, `Pass 721.14`, `Pass 722.10`, `Pass 723.1`, `Pass 647.3h`; decision `225`, rule `R264`. `721.13` was the next free ID per the 1613th banner (not re-grepped beyond that; no shell).
 
 > **`Pass 723.1` (`e5c436cb`, `X091`) SHIPPED 2026-11-18 (1616th filing); see its *Shipped* entry (opened and shipped in one filing; unreleased, joins the `v0.159.0` round).** Next free IDs: `Pass 647.13`, `Pass 717.4`, `Pass 718.5`, `Pass 720.3`, `Pass 721.14`, `Pass 722.10`, `Pass 723.2`, `Pass 647.3h`; decision `225`, rule `R264`. `723.1` was the next free ID per the 1615th banner (not re-grepped beyond that; no shell).
+
+> **`Pass 723.2` (`421da52f`, `X092`) SHIPPED 2026-11-18 (1618th filing); see its *Shipped* entry (opened and shipped in one filing; unreleased, joins the `v0.159.0` round).** Next free IDs: `Pass 647.13`, `Pass 717.4`, `Pass 718.5`, `Pass 720.3`, `Pass 721.14`, `Pass 722.10`, `Pass 723.3`, `Pass 647.3h`; decision `225`, rule `R264`. `723.2` was the next free ID per the 1616th banner (not re-grepped beyond that; no shell).
 
 > **`d278cc2a` (follow-up fix to `Pass 647.12`, no new ID) FILED 2026-11-18 (1617th filing); see its *Shipped* entry (unreleased, joins the `v0.159.0` round).** Next free IDs unchanged from the 1616th banner.
 
