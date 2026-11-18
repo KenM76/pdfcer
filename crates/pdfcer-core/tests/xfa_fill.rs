@@ -277,3 +277,90 @@ fn a_packet_array_with_no_datasets_stream_is_refused() {
         "{err:?}"
     );
 }
+
+/// A form whose fields bind by `dataRef` to `refs`, with data `data`.
+fn by_ref(refs: &[&str], data: &str) -> String {
+    let fields: String = refs
+        .iter()
+        .enumerate()
+        .map(|(i, r)| {
+            format!(r#"<field name="f{i}"><ui><textEdit/></ui><bind match="dataRef" ref="{r}"/></field>"#)
+        })
+        .collect();
+    let datasets = if data.is_empty() {
+        String::new()
+    } else {
+        format!(
+            r#"<xfa:datasets xmlns:xfa="http://www.xfa.org/schema/xfa-data/1.0/"><xfa:data>{data}</xfa:data></xfa:datasets>"#
+        )
+    };
+    format!(
+        r#"<xdp:xdp xmlns:xdp="http://ns.adobe.com/xdp/"><template><subform name="form1">{fields}</subform></template>{datasets}</xdp:xdp>"#
+    )
+}
+
+#[test]
+fn an_unresolved_data_reference_creates_the_node_it_names() {
+    // G299: `$.Deposit` with no `Deposit` in the data (XFA 3.3 p.199 Q11).
+    let xdp = by_ref(
+        &["$.Name", "$.Deposit", "$.Bank.Acct"],
+        "<form1><Name>K</Name></form1>",
+    );
+    let original = pdf("4 0 R", &[("", xdp.into_bytes())]);
+    let mut s = session(original);
+    let opts = MergeOptions::new();
+    let out = s.fill_xfa_field(&[0, 1], "500", &opts).unwrap();
+    assert_eq!(out.created, ["Deposit"]);
+    let out = s.fill_xfa_field(&[0, 2], "12-3", &opts).unwrap();
+    assert_eq!(out.created, ["Bank", "Acct"]);
+    let bytes = saved(&s);
+    let text = String::from_utf8_lossy(&bytes).into_owned();
+    assert!(
+        text.contains(
+            "<form1><Name>K</Name><Deposit>500</Deposit><Bank><Acct>12-3</Acct></Bank></form1>"
+        ),
+        "{text}"
+    );
+    assert_eq!(values(bytes), ["K", "500", "12-3"]);
+}
+
+#[test]
+fn a_data_reference_with_no_data_at_all_creates_the_record() {
+    let original = pdf("4 0 R", &[("", by_ref(&["$.Deposit"], "").into_bytes())]);
+    let mut s = session(original);
+    let out = s
+        .fill_xfa_field(&[0, 0], "9", &MergeOptions::new())
+        .unwrap();
+    assert_eq!(out.created, ["form1", "Deposit"]);
+    assert_eq!(values(saved(&s)), ["9"]);
+}
+
+#[test]
+fn a_data_reference_that_does_not_say_where_is_refused_by_name() {
+    let xdp = by_ref(
+        &["$data..Deposit", "$.N[2]", "$.Name.Inner", "$.Grp"],
+        "<form1><Name>K</Name><Grp><x>1</x></Grp></form1>",
+    );
+    let original = pdf("4 0 R", &[("", xdp.into_bytes())]);
+    let mut s = session(original);
+    for (i, reference) in ["$data..Deposit", "$.N[2]", "$.Name.Inner", "$.Grp"]
+        .into_iter()
+        .enumerate()
+    {
+        let err = s
+            .fill_xfa_field(&[0, i], "x", &MergeOptions::new())
+            .unwrap_err();
+        let EditError::XfaFill(XfaFillError::DataRefAbsent { reference: r }) = err else {
+            panic!("{reference}: {err:?}");
+        };
+        assert_eq!(r, reference);
+    }
+    let refuse = MergeOptions::new().with_data_creation(DataCreation::Refuse);
+    let xdp = by_ref(&["$.Deposit"], "<form1/>");
+    let mut s = session(pdf("4 0 R", &[("", xdp.into_bytes())]));
+    let err = s.fill_xfa_field(&[0, 0], "x", &refuse).unwrap_err();
+    assert!(
+        matches!(err, EditError::XfaFill(XfaFillError::Unbound)),
+        "{err:?}"
+    );
+}

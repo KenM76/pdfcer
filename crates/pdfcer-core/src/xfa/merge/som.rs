@@ -173,6 +173,77 @@ pub(super) fn resolve(r: &Ref, cx: &Context<'_>) -> Option<Vec<usize>> {
     }
 }
 
+/// Where binding creates the node `r` names when it resolves to nothing
+/// (XFA 3.3 p.199 Q11: the node and any missing ancestors are created so it
+/// links at the stated location): the deepest existing group, the groups to
+/// create under it outermost first, and the value's name. `None` when the
+/// reference does not say where: a step's index skips siblings, a step
+/// meets a value where a group is needed, or the node exists already. An
+/// unqualified reference matching nothing creates under the scope. `[*]`
+/// adds one more instance (p.199).
+pub(super) fn creation(r: &Ref, cx: &Context<'_>) -> Option<(Vec<usize>, Vec<String>, String)> {
+    let mut path = match r.start {
+        Start::Scope | Start::Unqualified => cx.scope.to_vec(),
+        Start::Data => Vec::new(),
+        Start::Record => cx.record.to_vec(),
+    };
+    let (last, inner) = r.steps.split_last()?;
+    let mut rest = r.steps.len();
+    for (i, s) in inner.iter().enumerate() {
+        let existing = named(
+            cx,
+            &path,
+            &Step {
+                name: s.name.clone(),
+                index: Index::All,
+            },
+        );
+        let at = match s.index {
+            Index::At(n) => existing.get(n).copied(),
+            Index::All => existing.first().copied(),
+        };
+        match at {
+            Some(c) => {
+                path.push(c);
+                if !node_at(cx.root, &path).is_some_and(|d| d.group) {
+                    return None;
+                }
+            }
+            None if matches!(s.index, Index::At(n) if n != existing.len()) => return None,
+            None => {
+                rest = i;
+                break;
+            }
+        }
+    }
+    let created = r.steps.get(rest..).unwrap_or_default();
+    if rest == r.steps.len() {
+        let count = named(
+            cx,
+            &path,
+            &Step {
+                name: last.name.clone(),
+                index: Index::All,
+            },
+        )
+        .len();
+        if matches!(last.index, Index::At(n) if n != count) {
+            return None;
+        }
+    } else if created
+        .iter()
+        .any(|s| matches!(s.index, Index::At(n) if n != 0))
+    {
+        return None;
+    }
+    let groups = created
+        .iter()
+        .take(created.len().saturating_sub(1))
+        .map(|s| s.name.clone())
+        .collect();
+    Some((path, groups, last.name.clone()))
+}
+
 /// Every data node `r` names, in document order: a `[*]` step takes all
 /// its same-named siblings, any other step one (p.119).
 pub(super) fn resolve_all(r: &Ref, cx: &Context<'_>) -> Vec<Vec<usize>> {

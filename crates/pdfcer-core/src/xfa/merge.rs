@@ -579,6 +579,9 @@ impl Merger<'_> {
                 }
                 Err(kind) => {
                     self.unfilled += usize::from(want_value);
+                    if want_value && kind == MergeWarningKind::Unresolved {
+                        self.plan_ref_creation(path, &reference, scope);
+                    }
                     self.warnings.push(MergeWarning {
                         path: path.to_vec(),
                         kind,
@@ -720,6 +723,34 @@ impl Merger<'_> {
             Some(_) => false,
         };
         taken.then(|| reference.to_owned())
+    }
+
+    /// Record where a fill creates the node an unresolved data reference
+    /// names ([`som::creation`]). With no record group yet, a reference
+    /// from the scope or `$record` creates the record first.
+    fn plan_ref_creation(&mut self, path: &[usize], reference: &str, scope: &[usize]) {
+        let Ok(r) = som::parse(reference) else {
+            return;
+        };
+        let cx = som::Context {
+            root: self.root,
+            scope,
+            record: self.record,
+            bound: &self.bound_nodes,
+            search: self.opts.scope_search,
+        };
+        let Some((at, mut groups, name)) = som::creation(&r, &cx) else {
+            return;
+        };
+        if self.record.is_empty() && at.is_empty() && r.start != som::Start::Data {
+            groups.splice(0..0, self.record_groups.iter().cloned());
+        }
+        self.unbound.push(Unbound {
+            path: path.to_vec(),
+            name,
+            scope: at,
+            groups,
+        });
     }
 
     fn lookup(

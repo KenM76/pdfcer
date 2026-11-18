@@ -42,8 +42,10 @@ impl EditSession {
     /// re-normalization, pp.209-210). A `global` field's value goes under
     /// the record and every copy shares it (gap G-B12). With no data at all
     /// the record group, `xfa:data` and if needed the `datasets` packet are
-    /// created. [`XfaFillOutcome::created`] names what was created, for the
-    /// caller to disclose.
+    /// created. A field bound by an explicit data reference that names no
+    /// data gets the node the reference names, with any missing ancestor
+    /// groups (XFA 3.3 p.199). [`XfaFillOutcome::created`] names what was
+    /// created, for the caller to disclose.
     ///
     /// # Errors
     ///
@@ -51,6 +53,8 @@ impl EditSession {
     /// - [`XfaFillError::NoXfa`]: no XFA form;
     /// - [`XfaFillError::Unbound`]: nothing at `path` took a data value and
     ///   none could be created;
+    /// - [`XfaFillError::DataRefAbsent`]: the field's data reference names
+    ///   no data and does not say where to create it;
     /// - [`XfaFillError::NoDatasetsPacket`]: a node must be created and the
     ///   `/XFA` packet array has no `datasets` stream;
     /// - [`XfaFillError::Utf16`]: the XDP is UTF-16;

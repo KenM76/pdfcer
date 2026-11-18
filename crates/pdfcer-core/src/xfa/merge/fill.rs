@@ -4,7 +4,8 @@
 //! p.343: a value entered in a bound field is copied to its data node), so a
 //! fill rewrites that node's text in the `datasets` packet and nothing else.
 //! An unbound field gets a node created as re-normalization would
-//! (pp.209-210) unless [`DataCreation::Refuse`].
+//! (pp.209-210), or where its unresolved data reference says (p.199),
+//! unless [`DataCreation::Refuse`].
 
 use std::ops::Range;
 
@@ -30,6 +31,16 @@ pub enum XfaFillError {
     /// element name.
     #[error("the container at that template path is not bound to a data value")]
     Unbound,
+    /// The container binds by an explicit data reference that names no
+    /// data value, and the reference does not say where to create one
+    /// (XFA 3.3 p.199): it uses `..` or other SOM this cut does not
+    /// resolve, a step's index skips siblings, it resolves to a data group,
+    /// or a step meets a value where a group is needed.
+    #[error("the field's data reference `{reference}` names no data value pdfcer can create")]
+    DataRefAbsent {
+        /// The `bind ref` text.
+        reference: String,
+    },
     /// Creating the data node needs a `datasets` packet, and the `/XFA`
     /// array has none to write into.
     #[error("the XFA packet array has no datasets packet to create data in")]
@@ -113,10 +124,18 @@ pub(crate) fn plan_fill(
     if opts.data_creation == DataCreation::Refuse {
         return Err(XfaFillError::Unbound);
     }
-    let u = unbound
-        .iter()
-        .find(|u| u.path == path)
-        .ok_or(XfaFillError::Unbound)?;
+    let Some(u) = unbound.iter().find(|u| u.path == path) else {
+        let by_ref = merged
+            .warnings
+            .iter()
+            .find(|w| w.path == path && !w.by_name);
+        return Err(match by_ref {
+            Some(w) => XfaFillError::DataRefAbsent {
+                reference: w.reference.clone(),
+            },
+            None => XfaFillError::Unbound,
+        });
+    };
     create(xdp.text(), &doc, root.as_ref(), u, &escaped)
 }
 
