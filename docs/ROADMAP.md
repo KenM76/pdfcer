@@ -112,6 +112,16 @@ wherever it appears.*
 
 ## Shipped
 
+### `ab8005d2` `Pass 721.11`: measure a face's projected area, 2026-11-18 (1608th filing)
+
+Engineer-reported; no shell here, git, push and CI state not checked from here (engineer states HEAD is `ab8005d2`, on main, not yet pushed). `ab8005d2` `feat(3d): measure a face's projected area (Pass 721.11)`. Sixth slice of `Pass 721.2` (after `721.6` to `721.10`); `721.11` was the next free ID, so the next is `721.12`. **Unreleased** (ships in `v0.158.0`). Reasoning is in the commit message. Delivers **core** and **cli**; **gui none** (the measure window is `pdfcer-gui`'s).
+- **Engine (`pdfcer-3d`):** `face_projected_area(meshes, &SurfacePick, direction) -> Result<ProjectedArea, SurfaceMeasureError>`: the face `face_figures` measures, projected onto the plane square to `direction`. `ProjectedArea { toward, away }` (`non_exhaustive`) splits by which way each triangle faces. A face that never turns edge-on has one side zero and the other its shadow's area; a face turning past edge-on (a whole cylinder side-on) reports both sides rather than a sum that double-counts overlap. New refusal `SurfaceMeasureError::BadDirection` (zero or non-finite direction).
+- **CLI:** `3d-render --measure-project-onto screen|NX,NY,NZ` (from `Pass 721.9`) now also adds `projected_toward=` and `projected_away=` to each `--measure-face` line.
+- **Tests (engineer-reported):** engine `a_projected_area_is_the_faces_shadow_on_each_side` (tilted plate 6/0, reversed direction swaps; tube side-on 80/80, end-on 0; zero/NaN direction and missing triangle refused); sabotage (flipping the side test) fails it. Integration `measure_face_reports_a_faces_area_perimeter_and_plane` extended. 24 `surface_measure` tests pass; clippy clean with and without default features; core-api verbs green; 36 CI audits pass. `docs/core-api` gained a "Projected area of a face" bullet.
+- **Still open in `Pass 721.2`:** units and precision; measurement history; and whatever else the Planned FEATURES row lists.
+- **FEATURES:** new Implemented row (core, cli ticked; gui open); projected area removed from the Planned measure row. No decision, no rule.
+- **Next free IDs:** `Pass 717.4`, `Pass 718.5`, `Pass 720.3`, `Pass 721.12`, `Pass 722.10`, `Pass 647.3h`; decision `225`, rule `R264` (none minted).
+
 ### `f969d8c2` `Pass 721.10`: read measured positions in a chosen coordinate system, 2026-11-18 (1607th filing)
 
 Engineer-reported; no shell here, git, push and CI state not checked from here (engineer states HEAD is `f969d8c2`, on main, not yet pushed). `f969d8c2` `feat(3d): read measured positions in a chosen coordinate system (Pass 721.10)`. Fifth slice of `Pass 721.2` (after `721.6`, `721.7`, `721.8`, `721.9`); `721.10` was the next free ID, so the next is `721.11`. **Unreleased** (ships in `v0.158.0`). Reasoning is in the commit message. Delivers **core** and **cli**; **gui none** (the measure window is `pdfcer-gui`'s).

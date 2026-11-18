@@ -4,6 +4,17 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-11-18 (1608th filing) — `Pass 721.11` SHIPPED (`ab8005d2`, measure a face's projected area, sixth slice of `Pass 721.2`); unreleased
+
+**Filed (engineer-reported; no shell here, git, push and CI state not checked from here; engineer says HEAD is `ab8005d2`, not yet pushed):**
+- `ab8005d2` `feat(3d): measure a face's projected area (Pass 721.11)`; `721.11` was the next free ID, next is `721.12`. Follows `ac63e730` (1607th).
+- `pdfcer_3d::face_projected_area(meshes, &SurfacePick, direction)` returns `ProjectedArea { toward, away }` (`non_exhaustive`), split by triangle facing so a cylinder side-on reports both sides without double-counting; new `SurfaceMeasureError::BadDirection`. CLI `3d-render --measure-project-onto` now also adds `projected_toward=`/`projected_away=` to `--measure-face` lines.
+- Tests: engine `a_projected_area_is_the_faces_shadow_on_each_side`; sabotage fails it; integration test extended. 24 `surface_measure` pass; clippy clean both feature sets; core-api verbs green; 36 audits green. `docs/core-api` gained a bullet.
+
+**Decisions / findings:** none; no decision, no rule.
+
+**Open:** ships in `v0.158.0`. Still open in `Pass 721.2`: units and precision; measurement history; the rest of the Planned row. Next free IDs: `Pass 717.4`, `718.5`, `720.3`, `721.12`, `722.10`, `647.3h`; decision `225`, rule `R264`. FEATURES: new row, core and cli ticked, gui open; projected area removed from the Planned measure row.
+
 ## 2026-11-18 (1607th filing) — `Pass 721.10` SHIPPED (`f969d8c2`, read measured positions in a chosen coordinate system, fifth slice of `Pass 721.2`); unreleased
 
 **Filed (engineer-reported; no shell here, git, push and CI state not checked from here; engineer says HEAD is `f969d8c2`, not yet pushed):**
