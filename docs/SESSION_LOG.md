@@ -4,6 +4,17 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-11-18 (1603rd filing) — `Pass 721.9` SHIPPED (`6080b695`, project a measured distance onto a plane or the screen, fourth slice of `Pass 721.2`); unreleased
+
+**Filed (engineer-reported; no shell here, git, push and CI state not checked from here):**
+- `6080b695` `feat(3d): project a measured distance onto a plane or the screen (Pass 721.9)`; `721.9` was the next free ID, next is `721.10`.
+- `pdfcer-3d` `Span::projected(normal)` and `Span::along(direction)` (`None` for a zero vector); CLI `3d-render --measure-project-onto screen|NX,NY,NZ` adds `NAME_projected=` and `NAME_normal=`; a zero normal is refused at parse time. `docs/core-api` extended (`index.md` 5,547 lines).
+- Tests: new `a_span_projects_onto_a_plane_and_keeps_its_normal_part`; CLI parse and face integration tests extended; 22 `surface_measure` tests pass; 36 CI audits pass locally; clippy clean (all features and no default features). No manifest change.
+
+**Decisions / findings:** none; no decision, no rule.
+
+**Open:** `Pass 721.2` remainder: XYZ relative to a coordinate system, projected area, units/precision, history. Point-to-point is already covered by `--measure-distance vertex:...` pairs. Ships in `v0.158.0`. Next free IDs: `Pass 717.4`, `718.5`, `720.3`, `721.10`, `722.7`, `647.3h`; decision `225`, rule `R264`. FEATURES: new row (core, cli); Planned measure row trimmed.
+
 ## 2026-11-17 (1602nd filing) — `Pass 721.8` follow-up (`443d11fe`, CI fix: three `indexing_slicing` exemptions removed from surface measure); no new Pass ID
 
 **Filed (engineer-reported; no shell here, git, push and CI state not checked from here):**

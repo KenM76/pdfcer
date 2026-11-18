@@ -112,6 +112,16 @@ wherever it appears.*
 
 ## Shipped
 
+### `6080b695` `Pass 721.9`: project a measured distance onto a plane or the screen, 2026-11-18 (1603rd filing)
+
+Engineer-reported; no shell here, git, push and CI state not checked from here. `6080b695` `feat(3d): project a measured distance onto a plane or the screen (Pass 721.9)`. Fourth slice of `Pass 721.2` (after `721.6`, `721.7`, `721.8`); `721.9` was the next free ID, so the next is `721.10`. **Unreleased** (ships in `v0.158.0`). Reasoning is in the commit message. Delivers **core** and **cli**; **gui none** (the measure window is `pdfcer-gui`'s).
+- **Engine (`pdfcer-3d`):** `Span::projected(normal) -> Option<Span>` (the span in the plane with that normal; `to` moves along the normal) and `Span::along(direction) -> Option<f64>` (the signed part projection removes); both `None` for a zero vector.
+- **CLI:** `3d-render --measure-project-onto screen|NX,NY,NZ` adds `NAME_projected=` and `NAME_normal=` after each `--measure-distance` figure (minimum, maximum, centres). `screen` is the view direction (target minus eye); a zero normal is refused at parse time.
+- **Tests (engineer-run):** new `a_span_projects_onto_a_plane_and_keeps_its_normal_part`; extended CLI parse test `a_target_is_a_kind_and_a_position` and integration test `measure_face_reports_a_faces_area_perimeter_and_plane` (a face gap of 1 projected along its normal, across it, and onto the screen). All 22 `surface_measure` tests pass; all 36 CI python/shell audits pass locally; clippy clean with all features and with no default features. No manifest or dependency change, so `cargo tree` unaffected. `docs/core-api` "Measure between two entities" bullet extended; `index.md` now says 5,547 lines.
+- **Still open in `Pass 721.2`:** XYZ relative to a coordinate system; projected area; units and precision; measurement history. Point-to-point needs no engine work: `--measure-distance vertex:...` `vertex:...` already measures it; only a dedicated verb or GUI affordance remains, if wanted.
+- **FEATURES:** new Implemented row (core, cli ticked; gui open); the Planned measure row trimmed (projection removed, point-to-point noted). No decision, no rule.
+- **Next free IDs:** `Pass 717.4`, `Pass 718.5`, `Pass 720.3`, `Pass 721.10`, `Pass 722.7`, `Pass 647.3h`; decision `225`, rule `R264` (none minted).
+
 ### `fb9db0cc` `Pass 721.8`: minimum, maximum and centre distance between two picked entities of a 3D model, 2026-11-17 (1601st filing)
 
 Engineer-reported; no shell here, git, push and CI state not checked from here. `fb9db0cc` `feat(3d): minimum, maximum and centre distance between two picked entities (Pass 721.8)`. Third slice of `Pass 721.2` (after `721.6`, `339c9295`, and `721.7`, `9e54fb55`); `721.8` was the next free ID. **Unreleased** (ships in `v0.158.0`). Reasoning is in the commit message. Delivers **core** and **cli**; **gui none** (the measure window is `pdfcer-gui`'s).
