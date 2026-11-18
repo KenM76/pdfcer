@@ -336,6 +336,11 @@ pub enum TableError {
 const MAX_CORNERS: usize = 20_000;
 /// Upper bound on rules per page, before joining.
 const MAX_RULES: usize = 50_000;
+/// A whitespace-aligned block wider or taller than this is declined before
+/// its grid is allocated: a staircase of offset glyph pairs makes the
+/// column count grow with the row count, and the grid with their product.
+const MAX_ALIGNED_COLUMNS: usize = 32;
+const MAX_ALIGNED_ROWS: usize = 500;
 
 /// Finds every table in the document: ruled grids first, then
 /// whitespace-aligned blocks among the text no ruled table took.
@@ -1213,7 +1218,10 @@ fn glyph_text<'a>(
     let Ok(len) = usize::try_from(g.text_len) else {
         return "";
     };
-    run.text.get(start..start + len).unwrap_or("")
+    start
+        .checked_add(len)
+        .and_then(|end| run.text.get(start..end))
+        .unwrap_or("")
 }
 
 /// Tables laid out by whitespace alone: consecutive rows of at least two
@@ -1339,10 +1347,10 @@ fn aligned_block(
         }
     }
     let ncols = cols.len();
-    if ncols < 2 {
+    if !(2..=MAX_ALIGNED_COLUMNS).contains(&ncols) || rows.len() > MAX_ALIGNED_ROWS {
         return None;
     }
-    let mut grid: Vec<Vec<GlyphRef>> = vec![Vec::new(); rows.len() * ncols];
+    let mut grid: Vec<Vec<GlyphRef>> = vec![Vec::new(); rows.len().checked_mul(ncols)?];
     let mut used = vec![0usize; ncols];
     let mut chars = 0usize;
     for (ri, row) in rows.iter().enumerate() {
@@ -1353,11 +1361,14 @@ fn aligned_block(
                 .position(|c| chunk.x0 >= c.0 - 0.01 && chunk.x1 <= c.1 + 0.01)?;
             grid.get_mut(ri * ncols + ci)?
                 .extend(chunk.glyphs.iter().map(|p| p.r));
-            chars += chunk.glyphs.iter().map(|p| p.chars).sum::<usize>();
+            chars = chunk
+                .glyphs
+                .iter()
+                .fold(chars, |n, p| n.saturating_add(p.chars));
             *seen.get_mut(ci)? = true;
         }
         for (u, s) in used.iter_mut().zip(&seen) {
-            *u += usize::from(*s);
+            *u = u.saturating_add(usize::from(*s));
         }
     }
     let filled: usize = used.iter().sum();
@@ -1439,6 +1450,71 @@ mod tests {
             hi,
             width: 1.0,
         }
+    }
+
+    /// Rows of one-glyph chunks, row `i` holding a chunk at each `x0`
+    /// returned by `xs(i)`, each 1 pt wide.
+    fn rows_of(n: usize, xs: impl Fn(usize) -> Vec<f64>) -> Vec<TextRow> {
+        (0..n)
+            .map(|i| {
+                #[allow(clippy::cast_precision_loss)]
+                let y = 10_000.0 - i as f64;
+                let chunks = xs(i)
+                    .into_iter()
+                    .enumerate()
+                    .map(|(c, x0)| Chunk {
+                        x0,
+                        x1: x0 + 1.0,
+                        glyphs: vec![Placed {
+                            r: GlyphRef { run: i, glyph: c },
+                            x0,
+                            x1: x0 + 1.0,
+                            y,
+                            size: 1.0,
+                            chars: 1,
+                        }],
+                    })
+                    .collect();
+                TextRow {
+                    y,
+                    size: 1.0,
+                    chunks,
+                }
+            })
+            .collect()
+    }
+
+    fn block(rows: &[TextRow]) -> Option<Draft> {
+        let refs: Vec<&TextRow> = rows.iter().collect();
+        aligned_block(&refs, &[], 1.0, 40.0)
+    }
+
+    #[allow(clippy::cast_precision_loss)]
+    fn columns(n: usize) -> impl Fn(usize) -> Vec<f64> {
+        move |_| (0..n).map(|c| 5.0 * c as f64).collect()
+    }
+
+    #[test]
+    fn a_staircase_of_offset_pairs_declines_without_a_quadratic_grid() {
+        // Each row's pair sits 5 pt right of the row above, so no gutter
+        // lines up: 4,000 columns over 2,000 rows, an 8M-cell grid uncapped.
+        #[allow(clippy::cast_precision_loss)]
+        let rows = rows_of(2_000, |i| vec![5.0 * i as f64, 5.0 * i as f64 + 2.5]);
+        let t = std::time::Instant::now();
+        assert!(block(&rows).is_none());
+        assert!(
+            t.elapsed() < std::time::Duration::from_millis(200),
+            "{:?}",
+            t.elapsed()
+        );
+    }
+
+    #[test]
+    fn thirty_three_columns_decline_and_thirty_two_by_five_hundred_detect() {
+        assert!(block(&rows_of(2, columns(33))).is_none());
+        let d = block(&rows_of(500, columns(32))).expect("a 32 x 500 table");
+        assert_eq!((d.xs.len(), d.ys.len()), (33, 501));
+        assert!(block(&rows_of(501, columns(32))).is_none());
     }
 
     #[test]
