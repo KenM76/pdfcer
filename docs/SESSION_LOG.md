@@ -4,6 +4,16 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-11-17 (1602nd filing) — `Pass 721.8` follow-up (`443d11fe`, CI fix: three `indexing_slicing` exemptions removed from surface measure); no new Pass ID
+
+**Filed (engineer-reported; no shell here, git, push and CI state not checked from here):**
+- `443d11fe` `fix(3d): drop three indexing_slicing exemptions from surface measure (Pass 721.8)`. CI on `8dd66390` failed the repository audit `check-panic-allows.py`: `721.6` (`339c9295`) and `721.7` (`9e54fb55`) had added `#[allow(clippy::indexing_slicing)]` to `pdfcer-3d` `surface_measure/face.rs` `sweep` and `surface_measure/fit.rs` `least_eigenvector` and `rotate`; the audit refuses any new production exemption from a panic lint.
+- Fix: the three functions rewritten with `get`/`get_mut` and iterator zips, same order of operations. 21 `surface_measure` tests pass; a sabotage mapping the arc the wrong way round fails one. `check-panic-allows` clean: 32 baseline exemptions, none new.
+
+**Decisions / findings:** none; no decision, no rule. **Lesson (process):** the local gate list the engineer ran omitted `check-panic-allows`, which is a CI repository audit. New engine code that adds an `#[allow]` for a panic lint must be checked against it before pushing; the same omission let it through two consecutive Passes (`721.6`, `721.7`).
+
+**Open:** unchanged from the 1601st filing (`Pass 721.2` remainder; `v0.158.0`). FEATURES: no change.
+
 ## 2026-11-17 (1601st filing) — `Pass 721.8` SHIPPED (`fb9db0cc`, minimum/maximum/centre distance between two picked entities, third slice of `Pass 721.2`); unreleased
 
 **Filed (engineer-reported; no shell here, git, push and CI state not checked from here):**
