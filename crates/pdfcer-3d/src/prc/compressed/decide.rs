@@ -26,6 +26,7 @@ impl Walk<'_> {
         let ti = self.tris.len();
         Ok(match o {
             Orientation::Reversed(..) if thin => {
+                self.sliver = Some(ti);
                 if let Some(r) = self.normals.as_mut() {
                     r.blind(ti);
                 }
@@ -127,6 +128,20 @@ mod tests {
             !w.decide(borrowed(), [0, 3, 1], false, false, false)
                 .unwrap()
         );
+        assert!(!w.signalled);
+        assert_eq!(w.sliver, Some(1));
+    }
+
+    /// A collinear reversed record leaves the default fold unsignalled
+    /// and is kept as the walk's sliver, so the last-sliver retry can
+    /// invert it.
+    #[test]
+    fn a_thin_reversed_record_is_a_sliver() {
+        let mut w = Walk::new(2, None);
+        w.tris.push([0, 1, 2]);
+        let o = Orientation::Reversed(true, [0.0, 0.0, 1.0]);
+        let fold = w.decide(o, [0, 2, 3], false, false, true).unwrap();
+        assert!(!fold);
         assert!(!w.signalled);
         assert_eq!(w.sliver, Some(1));
     }

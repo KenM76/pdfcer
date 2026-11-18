@@ -15,7 +15,7 @@ const DEPTH: usize = 2;
 const DEEP: usize = 4;
 /// How many the last search combines when no other fits.
 const DEEPEST: usize = 6;
-/// The searches [`unique_fit`] runs in turn: whether turn candidates are
+/// The searches [`searched_reading`] runs in turn: whether turn candidates are
 /// offered, and how many choices are combined.
 pub(super) const STAGES: [(bool, usize); 4] =
     [(false, DEPTH), (true, DEPTH), (true, DEEP), (true, DEEPEST)];
@@ -110,6 +110,39 @@ enum Outcome {
     Dead,
 }
 
+/// [`searched_reading`]'s mesh, when it settled on one.
+#[cfg(test)]
+pub(super) fn unique_fit(a: &Arrays<'_>) -> Option<TriangleMesh> {
+    unique_fit_reading(a).0
+}
+
+/// [`searched_reading`] on `a`, then on `turned`, the same arrays read with
+/// [`Arrays::ortho_turned`] flipped. The second search is skipped when no
+/// walk of the first met an apex the flip moves: it would repeat the first
+/// step for step.
+pub(super) fn unique_fit_either(a: &Arrays<'_>, turned: &Arrays<'_>) -> Option<TriangleMesh> {
+    then_turned(searched_reading(a), || searched_reading(turned).0)
+}
+
+/// The mesh the first reading's search `first` and, only after it tried
+/// every combination and found no fit, `turned` settle on. A refused or
+/// exhausted first reading is not answered by the turned one: it may hold
+/// a fit of its own.
+fn then_turned(first: (Search, bool), turned: impl FnOnce() -> Search) -> Option<TriangleMesh> {
+    match first {
+        (Search::Unique(m), _) => Some(*m),
+        (Search::NoFit, true) => turned().unique(),
+        (Search::NoFit, false) | (Search::Refused | Search::Exhausted, _) => None,
+    }
+}
+
+/// [`unique_fit`], and whether any of its walks read [`Arrays::ortho_turned`].
+#[cfg(test)]
+pub(super) fn unique_fit_reading(a: &Arrays<'_>) -> (Option<TriangleMesh>, bool) {
+    let (found, reads) = searched_reading(a);
+    (found.unique(), reads)
+}
+
 /// Searches combinations of inverted choices for one that rebuilds the
 /// mesh. A fold candidate is a triangle no stored decision orients, or a
 /// sliver at most a tolerance from collinear, whose decoded decision is
@@ -117,43 +150,32 @@ enum Outcome {
 /// degenerate, whose turn rests on a rounding residue. A fit is one that
 /// rebuilds the mesh: every array and stored normal consumed exactly and
 /// every planar face flat. The rebuild is returned only if it is the
-/// single such geometry the search finds within [`STEP_BUDGET`]; two, or a
-/// search cut short, would make it a guess. Each of [`STAGES`] runs only
-/// when the one before found no fit at all: folds alone, then turns too,
+/// single such geometry among the combinations searched within
+/// [`STEP_BUDGET`]: two, or a search cut short after a fit, would make it a
+/// guess. Combinations grow only from failed walks, so a fit's own
+/// extensions are not tried, and a geometry reached only through them is
+/// not ruled out. A search cut short before any fit is exhausted, not a
+/// no-fit, and ends the reading. Each of [`STAGES`] runs only when the one
+/// before tried every combination and found no fit: folds alone, then turns too,
 /// then [`DEEP`] and [`DEEPEST`] choices, so a shallower rebuild is never
 /// second-guessed.
-pub(super) fn unique_fit(a: &Arrays<'_>) -> Option<TriangleMesh> {
-    unique_fit_reading(a).0
-}
-
-/// [`unique_fit`] on `a`, then on `turned`, the same arrays read with
-/// [`Arrays::ortho_turned`] flipped. The second search is skipped when no
-/// walk of the first met an apex the flip moves: it would repeat the first
-/// step for step.
-pub(super) fn unique_fit_either(a: &Arrays<'_>, turned: &Arrays<'_>) -> Option<TriangleMesh> {
-    match unique_fit_reading(a) {
-        (Some(m), _) => Some(m),
-        (None, true) => unique_fit(turned),
-        (None, false) => None,
-    }
-}
-
-/// [`unique_fit`], and whether any of its walks read [`Arrays::ortho_turned`].
-pub(super) fn unique_fit_reading(a: &Arrays<'_>) -> (Option<TriangleMesh>, bool) {
+///
+/// Returns the search's outcome, and whether any of its walks read
+/// [`Arrays::ortho_turned`].
+fn searched_reading(a: &Arrays<'_>) -> (Search, bool) {
     let Some(n) = a.normals.as_ref() else {
-        return (None, false);
+        return (Search::NoFit, false);
     };
     let mut reads_turned = false;
     for (turns, depth) in STAGES {
         let (found, reads) = search_reading(a, n, Plan::unique(turns, depth));
         reads_turned |= reads;
         match found {
-            Search::Unique(m) => return (Some(*m), reads_turned),
-            Search::Refused => return (None, reads_turned),
             Search::NoFit => {}
+            found => return (found, reads_turned),
         }
     }
-    (None, reads_turned)
+    (Search::NoFit, reads_turned)
 }
 
 /// Whether a fold-only search rebuilds `a`.
@@ -173,7 +195,7 @@ pub(super) fn fits_within(a: &Arrays<'_>, depth: usize) -> bool {
         .is_some_and(|n| matches!(search(a, n, Plan::unique(true, depth)), Search::Unique(_)))
 }
 
-/// The first rebuild a deep search finds, for a mesh [`unique_fit`]
+/// The first rebuild a deep search finds, for a mesh [`searched_reading`]
 /// leaves unbuilt. Measured on real producers, an apex quantised exactly
 /// onto its edge's line (`d.y == d.z == 0`) keeps no trace of its fold,
 /// so a mesh with several needs more inverted choices than a unique
@@ -211,7 +233,7 @@ pub(super) fn best_fit(a: &Arrays<'_>) -> Option<TriangleMesh> {
         };
         match search(a, a.normals.as_ref()?, plan) {
             Search::Unique(m) => Some(*m),
-            Search::Refused | Search::NoFit => None,
+            Search::Refused | Search::Exhausted | Search::NoFit => None,
         }
     })
     .or_else(|| greedy(a, a.normals.as_ref()?))
@@ -363,10 +385,24 @@ impl Plan {
 
 /// What one search came to.
 enum Search {
+    /// The one geometry among the combinations searched.
     Unique(Box<TriangleMesh>),
     /// Two geometries fit, or the budget ran out after a fit.
     Refused,
+    /// The budget ran out before any fit, with combinations left to try.
+    Exhausted,
+    /// Every combination was tried and none fit.
     NoFit,
+}
+
+impl Search {
+    /// The mesh, when the search settled on one.
+    fn unique(self) -> Option<TriangleMesh> {
+        match self {
+            Search::Unique(m) => Some(*m),
+            Search::Refused | Search::Exhausted | Search::NoFit => None,
+        }
+    }
 }
 
 /// One depth-first search as `plan` says. Each attempt resumes the last
@@ -383,10 +419,7 @@ fn search_reading(a: &Arrays<'_>, n: &NormalArrays<'_>, plan: Plan) -> (Search, 
     let mut stack = vec![Vec::new()];
     let mut found: Option<TriangleMesh> = None;
     while walker.spent < plan.budget {
-        let Some(flips) = stack.pop() else {
-            let found = found.map_or(Search::NoFit, |m| Search::Unique(Box::new(m)));
-            return (found, walker.w.reads_turned);
-        };
+        let Some(flips) = stack.pop() else { break };
         match walker.attempt(a, n, &flips) {
             Outcome::Fit(m) => match &found {
                 Some(f) if f.triangles != m.triangles || f.positions != m.positions => {
@@ -409,12 +442,14 @@ fn search_reading(a: &Arrays<'_>, n: &NormalArrays<'_>, plan: Plan) -> (Search, 
             Outcome::Failed(_) | Outcome::Dead => {}
         }
     }
-    let found = if found.is_some() {
-        Search::Refused
-    } else {
-        Search::NoFit
+    let complete = stack.is_empty();
+    let search = match found {
+        Some(m) if complete => Search::Unique(Box::new(m)),
+        Some(_) => Search::Refused,
+        None if complete => Search::NoFit,
+        None => Search::Exhausted,
     };
-    (found, walker.w.reads_turned)
+    (search, walker.w.reads_turned)
 }
 
 /// Triangles between the snapshots a resumed walk rewinds to.
@@ -881,7 +916,7 @@ mod tests {
         assert!(matches!(search(&a, &n, plan(false)), Search::NoFit));
         let fit = match search(&a, &n, plan(true)) {
             Search::Unique(m) => m.triangles,
-            Search::Refused | Search::NoFit => Vec::new(),
+            Search::Refused | Search::Exhausted | Search::NoFit => Vec::new(),
         };
         assert_eq!(fit, tetra);
     }
@@ -936,5 +971,83 @@ mod tests {
         assert!(out[0].0.is_empty());
         assert!(out[1].0 == [Choice::Fold(2)]);
         assert_eq!(out[1].1, tetra);
+    }
+
+    /// A one-triangle mesh, for hand-over tests that need any mesh.
+    fn one_triangle() -> Box<TriangleMesh> {
+        Box::new(TriangleMesh {
+            positions: vec![[0.0; 3], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]],
+            triangles: vec![[0, 1, 2]],
+            ..TriangleMesh::default()
+        })
+    }
+
+    /// The turned reading answers only a first reading that tried every
+    /// combination and found no fit.
+    #[test]
+    fn a_refused_reading_is_not_answered_by_the_turned_one() {
+        let searched = std::cell::Cell::new(false);
+        let turned = || {
+            searched.set(true);
+            Search::Unique(one_triangle())
+        };
+        assert!(then_turned((Search::Refused, true), turned).is_none());
+        assert!(!searched.get());
+        assert!(then_turned((Search::NoFit, false), turned).is_none());
+        assert!(!searched.get());
+        assert!(then_turned((Search::NoFit, true), turned).is_some());
+        assert!(searched.get());
+    }
+
+    /// A budget spent before any fit, with combinations left, is
+    /// exhausted rather than a no-fit, and is not handed to the turned
+    /// reading.
+    #[test]
+    fn a_search_cut_short_before_any_fit_is_exhausted() {
+        let tri0 = [0, 0, 0, 4, 0, 0, 2, 4, 0];
+        let pts = [&tri0[..], &[-4, 0, 0, 3, 3, 3, -1, 0, 0]].concat();
+        let status = [1, 3, 2, 1, 2];
+        let mut is_ref = vec![false; 7];
+        is_ref[5] = true;
+        let face_of = vec![0; status.len()];
+        let a = Arrays {
+            tolerance: 0.5,
+            origin: [10.0, 0.0, 0.0],
+            points: &pts,
+            edge_status: &status,
+            triangles: status.len(),
+            is_reference: &is_ref,
+            references: &[0],
+            ortho_turned: false,
+            legacy_orient: false,
+            normals: Some(NormalArrays {
+                bits: 10,
+                binary: &[false; 4],
+                angles: &[837, 402],
+                planar: &[true],
+                face_of: &face_of,
+            }),
+        };
+        let n = a.normals.as_ref().unwrap();
+        assert!(matches!(attempt(&a, n, &[], false, false), Outcome::Failed(c) if !c.is_empty()));
+        let plan = |budget| Plan {
+            budget,
+            ..Plan::unique(true, 2)
+        };
+        assert!(matches!(
+            search_reading(&a, n, plan(1)).0,
+            Search::Exhausted
+        ));
+        assert!(!matches!(
+            search_reading(&a, n, plan(STEP_BUDGET)).0,
+            Search::Exhausted
+        ));
+        let searched = std::cell::Cell::new(false);
+        let turned = || {
+            searched.set(true);
+            Search::NoFit
+        };
+        assert!(then_turned((Search::Exhausted, true), turned).is_none());
+        assert!(!searched.get());
     }
 }
