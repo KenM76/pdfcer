@@ -24,13 +24,14 @@
 use crate::object::{Dict, Name, Object};
 use crate::writer::content::{ContentBuilder, LineCap, Paint};
 
+pub use capture::PaintedWidget;
 pub use dash::{DashCaps, DashLengths};
 pub use font_res::PaintedFont;
 pub use image::PaintedImage;
 pub use options::{
-    CaptionFont, CheckCaption, CheckEdge, EdgePlacement, FontEmbedding, FontWeight, ImageOverflow,
-    ImagePlacement, ImageStreams, Medium, MissingFill, PaintOptions, PictureRounding, Stipple,
-    ThreeDStroke,
+    CaptionFont, CheckCaption, CheckEdge, EdgePlacement, FieldOutput, FontEmbedding, FontWeight,
+    ImageOverflow, ImagePlacement, ImageStreams, Medium, MissingFill, PaintOptions,
+    PictureRounding, Stipple, ThreeDStroke,
 };
 pub use shape::{ArcCircle, ArcFill};
 
@@ -132,6 +133,10 @@ pub struct PaintedPage {
     /// The `/Font` entries, in name order: which are supplied faces and
     /// which programs to embed.
     pub fonts: Vec<PaintedFont>,
+    /// Under [`FieldOutput::Fillable`], each field whose value was drawn
+    /// into its own appearance instead of `content`, in paint order; their
+    /// content uses `resources`.
+    pub widgets: Vec<PaintedWidget>,
 }
 
 /// Draw `page`, laid out from `template`.
@@ -179,11 +184,15 @@ pub fn paint_page_with(
         shadings: Vec::new(),
         page: (page.number, page.count),
         xobjects: Vec::new(),
+        widgets: Vec::new(),
+        turn: None,
+        force: None,
     };
     let (back, fore): (Vec<_>, Vec<_>) = page.items.iter().partition(|i| i.background);
     for item in back.into_iter().chain(fore) {
-        if let Some(node) = drawable(template, item) {
-            p.turned(item, node);
+        match drawable(template, item) {
+            Some(node) => p.turned(item, node),
+            None => p.hidden_widget(item),
         }
     }
     let (resources, fonts) = p.resources();
@@ -193,6 +202,7 @@ pub fn paint_page_with(
         resources,
         images: p.xobjects,
         fonts,
+        widgets: p.widgets,
     }
 }
 
@@ -229,6 +239,12 @@ struct Painter<'i> {
     xobjects: Vec<PaintedImage>,
     /// The page's number and the layout's page count.
     page: (usize, usize),
+    /// Fields drawn into their own appearances.
+    widgets: Vec<PaintedWidget>,
+    /// The matrix the item being drawn is turned by.
+    turn: Option<[f64; 6]>,
+    /// A check button state drawn regardless of its value.
+    force: Option<bool>,
 }
 
 /// One side of a border, resolved.
@@ -524,6 +540,7 @@ fn parse_rgb(v: &str) -> Option<[f64; 3]> {
 
 mod bevel;
 mod caption;
+mod capture;
 mod check;
 mod choice;
 mod comb;
@@ -546,7 +563,7 @@ pub(super) use check::states as check_states;
 pub(super) use choice::items as choice_items;
 pub(super) use image::{natural_size, value_image};
 pub(super) use size::content_size;
-pub(super) use text::{line_pitch, widget};
+pub(super) use text::{line_pitch, plain_text, widget};
 
 #[cfg(test)]
 mod check_tests;

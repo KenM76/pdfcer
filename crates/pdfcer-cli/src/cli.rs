@@ -7103,15 +7103,18 @@ pub(crate) enum Command {
     /// xfa-layout do at their default settings, replaces the placeholder
     /// pages the file stores with those pages, and removes the XFA form.
     /// The result opens the same in any PDF viewer, XFA engine or not.
-    /// Field values are drawn into the pages: the result is not fillable.
+    /// Field values are drawn into the pages: the result is not fillable,
+    /// unless --fillable is given.
     /// A usage-rights signature, which signed the removed form, is removed.
     ///
     /// Output: one paint-note line per thing not drawn as declared, one
-    /// warning line per layout warning, then
+    /// field-note line per thing a fillable field could not carry
+    /// (kind=script|picture|flat:WIDGET|split|neutral), one warning line
+    /// per layout warning, then
     ///
     ///   xfa-materialize FILE pages=N replaced=N images=N fields_dropped=N
     ///     usage_rights_removed=0|1 signatures_removed=N notes=N warnings=N
-    ///     mode=M -> OUT; ...
+    ///     mode=M -> OUT; ... fields_written=N
     ///
     /// stderr says the pages are pdfcer's layout. Exits 1 when the file is
     /// not a dynamic XFA form (a static one's pages are already the
@@ -7134,6 +7137,13 @@ pub(crate) enum Command {
         /// refusing. The saved file is no longer signed.
         #[arg(long)]
         remove_signatures: bool,
+        /// Keep the fields fillable: each field's value becomes a form
+        /// field drawn as the flat page would draw it, named by its
+        /// template path (form1[0].name[0]). Fields bound to one data value
+        /// share one form field. Image, button and barcode fields, and a
+        /// field split across pages, stay drawn on the page.
+        #[arg(long)]
+        fillable: bool,
         /// A folder of font files to set the form's typefaces in.
         /// Repeatable. A typeface matches a face whose family name it is
         /// (case, spaces and hyphens ignored); one with no match is drawn

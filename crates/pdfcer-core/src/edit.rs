@@ -234,6 +234,7 @@ mod threed_opening;
 mod threed_poster;
 mod threed_view_measures;
 mod threed_views;
+mod xfa_fields;
 mod xfa_fill;
 mod xfa_materialize;
 mod xmp_rewrite;

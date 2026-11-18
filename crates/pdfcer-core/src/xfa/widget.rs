@@ -98,11 +98,7 @@ impl ChoiceOpen {
 #[must_use]
 pub fn field_widget(template: &Template, path: &[usize]) -> Option<FieldWidget> {
     let node = template.node_at(path).filter(|n| n.tag == "field")?;
-    let tag = match widget(node) {
-        Some(w) if w.tag != "defaultUi" => w.tag.as_str(),
-        _ => default_ui(node),
-    };
-    Some(match tag {
+    Some(match widget_tag(node) {
         "textEdit" => text(node),
         "numericEdit" => FieldWidget::Numeric,
         "dateTimeEdit" => FieldWidget::Date,
@@ -110,6 +106,15 @@ pub fn field_widget(template: &Template, path: &[usize]) -> Option<FieldWidget> 
         "choiceList" => choice(node),
         other => FieldWidget::Other(other.to_owned()),
     })
+}
+
+/// The widget element a field takes: its `ui` child's, else its value's
+/// default.
+pub(in crate::xfa) fn widget_tag(node: &XfaNode) -> &str {
+    match widget(node) {
+        Some(w) if w.tag != "defaultUi" => w.tag.as_str(),
+        _ => default_ui(node),
+    }
 }
 
 /// The widget a field with no `ui` widget (or a `defaultUi`) takes from its

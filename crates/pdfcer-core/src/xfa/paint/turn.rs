@@ -33,15 +33,18 @@ impl Painter<'_> {
         let py = self.height - cy;
         let dashed = self.dashed;
         self.b.save_state();
-        self.b.concat_matrix(
+        let m = [
             cos,
             sin,
             -sin,
             cos,
             cx - cos * cx + sin * py,
             py - sin * cx - cos * py,
-        );
+        ];
+        self.b.concat_matrix(m[0], m[1], m[2], m[3], m[4], m[5]);
+        self.turn = Some(m);
         self.item(&upright, node);
+        self.turn = None;
         self.b.restore_state();
         self.dashed = dashed;
     }

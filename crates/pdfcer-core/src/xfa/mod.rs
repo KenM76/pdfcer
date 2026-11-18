@@ -5,6 +5,7 @@
 //! dynamic one (one placeholder page; the real pages exist only once an XFA
 //! engine lays the template out). [`form_kind`] tells the two apart.
 
+mod fillable;
 mod fonts;
 mod images;
 mod layout;
@@ -23,6 +24,8 @@ pub use layout::{
     layout_template_with_images,
 };
 
+pub(crate) use fillable::{FillField, FillKind, FillValue, plan as plan_fields};
+pub use fillable::{XfaFieldNote, XfaFieldNoteKind};
 pub use fonts::{FontProgramKind, XfaFace, XfaFaceSource, XfaFontProgram, XfaFonts, winansi_chars};
 pub use images::{MAX_XFA_IMAGE_BYTES, XfaImages};
 pub(crate) use merge::fill::plan_fill;
@@ -36,9 +39,10 @@ pub use packets::{MAX_XDP_LEN, MAX_XML_DEPTH, XdpDocument, XdpPacket, XfaError, 
 pub(crate) use packets::{parse_xdp, read_xdp_sources};
 pub use paint::{
     ArcCircle, ArcFill, CaptionFont, CheckCaption, CheckEdge, DashCaps, DashLengths, EdgePlacement,
-    FontEmbedding, FontWeight, ImageOverflow, ImagePlacement, ImageStreams, Medium, MissingFill,
-    PaintNote, PaintNoteKind, PaintOptions, PaintedFont, PaintedImage, PaintedPage,
-    PictureRounding, Stipple, ThreeDStroke, paint_page, paint_page_with, paint_page_with_images,
+    FieldOutput, FontEmbedding, FontWeight, ImageOverflow, ImagePlacement, ImageStreams, Medium,
+    MissingFill, PaintNote, PaintNoteKind, PaintOptions, PaintedFont, PaintedImage, PaintedPage,
+    PaintedWidget, PictureRounding, Stipple, ThreeDStroke, paint_page, paint_page_with,
+    paint_page_with_images,
 };
 pub use relevant::{ViewMatch, Views};
 pub use template::{

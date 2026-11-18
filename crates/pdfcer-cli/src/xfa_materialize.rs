@@ -4,6 +4,7 @@
 use super::*;
 
 use pdfcer_core::edit::XfaSignatures;
+use pdfcer_core::xfa::{FieldOutput, XfaFieldNoteKind};
 
 use crate::xfa_layout::{dotted, print_merge_warnings, warning_fields};
 use crate::xfa_page::{FontEmbeddingArg, XfaFontArgs, disclose_fonts, lay_out, xfa_font_env};
@@ -18,7 +19,7 @@ pub(crate) fn cmd_xfa_materialize(
     output: &Path,
     mode: SaveMode,
     verify_undo: bool,
-    remove_signatures: bool,
+    (remove_signatures, fillable): (bool, bool),
     font: XfaFontArgs<'_>,
 ) -> u8 {
     let (_, fonts) = xfa_font_env(font.dirs);
@@ -40,21 +41,21 @@ pub(crate) fn cmd_xfa_materialize(
         FontEmbeddingArg::Embed => pdfcer_core::xfa::FontEmbedding::Embed,
         FontEmbeddingArg::Reference => pdfcer_core::xfa::FontEmbedding::Reference,
     });
+    let paint = paint.with_fields(if fillable {
+        FieldOutput::Fillable
+    } else {
+        FieldOutput::Flat
+    });
     let signatures = if remove_signatures {
         XfaSignatures::Remove
     } else {
         XfaSignatures::Refuse
     };
-    let out = match session.materialize_xfa(
-        &merged.template,
-        &layout.pages,
-        &paint,
-        &fonts,
-        signatures,
-    ) {
-        Ok(out) => out,
-        Err(err) => return report_edit_error(input, &err),
-    };
+    let out =
+        match session.materialize_merged_xfa(&merged, &layout.pages, &paint, &fonts, signatures) {
+            Ok(out) => out,
+            Err(err) => return report_edit_error(input, &err),
+        };
     let outcome = match save_edited(
         &mut session,
         &source,
@@ -67,8 +68,16 @@ pub(crate) fn cmd_xfa_materialize(
         Err(code) => return code,
     };
     print_outcome(input, output, mode, &out, &merged, &layout, &outcome);
+    let fields = if fillable {
+        format!(
+            "{} field(s) were written fillable, their appearances drawn as the flat pages would draw them",
+            out.fields_written
+        )
+    } else {
+        "field values are drawn, not fillable".to_owned()
+    };
     eprintln!(
-        "pdfcer: {}: the {} page(s) written are pdfcer's layout of the XFA template with {} value(s) merged from the form's data; the XFA form was removed, so field values are drawn, not fillable.",
+        "pdfcer: {}: the {} page(s) written are pdfcer's layout of the XFA template with {} value(s) merged from the form's data; the XFA form was removed, so {fields}.",
         input.display(),
         out.pages_written,
         merged.bound.len()
@@ -108,6 +117,13 @@ fn print_outcome(
             u32::from(f.program.is_some())
         );
     }
+    for n in &out.field_notes {
+        println!(
+            "field-note kind={} path={}",
+            field_note_label(&n.kind),
+            dotted(&n.path)
+        );
+    }
     for w in &layout.warnings {
         println!("warning {}", warning_fields(w));
     }
@@ -116,7 +132,7 @@ fn print_outcome(
     println!(
         "xfa-materialize {} pages={} replaced={} images={} fields_dropped={} \
 usage_rights_removed={} signatures_removed={} notes={} warnings={} mode={} -> {}; changed={} objects={} \
-out_bytes={} undo_verified={} undo_identical={}",
+out_bytes={} undo_verified={} undo_identical={} fields_written={}",
         input.display(),
         out.pages_written,
         out.pages_replaced,
@@ -133,5 +149,17 @@ out_bytes={} undo_verified={} undo_identical={}",
         r.bytes_written,
         u32::from(outcome.undo_verified),
         u32::from(outcome.undo_identical),
+        out.fields_written,
     );
+}
+
+fn field_note_label(kind: &XfaFieldNoteKind) -> String {
+    match kind {
+        XfaFieldNoteKind::Script => "script".into(),
+        XfaFieldNoteKind::Picture => "picture".into(),
+        XfaFieldNoteKind::Flat(tag) => format!("flat:{tag}"),
+        XfaFieldNoteKind::Split => "split".into(),
+        XfaFieldNoteKind::Neutral => "neutral".into(),
+        _ => "other".into(),
+    }
 }

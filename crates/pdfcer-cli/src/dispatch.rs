@@ -1747,6 +1747,7 @@ pub(crate) fn run() -> ExitCode {
             mode,
             verify_undo,
             remove_signatures,
+            fillable,
             font_dirs,
             font_embedding,
         } => cmd_xfa_materialize(
@@ -1754,7 +1755,7 @@ pub(crate) fn run() -> ExitCode {
             &output,
             mode,
             verify_undo,
-            remove_signatures,
+            (remove_signatures, fillable),
             crate::xfa_page::XfaFontArgs {
                 dirs: &font_dirs,
                 embedding: font_embedding,

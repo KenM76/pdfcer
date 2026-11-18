@@ -168,14 +168,25 @@ impl Painter<'_> {
             Some("signature") if self.opts.medium == super::Medium::Paper => return,
             _ => {}
         }
-        let mut r = self.value_region(item, node);
+        let r = self.value_region(item, node);
+        if let Some(b) = w
+            .and_then(|w| w.child("border"))
+            .filter(|b| b.presence() == Presence::Visible)
+        {
+            self.border(item, b, r);
+        }
+        if !self.captures(item, node) {
+            return self.value(item, node, w, r);
+        }
+        let style = self.style(item, node.child("font"), node.child("para"));
+        let name = self.font_name(&style.font);
+        let normal = self.capture(|p| p.value(item, node, w, r));
+        self.push_widget(item, r, normal, None, Some((name, style.size, style.rgb)));
+    }
+
+    /// The value in the value region `r`, inside the widget's own border.
+    fn value(&mut self, item: &LayoutItem, node: &XfaNode, w: Option<&XfaNode>, mut r: LayoutRect) {
         if let Some(w) = w {
-            if let Some(b) = w
-                .child("border")
-                .filter(|b| b.presence() == Presence::Visible)
-            {
-                self.border(item, b, r);
-            }
             if self.comb(item, node, w, r) {
                 return;
             }
@@ -235,7 +246,25 @@ impl Painter<'_> {
         if let Some(w) = widget(node) {
             r = inset(r, w.child("margin"));
         }
-        self.check_button(item, node, r);
+        if !self.captures(item, node) {
+            return self.check_button(item, node, r);
+        }
+        let state = |p: &mut Self, on| {
+            p.capture(|p| {
+                p.force = Some(on);
+                p.check_button(item, node, r);
+                p.force = None;
+            })
+        };
+        let on = state(self, true);
+        let off = state(self, false);
+        let bleed = widget(node)
+            .and_then(|w| w.child("border"))
+            .into_iter()
+            .flat_map(|b| b.children_named("edge"))
+            .map(|e| super::length(e, "thickness").unwrap_or(0.5))
+            .fold(0.5, f64::max);
+        self.push_widget(item, outset(r, bleed), on, Some(off), None);
     }
 
     /// The unwrapped width and height `text` takes in `font`/`para`.
@@ -425,5 +454,15 @@ pub(super) fn para_inset(r: LayoutRect, para: Option<&XfaNode>) -> LayoutRect {
         } else {
             r.h
         },
+    }
+}
+
+/// `r` grown by `d` on every side: a box's stroke reaches past its edge.
+fn outset(r: LayoutRect, d: f64) -> LayoutRect {
+    LayoutRect {
+        x: r.x - d,
+        y: r.y - d,
+        w: r.w + 2.0 * d,
+        h: r.h + 2.0 * d,
     }
 }

@@ -6,9 +6,11 @@ use crate::graph::ObjectGraph;
 use crate::object::{Dict, Name, ObjId, Object};
 use std::collections::HashMap;
 
+use super::xfa_fields::WrittenPage;
 use crate::xfa::{
-    FontProgramKind, ImageStreams, LayoutPage, PaintNote, PaintOptions, PaintedFont, PaintedPage,
-    Template, XfaFonts, XfaImages, form_kind, paint_page_with,
+    BoundValue, FieldOutput, FontProgramKind, ImageStreams, LayoutPage, MergedForm, PaintNote,
+    PaintOptions, PaintedFont, PaintedPage, PaintedWidget, Template, XfaFieldNote, XfaFonts,
+    XfaImages, form_kind, paint_page_with, plan_fields,
 };
 
 /// What [`EditSession::materialize_xfa`] does with a signed form's
@@ -54,6 +56,11 @@ pub struct XfaMaterializeOutcome {
     /// [`PaintedFont::program`] is set, else referenced by name (see its
     /// [`PaintedFont::refusal`]).
     pub fonts: Vec<PaintedFont>,
+    /// Fields written fillable under [`FieldOutput::Fillable`]; `0` when
+    /// flat.
+    pub fields_written: usize,
+    /// What the fillable fields could not carry from their XFA fields.
+    pub field_notes: Vec<XfaFieldNote>,
 }
 
 impl EditSession {
@@ -71,8 +78,13 @@ impl EditSession {
     /// inherited from the page tree. The root `/Pages` node's `/Kids` become
     /// the new pages; the catalog loses `/NeedsRendering` and `/Perms
     /// /UR3`; the AcroForm loses `/XFA` and `/NeedsRendering` and gets an
-    /// empty `/Fields`. The pages are flat: field values are drawn, not
-    /// fillable. A supplied face is written once as an indirect simple font
+    /// empty `/Fields`. Under [`FieldOutput::Flat`] (the default) the pages
+    /// are flat: field values are drawn, not fillable. Under
+    /// [`FieldOutput::Fillable`] each laid-out field's value region is a
+    /// widget whose appearance is what the flat page draws there, under an
+    /// AcroForm field named from its template path (see
+    /// [`Self::materialize_merged_xfa`] to share fields bound to one data
+    /// node). A supplied face is written once as an indirect simple font
     /// shared by every page, its whole program embedded per
     /// [`PaintOptions::font_embedding`] (`/FontFile2` for TrueType outlines,
     /// `/FontFile3 /OpenType` for CFF; ISO 32000-1 §9.9). Everything is
@@ -98,6 +110,98 @@ impl EditSession {
         fonts: &XfaFonts,
         signatures: XfaSignatures,
     ) -> Result<XfaMaterializeOutcome, EditError> {
+        self.materialize(template, &[], pages, paint, fonts, signatures)
+    }
+
+    /// [`Self::materialize_xfa`] for a merged form: under
+    /// [`FieldOutput::Fillable`], fields bound to one data node (same kind)
+    /// become one AcroForm field with a widget each, so a value typed in
+    /// one shows in all.
+    ///
+    /// # Errors
+    ///
+    /// As [`Self::materialize_xfa`].
+    pub fn materialize_merged_xfa(
+        &mut self,
+        merged: &MergedForm,
+        pages: &[LayoutPage],
+        paint: &PaintOptions,
+        fonts: &XfaFonts,
+        signatures: XfaSignatures,
+    ) -> Result<XfaMaterializeOutcome, EditError> {
+        let template = &merged.template;
+        self.materialize(template, &merged.bound, pages, paint, fonts, signatures)
+    }
+
+    fn materialize(
+        &mut self,
+        template: &Template,
+        bound: &[BoundValue],
+        pages: &[LayoutPage],
+        paint: &PaintOptions,
+        fonts: &XfaFonts,
+        signatures: XfaSignatures,
+    ) -> Result<XfaMaterializeOutcome, EditError> {
+        let (remove, signed) = self.may_materialize(signatures)?;
+        let mut painted = self.paint_xfa_pages(template, pages, paint, fonts);
+        let widgets: Vec<Vec<PaintedWidget>> = painted
+            .iter_mut()
+            .map(|p| std::mem::take(&mut p.widgets))
+            .collect();
+        let fillable = paint.fields == FieldOutput::Fillable;
+        let (fields, field_notes) = if fillable {
+            let lists: Vec<&[PaintedWidget]> = widgets.iter().map(Vec::as_slice).collect();
+            plan_fields(template, pages, &lists, bound)
+        } else {
+            (Vec::new(), Vec::new())
+        };
+        let mut out = XfaMaterializeOutcome {
+            pages_written: pages.len(),
+            pages_replaced: self.page_slots().map_or(0, |s| s.len()),
+            signatures_removed: if remove { signed } else { 0 },
+            fields_written: fields.len(),
+            field_notes,
+            ..XfaMaterializeOutcome::default()
+        };
+        let mut objects = Vec::new();
+        let (catalog_id, root_id) = self.catalog_and_root()?;
+        let (ids, annots) = self.widget_ids(&fields, painted.len())?;
+        let mut written = Vec::with_capacity(painted.len());
+        let mut shared = HashMap::new();
+        for (i, ((page, mut p), annots)) in pages.iter().zip(painted).zip(annots).enumerate() {
+            out.notes.extend(p.notes.iter().map(|n| (i, n.clone())));
+            out.images += p.images.len();
+            self.share_fonts(&mut p, &mut shared, &mut out, &mut objects)?;
+            written.push(self.write_xfa_page(page, p, root_id, annots, &mut objects)?);
+        }
+        let form = if fillable {
+            Some(self.write_fields(&fields, &widgets, &written, &ids, &mut objects)?)
+        } else {
+            None
+        };
+        let kids: Vec<Object> = written.iter().map(|p| Object::Reference(p.id)).collect();
+        let mut root = self.dict_of(root_id);
+        root.insert(
+            Name::from(b"Count"),
+            Object::Integer(i64::try_from(kids.len()).unwrap_or(i64::MAX)),
+        );
+        root.insert(Name::from(b"Kids"), Object::Array(kids));
+        self.push_write(root_id, Object::Dict(root), &mut objects);
+        self.strip_xfa(catalog_id, remove, form, &mut out, &mut objects);
+        self.commit(Command {
+            kind: CommandKind::MaterializeXfa {
+                pages: out.pages_written,
+            },
+            objects,
+            removals: Vec::new(),
+            trailer: None,
+        });
+        Ok(out)
+    }
+
+    /// Refuse an encrypted, certified, signed or non-dynamic file; whether
+    /// signatures are removed, and how many signed the form.
+    fn may_materialize(&self, signatures: XfaSignatures) -> Result<(bool, usize), EditError> {
         use crate::crypto::PermissionBit;
         use crate::encryption_gate::forbids;
         if forbids(
@@ -123,41 +227,7 @@ impl EditSession {
         if signed > 0 && !remove {
             return Err(EditError::XfaSigned { signatures: signed });
         }
-        let painted = self.paint_xfa_pages(template, pages, paint, fonts);
-        let mut out = XfaMaterializeOutcome {
-            pages_written: pages.len(),
-            pages_replaced: self.page_slots().map_or(0, |s| s.len()),
-            signatures_removed: if remove { signed } else { 0 },
-            ..XfaMaterializeOutcome::default()
-        };
-        let mut objects = Vec::new();
-        let (catalog_id, root_id) = self.catalog_and_root()?;
-        let mut kids = Vec::with_capacity(painted.len());
-        let mut shared = HashMap::new();
-        for (i, (page, mut p)) in pages.iter().zip(painted).enumerate() {
-            out.notes.extend(p.notes.iter().map(|n| (i, n.clone())));
-            out.images += p.images.len();
-            self.share_fonts(&mut p, &mut shared, &mut out, &mut objects)?;
-            let id = self.write_xfa_page(page, p, root_id, &mut objects)?;
-            kids.push(Object::Reference(id));
-        }
-        let mut root = self.dict_of(root_id);
-        root.insert(
-            Name::from(b"Count"),
-            Object::Integer(i64::try_from(kids.len()).unwrap_or(i64::MAX)),
-        );
-        root.insert(Name::from(b"Kids"), Object::Array(kids));
-        self.push_write(root_id, Object::Dict(root), &mut objects);
-        self.strip_xfa(catalog_id, remove, &mut out, &mut objects);
-        self.commit(Command {
-            kind: CommandKind::MaterializeXfa {
-                pages: out.pages_written,
-            },
-            objects,
-            removals: Vec::new(),
-            trailer: None,
-        });
-        Ok(out)
+        Ok((remove, signed))
     }
 
     fn paint_xfa_pages(
@@ -282,8 +352,9 @@ impl EditSession {
         page: &LayoutPage,
         painted: PaintedPage,
         parent: ObjId,
+        annots: Vec<Object>,
         objects: &mut Vec<ObjectWrite>,
-    ) -> Result<ObjId, EditError> {
+    ) -> Result<WrittenPage, EditError> {
         let PaintedPage {
             content,
             mut resources,
@@ -322,7 +393,25 @@ impl EditSession {
         d.insert(Name::from(b"MediaBox"), bbox.clone());
         d.insert(Name::from(b"CropBox"), bbox);
         d.insert(Name::from(b"Rotate"), Object::Integer(0));
-        d.insert(Name::from(b"Resources"), Object::Dict(resources));
+        let fonts = match resources.get(b"Font") {
+            Some(Object::Dict(f)) => f.clone(),
+            _ => Dict::new(),
+        };
+        let resources = if annots.is_empty() {
+            Object::Dict(resources)
+        } else {
+            // Shared with every widget appearance on the page.
+            let id = ObjId::new(self.alloc_number()?, 0);
+            objects.push(ObjectWrite {
+                id,
+                before: None,
+                after: Some(Object::Dict(resources)),
+            });
+            d.insert(Name::from(b"Tabs"), Object::Name(Name::from(b"S")));
+            d.insert(Name::from(b"Annots"), Object::Array(annots));
+            Object::Reference(id)
+        };
+        d.insert(Name::from(b"Resources"), resources.clone());
         d.insert(Name::from(b"Contents"), Object::Reference(contents));
         let id = ObjId::new(self.alloc_number()?, 0);
         objects.push(ObjectWrite {
@@ -330,15 +419,21 @@ impl EditSession {
             before: None,
             after: Some(Object::Dict(d)),
         });
-        Ok(id)
+        Ok(WrittenPage {
+            id,
+            resources,
+            fonts,
+        })
     }
 
     /// Drop `/NeedsRendering`, `/Perms /UR3` (all of `/Perms` when
-    /// `remove_signatures`) and the AcroForm's XFA layer and fields.
+    /// `remove_signatures`) and the AcroForm's XFA layer and fields; `form`
+    /// is the fillable fields' `/Fields` and `/DR` fonts.
     fn strip_xfa(
         &self,
         catalog_id: ObjId,
         remove_signatures: bool,
+        form: Option<(Vec<Object>, Dict)>,
         out: &mut XfaMaterializeOutcome,
         objects: &mut Vec<ObjectWrite>,
     ) {
@@ -371,7 +466,13 @@ impl EditSession {
             if remove_signatures {
                 acro.remove(b"SigFlags");
             }
-            acro.insert(Name::from(b"Fields"), Object::Array(Vec::new()));
+            let (fields, dr_fonts) = form.unwrap_or_default();
+            if !dr_fonts.is_empty() {
+                let mut dr = self.deref_dict(acro.get(b"DR")).unwrap_or_default();
+                dr.insert(Name::from(b"Font"), Object::Dict(dr_fonts));
+                acro.insert(Name::from(b"DR"), Object::Dict(dr));
+            }
+            acro.insert(Name::from(b"Fields"), Object::Array(fields));
             match acro_ref {
                 Some(id) => self.push_write(id, Object::Dict(acro), objects),
                 None => {

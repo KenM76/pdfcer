@@ -37,7 +37,9 @@ fn run(name: &str, bytes: &[u8], extra: &[&str]) -> (u8, String, String, Vec<u8>
 }
 
 fn kind(bytes: &[u8]) -> String {
-    let dir = std::env::temp_dir().join(format!("pdfcer-xfa-mat-kind-{}", std::process::id()));
+    static CALL: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
+    let n = CALL.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+    let dir = std::env::temp_dir().join(format!("pdfcer-xfa-mat-kind-{}-{n}", std::process::id()));
     std::fs::create_dir_all(&dir).unwrap();
     let path = dir.join("k.pdf");
     std::fs::write(&path, bytes).unwrap();
@@ -105,4 +107,25 @@ fn font_dir_faces_are_embedded_refused_or_reported_missing() {
     );
     let count = |n: &[u8]| out.windows(n.len()).filter(|w| *w == n).count();
     assert_eq!(count(b"/FontFile2"), 1);
+}
+
+#[test]
+fn fillable_writes_form_fields_and_notes() {
+    let template = format!(
+        r#"<subform name="f" layout="tb">{PAGE}<field name="a" w="200pt" h="20pt"><ui><textEdit/></ui><calculate><script>1</script></calculate></field><field name="p" w="20pt" h="20pt"><ui><imageEdit/></ui></field></subform>"#
+    );
+    let input = pdf_with_data(Some(&template), "<f><a>Ken</a></f>");
+    let (code, stdout, stderr, out) = run("fillable", &input, &["--fillable"]);
+    assert_eq!(code, 0, "{stderr}");
+    assert!(stdout.contains("field-note kind=script path="), "{stdout}");
+    assert!(
+        stdout.contains("field-note kind=flat:imageEdit path="),
+        "{stdout}"
+    );
+    assert!(stdout.contains(" fields_written=1"), "{stdout}");
+    assert!(
+        stderr.contains("1 field(s) were written fillable"),
+        "{stderr}"
+    );
+    assert!(kind(&out).contains("f[0].a[0]"), "{}", kind(&out));
 }

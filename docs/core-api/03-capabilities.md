@@ -857,7 +857,14 @@ file.
   `/MediaBox`, `/CropBox`, `/Rotate 0` and `/Resources`; the root `/Pages`
   gets the new `/Kids`. The catalog loses `/NeedsRendering` and `/Perms
   /UR3`; the AcroForm loses `/XFA` and `/NeedsRendering` and gets an empty
-  `/Fields`. The pages are flat: values are drawn, not fillable. ONE
+  `/Fields`. The pages are flat by default (`FieldOutput::Flat`): values
+  are drawn, not fillable. `PaintOptions::with_fields(FieldOutput::Fillable)`
+  with `materialize_merged_xfa(&MergedForm, …)` writes each field as an
+  AcroForm field instead (`/Fields` filled, `/DR` from the page fonts,
+  each page `/Annots` and `/Tabs /S`), its widget `/AP` the flat drawing;
+  `fields_written` counts them and `field_notes: Vec<XfaFieldNote { path,
+  kind: XfaFieldNoteKind::{Script, Picture, Flat(widget), Split, Neutral}
+  }>` (`#[non_exhaustive]`) lists what a field could not carry. ONE
   undoable command (`CommandKind::MaterializeXfa { pages }`), committed at
   Save. `XfaMaterializeOutcome { pages_written, pages_replaced, notes:
   Vec<(page, PaintNote)>, images, fields_dropped, usage_rights_removed,

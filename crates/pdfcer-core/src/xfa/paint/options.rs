@@ -42,6 +42,20 @@ pub enum ImageStreams {
     XObject,
 }
 
+/// Whether a field's value is drawn on the page or into its own widget
+/// ([`PaintedPage::widgets`](super::PaintedPage::widgets)).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
+#[non_exhaustive]
+pub enum FieldOutput {
+    /// On the page: the field is a picture of its value.
+    #[default]
+    Flat,
+    /// The field's border and caption on the page, its value region as a
+    /// [`PaintedWidget`](super::PaintedWidget) whose appearance draws what
+    /// the page would have, for writing an AcroForm widget.
+    Fillable,
+}
+
 /// Whether a supplied face's program travels in the written file
 /// ([`PaintedFont::program`](super::PaintedFont::program)).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
@@ -229,6 +243,8 @@ pub struct PaintOptions {
     pub image_streams: ImageStreams,
     /// Embed or reference supplied faces.
     pub font_embedding: FontEmbedding,
+    /// Field values on the page or in widgets.
+    pub fields: FieldOutput,
 }
 
 impl PaintOptions {
@@ -255,6 +271,7 @@ impl PaintOptions {
             stipple: Stipple::Viewer,
             image_streams: ImageStreams::Inline,
             font_embedding: FontEmbedding::Embed,
+            fields: FieldOutput::Flat,
         }
     }
 
@@ -381,6 +398,13 @@ impl PaintOptions {
     #[must_use]
     pub const fn with_image_streams(mut self, image_streams: ImageStreams) -> Self {
         self.image_streams = image_streams;
+        self
+    }
+
+    /// With `fields`.
+    #[must_use]
+    pub const fn with_fields(mut self, fields: FieldOutput) -> Self {
+        self.fields = fields;
         self
     }
 

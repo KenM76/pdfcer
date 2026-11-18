@@ -105,7 +105,12 @@ impl Painter<'_> {
         };
         let round = w.attr("shape") == Some("round");
         self.check_box(item, w, bx, round);
-        match state(node) {
+        let state = match self.force {
+            Some(true) => State::On,
+            Some(false) => State::Off,
+            None => state(node),
+        };
+        match state {
             State::On => self.check_mark(item, node, w, bx, round),
             State::Neutral => self.note(item, PaintNoteKind::Content),
             State::Off => {}
