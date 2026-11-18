@@ -129,7 +129,9 @@ where
 
 /// [`reexpress_mesh`] for a parametric mesh whose function's breaks are
 /// known: `breaks` lists the `t` between which every output of the
-/// shading's `/Function` is affine (`PdfFunction::affine_breaks`).
+/// shading's `/Function` is affine, and, where `convert` clamps to the
+/// colour space's component range, its clamped outputs too
+/// (`PdfFunction::affine_breaks_clamped`).
 ///
 /// Instead of the grid, each triangle is checked at every break inside its
 /// closed corner `t` range, at the floats just either side of each, and

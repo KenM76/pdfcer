@@ -33,20 +33,37 @@ impl PdfFunction {
         breaks.retain(|t| t.is_finite() && (d0..=d1).contains(t));
         sort_dedup(&mut breaks);
         if let Some(range) = self.range.as_deref() {
-            let crossings = self.range_crossings(&breaks, range)?;
+            let crossings = self.crossings(&breaks, range)?;
             breaks.extend(crossings);
             sort_dedup(&mut breaks);
         }
         (breaks.len() <= cap).then_some(breaks)
     }
 
+    /// [`affine_breaks`](Self::affine_breaks) for a consumer that also
+    /// clamps output `i` to `bounds[i]` (a colour space's component range):
+    /// adds each input where an output crosses one of those bounds, so the
+    /// clamped outputs are affine between neighbouring breaks too. Outputs
+    /// past `bounds.len()` are not clamped.
+    ///
+    /// `None` as for `affine_breaks`, or when the list grows past `cap`.
+    #[must_use]
+    pub fn affine_breaks_clamped(&self, cap: usize, bounds: &[[f64; 2]]) -> Option<Vec<f64>> {
+        let mut breaks = self.affine_breaks(cap)?;
+        let crossings = self.crossings(&breaks, bounds)?;
+        breaks.extend(crossings);
+        sort_dedup(&mut breaks);
+        (breaks.len() <= cap).then_some(breaks)
+    }
+
     /// Where an output, affine between neighbouring `breaks` before the
-    /// `/Range` clip, crosses a `/Range` end.
-    fn range_crossings(&self, breaks: &[f64], range: &[[f64; 2]]) -> Option<Vec<f64>> {
+    /// `/Range` clip, crosses one of `bounds`. A bound the clip keeps the
+    /// output from reaching adds a harmless extra break.
+    fn crossings(&self, breaks: &[f64], bounds: &[[f64; 2]]) -> Option<Vec<f64>> {
         let mut out = Vec::new();
         for (&a, &b) in breaks.iter().zip(breaks.iter().skip(1)) {
             let (fa, fb) = (self.unclipped(a, b)?, self.unclipped(b, a)?);
-            for ((&ya, &yb), &[lo, hi]) in fa.iter().zip(&fb).zip(range) {
+            for ((&ya, &yb), &[lo, hi]) in fa.iter().zip(&fb).zip(bounds) {
                 for edge in [lo, hi] {
                     if (ya - edge) * (yb - edge) < 0.0 {
                         out.push(a + (b - a) * (edge - ya) / (yb - ya));

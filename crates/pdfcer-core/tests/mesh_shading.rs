@@ -359,3 +359,54 @@ fn a_step_of_one_and_a_half_tolerances_is_never_accepted() {
     let (one, report) = reexpress_mesh_with_breaks(&m, 4, ramp, &[0.0, 1.0], &params).unwrap();
     assert_eq!((one.len(), report.subdivisions), (1, 0));
 }
+
+/// Most an output triangle's blended first component is from `convert` of
+/// the [`parametric_triangle`]'s `t` = (x + y) / 100, over a grid of points
+/// in each triangle.
+fn worst_inside(out: &[MeshTriangle], convert: impl Fn(f64) -> f64) -> f64 {
+    let mut worst = 0.0_f64;
+    for tri in out {
+        for i in 0..=16 {
+            for j in 0..=16 - i {
+                let w = [f64::from(i) / 16.0, f64::from(j) / 16.0];
+                let w = [w[0], w[1], 1.0 - w[0] - w[1]];
+                let mix = |f: &dyn Fn(&MeshVertex) -> f64| {
+                    w.iter().zip(tri).map(|(w, v)| w * f(v)).sum::<f64>()
+                };
+                let t = mix(&|v| v.xy[0] + v.xy[1]) / 100.0;
+                worst = worst.max((mix(&|v| v.color[0]) - convert(t)).abs());
+            }
+        }
+    }
+    worst
+}
+
+#[test]
+fn a_function_clamped_by_its_colour_space_splits_where_it_clamps() {
+    let m = parametric_triangle();
+    // Clamps at t = 1/6 and 5/6, off every split's dyadic midpoints.
+    let clamped = |t: f64| (-0.25 + 1.5 * t).clamp(0.0, 1.0);
+    let convert = move |s: &[f64]| Some(vec![clamped(*s.first()?), 0.0, 0.0, 0.0]);
+    let params = Reexpress::default();
+    let (tris, report) =
+        reexpress_mesh_with_breaks(&m, 4, convert, &[0.0, 1.0 / 6.0, 5.0 / 6.0, 1.0], &params)
+            .unwrap();
+    assert!(tris.len() > 1);
+    assert_eq!(report.over_tolerance, 0, "{report:?}");
+    let worst = worst_inside(&tris, clamped);
+    assert!(worst <= params_tolerance(), "off by {worst}");
+    let (blind, _) = reexpress_mesh_with_breaks(&m, 4, convert, &[0.0, 1.0], &params).unwrap();
+    let missed = worst_inside(&blind, clamped);
+    assert!(
+        missed > params_tolerance(),
+        "the probes alone: off by {missed}"
+    );
+    let ramp = |s: &[f64]| Some(vec![s.first()?.clamp(0.0, 1.0), 0.0, 0.0, 0.0]);
+    let (one, report) = reexpress_mesh_with_breaks(&m, 4, ramp, &[0.0, 1.0], &params).unwrap();
+    assert_eq!((one.len(), report.subdivisions), (1, 0));
+}
+
+/// [`Reexpress::default`]'s tolerance.
+fn params_tolerance() -> f64 {
+    1.0 / 255.0
+}

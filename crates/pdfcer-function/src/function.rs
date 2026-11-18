@@ -5557,5 +5557,26 @@ mod tests {
             (b"N", Object::Integer(2)),
         ]));
         assert_eq!(stitched(curve).affine_breaks(16), None);
+        let overshoot = load_dict(&[
+            (b"FunctionType", Object::Integer(2)),
+            (b"Domain", arr(&[0.0, 1.0])),
+            (b"N", Object::Integer(1)),
+            (b"C0", arr(&[-0.5])),
+            (b"C1", arr(&[1.5])),
+        ])
+        .unwrap();
+        assert_eq!(overshoot.affine_breaks(16), Some(vec![0.0, 1.0]));
+        let b = overshoot.affine_breaks_clamped(16, &[[0.0, 1.0]]).unwrap();
+        close(&b, &[0.0, 0.25, 0.75, 1.0]);
+        assert_eq!(overshoot.affine_breaks_clamped(3, &[[0.0, 1.0]]), None);
+        let inside = load_dict(&[
+            (b"FunctionType", Object::Integer(2)),
+            (b"Domain", arr(&[0.0, 1.0])),
+            (b"N", Object::Integer(1)),
+        ]);
+        assert_eq!(
+            inside.unwrap().affine_breaks_clamped(16, &[[0.0, 1.0]]),
+            Some(vec![0.0, 1.0])
+        );
     }
 }
