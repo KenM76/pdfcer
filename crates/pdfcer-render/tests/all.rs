@@ -55,6 +55,7 @@ mod lab_ink;
 mod managed_shading;
 mod markup_without_ap;
 mod mesh_ink;
+mod mesh_rewrite;
 mod mesh_shadings;
 mod named_icon_without_ap;
 mod need_appearances_and_field_highlight;

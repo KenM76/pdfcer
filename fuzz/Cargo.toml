@@ -828,3 +828,9 @@ name = "jpeg_remux"
 path = "fuzz_targets/jpeg_remux.rs"
 test = false
 doc = false
+
+[[bin]]
+name = "mesh_rewrite"
+path = "fuzz_targets/mesh_rewrite.rs"
+test = false
+doc = false

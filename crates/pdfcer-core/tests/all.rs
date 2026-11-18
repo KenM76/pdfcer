@@ -162,6 +162,7 @@ mod markup_respan;
 mod markup_snap;
 mod merge_document;
 mod merge_relinks_cross_file_bookmarks;
+mod mesh_shading;
 mod metadata_remove;
 mod move_objects_each;
 mod named_destinations_list;
