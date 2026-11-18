@@ -75,8 +75,8 @@ pub use camera::sphere::DEFAULT_FOV_Y;
 pub use error::PrcError;
 pub use finish::{MaterialFinish, ShininessScale};
 pub use gltf::{
-    GltfColours, GltfError, GltfImport, GltfLights, GltfOcclusion, GltfOptions, GltfUpAxis,
-    read_gltf,
+    GltfAmbient, GltfColours, GltfError, GltfImport, GltfLights, GltfOcclusion, GltfOptions,
+    GltfUpAxis, read_gltf,
 };
 #[cfg(feature = "render")]
 pub use gpu::ao::{

@@ -565,6 +565,52 @@ fn a_model_lamp_bounces_by_default_and_off_says_nothing() {
     assert_ne!(on, off, "the bounce adds light");
 }
 
+/// `--gltf-ambient none`: the lamps alone light the model, at the scale
+/// exposure meters, and the lux reading is the one the fill build gives.
+#[test]
+fn no_ambient_leaves_the_fill_out_and_the_lux_unchanged() {
+    let s = Scratch::new("no-ambient");
+    std::fs::write(s.path("m.glb"), lamp_over_floor()).unwrap();
+    let pdf = format!(
+        "{}/../../fixtures/synthetic/minimal.pdf",
+        env!("CARGO_MANIFEST_DIR")
+    );
+    let m = s.path("m.glb");
+    let build = |tag: &str, extra: &[&str]| {
+        let out = s.path(&format!("{tag}.pdf"));
+        let mut args = vec!["3d-embed", &pdf, "--model", &m, "--page", "1"];
+        args.extend_from_slice(&["--rect", "10,10,190,190", "--apply", "-o", &out]);
+        args.extend_from_slice(extra);
+        let embed = stdout(&run(&args));
+        let png = s.path(&format!("{tag}.png"));
+        let mut args = vec!["3d-render", &out, "--index", "0", "--eye=1,-3,4"];
+        args.extend_from_slice(&["--width", "120", "--height", "80", "-o", &png]);
+        args.extend_from_slice(&["--illuminance", "60,40"]);
+        args.extend_from_slice(&["--illuminance-glow", "left-out"]);
+        (embed, stdout(&run(&args)))
+    };
+    let (fill_embed, fill) = build("fill", &[]);
+    let (none_embed, none) = build("none", &["--gltf-ambient", "none"]);
+    assert!(
+        fill_embed.contains("plus an ambient light of 20%"),
+        "{fill_embed}"
+    );
+    assert!(
+        none_embed.contains("with no ambient light, as asked"),
+        "{none_embed}"
+    );
+    assert!(fill.contains("name=\"ambient\""), "{fill}");
+    assert!(!none.contains("name=\"ambient\""), "{none}");
+    let total = |t: &str| {
+        t.lines().find(|l| l.contains("unit=")).map(|l| {
+            let at = l.find("unit=").unwrap();
+            l[at..].to_owned()
+        })
+    };
+    assert!(none.contains("unit=lux total=20.0000"), "{none}");
+    assert_eq!(total(&fill), total(&none));
+}
+
 /// `--illuminance`: lux under a glTF lamp, by the inverse square of the
 /// distance in metres; a relative figure, with the reason, once a light
 /// with no physical strength joins; and the caps refuse by name.
@@ -609,6 +655,7 @@ fn illuminance_is_lux_under_a_stated_lamp_and_relative_otherwise() {
     assert!(disc.contains("samples_on=57 samples_off=43"), "{disc}");
     let lit = read(&["--artwork-headlight"]);
     assert!(lit.contains("unit=relative"), "{lit}");
+    assert!(!lit.contains("--illuminance-glow left-out"), "{lit}");
     let why = "note: illuminance: a relative figure, not lux: the light at the camera has no \
                physical strength";
     assert!(lit.contains(why), "{lit}");
@@ -929,6 +976,8 @@ fn illuminance_counts_a_glowing_surface_unless_told_not_to() {
     let why = "note: illuminance: a relative figure, not lux: 1 glowing surface(s) are counted, \
                and a glow has no physical strength";
     assert!(counted.contains(why), "{counted}");
+    let hint = "note: illuminance: --illuminance-glow left-out reads lux from the model's lamps";
+    assert!(counted.contains(hint), "{counted}");
     assert!(
         counted.contains("counted where it falls, not bounced"),
         "{counted}"

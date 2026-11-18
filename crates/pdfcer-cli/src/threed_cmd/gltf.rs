@@ -11,6 +11,7 @@ pub(crate) struct GltfHow<'a> {
     pub(crate) up: GltfUpArg,
     pub(crate) occlusion: GltfOcclusionArg,
     pub(crate) lights: GltfLightsArg,
+    pub(crate) ambient: GltfAmbientArg,
     /// `--light`: lights added after the file's own.
     pub(crate) added: &'a [super::LightArg],
 }
@@ -141,7 +142,7 @@ fn beside(dir: &Path, uri: &str) -> Option<PathBuf> {
 /// The importer settings `how` asks for.
 #[cfg(feature = "3d")]
 fn options(how: GltfHow<'_>) -> pdfcer_3d::GltfOptions {
-    use pdfcer_3d::{GltfColours, GltfLights, GltfOcclusion, GltfOptions, GltfUpAxis};
+    use pdfcer_3d::{GltfAmbient, GltfColours, GltfLights, GltfOcclusion, GltfOptions, GltfUpAxis};
     let mut options = GltfOptions::default();
     options.occlusion = match how.occlusion {
         GltfOcclusionArg::Bake => GltfOcclusion::Bake,
@@ -160,6 +161,10 @@ fn options(how: GltfHow<'_>) -> pdfcer_3d::GltfOptions {
         GltfLightsArg::Normalise => GltfLights::Normalise,
         GltfLightsArg::Stored => GltfLights::Stored,
         GltfLightsArg::Drop => GltfLights::Drop,
+    };
+    options.ambient = match how.ambient {
+        GltfAmbientArg::Fill => GltfAmbient::Fill,
+        GltfAmbientArg::None => GltfAmbient::None,
     };
     options
 }

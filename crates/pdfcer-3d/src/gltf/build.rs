@@ -75,7 +75,7 @@ pub(super) fn scene(
             .push("animations not imported; the scene is drawn still".into());
     }
     let linear = options.colours == GltfColours::Linear;
-    super::lights::lights(doc, options.lights, linear, &mut out);
+    super::lights::lights(doc, (options.lights, options.ambient), linear, &mut out);
     out
 }
 

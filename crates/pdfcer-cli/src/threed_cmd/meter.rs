@@ -164,15 +164,31 @@ impl MeterArgs {
                 }
             }
         }
-        if !meter.reasons().is_empty() {
-            let why: Vec<String> = meter.reasons().iter().map(ToString::to_string).collect();
+        print_notes(&meter);
+    }
+}
+
+/// The meter's reasons for a relative figure, a way to lux when glows are
+/// the only one, then what it assumed.
+#[cfg(feature = "3d")]
+fn print_notes(meter: &pdfcer_3d::LightMeter<'_>) {
+    if !meter.reasons().is_empty() {
+        let why: Vec<String> = meter.reasons().iter().map(ToString::to_string).collect();
+        println!(
+            "note: illuminance: a relative figure, not lux: {}",
+            why.join("; ")
+        );
+        let glow_only = meter
+            .reasons()
+            .iter()
+            .all(|r| matches!(r, pdfcer_3d::RelativeReason::GlowingParts(_)));
+        if glow_only {
             println!(
-                "note: illuminance: a relative figure, not lux: {}",
-                why.join("; ")
+                "note: illuminance: --illuminance-glow left-out reads lux from the model's lamps alone"
             );
         }
-        for note in meter.notes() {
-            println!("note: illuminance: {note}");
-        }
+    }
+    for note in meter.notes() {
+        println!("note: illuminance: {note}");
     }
 }

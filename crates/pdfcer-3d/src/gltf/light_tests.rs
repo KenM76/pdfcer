@@ -55,6 +55,7 @@ const AS_STORED: GltfOptions = GltfOptions {
     up_axis: GltfUpAxis::AsStored,
     occlusion: GltfOcclusion::Bake,
     lights: GltfLights::Normalise,
+    ambient: GltfAmbient::Fill,
 };
 
 const THREE: &str = r#"{"type":"point","intensity":100,"name":"lamp","range":5},
@@ -304,4 +305,39 @@ fn each_light_keeps_the_strength_the_file_states() {
         assert_eq!(kept, stated, "{lights:?}");
         assert_eq!(m.lights[0].name.as_deref(), Some("lamp"));
     }
+}
+
+#[test]
+fn no_ambient_keeps_the_scale_and_the_candela() {
+    for lights in [GltfLights::Exposure, GltfLights::Normalise] {
+        let with = GltfOptions {
+            lights,
+            ..AS_STORED
+        };
+        let without = GltfOptions {
+            ambient: GltfAmbient::None,
+            ..with
+        };
+        let fill = read(THREE, NODES, with);
+        let none = read(THREE, NODES, without);
+        assert_eq!(fill.scene.lights.len(), 4, "{lights:?}");
+        assert_eq!(none.scene.lights.len(), 3, "{lights:?}");
+        assert!(
+            none.scene
+                .lights
+                .iter()
+                .all(|l| l.kind != ModelLightKind::Ambient)
+        );
+        assert_eq!(none.scene.lights[..], fill.scene.lights[..3], "{lights:?}");
+        assert!(
+            none.inferred.iter().any(|s| s.contains("no ambient light")),
+            "{:?}",
+            none.inferred
+        );
+    }
+}
+
+#[test]
+fn the_ambient_fill_is_the_default() {
+    assert_eq!(GltfOptions::default().ambient, GltfAmbient::Fill);
 }

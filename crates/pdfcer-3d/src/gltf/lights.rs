@@ -3,13 +3,13 @@
 //! glTF intensities are physical (candela, lux) and have no ambient term;
 //! PRC's are unitless. [`GltfLights::Exposure`] and [`GltfLights::Normalise`]
 //! scale every light by one factor (metered on the model's surfaces, or
-//! summed at its centre) and add an ambient light of `AMBIENT`, both
-//! disclosed as inferred.
+//! summed at its centre) and, unless [`GltfAmbient::None`], add an ambient
+//! light of `AMBIENT`, both disclosed as inferred.
 
 use pdfcer_json::Json;
 
 use super::build::srgb;
-use super::{GltfImport, GltfLights, member};
+use super::{GltfAmbient, GltfImport, GltfLights, member};
 use crate::{
     IDENTITY, MAX_DEPTH, Matrix, ModelLight, ModelLightKind, Photometric, multiply, transform_point,
 };
@@ -31,7 +31,12 @@ pub(super) struct Placed<'a> {
 
 /// Reads the lights the scene's nodes carry into `out.scene.lights`.
 /// Call after the roots are chosen and turned.
-pub(super) fn lights(doc: &Json, mode: GltfLights, linear: bool, out: &mut GltfImport) {
+pub(super) fn lights(
+    doc: &Json,
+    (mode, ambient): (GltfLights, GltfAmbient),
+    linear: bool,
+    out: &mut GltfImport,
+) {
     let defs = doc
         .get("extensions")
         .and_then(|e| e.get("KHR_lights_punctual"))
@@ -88,17 +93,30 @@ pub(super) fn lights(doc: &Json, mode: GltfLights, linear: bool, out: &mut GltfI
             out.scene.lights.push(l);
         }
     }
-    disclose(mode, scale, spots, out);
+    disclose((mode, ambient), scale, spots, out);
 }
 
-fn disclose(mode: GltfLights, scale: f64, spots: usize, out: &mut GltfImport) {
+fn disclose(
+    (mode, ambient): (GltfLights, GltfAmbient),
+    scale: f64,
+    spots: usize,
+    out: &mut GltfImport,
+) {
     let n = out.scene.lights.len();
     let how = match mode {
         GltfLights::Exposure => "the median lit surface of the model gets",
         GltfLights::Normalise => "together they light the model's centre to",
         GltfLights::Stored | GltfLights::Drop => "",
     };
-    if !how.is_empty() && n > 0 {
+    if how.is_empty() || n == 0 {
+        // Nothing scaled.
+    } else if ambient == GltfAmbient::None {
+        out.inferred.push(format!(
+            "{n} model lights scaled by {scale:.4} so {how} {:.0}% (glTF intensities are \
+             physical, PRC's are not), with no ambient light, as asked",
+            100.0 * (1.0 - AMBIENT),
+        ));
+    } else {
         out.inferred.push(format!(
             "{n} model lights scaled by {scale:.4} so {how} {:.0}% (glTF intensities are \
              physical, PRC's are not), plus an ambient light of {:.0}%",

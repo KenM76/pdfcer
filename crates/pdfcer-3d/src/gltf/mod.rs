@@ -101,6 +101,21 @@ pub enum GltfLights {
     Drop,
 }
 
+/// Whether a scaled import ([`GltfLights::Exposure`], [`GltfLights::Normalise`])
+/// adds an ambient light. Either way the model's lamps get the same scale
+/// and keep their stored candela or lux for an illuminance reading.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Hash)]
+#[non_exhaustive]
+pub enum GltfAmbient {
+    /// A 20% ambient light, standing for no physical light (its
+    /// photometric value is 0 lux), disclosed as inferred.
+    #[default]
+    Fill,
+    /// None: the model is lit by its own lamps only, so surfaces they do
+    /// not reach are black.
+    None,
+}
+
 /// Settings for [`read_gltf`].
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Hash)]
 #[non_exhaustive]
@@ -113,6 +128,8 @@ pub struct GltfOptions {
     pub occlusion: GltfOcclusion,
     /// Light-intensity handling.
     pub lights: GltfLights,
+    /// The ambient light a scaled import adds.
+    pub ambient: GltfAmbient,
 }
 
 /// A read glTF scene and what was lost or guessed reading it.

@@ -3654,6 +3654,13 @@ pub(crate) enum Command {
         /// out, with a note line.
         #[arg(long, value_enum, default_value_t)]
         gltf_lights: GltfLightsArg,
+        /// glTF only: fill (default) adds the 20% ambient light exposure
+        /// and normalise bring; none leaves it out, so the model is lit by
+        /// its own lamps alone at the same scale. The lamps keep their
+        /// stored candela or lux either way, so `3d-render --illuminance`
+        /// reads the same. Ignored by stored and drop.
+        #[arg(long, value_enum, default_value_t)]
+        gltf_ambient: GltfAmbientArg,
         /// glTF only, repeatable: add a light to the converted model, in
         /// its coordinates after the up-axis turn. ambient, point:X,Y,Z,
         /// directional:DX,DY,DZ (the way the light travels) or
@@ -3748,6 +3755,13 @@ pub(crate) enum Command {
         /// out, with a note line.
         #[arg(long, value_enum, default_value_t)]
         gltf_lights: GltfLightsArg,
+        /// glTF only: fill (default) adds the 20% ambient light exposure
+        /// and normalise bring; none leaves it out, so the model is lit by
+        /// its own lamps alone at the same scale. The lamps keep their
+        /// stored candela or lux either way, so `3d-render --illuminance`
+        /// reads the same. Ignored by stored and drop.
+        #[arg(long, value_enum, default_value_t)]
+        gltf_ambient: GltfAmbientArg,
         /// glTF only, repeatable: add a light to the converted model, in
         /// its coordinates after the up-axis turn. ambient, point:X,Y,Z,
         /// directional:DX,DY,DZ (the way the light travels) or
