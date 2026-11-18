@@ -112,6 +112,26 @@ wherever it appears.*
 
 ## Shipped
 
+### `e5cd14ec` `Pass 647.11`: say what entry an XFA field takes and the values it writes, 2026-11-18 (1612th filing)
+
+Engineer-reported; no shell here, git, push and CI state not checked from here. `e5cd14ec` `feat(xfa): say what entry an XFA field takes and the values it writes (Pass 647.11)`. Request `G300` (`open\request_G300_xfa_field_widget_kind.md`, reply `open\reply_G300_xfa_field_widget_kind_SHIPPED.md`). Opened and shipped in one filing. **Unreleased** (the `v0.159.0` round, opened this filing). Reasoning is in the commit message. Delivers **core** and **cli**; **gui none** (the entry control is `pdfcer-gui`'s).
+- **What:** `xfa::field_widget(&Template, path) -> Option<FieldWidget>`, variants `Text{multiline,max_chars}`, `Numeric`, `Date`, `CheckButton{on,off,neutral,group}`, `ChoiceList{items,open: ChoiceOpen,text_entry}`, `Other(tag)`. Also new: `ChoiceOpen`, `Template::node_at`.
+- **Divergence from the ask:** the request wanted `open: bool`; shipped a four-value enum `ChoiceOpen` with `is_drop_down()` (reasoning in the commit message).
+- **CLI:** `xfa-layout` prints a `widget path= kind=...` line after each field.
+- **Tests:** 3 core (`crates/pdfcer-core/tests/xfa_widget.rs`), 1 CLI. Not re-run from here.
+- **Docs:** core-api 03 "Field entry" bullet.
+- **FEATURES:** new row "Dynamic XFA, a field's entry kind and values (field_widget)", core [x], cli [x], gui [ ].
+
+### `871dd4cd` + `5aa275b2` `Pass 647.10`: a field's unresolved dataRef creates the node it names, 2026-11-18 (1612th filing)
+
+Engineer-reported; no shell here, git, push and CI state not checked from here. `871dd4cd` `feat(xfa): a field's unresolved dataRef creates the node it names (Pass 647.10)`; `5aa275b2` `refactor(xfa): move dataRef creation planning into merge/fill.rs (Pass 647.10)` (file split to bring `merge.rs` back under 800 lines; no behaviour change). Request `G299` (`open\request_G299_xfa_fill_dataref_absent.md`, reply `open\reply_G299_xfa_fill_dataref_absent_SHIPPED.md`). Opened and shipped in one filing. **Unreleased** (`v0.159.0`). Delivers **core** and **cli**; **gui none**.
+- **What:** `EditSession::fill_xfa_field` on a field whose explicit `dataRef` resolves to nothing creates the named node plus any missing ancestor groups (XFA 3.3 p.199 Q11; `[*]` adds one instance).
+- **Refuses, by name:** new `XfaFillError::DataRefAbsent { reference }` for a reference that cannot say where: `..` or unresolved SOM, an index that skips siblings, a created step with index other than 0, a value on the path, a group target.
+- **CLI:** `xfa-fill` reaches it with no flag change; the new error prints by name.
+- **Tests:** 3 new in `crates/pdfcer-core/tests/xfa_fill.rs` (12 of 12 green, engineer-reported).
+- **Docs:** core-api 02 "Fill an XFA field" row.
+- **FEATURES:** new row "Dynamic XFA, fill creates the node an unresolved dataRef names", core [x], cli [x], gui [ ]. Row for `647.3d` not lengthened (entry-size gate).
+
 ### `7a2090a8` `v0.158.0` PUBLISHED, 2026-11-18 (1611th filing)
 
 Engineer-reported; no shell here, nothing checked from here. Bump `4137502e` (filed 1610th); `7a2090a8` is the 1610th filing commit (`docs: file 4137502e - v0.158.0 release bump (1610th)`). Docs-only filing: no new code commit. HEAD and tag `v0.158.0` are both on `7a2090a8`, pushed. CI green at that commit (run 44277134986, success, read from GitHub by the engineer).
@@ -27768,6 +27788,8 @@ closes out the *prior* filing's business rather than opening this one's.
 > **`Pass 722.8` SHIPPED 2026-11-18 (1605th filing), `3f89304e`; see its *Shipped* entry (opened and shipped in one filing, `X089` addendum; unreleased, `v0.158.0`).** Next free IDs: `Pass 717.4`, `Pass 718.5`, `Pass 720.3`, `Pass 721.10`, `Pass 722.9`, `Pass 647.3h`; decision `225`, rule `R264`.
 
 > **`Pass 722.9` SHIPPED 2026-11-18 (1606th filing), `77344e5b`; see its *Shipped* entry (opened and shipped in one filing, `X089` follow-up; unreleased, `v0.158.0`).** Next free IDs: `Pass 717.4`, `Pass 718.5`, `Pass 720.3`, `Pass 721.10`, `Pass 722.10`, `Pass 647.3h`; decision `225`, rule `R264`.
+
+> **`Pass 647.10` (`871dd4cd`, `5aa275b2`, `G299`) and `Pass 647.11` (`e5cd14ec`, `G300`) SHIPPED 2026-11-18 (1612th filing); see their *Shipped* entries (opened and shipped in one filing; unreleased). The `v0.159.0` round is OPEN with these two.** `Pass 647.12` is RESERVED for `G301`, OPEN and in progress (not yet shipped). Next free IDs: `Pass 647.13`, `Pass 717.4`, `Pass 718.5`, `Pass 720.3`, `Pass 721.13`, `Pass 722.10`, `Pass 647.3h`; decision `225`, rule `R264`. `647.10` and `647.11` had zero hits in `ROADMAP.md` and `docs/history` by the engineer's grep before filing.
 
 > **`Pass 647.3g` (OPEN, NOT STARTED; NOT gating `v0.156.0` unless the operator says so): XFA page-background fields bind per page (request `X016` item 1, the only unshipped part of `X016`).** Part of the `Pass 647.x` arc (decision 204, paced slowly). The criteria sit under the `Pass 647.3` heading further down this file (heading status corrected this filing: `647.3a` to `647.3f` shipped); the fresh slice is the per-page instance index (`Area[0]`, `Area[1]`, ...), a per-page value surviving save and reopen, and `match="global"` or an explicit `<bind ref>` staying one shared value, synthetic templates only. Reply to `X016` owed when it ships.
 

@@ -4,6 +4,15 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-11-18 (1612th filing) — `Pass 647.10` (`871dd4cd`, `5aa275b2`, `G299`) and `Pass 647.11` (`e5cd14ec`, `G300`) SHIPPED; `v0.159.0` round opened; unreleased
+
+**Filed (engineer-reported; no shell here, git, push and CI state not checked from here):**
+- `Pass 647.10`: `fill_xfa_field` on an unresolved explicit `dataRef` creates the node and missing ancestors (XFA 3.3 p.199 Q11); new `XfaFillError::DataRefAbsent { reference }` refuses unplaceable references by name. `5aa275b2` is a no-behaviour file split (`merge.rs` under 800 lines). 3 new tests in `xfa_fill.rs` (12 of 12 green, engineer-reported). core-api 02 updated.
+- `Pass 647.11`: `xfa::field_widget` -> `FieldWidget`, `ChoiceOpen` (four-value enum with `is_drop_down()`, diverging from the request's `open: bool`), `Template::node_at`; `xfa-layout` prints a `widget` line per field. 3 core + 1 CLI test. core-api 03 updated.
+- FEATURES: two NEW rows (core [x], cli [x], gui [ ]); the `647.3d` row left unlengthened (entry-size gate). ROADMAP: two Shipped entries and a Next up banner.
+
+**Open:** `Pass 647.12` reserved for `G301` (OPEN, in progress). Next free IDs: `Pass 647.13`, `717.4`, `718.5`, `720.3`, `721.13`, `722.10`, `647.3h`; decision `225`; rule `R264`. GUI-side: entry control for `field_widget`, and the new error name on fill. Nothing released.
+
 ## 2026-11-18 (1611th filing) — `v0.158.0` PUBLISHED (tag on `7a2090a8`)
 
 **Filed (engineer-reported; no shell here, nothing checked from here):**
