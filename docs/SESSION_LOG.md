@@ -4,6 +4,21 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-11-19 (1644th filing) — `v0.164.0` PUBLISHED (tag on `ac3e5690`)
+
+**Filed (engineer-reported; no shell here, git, push, CI, GitHub, crates.io and OneDrive state not checked from here):**
+- Annotated tag `v0.164.0` on `ac3e569055a5ebb856c7210b31f9d2684272c97e`, pushed; CI green at the tag. GitHub release via `tools/gh-release.py`, 8 assets (portable zip 32,679,310 bytes, sha256 prefix `1ef6b89d8b83`; three OCR add-on zips 3,789,155 / 11,352,262 / 4,483,685 bytes; `.sha256` files). OneDrive `pdfcer1` got 0.164.0; `pdfcer2` keeps 0.163.0.
+- Carries `Passes 721.18`-`721.23` (`G308`, `G309`, `X100`, `G310`). Notice: `open/notice_2026-11-19_release_v0.164.0.md` in the `pdfce_FeatureRequests` channel.
+- Smoke (fresh folder): `pdfcer 0.164.0`, revision `v0.163.0-11-gac3e5690`; relative light map printed spread bands. `verify-release.py` all ok except "working tree clean" (known uncommitted agent-memory/research/`THIRD_PARTY_LICENSES.md` files).
+
+**Findings:**
+- crates.io publish order matters: the first pass listed `pdfcer-vec3` last and 9 crates failed on dependency resolution. Retry in rounds fixed it (3d/3d-nav/fonts/function/image-codec/text; then core/render; then emf). Publish leaves first (`vec3` before `3d`, `3d` before `core`), or retry until none remain.
+- A PC crash during packaging was recovered; the first repackage failed with "Access is denied" (os error 5) and passed on rerun.
+
+**FEATURES:** no change. **Sweep (hard rule 11):** no counter or capability changed meaning.
+
+**Open:** next release writes `pdfcer2`. Next free IDs: `Pass 647.15`, `717.4`, `718.5`, `720.3`, `721.24`, `722.10`, `723.11`, `647.3h`; decision `225`; rule `R264`. `docs/NEXT_SESSION.md` engineer-owned, not edited.
+
 ## 2026-11-19 (1643rd filing) — `Pass 721.23` (`a23ea1a1`, `G310`) SHIPPED
 
 **Filed (engineer-reported; no shell here, git, push, CI and the gates not run or checked from here):**

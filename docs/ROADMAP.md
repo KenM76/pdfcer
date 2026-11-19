@@ -112,6 +112,17 @@ wherever it appears.*
 
 ## Shipped
 
+### `ac3e5690` `v0.164.0` PUBLISHED, 2026-11-19 (1644th filing)
+
+Engineer-reported; no shell here, git, push, CI, GitHub, crates.io and OneDrive state not checked from here. Annotated tag `v0.164.0` points at `ac3e569055a5ebb856c7210b31f9d2684272c97e` (`docs: file Pass 721.23 shipped (G310) (1643rd)`); version-bump commit `f837cac1` (filed 1641st). Tag pushed; CI green at the tag (`gh run watch` exit 0). `tools/gh-release.py`: 8 assets (portable zip `pdfcer-v0.164.0-windows-x64.zip` 32,679,310 bytes, sha256 prefix `1ef6b89d8b83`; `ocr-addon-ocrcer` 3,789,155; `ocr-addon-ocrs` 11,352,262; `ocr-addon-tesseract` 4,483,685 bytes; each with a `.sha256`). OneDrive: `pdfcer1` got 0.164.0; `pdfcer2` keeps 0.163.0; the next release writes `pdfcer2`.
+- **Contents:** `Passes 721.18`-`721.23` (`G308`, `G309`, `X100`, `G310`): glow in lux, the 3D light map (`LightMeter::map`, `LuxBands`, CLI `3d-render --light-map`), Print Schema document/page-wide finishing features, relative light map colour range.
+- **crates.io:** all 16 engine crates published at 0.164.0 (3d, 3d-nav, color, core, emf, flatten, fonts, function, image-codec, jpeg-remux, json, model, pkix, render, text, vec3). The first pass ran in the wrong order (`pdfcer-vec3` listed last), so 9 crates failed on dependency resolution; a retry in rounds published them (round 1 3d/3d-nav/fonts/function/image-codec/text, round 2 core/render, round 3 emf). **Lesson:** publish leaf crates first (`vec3` before `3d`; `3d` before `core`), or retry in rounds until none are left.
+- **Checks:** package `D:\builds\pdfcer-20261119-1632-ac3e569`. Fresh-folder smoke: `pdfcer 0.164.0`, revision `v0.163.0-11-gac3e5690` (built before the tag); a relative light map printed spread bands (`unit=relative`). `verify-release.py`: every check ok except "working tree clean", which fails only on the known uncommitted agent-memory/research/`THIRD_PARTY_LICENSES.md` line-ending files.
+- **Incident:** a PC crash during packaging was recovered; the first repackage after it failed with "Access is denied" (os error 5) and succeeded on rerun.
+- **GUI channel notice:** `D:\Dev\FeatureRequests\pdfce_FeatureRequests\open\notice_2026-11-19_release_v0.164.0.md`.
+- **FEATURES:** no change (rows say "unreleased, `v0.164.0`"; left as written, the release is in the entry above).
+- **Amendment (1644th filing) to the 1641st entry below:** its "NOT yet tagged, packaged or published" described that filing's state and is left as written.
+
 ### `a23ea1a1` `Pass 721.23`: a relative light map draws in its own range of colours, 2026-11-19 (1643rd filing)
 
 Engineer-reported; no shell here, git, push, CI and the gates not run or checked from here. `a23ea1a179e0c838d44b12bf617a4cbaf9171d8c` `feat(3d): a relative light map draws in its own range of colours (Pass 721.23, G310)`. Request `G310` (`pdfcer-gui`, operator ask `O441`; reply `D:\Dev\FeatureRequests\pdfce_FeatureRequests\open\reply_G310_SHIPPED.md`). Opened and shipped in one commit. **Unreleased**: lands inside `v0.164.0` (bump `f837cac1`, not yet tagged). Reasoning is in the commit message. No manifest change, so `cargo tree` is unaffected.
@@ -28145,6 +28156,8 @@ closes out the *prior* filing's business rather than opening this one's.
 > **`v0.164.0` release bump `f837cac1` filed 2026-11-19 (1641st filing); see its *Shipped* entry. NOT yet tagged, packaged or published** (carries `Pass 721.18`, `721.19`, `721.20`, `721.21`). Next release slot: `pdfcer1`. Next free IDs unchanged from the 1640th banner.
 
 > **`Pass 721.23` (`a23ea1a1`, `G310`) SHIPPED 2026-11-19 (1643rd filing); see its *Shipped* entry (unreleased; inside `v0.164.0`).** Next free IDs: `Pass 647.15`, `Pass 717.4`, `Pass 718.5`, `Pass 720.3`, `Pass 721.24`, `Pass 722.10`, `Pass 723.11`, `Pass 647.3h`; decision `225`, rule `R264`.
+
+> **`v0.164.0` PUBLISHED 2026-11-19 (1644th filing; tag on `ac3e5690`, 8 GitHub assets, 16 crates on crates.io, OneDrive `pdfcer1`); see its *Shipped* entry** (carries `721.18`-`721.23`). Next release writes `pdfcer2`. Next free IDs unchanged from the 1643rd banner.
 
 > **`d278cc2a` (follow-up fix to `Pass 647.12`, no new ID) FILED 2026-11-18 (1617th filing); see its *Shipped* entry (unreleased, joins the `v0.159.0` round).** Next free IDs unchanged from the 1616th banner.
 
