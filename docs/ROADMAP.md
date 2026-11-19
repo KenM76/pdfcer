@@ -112,6 +112,15 @@ wherever it appears.*
 
 ## Shipped
 
+### `08946512` `Pass 647.14`: a choice list's value reads back as its selections, 2026-11-19 (1628th filing)
+
+Engineer-reported; no shell here, git, push and CI state not checked from here. `08946512` `feat(xfa): a choice list's value reads back as its selections`. Request `G304` (`pdfcer-gui`; `open/request_G304_xfa_multiselect_values_public.md`; reply `open/reply_G304_xfa_multiselect_values_public_SHIPPED.md`, name elided as supplied). Opened and shipped in one filing. **Unreleased**: lands in `v0.161.0` with `723.6` and `723.7`. Reasoning is in the commit message. **core** only; cli unchanged (nothing new, though `--fillable` and the painter already use the rule); gui is the consumer and will delete its own copy (its box not ticked here).
+- **New pub method:** `FieldWidget::selections(&self, value: &str) -> Option<Vec<&str>>` (`crates/pdfcer-core/src/xfa/widget.rs`), wrapping the internal `multi_select_values` rule the painter and `--fillable` already share (`Pass 647.13`). `MultiSelect`: one selection per line, or space-separated when the value is a single line that is not itself a save value (XFA 3.3 pp.198, 485). Any other list: the value is its one selection; an empty value gives none. Not a choice list: `None`.
+- **Docs:** `docs/core-api/03-capabilities.md` gained the verb; `docs/core-api/index.md` line count 6,533 -> 6,538.
+- **Tests (engineer-reported):** new `tests/xfa_widget.rs::a_choice_lists_value_reads_back_as_its_selections` (sabotage-checked), one doctest; `xfa_widget` suite 4/4.
+- **Gates (engineer-reported):** fmt, `clippy -D warnings` (`pdfcer-core`), `check-string-gaps` clean; structure gate shows nothing new; `check-core-api-verbs` passes.
+- **FEATURES:** the multiSelect row (`647.13`) gained the engine reader clause and the `647.14` citation; core already ticked, no box changed.
+
 ### `ece71a38` `v0.160.0` PUBLISHED, 2026-11-18 (1627th filing)
 
 Engineer-reported; no shell here, nothing checked from here. Bump `51f91d2e` (filed 1624th); `ece71a38` is the 1625th filing commit (`docs: file Pass 723.5 and the 721.14 note fix (1625th)`). Docs-only filing: no new code commit. Tag `v0.160.0` on `ece71a38`; CI green there (read from GitHub by the engineer). `main` has moved on past the tag: `723.6` (`ba072d65`) and `723.7` (`934851fc`), filed 1626th in `0bd4f070`, are NOT in this release; they are for `v0.161.0`.
@@ -27979,6 +27988,8 @@ closes out the *prior* filing's business rather than opening this one's.
 > **`Pass 723.5` (`f9d4ce3f`, `X094`) SHIPPED 2026-11-18 (1625th filing), and `dcc684dd` (follow-up to `Pass 721.14`, no new ID) FILED; see their *Shipped* entries (unreleased, join the `v0.160.0` round).** Next free IDs: `Pass 647.14`, `Pass 717.4`, `Pass 718.5`, `Pass 720.3`, `Pass 721.15`, `Pass 722.10`, `Pass 723.6`, `Pass 647.3h`; decision `225`, rule `R264`. `723.5` was the next free ID per the 1623rd banner (not re-grepped beyond that; no shell).
 
 > **`Pass 723.6` (`ba072d65`, `X095`) and `Pass 723.7` (`934851fc`, `X096`) SHIPPED 2026-11-18 (1626th filing); see their *Shipped* entries (opened and shipped in one filing; unreleased, they join `v0.161.0`, NOT `v0.160.0`).** Next free IDs: `Pass 647.14`, `Pass 717.4`, `Pass 718.5`, `Pass 720.3`, `Pass 721.15`, `Pass 722.10`, `Pass 723.8`, `Pass 647.3h`; decision `225`, rule `R264`. `723.6` was the next free ID per the 1625th banner and `723.7` followed it (engineer states `723.8` next; no shell).
+
+> **`Pass 647.14` (`08946512`, `G304`) SHIPPED 2026-11-19 (1628th filing); see its *Shipped* entry (opened and shipped in one filing; unreleased, joins `v0.161.0`).** Next free IDs: `Pass 647.15`, `Pass 717.4`, `Pass 718.5`, `Pass 720.3`, `Pass 721.15`, `Pass 722.10`, `Pass 723.8`, `Pass 647.3h`; decision `225`, rule `R264` (the others unchanged from the 1626th filing, not re-measured; no shell).
 
 > **`d278cc2a` (follow-up fix to `Pass 647.12`, no new ID) FILED 2026-11-18 (1617th filing); see its *Shipped* entry (unreleased, joins the `v0.159.0` round).** Next free IDs unchanged from the 1616th banner.
 

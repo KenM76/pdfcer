@@ -4,6 +4,16 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-11-19 (1628th filing) — `Pass 647.14` (`08946512`, `G304`) SHIPPED: a choice list's value reads back as its selections; in `v0.161.0`
+
+**Filed (engineer-reported; no shell here, git, push and CI state not checked from here):**
+- `08946512`: new `pub` `FieldWidget::selections(&self, value: &str) -> Option<Vec<&str>>` wrapping the internal `multi_select_values` rule shared by the painter and `--fillable`. `MultiSelect`: one per line, or space-separated for a one-line non-save value (XFA 3.3 pp.198, 485); other lists: the value is the one selection, empty gives none; not a choice list: `None`.
+- Tests: `xfa_widget.rs::a_choice_lists_value_reads_back_as_its_selections` (sabotage-checked), a doctest; suite 4/4. Gates: fmt, clippy `-D warnings`, `check-string-gaps` clean; structure gate nothing new; `check-core-api-verbs` passes. `docs/core-api/03-capabilities.md` gained the verb; `index.md` 6,533 -> 6,538 lines.
+- Deliveries: core yes; cli no; gui is the consumer and will drop its own copy.
+- FEATURES: multiSelect row (`647.13`) extended; no box changed.
+
+**Open:** unreleased, `v0.161.0` with `723.6`, `723.7`. Next free IDs: `Pass 647.15`, `717.4`, `718.5`, `720.3`, `721.15`, `722.10`, `723.8`, `647.3h`; decision `225`; rule `R264`. `docs/NEXT_SESSION.md` engineer-owned, not edited.
+
 ## 2026-11-18 (1627th filing) — `v0.160.0` PUBLISHED (tag on `ece71a38`)
 
 **Filed (engineer-reported; no shell here, nothing checked from here):**
