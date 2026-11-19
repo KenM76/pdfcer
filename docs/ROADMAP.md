@@ -112,6 +112,12 @@ wherever it appears.*
 
 ## Shipped
 
+### `51f91d2e` `v0.160.0` release bump, 2026-11-18 (1624th filing)
+
+Engineer-reported; no shell here, git, push, CI and OneDrive state not checked from here. `51f91d2e` `chore: release v0.160.0`: workspace version 0.159.0 -> 0.160.0 in `Cargo.toml` (17 workspace version strings), `Cargo.lock` (20 entries) and `fuzz/Cargo.lock` (16 entries). **NOT yet tagged, deployed or published.** The release writes OneDrive slot `pdfcer1`.
+- **Round carries (code commits since `v0.159.0`):** `d0d2fbe4` (`Pass 723.4`, `X093` addendum); `11d2c93a` (`Pass 647.13`, `G303`); `c039fe16` (`Pass 721.14`, `G302`). Filed in the 1621st to 1623rd filings.
+- **FEATURES:** no change.
+
 ### `c039fe16` `Pass 721.14`: a picture can be drawn at a fixed exposure in lux, 2026-11-18 (1623rd filing)
 
 Engineer-reported; no shell here, git, push and CI state not checked from here. `c039fe16` `feat(3d): a picture can be drawn at a fixed exposure in lux`. Request `G302` (`pdfcer-gui`; `request_G302_3d_fixed_exposure.md`, operator ask `O446`; reply `open/reply_G302_3d_fixed_exposure_SHIPPED.md`). Opened and shipped in one filing. **Unreleased**: lands in `v0.160.0`. Reasoning is in the commit message. **core + cli**; gui unticked (`pdfcer-gui` has not wired it). No manifest change.

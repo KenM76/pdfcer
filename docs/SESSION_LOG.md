@@ -4,6 +4,15 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-11-18 (1624th filing) — `v0.160.0` release bump (`51f91d2e`); not yet tagged, deployed or published
+
+**Filed (engineer-reported; no shell here, git, push, CI and OneDrive state not checked from here):**
+- `51f91d2e` `chore: release v0.160.0`: `Cargo.toml` (17 workspace version strings), `Cargo.lock` (20 entries), `fuzz/Cargo.lock` (16 entries) 0.159.0 -> 0.160.0.
+- Round carries `Pass 723.4` (`d0d2fbe4`, `X093` addendum), `Pass 647.13` (`11d2c93a`, `G303`), `Pass 721.14` (`c039fe16`, `G302`); filed in the 1621st to 1623rd filings.
+- Release writes OneDrive slot `pdfcer1`. No FEATURES change.
+
+**Open:** tag, package, smoke-test, `verify-release.py`, deploy and publish still to do; next filing records the outcome. `docs/NEXT_SESSION.md` engineer-owned, not edited.
+
 ## 2026-11-18 (1623rd filing) — `Pass 721.14` (`c039fe16`, `G302`) SHIPPED: a 3D picture can be drawn at a fixed exposure in lux; unreleased
 
 **Filed (engineer-reported; no shell here, git, push and CI state not checked from here):**
