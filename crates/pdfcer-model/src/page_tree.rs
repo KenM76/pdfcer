@@ -1366,12 +1366,17 @@ pub fn parse_rect<G: ObjectGraph + ?Sized>(
         .resolve(obj)
         .as_array()
         .ok_or(PageTreeError::BadRectangle(attr))?;
+    // Every entry must be a number: skipping one would shift the rest into
+    // the wrong corners.
     let nums: Vec<f64> = arr
         .iter()
-        .filter_map(|o| doc.resolve(o).as_number())
-        .collect();
+        .map(|o| doc.resolve(o).as_number())
+        .collect::<Option<Vec<f64>>>()
+        .ok_or(PageTreeError::BadRectangle(attr))?;
     match nums.as_slice() {
-        &[x1, y1, x2, y2] => Ok(Rect::from_corners(x1, y1, x2, y2)),
+        &[x1, y1, x2, y2] if nums.iter().all(|v| v.is_finite()) => {
+            Ok(Rect::from_corners(x1, y1, x2, y2))
+        }
         _ => Err(PageTreeError::BadRectangle(attr)),
     }
 }
@@ -1700,6 +1705,44 @@ mod tests {
         assert_eq!(pages[0].media_box.llx, 0.0);
         assert_eq!(pages[0].media_box.urx, 612.0);
         assert_eq!(pages[0].media_box.height(), 792.0);
+    }
+
+    #[test]
+    fn a_rectangle_with_a_non_number_entry_is_rejected_not_shifted() {
+        // Skipping `null` would read [1 3 4 5].
+        let doc = build_pdf(&[
+            (1, "<< /Type /Catalog /Pages 2 0 R >>"),
+            (
+                2,
+                "<< /Type /Pages /Kids [3 0 R] /Count 1 /Resources << >> >>",
+            ),
+            (
+                3,
+                "<< /Type /Page /Parent 2 0 R /MediaBox [1 null 3 4 5] >>",
+            ),
+        ]);
+        assert_eq!(
+            pages(&doc).unwrap_err(),
+            PageTreeError::BadRectangle("MediaBox")
+        );
+    }
+
+    #[test]
+    fn a_rectangle_entry_may_be_indirect() {
+        let doc = build_pdf(&[
+            (1, "<< /Type /Catalog /Pages 2 0 R >>"),
+            (
+                2,
+                "<< /Type /Pages /Kids [3 0 R] /Count 1 /Resources << >> >>",
+            ),
+            (
+                3,
+                "<< /Type /Page /Parent 2 0 R /MediaBox [10 20 30 12 0 R] >>",
+            ),
+            (12, "40"),
+        ]);
+        let b = pages(&doc).unwrap()[0].media_box;
+        assert_eq!((b.llx, b.lly, b.urx, b.ury), (10.0, 20.0, 30.0, 40.0));
     }
 
     #[test]
