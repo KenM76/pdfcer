@@ -4,6 +4,20 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-11-19 (1631st filing) — `v0.161.0` PUBLISHED (tag on `45d6b341`)
+
+**Filed (engineer-reported; no shell here, git, push, CI, GitHub, crates.io and OneDrive state not checked from here):**
+- Annotated tag `v0.161.0` on `45d6b341` (the 1630th filing commit), pushed; CI green at that commit.
+- `tools/gh-release.py`: "PASS v0.161.0: 8 asset(s) uploaded at their local sizes". Portable zip `pdfcer-v0.161.0-windows-x64.zip` 32,741,519 bytes; three OCR add-ons, each with a `.sha256`.
+- `deploy-onedrive.py` wrote `pdfcer2`; `pdfcer1` keeps 0.160.0; the next release writes `pdfcer1`.
+- crates.io: all 16 crates at 0.161.0 (model, json, vec3, jpeg-remux, image-codec, fonts, pkix, color, text, function, core, 3d, 3d-nav, render, flatten, emf) from one multi-package `cargo publish --no-verify` in a detached worktree at the tag; no 429.
+- `verify-release.py` passed all but "working tree clean" (uncommitted agent-memory files). Fresh-folder smoke test passed: `--version` 0.161.0 (revision `v0.160.0-11-g45d6b341`), `extract-text`, `render-page` on a fixture.
+- GUI channel notice `open/notice_2026-11-19_release_v0.161.0.md`; `docs/NEXT_SESSION.md` updated by the engineer in `f28b028a`.
+- **Amendment to the 1630th entry below:** its "not yet tagged, deployed or published" was true at its filing; left as written, superseded by this entry.
+- FEATURES: no change.
+
+**Open:** nothing in flight. Next free IDs unchanged from the 1629th: `Pass 647.15`, `717.4`, `718.5`, `720.3`, `721.15`, `722.10`, `723.10`, `647.3h`; decision `225`; rule `R264`.
+
 ## 2026-11-19 (1630th filing) — `v0.161.0` release bump (`870c9b33`); not yet tagged, deployed or published
 
 **Filed (engineer-reported; no shell here, git, push, CI and OneDrive state not checked from here):**
