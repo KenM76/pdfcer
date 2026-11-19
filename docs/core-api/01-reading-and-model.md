@@ -3580,6 +3580,65 @@ let image = render_coloured(&meshes, &colours, &camera, &RenderOptions { width: 
   `illuminance-light x= y= name= direct=` per light, `illuminance x= y=
   miss` or `refused: <why>`, then `note: illuminance: ...` lines for the
   reasons and notes.
+- **Light map: illuminance over a whole model** (`G309`, `render` feature):
+  `meter.map(spacing: Option<f64>, side: MapSide, &mut progress) ->
+  Result<IlluminanceMap, IlluminanceError>` measures every drawable
+  triangle with the same lights, settings, unit and reasons as `read`
+  (each figure is `Illuminance::total`: direct + bounced + ambient +
+  emitted). Each triangle's edges are cut into `d` equal parts so none is
+  longer than `spacing` model units (`None` or not > 0: corners only;
+  `d` at most 1024), lit along the stored normals blended across it, else
+  the face normal. `MapSide::{FacingCamera (default), AlongNormals}`:
+  the side the meter's camera sees (as `read`/the picture take it; right
+  for an open sheet wound either way, for that view) or the side the
+  normals face (right for a closed solid, from any view). A point shared
+  by triangles lit along the same normal is measured once; meshes drawn
+  fully transparent are `None`. `progress(MapProgress { done, total })`
+  is called before the first point and after every 4096; returning
+  `false` gives `IlluminanceError::Cancelled`. Caps: `MAX_MAP_POINTS`
+  (4,000,000) → `TooManySamples`, `MAX_MAP_RAYS` (2e9) → `TooMuchWork`.
+  `IlluminanceMap { unit, reasons, notes, meshes: Vec<Vec<Option<MapPatch>>> }`
+  (by mesh, then triangle), `patch(mesh, t)`, `range() -> Option<(lo, hi)>`,
+  `triangles()` (every small triangle as `([[f64;3];3], [f64;3])`), and
+  `vertex_buffer() -> Vec<f32>`: a triangle list, `MAP_VERTEX_FLOATS` (4)
+  floats per vertex, x y z in model coordinates then the figure.
+  `MapPatch { corners, divisions, figures }`: lattice point `(i, j)`,
+  `i + j <= d`, at `c0 + (i/d)(c1 - c0) + (j/d)(c2 - c0)`, its figure
+  `figures[patch.index(i, j)]` (row by row, row `j` holding `d + 1 - j`).
+  **Bands.** `LuxBands::new(Vec<LuxBand { from, colour: [u8;3] }>,
+  BandBlend::{Stepped (default), Graded})` (1 to `MAX_LUX_BANDS` = 16,
+  bounds finite and strictly rising, else `LuxBandsError::{Empty,
+  TooMany, NotAscending(i)}`); `colour(f)` (below the first bound or NaN:
+  the first colour; `Graded` mixes sRGB bytes linearly to the next
+  bound); `uniforms() -> BandUniforms { from, colour (0–1), count,
+  graded }`. **CPU:** `render_light_map(&map, &bands, &camera, &options)
+  -> Result<Image, RenderError>` draws unlit, opaque, depth-tested, the
+  figure interpolated perspective-correct; only the options' size and
+  background are used. **GPU:** `GLSL_ES_300_LIGHT_MAP_VERTEX` /
+  `_FRAGMENT`: upload `vertex_buffer()` with stride 16 bytes,
+  `a_position` (location 0) at offset 0, `a_figure` (location 1) at 12;
+  set `u_band_from[16]`, `u_band_colour[16]`, `u_band_count`, `u_graded`
+  from `uniforms()` plus `u_view` and `u_projection` as the picture shaders
+  take them; draw as a triangle list, depth-tested and depth-writing. The
+  shell does no lighting. **Recommended levels.** `CANADA_OHS:
+  &[LuxLevel { schedule: LuxSchedule::{Office, Industrial, General,
+  ScreenWork}, item, area, lux, limit: LevelLimit::{MinimumAverage,
+  Maximum} }]` (61 rows) is the Canada Occupational Health and Safety
+  Regulations, SOR/86-304 Part VI, Schedules I to IV, reproduced under
+  SI/97-5; `CANADA_OHS_SOURCE: LevelSource { title, citation,
+  current_to, url, reproduced, scope }` is the citation to show with it.
+  `LuxBands::canada_ohs_steps(blend)` is a 14-band table at its distinct
+  levels (0, 10 … 1000 lx). EN 12464-1, the IES Lighting Handbook and
+  the CIBSE/SLL Code are paywalled and not reproduced; pass their levels
+  as your own `LuxBands`. The legend (bands, unit, range, source,
+  reasons) goes off the canvas; the map never marks the picture.
+  CLI: `3d-render … --light-map [--light-map-bands FROM:RRGGBB,…]
+  [--light-map-blend stepped|graded] [--light-map-spacing UNITS]
+  [--light-map-side seen|normals]` (default spacing: the model's
+  diagonal / 64; 0 = corners only) draws the map and prints one
+  `light-map-band from= unit=lux|relative colour=rrggbb` per band, then
+  `note: light-map:` lines for the range, the source (default bands), the
+  relative reasons and the notes. Conflicts with `--exposure-lux`.
 - **Fixed exposure** (`G302`, `render` feature): `Exposure::{Metered
   (default), Fixed { white_lux: f64 }}` (`#[non_exhaustive]`, `Copy`).
   `exposure.lighting(&model, &options, &settings: &MeterSettings) ->

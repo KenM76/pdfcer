@@ -337,7 +337,8 @@ pub enum IlluminanceError {
     /// The point is not on the mesh it names.
     #[error("the point is not on the picked surface")]
     OffSurface,
-    /// More samples than [`MAX_ILLUMINANCE_SAMPLES`](super::MAX_ILLUMINANCE_SAMPLES).
+    /// More samples than [`MAX_ILLUMINANCE_SAMPLES`](super::MAX_ILLUMINANCE_SAMPLES)
+    /// (a map: points than [`MAX_MAP_POINTS`](super::MAX_MAP_POINTS)).
     #[error("{asked} samples asked for; the most is {limit}")]
     TooManySamples {
         /// Samples asked for.
@@ -345,7 +346,8 @@ pub enum IlluminanceError {
         /// The cap.
         limit: usize,
     },
-    /// More rays than [`MAX_ILLUMINANCE_RAYS`](super::MAX_ILLUMINANCE_RAYS):
+    /// More rays than [`MAX_ILLUMINANCE_RAYS`](super::MAX_ILLUMINANCE_RAYS)
+    /// (a map: [`MAX_MAP_RAYS`](super::MAX_MAP_RAYS)):
     /// ask for fewer samples or fewer gather rays.
     #[error("the reading needs {rays} rays; the most is {limit}")]
     TooMuchWork {
@@ -354,6 +356,10 @@ pub enum IlluminanceError {
         /// The cap.
         limit: usize,
     },
+    /// A [`LightMeter::map`](super::LightMeter::map) was stopped by its
+    /// progress callback.
+    #[error("the map was cancelled")]
+    Cancelled,
     /// The camera or the lights are not usable.
     #[error(transparent)]
     Render(#[from] RenderError),

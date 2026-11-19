@@ -8,6 +8,7 @@
 
 mod disc;
 mod exposure;
+mod map;
 mod plan;
 mod types;
 
@@ -17,6 +18,9 @@ mod exposure_tests;
 mod tests;
 
 pub use exposure::{ExposedLighting, Exposure, ExposureError};
+pub use map::{
+    IlluminanceMap, MAP_VERTEX_FLOATS, MAX_MAP_POINTS, MAX_MAP_RAYS, MapPatch, MapProgress, MapSide,
+};
 pub use types::{
     GlowLight, Illuminance, IlluminanceError, IlluminanceNote, IlluminanceQuery, IlluminanceUnit,
     LightShare, LightTint, MeterBasis, MeterSettings, RelativeReason,
@@ -53,6 +57,10 @@ fn luminance(c: [f64; 3]) -> f64 {
 /// picture paints it, whatever the render mode.
 pub struct LightMeter<'m> {
     meshes: &'m [TriangleMesh],
+    /// Meshes drawn fully transparent, which a map leaves out.
+    hidden: Vec<bool>,
+    /// The camera a map takes a triangle's seen side from.
+    camera: Camera,
     paints: Vec<Paint<'m>>,
     index: PickIndex,
     /// Every light, and those among them that bounce.
@@ -163,6 +171,17 @@ impl<'m> LightMeter<'m> {
         let far = Bounds::of(meshes).map_or(1.0, |b| 2.0 * length(sub(b.max, b.min)));
         Ok(LightMeter {
             meshes,
+            camera: *camera,
+            hidden: (0..meshes.len())
+                .map(|m| {
+                    model
+                        .colours
+                        .get(m)
+                        .copied()
+                        .flatten()
+                        .is_some_and(|c| c[3] == 0)
+                })
+                .collect(),
             paints,
             index,
             lamps,

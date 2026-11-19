@@ -973,8 +973,8 @@ fn illuminance_counts_a_glowing_surface_unless_told_not_to() {
     let (total, emitted) = (part(&counted, "total="), part(&counted, "emitted="));
     assert!(emitted > 0.001 && emitted < 1.0, "{counted}");
     assert!((total - emitted).abs() < 1e-6, "{counted}");
-    let why = "note: illuminance: a relative figure, not lux: 1 glowing surface(s) are counted, \
-               and a glow has no physical strength";
+    let why = "note: illuminance: a relative figure, not lux: 1 counted glowing surface(s) \
+               state no luminance, so have no physical strength";
     assert!(counted.contains(why), "{counted}");
     let hint = "note: illuminance: --illuminance-glow left-out reads lux from the model's lamps";
     assert!(counted.contains(hint), "{counted}");
@@ -1047,4 +1047,68 @@ fn a_fixed_exposure_draws_lux_over_the_white_point() {
     let why = "--exposure-lux: the picture cannot be drawn in lux: the light at the camera";
     assert!(err.contains(why), "{err}");
     assert!(!draw(&["--exposure-lux", "0"]).status.success());
+}
+
+/// `--light-map`: the floor under an 80-lux lamp draws in the 75 lux band of
+/// the default SOR/86-304 bands, the legend and the source are printed,
+/// and a caller's band table recolours it; a table out of order is refused.
+#[test]
+fn light_map_colours_the_floor_by_the_lux_on_it() {
+    let s = Scratch::new("lmap");
+    std::fs::write(s.path("m.glb"), lamp_over_floor()).unwrap();
+    let pdf = format!(
+        "{}/../../fixtures/synthetic/minimal.pdf",
+        env!("CARGO_MANIFEST_DIR")
+    );
+    let (m, out, png) = (s.path("m.glb"), s.path("out.pdf"), s.path("x.png"));
+    let args = ["3d-embed", &pdf, "--model", &m, "--page", "1"];
+    stdout(&run(&[
+        &args[..],
+        &["--rect", "10,10,190,190", "--apply", "-o", &out],
+    ]
+    .concat()));
+    let draw = |extra: &[&str]| {
+        let mut args = vec!["3d-render", &out, "--index", "0", "--eye=1,-3,4"];
+        args.extend_from_slice(&["--bounce", "off", "--light-map"]);
+        args.extend_from_slice(&["--width", "60", "--height", "40", "-o", &png]);
+        args.extend_from_slice(extra);
+        run(&args)
+    };
+    let middle = || {
+        let bytes = std::fs::read(&png).unwrap();
+        let mut reader = png::Decoder::new(bytes.as_slice()).read_info().unwrap();
+        let mut buf = vec![0; reader.output_buffer_size()];
+        let info = reader.next_frame(&mut buf).unwrap();
+        let i = (20 * 60 + 30) * info.color_type.samples();
+        [buf[i], buf[i + 1], buf[i + 2]]
+    };
+    // At half a millimetre per unit the lamp is a quarter of a metre up:
+    // 80 lux, in the 75 lux band.
+    let text = stdout(&draw(&["--illuminance-unit-mm", "500"]));
+    assert!(
+        text.contains("light-map-band from=75 unit=lux colour=1ebe96"),
+        "{text}"
+    );
+    assert!(
+        text.contains("SOR/86-304, Part VI, Schedules I to IV"),
+        "{text}"
+    );
+    assert_eq!(middle(), [0x1e, 0xbe, 0x96], "{text}");
+    // Measured along its normals the floor faces away from the lamp.
+    stdout(&draw(&[
+        "--illuminance-unit-mm",
+        "500",
+        "--light-map-side",
+        "normals",
+    ]));
+    assert_eq!(middle(), [0x14, 0x14, 0x3c]);
+    let mine = stdout(&draw(&[
+        "--light-map-bands",
+        "0:000000,19:ff0000,21:00ff00",
+    ]));
+    assert!(!mine.contains("SOR/86-304"), "{mine}");
+    assert_eq!(middle(), [0xff, 0, 0]);
+    let bad = draw(&["--light-map-bands", "5:000000,1:ff0000"]);
+    assert!(!bad.status.success());
+    assert!(!draw(&["--exposure-lux", "10"]).status.success());
 }

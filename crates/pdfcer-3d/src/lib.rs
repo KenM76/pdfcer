@@ -40,6 +40,8 @@ mod illuminance;
 mod indirect;
 mod length_unit;
 #[cfg(feature = "render")]
+mod light_map;
+#[cfg(feature = "render")]
 mod lighting;
 mod model;
 mod prc;
@@ -120,10 +122,20 @@ pub use gpu::{Draw, DrawData, VERTEX_FLOATS};
 #[cfg(feature = "render")]
 pub use illuminance::{
     ExposedLighting, Exposure, ExposureError, GlowLight, Illuminance, IlluminanceError,
-    IlluminanceNote, IlluminanceQuery, IlluminanceUnit, LightMeter, LightShare, LightTint,
-    MAX_ILLUMINANCE_RAYS, MAX_ILLUMINANCE_SAMPLES, MeterBasis, MeterSettings, RelativeReason,
+    IlluminanceMap, IlluminanceNote, IlluminanceQuery, IlluminanceUnit, LightMeter, LightShare,
+    LightTint, MAP_VERTEX_FLOATS, MAX_ILLUMINANCE_RAYS, MAX_ILLUMINANCE_SAMPLES, MAX_MAP_POINTS,
+    MAX_MAP_RAYS, MapPatch, MapProgress, MapSide, MeterBasis, MeterSettings, RelativeReason,
 };
 pub use length_unit::{LengthUnit, UnknownLengthUnit};
+#[cfg(feature = "render")]
+pub use light_map::levels::{
+    CANADA_OHS, CANADA_OHS_SOURCE, LevelLimit, LevelSource, LuxLevel, LuxSchedule,
+};
+#[cfg(feature = "render")]
+pub use light_map::{
+    BandBlend, BandUniforms, GLSL_ES_300_LIGHT_MAP_FRAGMENT, GLSL_ES_300_LIGHT_MAP_VERTEX, LuxBand,
+    LuxBands, LuxBandsError, MAX_LUX_BANDS, render_light_map,
+};
 #[cfg(feature = "render")]
 pub use lighting::bounce::{Bounce, BounceSky, BounceStats, IndirectOptions, MAX_BOUNCE_STRENGTH};
 #[cfg(feature = "render")]

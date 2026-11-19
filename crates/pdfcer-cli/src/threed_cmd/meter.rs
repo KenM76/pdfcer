@@ -25,8 +25,8 @@ pub(crate) enum MeterTintArg {
 /// `--illuminance-glow`: the light of glowing surfaces.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, clap::ValueEnum)]
 pub(crate) enum MeterGlowArg {
-    /// A glowing surface lights what it faces. A glow has no physical
-    /// strength, so a model with one reads relative.
+    /// A glowing surface lights what it faces: in lux by the luminance its
+    /// material states; a glow that states none makes the reading relative.
     #[default]
     Counted,
     /// Glowing surfaces light nothing, as in the picture.
@@ -113,6 +113,8 @@ pub(crate) struct MeterArgs {
     /// graphics-card picture uses the same rule.
     #[arg(long, value_enum, default_value_t)]
     pub(crate) over_range: OverRangeArg,
+    #[command(flatten)]
+    pub(crate) light_map: Box<super::light_map::LightMapArgs>,
 }
 
 fn positive_lux(s: &str) -> Result<f64, String> {
@@ -124,7 +126,7 @@ fn positive_lux(s: &str) -> Result<f64, String> {
 
 #[cfg(feature = "3d")]
 impl MeterArgs {
-    fn settings(&self) -> pdfcer_3d::MeterSettings {
+    pub(super) fn settings(&self) -> pdfcer_3d::MeterSettings {
         let mut s = pdfcer_3d::MeterSettings::default();
         s.basis = match self.illuminance_basis {
             MeterBasisArg::Auto => pdfcer_3d::MeterBasis::Auto,
@@ -156,6 +158,11 @@ impl MeterArgs {
         camera: &pdfcer_3d::Camera,
         options: &pdfcer_3d::RenderOptions,
     ) -> Result<(pdfcer_3d::Image, Vec<String>), String> {
+        if self.light_map.light_map {
+            return self
+                .light_map
+                .draw(model, camera, options, &self.settings());
+        }
         let exposure = match self.exposure_lux {
             Some(white_lux) => pdfcer_3d::Exposure::Fixed { white_lux },
             None => pdfcer_3d::Exposure::Metered,

@@ -522,3 +522,126 @@ fn only_a_glow_stating_no_luminance_makes_the_reading_relative() {
     assert_eq!(m.unit(), IlluminanceUnit::Relative);
     assert_eq!(m.reasons(), [RelativeReason::GlowingParts(1)]);
 }
+
+/// What a lamp of 100 cd 2 m over the origin gives floor point `(x, y)`.
+fn under_lamp(x: f64, y: f64) -> f64 {
+    let d2 = x * x + y * y + 4.0;
+    100.0 / d2 * (2.0 / d2.sqrt())
+}
+
+fn check_patch(p: &MapPatch) {
+    let d = p.divisions;
+    for j in 0..=d {
+        for i in 0..=d - j {
+            let [a, b, c] = p.corners;
+            let at = |k: usize| {
+                a[k] + (b[k] - a[k]) * i as f64 / d as f64 + (c[k] - a[k]) * j as f64 / d as f64
+            };
+            let got = p.figures[p.index(i, j)];
+            assert!(
+                (got - under_lamp(at(0), at(1))).abs() < 1e-9,
+                "{i} {j} {got}"
+            );
+        }
+    }
+}
+
+#[test]
+fn a_map_gives_every_corner_the_reading_there() {
+    let model = floor(vec![lamp([0.0, 0.0, 2.0], Some(100.0))]);
+    let m = meter(&model, &direct(), &MeterSettings::default());
+    let mut seen = Vec::new();
+    let map = m
+        .map(None, MapSide::FacingCamera, &mut |p| {
+            seen.push(p);
+            true
+        })
+        .unwrap();
+    assert_eq!(map.unit, IlluminanceUnit::Lux);
+    assert_eq!(map.notes, m.notes());
+    // Two triangles share two corners: four points, measured once each.
+    assert_eq!(seen.first().map(|p| (p.done, p.total)), Some((0, 4)));
+    assert_eq!(seen.last().map(|p| (p.done, p.total)), Some((4, 4)));
+    for t in 0..2 {
+        let p = map.patch(0, t).unwrap();
+        assert_eq!((p.divisions, p.figures.len()), (1, 3));
+        check_patch(p);
+    }
+    let (lo, hi) = map.range().unwrap();
+    assert!((lo - under_lamp(2.0, 2.0)).abs() < 1e-9 && (hi - lo).abs() < 1e-9);
+}
+
+#[test]
+fn a_map_spaced_finer_measures_inside_each_triangle() {
+    let model = floor(vec![lamp([0.0, 0.0, 2.0], Some(100.0))]);
+    let m = meter(&model, &direct(), &MeterSettings::default());
+    let mut total = 0;
+    let map = m
+        .map(Some(1.0), MapSide::FacingCamera, &mut |p| {
+            total = p.total;
+            true
+        })
+        .unwrap();
+    // The 4 m sides cut in 4, the 5.66 m diagonal in 6: the shared
+    // diagonal's 7 points are measured once.
+    for t in 0..2 {
+        let p = map.patch(0, t).unwrap();
+        assert_eq!((p.divisions, p.figures.len()), (6, 28));
+        check_patch(p);
+    }
+    assert_eq!(total, 2 * 28 - 7);
+    let (_, hi) = map.range().unwrap();
+    assert!(
+        (hi - 25.0).abs() < 1e-9,
+        "the floor's centre, under the lamp: {hi}"
+    );
+    let small = map.triangles().count();
+    assert_eq!(small, 2 * 36);
+    let buffer = map.vertex_buffer();
+    assert_eq!(buffer.len(), small * 3 * MAP_VERTEX_FLOATS);
+    for v in buffer.chunks(MAP_VERTEX_FLOATS) {
+        let want = under_lamp(f64::from(v[0]), f64::from(v[1]));
+        assert!((f64::from(v[3]) - want).abs() < 1e-4, "{v:?} {want}");
+    }
+}
+
+#[test]
+fn a_map_stopped_by_its_callback_is_refused() {
+    let model = floor(vec![lamp([0.0, 0.0, 2.0], Some(100.0))]);
+    let m = meter(&model, &direct(), &MeterSettings::default());
+    assert_eq!(
+        m.map(None, MapSide::FacingCamera, &mut |_| false),
+        Err(IlluminanceError::Cancelled)
+    );
+    let mut calls = 0;
+    let late = m.map(None, MapSide::FacingCamera, &mut |p| {
+        calls += 1;
+        p.done == 0
+    });
+    assert_eq!((late, calls), (Err(IlluminanceError::Cancelled), 2));
+}
+
+#[test]
+fn a_map_leaves_out_a_mesh_drawn_fully_transparent() {
+    let mut model = floor(vec![lamp([0.0, 0.0, 2.0], Some(100.0))]);
+    model.meshes.push(slab(1.0, 1.0));
+    model.colours.push(Some([255, 255, 255, 0]));
+    model.finishes.push(None);
+    let m = meter(&model, &direct(), &MeterSettings::default());
+    let map = m.map(None, MapSide::FacingCamera, &mut |_| true).unwrap();
+    assert!(map.patch(0, 0).is_some());
+    assert_eq!(map.meshes[1], vec![None, None]);
+}
+
+#[test]
+fn a_map_measures_the_side_the_camera_sees_unless_told_the_normals() {
+    let mut model = floor(vec![lamp([0.0, 0.0, 2.0], Some(100.0))]);
+    for t in &mut model.meshes[0].triangles {
+        t.swap(1, 2);
+    }
+    let m = meter(&model, &direct(), &MeterSettings::default());
+    let seen = m.map(None, MapSide::FacingCamera, &mut |_| true).unwrap();
+    check_patch(seen.patch(0, 0).unwrap());
+    let along = m.map(None, MapSide::AlongNormals, &mut |_| true).unwrap();
+    assert_eq!(along.range(), Some((0.0, 0.0)));
+}

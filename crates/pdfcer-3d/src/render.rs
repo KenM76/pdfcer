@@ -333,7 +333,7 @@ pub(crate) fn render_finished(
 }
 
 /// `options`' image size, refused when empty or over the ceiling.
-fn checked_size(options: &RenderOptions) -> Result<(u32, u32), RenderError> {
+pub(crate) fn checked_size(options: &RenderOptions) -> Result<(u32, u32), RenderError> {
     let (width, height) = (options.width, options.height);
     let pixels = u64::from(width) * u64::from(height);
     if pixels == 0 || pixels > MAX_RENDER_PIXELS {

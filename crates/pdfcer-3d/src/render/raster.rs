@@ -187,7 +187,7 @@ impl View {
 
     /// The weight that makes `uv` perspective-correct when interpolated in
     /// screen space: 1 / z under perspective (the depth key), 1 otherwise.
-    fn uv_weight(&self, c: &Corner) -> f64 {
+    pub(crate) fn uv_weight(&self, c: &Corner) -> f64 {
         match self {
             View::Perspective { .. } => at(c.at, 2),
             View::Orthographic { .. } => 1.0,
@@ -364,7 +364,7 @@ impl Target<'_> {
 
     /// The pixel rows and columns `corners` may cover, clipped to the
     /// band; `None` when off it.
-    fn bounds(&self, corners: &[Corner; 3]) -> Option<(u32, u32, u32, u32)> {
+    pub(crate) fn bounds(&self, corners: &[Corner; 3]) -> Option<(u32, u32, u32, u32)> {
         let lo = |i: usize| {
             corners
                 .iter()
@@ -439,7 +439,7 @@ pub(crate) fn edge(a: [f64; 3], b: [f64; 3], p: [f64; 3]) -> f64 {
 
 /// Whether a pixel centre at barycentric weights `w` belongs to the
 /// triangle: every weight positive, or zero on an edge it `owns`.
-fn covers(w: [f64; 3], owns: [bool; 3]) -> bool {
+pub(crate) fn covers(w: [f64; 3], owns: [bool; 3]) -> bool {
     w.iter()
         .zip(owns)
         .all(|(&k, own)| k > 0.0 || (k == 0.0 && own) || k.is_nan())
@@ -450,7 +450,7 @@ fn covers(w: [f64; 3], owns: [bool; 3]) -> bool {
 /// when the triangle lies to its right (a left edge) or, horizontal, below
 /// it (a top edge), with y pointing down the image. A neighbour sharing
 /// the edge sees the exact negation ([`edge`]), so exactly one owns it.
-fn owned_edges(corners: &[Corner; 3], area: f64) -> [bool; 3] {
+pub(crate) fn owned_edges(corners: &[Corner; 3], area: f64) -> [bool; 3] {
     let [a, b, c] = corners.map(|k| k.at);
     [(b, c), (c, a), (a, b)].map(|(p, q)| {
         let [gx, gy] = edge_gradient(p, q).map(|g| g * area.signum());

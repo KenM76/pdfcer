@@ -9,6 +9,7 @@ mod aim;
 mod embed;
 mod gltf;
 mod light_args;
+mod light_map;
 mod lights;
 mod meter;
 mod mode;
