@@ -4,6 +4,17 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-11-19 (1639th filing) — `Pass 721.18` (`2d00ad39`, `G308`) SHIPPED; `G309` filed as `Pass 721.19`-`721.21`, in flight
+
+**Filed (engineer-reported; no shell here, git, push, CI and the register gates not run or checked from here):**
+- `2d00ad394120ff611fce03fd4adbf4304a7cda1d` `feat(3d): a glow of stated luminance reads in lux (Pass 721.18, G308)`. Unreleased; ships in `v0.164.0`. `LightMeter` now adds physical lux for a counted glow whose `emissive_nits` L is stated (Lambertian, point reads pi x L x Y(colour)); `RelativeReason::GlowingParts(n)` counts only glows stating no luminance; new `IlluminanceNote::GlowLuminance(n)`.
+- Tests: two new (`a_glow_of_stated_luminance_reads_in_lux`, `only_a_glow_stating_no_luminance_makes_the_reading_relative`); `pdfcer-3d` illuminance 22/22. clippy, fmt, `check-core-api-verbs` green; no manifest touched. Reply `open/reply_G308_SHIPPED.md` written by the engineer.
+- **`G309`** (operator ask `O441`, Ken, 2026-11-17 and 2026-11-19) filed as three Passes, IN PROGRESS, not shipped: `721.19` illuminance map (`LightMeter::map`), `721.20` draw a light map (CPU and GPU banding), `721.21` cited recommended lux levels (SOR/86-304 Part VI Schedules I-IV, consolidation current to 2026-10-29, under SI/97-5; EN 12464-1, IES, CIBSE paywalled and not reproduced). Zero prior hits for the three IDs in `docs/*.md` by grep.
+- FEATURES: one new Implemented row (`721.18`, core only, no cli caller) and three new Planned rows (`721.19`-`721.21`, all unticked).
+- **Sweep (hard rule 11), `RelativeReason::GlowingParts` changed meaning:** `docs/FEATURES.md` was grepped case-insensitively for `glow|relative`. One survivor FIXED: the "light meter counts light from glowing surfaces" row said any glow makes a reading relative; it now says only a glow stating no luminance does. Survivors that are correct and left: the `721.16` row ("a bare glow stays relative"), and the illuminance row's "when glowing surfaces alone make a reading relative" (still true for unstated glows; arguably could say "unstated"). Not swept from here, owed to the engineer: `crates/` doc comments and CLI strings (`GlowingParts`, `note: exposure:`, `--illuminance-glow` help) and `docs/core-api/` beyond the file the engineer updated.
+
+**Open:** `721.19`-`721.21` in progress. Next free IDs: `Pass 647.15`, `717.4`, `718.5`, `720.3`, `721.22`, `722.10`, `723.11`, `647.3h`; decision `225`; rule `R264`. `docs/NEXT_SESSION.md` engineer-owned, not edited.
+
 ## 2026-11-19 (1638th filing) — `v0.163.0` PUBLISHED (tag on `b7bef2de`)
 
 **Filed (engineer-reported; no shell here, git, push, CI, GitHub, crates.io and OneDrive state not checked from here):**

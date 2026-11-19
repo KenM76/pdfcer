@@ -112,6 +112,14 @@ wherever it appears.*
 
 ## Shipped
 
+### `2d00ad39` `Pass 721.18`: a 3D glow of stated luminance reads in lux, 2026-11-19 (1639th filing)
+
+Engineer-reported; no shell here, git, push, CI and the register gates not run or checked from here. `2d00ad394120ff611fce03fd4adbf4304a7cda1d` `feat(3d): a glow of stated luminance reads in lux (Pass 721.18, G308)`. Request `G308` (`pdfcer-gui`; reply `open/reply_G308_SHIPPED.md`). **Unreleased**: the next release, `v0.164.0`, carries it. Reasoning is in the commit message. `pdfcer-3d` `illuminance`; no manifest touched, so `cargo tree` is unchanged.
+- **What:** in `LightMeter`, a counted glowing mesh whose `MaterialFinish::emissive_nits` L is stated (finite, > 0) now adds physical lux: a Lambertian emitter of luminance L x emissive colour per channel, so a point seeing only it reads pi x L x Y(colour). Shadowed and bounced like any other glow. `LightTint::Neutral` takes the colour's luminance, `Coloured` per channel (same total).
+- **Changed meaning:** `RelativeReason::GlowingParts(n)` now counts only counted glows that state NO luminance; a model whose glows all state one stays `IlluminanceUnit::Lux`. New `IlluminanceNote::GlowLuminance(n)`. `GlowNotBounced` and `GlowLeftOut` unchanged.
+- **Tests (engineer-reported):** `a_glow_of_stated_luminance_reads_in_lux`, `only_a_glow_stating_no_luminance_makes_the_reading_relative`; `pdfcer-3d` illuminance tests 22/22. clippy and fmt clean; `check-core-api-verbs` green (`docs/core-api/01-reading-and-model.md` updated).
+- **FEATURES:** one NEW row (core only ticked; no cli caller, stated in the row; gui owed to `pdfcer-gui`).
+
 ### `b7bef2de` `v0.163.0` PUBLISHED, 2026-11-19 (1638th filing)
 
 Engineer-reported; no shell here, git, push, CI, GitHub, crates.io and OneDrive state not checked from here. Annotated tag `v0.163.0` ("pdfcer v0.163.0") points at commit `b7bef2dec471cfc95acb5d2e62dac72352ebd533` (`docs: file the v0.163.0 version bump (1637th)`); version-bump commit `ac43cfd0`. Tag pushed; `origin/main` contains it. CI green on `b7bef2de` (run 44557297076). `tools/gh-release.py` PASS: 8 assets at local sizes (portable zip `pdfcer-v0.163.0-windows-x64.zip` 32,651,888 bytes, sha256 prefix `c7eac1034941`; `ocr-addon-ocrcer` 3,789,155 bytes `5eec8597a12b`; `ocr-addon-ocrs` 11,352,262 bytes `f169cb726f64`; `ocr-addon-tesseract` 4,483,685 bytes `0ca68565f478`; each with a `.sha256`). `deploy-onedrive.py` wrote `pdfcer2` (6 items, 88,040,960 bytes; was 0.161.0); `pdfcer1` keeps 0.162.0; the next release writes `pdfcer1`.
@@ -28089,6 +28097,13 @@ closes out the *prior* filing's business rather than opening this one's.
 > **`v0.163.0` release bump `ac43cfd0` filed 2026-11-19 (1637th filing); see its *Shipped* entry. NOT yet tagged, packaged, deployed or published** (carries `Pass 721.15`, `721.16`, `721.17`). Next release slot: `pdfcer2`. Next free IDs unchanged from the 1635th banner.
 
 > **`v0.163.0` PUBLISHED 2026-11-19 (1638th filing; tag on `b7bef2de`, 8 GitHub assets, 16 crates on crates.io, OneDrive `pdfcer2`); see its *Shipped* entry** (carries `721.15`, `721.16`, `721.17`). Next release writes `pdfcer1`. Next free IDs unchanged from the 1635th banner.
+
+> **`Pass 721.18` (`2d00ad39`, `G308`) SHIPPED 2026-11-19 (1639th filing); see its *Shipped* entry (opened and shipped in one commit; unreleased, the next release is `v0.164.0`).** Next free IDs before the banner below: `Pass 647.15`, `Pass 717.4`, `Pass 718.5`, `Pass 720.3`, `Pass 721.19`, `Pass 722.10`, `Pass 723.11`, `Pass 647.3h`; decision `225`, rule `R264` (the others unchanged from the 1635th banner, not re-measured; no shell).
+
+> **1639th filing: `G309` (operator ask `O441`, Ken, 2026-11-17 and 2026-11-19: colour the model's surfaces by the lux hitting them, in steps that match recommended levels) filed as three Passes, all OPEN and IN PROGRESS (engineer started; not shipped).** Request `D:\Dev\FeatureRequests\pdfce_FeatureRequests\open\request_G309_illuminance_over_a_whole_model_for_a_light_map.md`. `721.19`, `721.20`, `721.21` had zero hits in `docs/*.md` by this role's grep (no shell; `tools/check-ledger-numbers.py` not run). Next free IDs: `Pass 647.15`, `Pass 717.4`, `Pass 718.5`, `Pass 720.3`, `Pass 721.22`, `Pass 722.10`, `Pass 723.11`, `Pass 647.3h`; decision `225`, rule `R264`.
+> - **`Pass 721.19` (illuminance map):** `LightMeter::map` returns the total illuminance (direct + bounced + ambient + emitted; same unit, reasons and notes as `read`) at every drawable triangle corner of every mesh, deduplicated by (position, normal), computed in parallel, with a progress callback that can cancel. Acceptance: equals `read` at the same point; a cancelled map returns an error; the work is capped.
+> - **`Pass 721.20` (draw a light map):** banded colouring (caller-given lux bounds to colours, stepped or graded) on the CPU (a render entry taking the map) and on the GPU (per-vertex lux in `DrawData` vertex order plus reference GLSL ES 3.00 shaders). Acceptance: CPU and GPU band the same.
+> - **`Pass 721.21` (cited recommended lux levels):** the engine ships the Canada Occupational Health and Safety Regulations SOR/86-304 Part VI Schedules I-IV (office, industrial, general areas: minimum averages; VDT work: maxima) as data with the citation (consolidation current to 2026-10-29), reproduced under the Reproduction of Federal Law Order SI/97-5 (not an official version). EN 12464-1, IES and CIBSE are paywalled and not reproduced. Plus a default band table stepping at the schedules' distinct levels.
 
 > **`d278cc2a` (follow-up fix to `Pass 647.12`, no new ID) FILED 2026-11-18 (1617th filing); see its *Shipped* entry (unreleased, joins the `v0.159.0` round).** Next free IDs unchanged from the 1616th banner.
 
