@@ -112,6 +112,13 @@ wherever it appears.*
 
 ## Shipped
 
+### `f837cac1` `v0.164.0` release bump, 2026-11-19 (1641st filing)
+
+Engineer-reported; no shell here, git, push, CI and OneDrive state not checked from here. `f837cac1996248d39c29d249f41b3343078f2e3a` `chore: release v0.164.0`: workspace version 0.163.0 -> 0.164.0 in `Cargo.toml`, `Cargo.lock` and `fuzz/Cargo.lock` only (no other file), as supplied by the engineer. **NOT yet tagged, packaged or published**; the publication is filed separately. The release writes OneDrive slot `pdfcer1` (`pdfcer2` holds 0.163.0, per the 1638th filing).
+- **Round carries (code commits since `v0.163.0`):** `2d00ad39` (`Pass 721.18`, `G308`) and `16d480c6` (`Passes 721.19`-`721.21`, `G309`), filed in the 1639th and 1640th filings. Four Passes.
+- **Release tests (engineer-reported, change-scoped):** `pdfcer-3d` 591 lib + 6 + 40, all passing; `pdfcer-cli` 1,118 integration (2 ignored) + 134 bin, all passing, run with `--no-fail-fast`.
+- **FEATURES:** no change.
+
 ### `16d480c6` `Passes 721.19`, `721.20`, `721.21`: a 3D light map of the lux over a whole model, 2026-11-19 (1640th filing)
 
 Engineer-reported; no shell here, git, push, CI and the gates not run or checked from here. `16d480c6d467dde8601723251b4afc65cc3a3b70` `feat(3d): a light map of the lux over a whole model`. Request `G309` (`pdfcer-gui`, operator ask `O441`). **Unreleased**: `v0.164.0` carries it. Reasoning is in the commit message. `pdfcer-3d` (`render` feature) and `pdfcer` CLI; no manifest changed, so `cargo tree` is unchanged; the `wasm32` check of `pdfcer-3d` is clean.
@@ -28113,6 +28120,8 @@ closes out the *prior* filing's business rather than opening this one's.
 > **`Pass 721.18` (`2d00ad39`, `G308`) SHIPPED 2026-11-19 (1639th filing); see its *Shipped* entry (opened and shipped in one commit; unreleased, the next release is `v0.164.0`).** Next free IDs before the banner below: `Pass 647.15`, `Pass 717.4`, `Pass 718.5`, `Pass 720.3`, `Pass 721.19`, `Pass 722.10`, `Pass 723.11`, `Pass 647.3h`; decision `225`, rule `R264` (the others unchanged from the 1635th banner, not re-measured; no shell).
 
 > **`Pass 721.19`, `721.20`, `721.21` (`16d480c6`, `G309`) SHIPPED 2026-11-19 (1640th filing); see their *Shipped* entry (unreleased; the next release is `v0.164.0`).** Next free IDs: `Pass 647.15`, `Pass 717.4`, `Pass 718.5`, `Pass 720.3`, `Pass 721.22`, `Pass 722.10`, `Pass 723.11`, `Pass 647.3h`; decision `225`, rule `R264`.
+
+> **`v0.164.0` release bump `f837cac1` filed 2026-11-19 (1641st filing); see its *Shipped* entry. NOT yet tagged, packaged or published** (carries `Pass 721.18`, `721.19`, `721.20`, `721.21`). Next release slot: `pdfcer1`. Next free IDs unchanged from the 1640th banner.
 
 > **`d278cc2a` (follow-up fix to `Pass 647.12`, no new ID) FILED 2026-11-18 (1617th filing); see its *Shipped* entry (unreleased, joins the `v0.159.0` round).** Next free IDs unchanged from the 1616th banner.
 
