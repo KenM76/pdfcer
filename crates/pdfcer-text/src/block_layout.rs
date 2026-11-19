@@ -811,6 +811,17 @@ fn best_window(members: &[Member]) -> (&[Member], usize) {
     (members.get(best.0..end).unwrap_or(&[]), most)
 }
 
+/// Equal ignoring case and spacing but not digits: `ANNUAL REPORT` and
+/// `Annual  report` are one header, `Chapter 1` and `Chapter 2` are not.
+fn same_words(a: &str, b: &str) -> bool {
+    let words = |s: &str| {
+        s.split_whitespace()
+            .map(str::to_lowercase)
+            .collect::<Vec<_>>()
+    };
+    words(a) == words(b)
+}
+
 /// `body` is the body size before any running text is set aside; a
 /// heading-sized group whose text differs page to page (`Chapter 1`,
 /// `Chapter 2`) is a sequence of headings, not running text.
@@ -874,7 +885,7 @@ fn classify_running(
         }
         let texts_differ = best.windows(2).any(|w| {
             let text = |m: &Member| frags.get(m.0).and_then(|pg| pg.get(m.2)).map(|f| &f.text);
-            matches!(w, [a, b] if text(a) != text(b))
+            matches!(w, [a, b] if !text(a).zip(text(b)).is_some_and(|(x, y)| same_words(x, y)))
         });
         let heading_sized = body.is_some_and(|body| {
             best.iter().all(|m| {
