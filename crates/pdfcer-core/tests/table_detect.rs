@@ -498,3 +498,21 @@ fn a_font_with_no_widths_places_no_table() {
     // The same rows in Helvetica are a table.
     assert_eq!(detect(&aligned_rows(&PARTS, "F2"), 0).tables.len(), 1);
 }
+
+#[test]
+fn a_row_with_two_chunks_in_one_column_is_counted_rejected() {
+    // Rows 1 and 3 fill the first column with one wide cell; row 2 puts
+    // two short chunks inside it.
+    let mut items = Vec::new();
+    for (r, y) in [500.0, 486.0, 472.0].into_iter().enumerate() {
+        if r == 1 {
+            items.extend([("F1", 72.0, y, "AB"), ("F1", 120.0, y, "CD")]);
+        } else {
+            items.push(("F1", 72.0, y, "ABCDEFGHIJKLMNOP"));
+        }
+        items.push(("F1", 300.0, y, "9"));
+    }
+    let found = detect(&shows(&items), 0);
+    assert!(found.tables.is_empty(), "{:?}", found.tables);
+    assert_eq!(found.diagnostics.aligned_blocks_rejected, 1);
+}

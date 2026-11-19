@@ -399,7 +399,6 @@ fn pdfcer-core/src/sign/pkcs12.rs::parse
 fn pdfcer-core/src/signature_verify.rs::check_signature
 fn pdfcer-core/src/signature_verify.rs::verify_dict
 fn pdfcer-core/src/sound.rs::from_wav
-fn pdfcer-core/src/table_detect.rs::aligned_block
 fn pdfcer-core/src/table_detect.rs::aligned_tables
 fn pdfcer-core/src/table_detect.rs::collect_ink
 fn pdfcer-core/src/table_detect.rs::finish

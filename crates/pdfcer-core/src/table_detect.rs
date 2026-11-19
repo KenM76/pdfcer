@@ -1357,70 +1357,69 @@ fn aligned_tables(
     drafts
 }
 
+/// A block's column extents, left to right, or `None` when one row's cell
+/// crosses into another column. Spans merge into a column while they start
+/// within `gutter` of its right edge, unless the column already holds a
+/// span from the same row: one row's two chunks are two cells. A spanning
+/// cell (a row's chunk running into the next column's extent) declines the
+/// block rather than leaving an empty cell beside it, since its gutter is
+/// not evident down the whole block.
+fn aligned_columns(rows: &[&TextRow], gutter: f64) -> Option<Vec<(f64, f64)>> {
+    let mut spans: Vec<(f64, f64, usize)> = rows
+        .iter()
+        .enumerate()
+        .flat_map(|(ri, r)| r.chunks.iter().map(move |c| (c.x0, c.x1, ri)))
+        .collect();
+    spans.sort_by(|a, b| a.0.total_cmp(&b.0));
+    // Each column's row list is bounded by `MAX_ALIGNED_ROWS`.
+    let mut cols: Vec<(f64, f64, Vec<usize>)> = Vec::new();
+    for (a, b, ri) in spans {
+        match cols.last_mut() {
+            Some(c) if a < c.1 + gutter && !c.2.contains(&ri) => {
+                c.1 = c.1.max(b);
+                c.2.push(ri);
+            }
+            _ => cols.push((a, b, vec![ri])),
+        }
+    }
+    if cols
+        .windows(2)
+        .any(|w| w.first().zip(w.get(1)).is_some_and(|(l, r)| l.1 > r.0))
+    {
+        return None;
+    }
+    Some(cols.into_iter().map(|(a, b, _)| (a, b)).collect())
+}
+
 /// One candidate block to a grid, or `None` when its columns do not hold
-/// up: fewer than two, one used by a single row, one whose cells share no
-/// edge ([`column_lines_up`]), or one whose cells average more than
-/// `max_mean_chars` (prose beside short cells, judged per column so the
-/// short cells cannot average it down).
+/// up: fewer than two, a cell spanning a gutter ([`aligned_columns`]), two
+/// chunks of one row in one column, one used by a single row, one whose
+/// cells share no edge ([`column_lines_up`]), or one whose cells average
+/// more than `max_mean_chars` (prose beside short cells, judged per column
+/// so the short cells cannot average it down).
 fn aligned_block(
     rows: &[&TextRow],
     hs: &[Rule],
     gutter_em: f64,
     max_mean_chars: f64,
 ) -> Option<Draft> {
+    if rows.len() > MAX_ALIGNED_ROWS {
+        return None;
+    }
     let mut sizes: Vec<f64> = rows.iter().map(|r| r.size).collect();
     sizes.sort_by(f64::total_cmp);
     let median_size = sizes.get(sizes.len() / 2).copied()?;
-    let gutter = gutter_em * median_size;
-    let mut spans: Vec<(f64, f64)> = rows
-        .iter()
-        .flat_map(|r| r.chunks.iter().map(|c| (c.x0, c.x1)))
-        .collect();
-    spans.sort_by(|a, b| a.0.total_cmp(&b.0));
-    let mut cols: Vec<(f64, f64)> = Vec::new();
-    for (a, b) in spans {
-        match cols.last_mut() {
-            Some(c) if a < c.1 + gutter => c.1 = c.1.max(b),
-            _ => cols.push((a, b)),
-        }
-    }
+    let cols = aligned_columns(rows, gutter_em * median_size)?;
     let ncols = cols.len();
-    if !(2..=MAX_ALIGNED_COLUMNS).contains(&ncols) || rows.len() > MAX_ALIGNED_ROWS {
+    if !(2..=MAX_ALIGNED_COLUMNS).contains(&ncols) {
         return None;
     }
-    let mut grid: Vec<Vec<GlyphRef>> = vec![Vec::new(); rows.len().checked_mul(ncols)?];
-    let mut used = vec![0usize; ncols];
-    let mut chars = vec![0usize; ncols];
-    let mut spans_in: Vec<Vec<(f64, f64)>> = vec![Vec::new(); ncols];
-    for (ri, row) in rows.iter().enumerate() {
-        let mut seen = vec![false; ncols];
-        for chunk in &row.chunks {
-            let ci = cols
-                .iter()
-                .position(|c| chunk.x0 >= c.0 - 0.01 && chunk.x1 <= c.1 + 0.01)?;
-            grid.get_mut(ri * ncols + ci)?
-                .extend(chunk.glyphs.iter().map(|p| p.r));
-            let n = chars.get_mut(ci)?;
-            *n = chunk
-                .glyphs
-                .iter()
-                .fold(*n, |n, p| n.saturating_add(p.chars));
-            spans_in.get_mut(ci)?.push((chunk.x0, chunk.x1));
-            *seen.get_mut(ci)? = true;
-        }
-        for (u, s) in used.iter_mut().zip(&seen) {
-            *u = u.saturating_add(usize::from(*s));
-        }
-    }
-    #[allow(clippy::cast_precision_loss)] // counts far below 2^52
-    let prose = |n: usize, u: usize| n as f64 > max_mean_chars * u as f64;
-    let tolerance = ALIGN_TOLERANCE_EM * median_size;
-    if used.iter().any(|&u| u < 2)
-        || chars.iter().zip(&used).any(|(&n, &u)| prose(n, u))
-        || !spans_in.iter().all(|c| column_lines_up(c, tolerance))
-    {
-        return None;
-    }
+    let grid = aligned_grid(
+        rows,
+        &cols,
+        max_mean_chars,
+        ALIGN_TOLERANCE_EM * median_size,
+    )?;
 
     let mut xs = vec![cols.first()?.0];
     xs.extend(
@@ -1447,11 +1446,70 @@ fn aligned_block(
             ));
         }
     }
-    // A rule counts for a row edge when it lies between the two rows'
-    // baselines (or within 1.5 em outside the first and last) and spans
-    // most of the table.
-    let (x_lo, x_hi) = (*xs.first()?, *xs.last()?);
-    let edge_widths = (0..=rows.len())
+    let edge_widths = aligned_edge_widths(rows, hs, *xs.first()?, *xs.last()?);
+    Some(Draft {
+        xs,
+        ys,
+        cells,
+        glyphs: grid,
+        edge_widths,
+        source: BoundarySource::Aligned,
+    })
+}
+
+/// Each row's chunks placed in `cols`, row-major, or `None` when a row puts
+/// two chunks in one column or a column fails a per-column check (used by
+/// one row, prose-length cells, no shared edge within `tolerance`).
+fn aligned_grid(
+    rows: &[&TextRow],
+    cols: &[(f64, f64)],
+    max_mean_chars: f64,
+    tolerance: f64,
+) -> Option<Vec<Vec<GlyphRef>>> {
+    let ncols = cols.len();
+    let mut grid: Vec<Vec<GlyphRef>> = vec![Vec::new(); rows.len().checked_mul(ncols)?];
+    let mut used = vec![0usize; ncols];
+    let mut chars = vec![0usize; ncols];
+    let mut spans_in: Vec<Vec<(f64, f64)>> = vec![Vec::new(); ncols];
+    for (ri, row) in rows.iter().enumerate() {
+        let mut seen = vec![false; ncols];
+        for chunk in &row.chunks {
+            let ci = cols
+                .iter()
+                .position(|c| chunk.x0 >= c.0 - 0.01 && chunk.x1 <= c.1 + 0.01)?;
+            if *seen.get(ci)? {
+                return None;
+            }
+            grid.get_mut(ri * ncols + ci)?
+                .extend(chunk.glyphs.iter().map(|p| p.r));
+            let n = chars.get_mut(ci)?;
+            *n = chunk
+                .glyphs
+                .iter()
+                .fold(*n, |n, p| n.saturating_add(p.chars));
+            spans_in.get_mut(ci)?.push((chunk.x0, chunk.x1));
+            *seen.get_mut(ci)? = true;
+        }
+        for (u, s) in used.iter_mut().zip(&seen) {
+            *u = u.saturating_add(usize::from(*s));
+        }
+    }
+    #[allow(clippy::cast_precision_loss)] // counts far below 2^52
+    let prose = |n: usize, u: usize| n as f64 > max_mean_chars * u as f64;
+    if used.iter().any(|&u| u < 2)
+        || chars.iter().zip(&used).any(|(&n, &u)| prose(n, u))
+        || !spans_in.iter().all(|c| column_lines_up(c, tolerance))
+    {
+        return None;
+    }
+    Some(grid)
+}
+
+/// The widest rule at each row edge. A rule counts when it lies between
+/// the two rows' baselines (or within 1.5 em outside the first and last)
+/// and spans most of `x_lo..x_hi`.
+fn aligned_edge_widths(rows: &[&TextRow], hs: &[Rule], x_lo: f64, x_hi: f64) -> Vec<f64> {
+    (0..=rows.len())
         .map(|i| {
             let above = i.checked_sub(1).and_then(|p| rows.get(p));
             let (lo, hi) = match (above, rows.get(i)) {
@@ -1466,15 +1524,7 @@ fn aligned_block(
                 .map(|h| h.width)
                 .fold(0.0, f64::max)
         })
-        .collect();
-    Some(Draft {
-        xs,
-        ys,
-        cells,
-        glyphs: grid,
-        edge_widths,
-        source: BoundarySource::Aligned,
-    })
+        .collect()
 }
 
 #[cfg(test)]
@@ -1541,9 +1591,9 @@ mod tests {
     #[test]
     fn a_staircase_of_offset_pairs_declines_without_a_quadratic_grid() {
         // Each row's pair sits 5 pt right of the row above, so no gutter
-        // lines up: 4,000 columns over 2,000 rows, an 8M-cell grid uncapped.
+        // lines up: 1,000 columns over 500 rows, a 500k-cell grid uncapped.
         #[allow(clippy::cast_precision_loss)]
-        let rows = rows_of(2_000, |i| vec![5.0 * i as f64, 5.0 * i as f64 + 2.5]);
+        let rows = rows_of(500, |i| vec![5.0 * i as f64, 5.0 * i as f64 + 2.5]);
         let t = std::time::Instant::now();
         assert!(block(&rows).is_none());
         assert!(
@@ -1559,6 +1609,50 @@ mod tests {
         let d = block(&rows_of(500, columns(32))).expect("a 32 x 500 table");
         assert_eq!((d.xs.len(), d.ys.len()), (33, 501));
         assert!(block(&rows_of(501, columns(32))).is_none());
+    }
+
+    /// Rows at font size 10 whose chunks span the given `(x0, x1)` pairs.
+    fn rows_spanning(spans: &[&[(f64, f64)]]) -> Vec<TextRow> {
+        let mut rows = rows_of(spans.len(), |i| spans[i].iter().map(|s| s.0).collect());
+        for (row, want) in rows.iter_mut().zip(spans) {
+            row.size = 10.0;
+            for (chunk, &(_, x1)) in row.chunks.iter_mut().zip(*want) {
+                chunk.x1 = x1;
+                chunk.glyphs[0].x1 = x1;
+                chunk.glyphs[0].size = 10.0;
+            }
+        }
+        rows
+    }
+
+    #[test]
+    fn a_cell_bridging_a_gutter_declines_rather_than_pooling_columns() {
+        let three: &[(f64, f64)] = &[(0.0, 5.0), (20.0, 25.0), (40.0, 45.0)];
+        let rows = rows_spanning(&[three, &[(0.0, 30.0), (40.0, 45.0)], three]);
+        assert!(block(&rows).is_none(), "{:?}", block(&rows).map(|d| d.xs));
+        // A cell reaching 2 pt into the next column also bridges its gutter.
+        let two: &[(f64, f64)] = &[(0.0, 5.0), (20.0, 25.0)];
+        let rows = rows_spanning(&[two, &[(0.0, 22.0), (24.0, 30.0)], two]);
+        assert!(block(&rows).is_none(), "{:?}", block(&rows).map(|d| d.xs));
+    }
+
+    #[test]
+    fn one_rows_two_chunks_are_two_columns_even_inside_one_gutter() {
+        // 7 pt apart: under the block's 10 pt gutter, but every row keeps
+        // them as separate chunks, so they are separate cells.
+        let pair: &[(f64, f64)] = &[(0.0, 5.0), (12.0, 17.0)];
+        let d = block(&rows_spanning(&[pair, pair, pair])).expect("a 2-column table");
+        assert_eq!(d.xs.len(), 3);
+        assert!(d.glyphs.iter().all(|cell| cell.len() == 1));
+    }
+
+    #[test]
+    fn a_second_chunk_in_a_filled_column_declines() {
+        let three: &[(f64, f64)] = &[(0.0, 5.0), (12.0, 17.0), (40.0, 45.0)];
+        let rows = rows_spanning(&[three; 3]);
+        let refs: Vec<&TextRow> = rows.iter().collect();
+        // Both chunks of every row sit inside the one column given.
+        assert!(aligned_grid(&refs, &[(0.0, 17.0), (40.0, 45.0)], 40.0, 2.5).is_none());
     }
 
     #[test]
