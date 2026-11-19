@@ -4,6 +4,15 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-11-18 (1619th filing) — `Pass 723.3` (`67b568c2`, `X093`) SHIPPED and build-cache chore `3f76bf88` FILED; unreleased
+
+**Filed (engineer-reported; no shell here, git, push and CI state not checked from here):**
+- `67b568c2` `fix(tables): a whitespace-table grid is bounded before it is allocated`: `table_detect::aligned_block` allocated rows x ncols unchecked, so a staircase of offset glyph pairs (ncols about 2x rows) was quadratic (2,000 rows -> 8M cells). Blocks over 32 columns or 500 rows are declined before allocation (`aligned_blocks_rejected`); `checked_mul`/`checked_add`, saturating counters; `ARCHITECTURE.md` §10 bounds. Two new unit tests, sabotage fails both; `pdfcer-core` 2380/3348/290/1 passed; clippy, fmt, code-structure clean; no manifest change. FEATURES: no row changed (core-only hardening).
+- `3f76bf88` `chore(tools): the build cache is pruned by version line, under low space, and daily`. **Operator directive (Ken, 2026-11-18): "Clear your rust cache of old files. Please start taking care of this automatically before the drive gets full."** `tools/clean-target-cache.py` found its cutoff by release-commit subjects; `b61fb116` and `4137502e` matched neither spelling, so the cutoff stuck at v0.156.0 and D: fell to 5 GB free. Cutoff is now the Nth newest commit changing the `version =` line (`git log -G`); new `--min-free-gb` (default 50) re-sweeps keeping only the current release and names, never deletes, other projects' large `target/` dirs; `run-gates.sh` cleans before and after; `tools/install-cache-clean-task.ps1` registers daily 04:00 job `pdfcer-clean-target-cache` (registered on the operator's machine). Freed 15.5 GiB. Follow-up to the 1404th-filing entry for `3c679967`.
+- RAG: `D:/dev/rag/rust/find_a_release_by_what_it_changes_git_log_G_on_the_version_line_not_by_commit_subject_regex.md` plus index bullet.
+
+**Open:** next free IDs `Pass 647.13`, `717.4`, `718.5`, `720.3`, `721.14`, `722.10`, `723.4`, `647.3h`; decision `225`; rule `R264`. The `v0.159.0` round carries `721.13`, `723.1`, `d278cc2a`, `723.2`, `723.3`; tag, package and publish still to do. `docs/NEXT_SESSION.md` is engineer-owned and was not edited.
+
 ## 2026-11-18 (1618th filing) — `Pass 723.2` (`421da52f`, `X092`) SHIPPED: a caption lead matches in any letter case; unreleased
 
 **Filed (engineer-reported; no shell here, git, push and CI state not checked from here):**

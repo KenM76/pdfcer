@@ -112,6 +112,25 @@ wherever it appears.*
 
 ## Shipped
 
+### `3f76bf88` tooling, 2026-11-18: `tools/clean-target-cache.py` finds its cutoff by the version line, prunes under low space, and runs daily (1619th filing)
+
+Engineer-reported; no shell here, git, push and CI state not checked from here. `3f76bf88` `chore(tools): the build cache is pruned by version line, under low space, and daily`. Operator directive (Ken, 2026-11-18): "Clear your rust cache of old files. Please start taking care of this automatically before the drive gets full." Not a Pass; no decision record. Follows `3c679967` (1404th filing) and the `f8f0e2d8` spelling fix.
+- **Cause:** the cutoff was found by matching release-commit subjects. The last two bumps (`b61fb116` "chore: bump workspace to 0.159.0", `4137502e` "chore(release): bump the workspace to 0.158.0") matched neither spelling, so the cutoff stuck at v0.156.0 and D: fell to 5 GB free.
+- **Cutoff:** now the Nth newest commit that changes the `version =` line in `Cargo.toml` (`git log -G`), independent of subject wording.
+- **`--min-free-gb` (default 50):** below it, sweeps again keeping only the current release and names other projects' large `target/` dirs (never deletes them).
+- **Wiring:** `tools/run-gates.sh` now cleans before as well as after. New `tools/install-cache-clean-task.ps1` registers the daily 04:00 Task Scheduler job `pdfcer-clean-target-cache` (current user, no elevation); registered on the operator's machine (engineer-reported).
+- **Freed 15.5 GiB** (engineer-reported).
+- **RAG:** `D:/dev/rag/rust/find_a_release_by_what_it_changes_git_log_G_on_the_version_line_not_by_commit_subject_regex.md`.
+- No FEATURES row (tooling).
+
+### `67b568c2` `Pass 723.3`: a whitespace-table grid is bounded before it is allocated, 2026-11-18 (1619th filing)
+
+Engineer-reported; no shell here, git, push and CI state not checked from here. `67b568c2` `fix(tables): a whitespace-table grid is bounded before it is allocated`. Request `X093` (from the `crates` consumer). Opened and shipped in one filing. **Unreleased**: lands in `v0.159.0`. Reasoning is in the commit message. **core** only; cli/gui unchanged. No manifest change, so `cargo tree` is unchanged.
+- **Defect:** `table_detect::aligned_block` allocated rows x ncols before any rejection; a staircase of offset glyph pairs makes ncols about 2x rows, so memory was quadratic (2,000 rows -> 8M cells).
+- **Fix:** a block over 32 columns (`MAX_ALIGNED_COLUMNS`) or 500 rows (`MAX_ALIGNED_ROWS`) is declined before allocation and counted in `aligned_blocks_rejected`; the product is `checked_mul`, `glyph_text` start+len is `checked_add`, counters saturate. Bounds recorded in `ARCHITECTURE.md` §10.
+- **Tests (engineer-reported):** 2 new unit tests in `table_detect.rs` (2,000-row staircase declines in under 200 ms; 33 columns and 501 rows decline; 32x500 is detected). Sabotage (lifting both caps) fails both. `pdfcer-core` suites 2380/3348/290/1 passed; clippy `-D warnings`, fmt and code-structure clean.
+- **FEATURES:** no row changed (behaviour hardening of an already core-ticked table-detection capability; no row had room for a note).
+
 ### `421da52f` `Pass 723.2`: a caption lead matches in any letter case, 2026-11-18 (1618th filing)
 
 Engineer-reported; no shell here, git, push and CI state not checked from here. `421da52f` `fix(layout): a caption lead matches in any letter case`. Request `X092` (from the operator as a `crates` consumer). Opened and shipped in one filing. **Unreleased**: joins the open `v0.159.0` round (`721.13`, `723.1`, `d278cc2a`, this). Reasoning is in the commit message. **core** only; cli/gui unchanged.
@@ -27860,6 +27879,8 @@ closes out the *prior* filing's business rather than opening this one's.
 > **`Pass 723.1` (`e5c436cb`, `X091`) SHIPPED 2026-11-18 (1616th filing); see its *Shipped* entry (opened and shipped in one filing; unreleased, joins the `v0.159.0` round).** Next free IDs: `Pass 647.13`, `Pass 717.4`, `Pass 718.5`, `Pass 720.3`, `Pass 721.14`, `Pass 722.10`, `Pass 723.2`, `Pass 647.3h`; decision `225`, rule `R264`. `723.1` was the next free ID per the 1615th banner (not re-grepped beyond that; no shell).
 
 > **`Pass 723.2` (`421da52f`, `X092`) SHIPPED 2026-11-18 (1618th filing); see its *Shipped* entry (opened and shipped in one filing; unreleased, joins the `v0.159.0` round).** Next free IDs: `Pass 647.13`, `Pass 717.4`, `Pass 718.5`, `Pass 720.3`, `Pass 721.14`, `Pass 722.10`, `Pass 723.3`, `Pass 647.3h`; decision `225`, rule `R264`. `723.2` was the next free ID per the 1616th banner (not re-grepped beyond that; no shell).
+
+> **`Pass 723.3` (`67b568c2`, `X093`) SHIPPED 2026-11-18 (1619th filing), and chore `3f76bf88` (build-cache pruning) FILED; see their *Shipped* entries (`723.3` opened and shipped in one filing; unreleased, joins the `v0.159.0` round).** Next free IDs: `Pass 647.13`, `Pass 717.4`, `Pass 718.5`, `Pass 720.3`, `Pass 721.14`, `Pass 722.10`, `Pass 723.4`, `Pass 647.3h`; decision `225`, rule `R264`. `723.3` was the next free ID per the 1618th banner (not re-grepped beyond that; no shell).
 
 > **`d278cc2a` (follow-up fix to `Pass 647.12`, no new ID) FILED 2026-11-18 (1617th filing); see its *Shipped* entry (unreleased, joins the `v0.159.0` round).** Next free IDs unchanged from the 1616th banner.
 
