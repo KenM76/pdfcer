@@ -112,6 +112,23 @@ wherever it appears.*
 
 ## Shipped
 
+### `934851fc` `Pass 723.7`: a whitespace table keeps one row's cells in separate columns, 2026-11-18 (1626th filing)
+
+Engineer-reported; no shell here, git, push and CI state not checked from here. `934851fc` `fix(tables): a whitespace table keeps one row's cells in separate columns`. Request `X096`. Opened and shipped in one filing. **Unreleased**: `v0.160.0` is being tagged on `ece71a38` and does not include this; it lands in `v0.161.0`. Reasoning is in the commit message. **core** only; cli/gui boxes unchanged.
+- **Fix:** `aligned_block` (`crates/pdfcer-core/src/table_detect.rs`) now tracks each span's row. A span joins a column only when that column has no span from the same row.
+- **Spanning-cell policy: decline.** If two neighbouring columns' x-extents overlap (a cell bridges a gutter), the block is declined. A row that puts a second chunk in an already-filled column also declines. Both count in `aligned_blocks_rejected`.
+- **Refactor (debt paid):** `aligned_block` split into `aligned_columns`, `aligned_grid` and `aligned_edge_widths`; its line in `tools/code-structure-baseline.txt` deleted. The row-cap check moved before column building; the staircase guard test went from 2,000 to 500 rows so it still reaches the column cap.
+- **Tests (engineer-reported):** `pdfcer-core` 2385 lib, `--test all` 3353; table tests 10 lib + 20 integration. Sabotage: each of the three rules removed on its own fails its own test.
+- **FEATURES:** the table-extraction row's whitespace clause extended (core only; boxes unchanged, row under the size cap).
+
+### `ba072d65` `Pass 723.6`: a running header that changes only case or spacing is still running text, 2026-11-18 (1626th filing)
+
+Engineer-reported; no shell here, git, push and CI state not checked from here. `ba072d65` `fix(text): a running header that changes only case or spacing is still running text`. Request `X095`. Opened and shipped in one filing. **Unreleased**: lands in `v0.161.0`, not `v0.160.0` (tagged on `ece71a38`). Reasoning is in the commit message. **core** only; the CLI `extract-layout` and `export-docx` already consume the block layout (they need no change), so cli/gui boxes are unchanged.
+- **Fix:** `classify_running` (`crates/pdfcer-text/src/block_layout.rs`) decided `texts_differ` on raw text; it now uses `same_words` (lowercased, whitespace collapsed, digits kept). `ANNUAL REPORT` / `Annual  report` is now a running header; `Chapter 1` / `Chapter 2` stay headings.
+- **Note on the request:** its "fraction 0.5" is the `running_min_fraction` threshold, not a reported number.
+- **Tests (engineer-reported):** new `crates/pdfcer-text/tests/unit_running_heading.rs`, 2 tests. `pdfcer-text`: 38 lib, 76 integration, 18 doctests, all green. Sabotage: the raw comparison restored fails the case/spacing test; the digit-folding `normalise()` fails the Chapter test.
+- **FEATURES:** the block-level layout row gains one clause (core only; boxes unchanged, row under the size cap).
+
 ### `f9d4ce3f` `Pass 723.5`: a soft mask's backdrop colour is read in the group's colour space, 2026-11-18 (1625th filing)
 
 Engineer-reported; no shell here, git, push and CI state not checked from here. `f9d4ce3f` `fix(render): a soft mask's backdrop colour is read in the group's colour space`. Request `X094` (`open/request_X094_mask_backdrop_in_group_colour_space.md`; reply `open/reply_X094_mask_backdrop_in_group_colour_space_SHIPPED.md`). Opened and shipped in one filing. **Unreleased**: the release bump `51f91d2e` (1624th) is already made, so `v0.160.0` also carries this Pass and the `721.14` follow-up `dcc684dd` (the 1624th's "carries" list names only `723.4`, `647.13`, `721.14` `c039fe16`). Reasoning is in the commit message. **core (`pdfcer-render`) + cli** (via `render-page`); gui by engine pin. No `pub` change.
@@ -27947,6 +27964,8 @@ closes out the *prior* filing's business rather than opening this one's.
 > **`Pass 721.14` (`c039fe16`, `G302`) SHIPPED 2026-11-18 (1623rd filing); see its *Shipped* entry (opened and shipped in one filing; unreleased, joins the `v0.160.0` round).** Next free IDs: `Pass 647.14`, `Pass 717.4`, `Pass 718.5`, `Pass 720.3`, `Pass 721.15`, `Pass 722.10`, `Pass 723.5`, `Pass 647.3h`; decision `225`, rule `R264`. `721.14` was the next free ID per the 1622nd banner (grep of `docs/` found it only as a free-ID mention; no shell).
 
 > **`Pass 723.5` (`f9d4ce3f`, `X094`) SHIPPED 2026-11-18 (1625th filing), and `dcc684dd` (follow-up to `Pass 721.14`, no new ID) FILED; see their *Shipped* entries (unreleased, join the `v0.160.0` round).** Next free IDs: `Pass 647.14`, `Pass 717.4`, `Pass 718.5`, `Pass 720.3`, `Pass 721.15`, `Pass 722.10`, `Pass 723.6`, `Pass 647.3h`; decision `225`, rule `R264`. `723.5` was the next free ID per the 1623rd banner (not re-grepped beyond that; no shell).
+
+> **`Pass 723.6` (`ba072d65`, `X095`) and `Pass 723.7` (`934851fc`, `X096`) SHIPPED 2026-11-18 (1626th filing); see their *Shipped* entries (opened and shipped in one filing; unreleased, they join `v0.161.0`, NOT `v0.160.0`).** Next free IDs: `Pass 647.14`, `Pass 717.4`, `Pass 718.5`, `Pass 720.3`, `Pass 721.15`, `Pass 722.10`, `Pass 723.8`, `Pass 647.3h`; decision `225`, rule `R264`. `723.6` was the next free ID per the 1625th banner and `723.7` followed it (engineer states `723.8` next; no shell).
 
 > **`d278cc2a` (follow-up fix to `Pass 647.12`, no new ID) FILED 2026-11-18 (1617th filing); see its *Shipped* entry (unreleased, joins the `v0.159.0` round).** Next free IDs unchanged from the 1616th banner.
 

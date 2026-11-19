@@ -4,6 +4,15 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-11-18 (1626th filing) — `Pass 723.6` (`ba072d65`, `X095`) and `Pass 723.7` (`934851fc`, `X096`) SHIPPED; both in `v0.161.0`, not `v0.160.0`
+
+**Filed (engineer-reported; no shell here, git, push and CI state not checked from here):**
+- `ba072d65`: `classify_running` compares running-header text by `same_words` (lowercased, whitespace collapsed, digits kept) instead of raw text, so a header changing only case or spacing is still running text; `Chapter 1`/`Chapter 2` stay headings. 2 new tests (`pdfcer-text/tests/unit_running_heading.rs`), both sabotage-checked; `pdfcer-text` 38 lib + 76 integration + 18 doc. The request's "fraction 0.5" is the `running_min_fraction` threshold, not a reported number.
+- `934851fc`: `aligned_block` tracks each span's row; a span joins a column only if it has none from that row; spanning-cell policy is decline (overlapping neighbouring x-extents, or a second chunk in a filled column, counted in `aligned_blocks_rejected`). Function split into three, baseline line deleted; row-cap check moved earlier, staircase test 2,000 -> 500 rows. `pdfcer-core` 2385 lib + 3353 `--test all`; each rule sabotage-checked.
+- FEATURES: two existing rows (block-level layout; table extraction) each gained one clause; core only, no box changed, both under the 1,200-char cap (checked by grep, not by running the gate).
+
+**Open:** `v0.160.0` is being tagged on `ece71a38`; these two are in `v0.161.0`. Next free IDs: `Pass 647.14`, `717.4`, `718.5`, `720.3`, `721.15`, `722.10`, `723.8`, `647.3h`; decision `225`; rule `R264`. `docs/NEXT_SESSION.md` engineer-owned, not edited.
+
 ## 2026-11-18 (1625th filing) — `Pass 723.5` (`f9d4ce3f`, `X094`) SHIPPED: a soft mask's backdrop colour is read in the group's colour space; plus `dcc684dd`; both in `v0.160.0`
 
 **Filed (engineer-reported; no shell here, git, push and CI state not checked from here):**
