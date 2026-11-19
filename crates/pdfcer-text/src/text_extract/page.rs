@@ -394,7 +394,7 @@ struct Walk<'a> {
     /// Parallel to `ctm_stack`: the text state, plus the pen when the `q`
     /// was made inside a text object (ISO 32000-2:2020 errata to §9.4.1:
     /// there `q`/`Q` also save and restore Tm and Tlm).
-    ts_stack: Vec<(TextState, Option<SavedPen>)>,
+    ts_stack: Vec<(TextState, Option<SavedPen>, Option<Vec<u8>>)>,
     /// The current text object's serial, `None` outside `BT`…`ET`. A pen
     /// saved in one text object is never restored into another.
     text_obj: Option<u32>,
@@ -532,7 +532,8 @@ impl Walk<'_> {
                     tm: self.tm,
                     tlm: self.tlm,
                 });
-                self.ts_stack.push((self.ts.clone(), pen));
+                self.ts_stack
+                    .push((self.ts.clone(), pen, self.cur_font_resource.clone()));
                 // A hostile stream of `q`s must not grow the stacks
                 // without bound; 256 is far past any real nesting and
                 // matches the posture of the other structural guards.
@@ -550,9 +551,10 @@ impl Walk<'_> {
                     self.ctm = m;
                 }
                 if self.ts_stack.len() > self.stack_floor
-                    && let Some((ts, pen)) = self.ts_stack.pop()
+                    && let Some((ts, pen, font_resource)) = self.ts_stack.pop()
                 {
                     self.ts = ts;
+                    self.cur_font_resource = font_resource;
                     if let Some(pen) = pen.filter(|p| Some(p.serial) == self.text_obj) {
                         self.tm = pen.tm;
                         self.tlm = pen.tlm;
@@ -691,7 +693,7 @@ impl Walk<'_> {
                     self.ts.line_width = lw;
                 }
             }
-            b"gs" => self.ext_gstate_line_width(op, resources),
+            b"gs" => self.ext_gstate(op, resources),
 
             // --- fill colour (§8.6.8), provenance only ---
             // Only the lowercase (fill) device operators are read; the
@@ -1458,17 +1460,11 @@ impl Walk<'_> {
     // Form XObjects (§8.10.1)
     // -----------------------------------------------------------------
 
-    /// `Do`: execute a form XObject's content with its own `/Resources`
-    /// and `/Matrix`.
-    ///
-    /// Image XObjects are skipped (they hold no text). The recursion
-    /// follows §8.10.1's five-step procedure in the parts that matter
-    /// here: save state, concatenate `/Matrix`, execute with the form's
-    /// resource dictionary, restore state.
-    /// `gs` (§8.4.5): only `/LW` is read, for [`GlyphProvenance::line_width`].
-    fn ext_gstate_line_width(&mut self, op: &Operation<'_>, resources: &Dict) {
+    /// `gs` (§8.4.5): reads `/LW`, for [`GlyphProvenance::line_width`], and
+    /// `/Font [font size]`, which selects a font exactly as `Tf` does.
+    fn ext_gstate(&mut self, op: &Operation<'_>, resources: &Dict) {
         let doc = self.doc;
-        let lw = operand_name(op, 0)
+        let Some(gs) = operand_name(op, 0)
             .and_then(|name| {
                 doc.resolve(resources.get(b"ExtGState").unwrap_or(&Object::Null))
                     .as_dict()
@@ -1476,13 +1472,57 @@ impl Walk<'_> {
                     .map(|e| doc.resolve(e))
             })
             .and_then(Object::as_dict)
-            .and_then(|gs| gs.get(b"LW"))
-            .and_then(|o| doc.resolve(o).as_number());
-        if let Some(lw) = lw {
+        else {
+            return;
+        };
+        if let Some(lw) = gs.get(b"LW").and_then(|o| doc.resolve(o).as_number()) {
             self.ts.line_width = lw as f32;
+        }
+        if let Some(Object::Array(a)) = gs.get(b"Font").map(|o| doc.resolve(o)) {
+            self.ext_gstate_font(a);
         }
     }
 
+    /// An ExtGState `/Font [font size]`: `font` is an indirect reference to
+    /// a font dictionary, not a resource name (§8.4.5), so it is cached by
+    /// object under the null resource pointer, which no `Tf` key carries.
+    /// A malformed entry changes nothing.
+    fn ext_gstate_font(&mut self, a: &[Object]) {
+        let doc = self.doc;
+        let [Object::Reference(id), size] = a else {
+            return;
+        };
+        let Some(size) = doc.resolve(size).as_number() else {
+            return;
+        };
+        let key = (
+            0usize,
+            format!("{} {} R", id.num, id.generation).into_bytes(),
+        );
+        let font = match self.fonts.get(&key) {
+            Some(f) => Rc::clone(f),
+            None => {
+                let Some(d) = doc.resolved(*id).as_dict() else {
+                    return;
+                };
+                let f = Rc::new(ExtractFont::resolve(doc, d));
+                self.report_font(&f, &key);
+                self.fonts.insert(key, Rc::clone(&f));
+                f
+            }
+        };
+        self.ts.size = size as f32;
+        self.ts.font = Some(font);
+        self.cur_font_resource = None;
+    }
+
+    /// `Do`: execute a form XObject's content with its own `/Resources`
+    /// and `/Matrix`.
+    ///
+    /// Image XObjects are skipped (they hold no text). The recursion
+    /// follows §8.10.1's five-step procedure in the parts that matter
+    /// here: save state, concatenate `/Matrix`, execute with the form's
+    /// resource dictionary, restore state.
     fn do_xobject(&mut self, op: &Operation<'_>, _buf: &[u8], resources: &Dict) {
         let Some(name) = operand_name(op, 0) else {
             return;
