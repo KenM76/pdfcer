@@ -4,6 +4,16 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-11-19 (1632nd filing) — `Pass 723.10` (`4aae502e`, `X099`) SHIPPED; unreleased, next release `v0.162.0`
+
+**Filed (engineer-reported; no shell here, git, push and CI state not checked from here):**
+- `4aae502e` `fix(text,redact): text-state operators with surplus operands are ignored everywhere`. Local, not pushed at filing time; the engineer pushes after this filing.
+- Three readers of `Tc`/`Tw`/`Tz`/`TL`/`Ts`/`Tr` disagreed on surplus operands: extraction took the last (the request said first; inexact), redaction the first, the renderer ignored the operator (§9.3 Table 105). New pub `pdfcer_text::text_state::single_operand` (re-exported at `pdfcer_core::text_state`) is now the one rule in `AmbientTextState::apply_operator`, extraction and the redaction surgeon; its `w` arm also needs exactly one operand. Renderer and `vector/decompose.rs` unchanged.
+- Tests: `unit_text_state_operands.rs` (2) and `redact::glyph_tests::a_surplus_text_state_operand_is_ignored_as_the_renderer_ignores_it`, sabotage-checked both ways. pdfcer-text 81+19+38, pdfcer-core 2386+3354+291+1 pass; fmt, clippy and the structure/string/harness/core-api gates clean; no manifest change.
+- FEATURES: no change (correctness fix, core only).
+
+**Open:** nothing in flight. Next free IDs: `Pass 647.15`, `717.4`, `718.5`, `720.3`, `721.15`, `722.10`, `723.11`, `647.3h`; decision `225`; rule `R264`. `docs/NEXT_SESSION.md` engineer-owned, not edited.
+
 ## 2026-11-19 (1631st filing) — `v0.161.0` PUBLISHED (tag on `45d6b341`)
 
 **Filed (engineer-reported; no shell here, git, push, CI, GitHub, crates.io and OneDrive state not checked from here):**

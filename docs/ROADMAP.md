@@ -112,6 +112,15 @@ wherever it appears.*
 
 ## Shipped
 
+### `4aae502e` `Pass 723.10`: text-state operators with surplus operands are ignored everywhere, 2026-11-19 (1632nd filing)
+
+Engineer-reported; no shell here, git, push and CI state not checked from here. `4aae502e` `fix(text,redact): text-state operators with surplus operands are ignored everywhere`. Request `X099` (`request_X099_text_state_operand_reads_agree_with_renderer.md`, from the crates consumer; reply `open/reply_X099_SHIPPED.md`). Opened and shipped in one filing. **Local, not yet pushed at filing time; unreleased**: the next release (`v0.162.0`) carries it. Reasoning is in the commit message. **core** only; no cli or gui surface change (`pdfcer redact` and extraction consumers get it for free).
+- **Rule:** ISO 32000-2 §9.3 Table 105: `Tc`/`Tw`/`Tz`/`TL`/`Ts`/`Tr` take exactly one operand, and the renderer ignores the operator otherwise (`&[v]`). Three readers disagreed: extraction took the LAST operand (the request's "first" premise was inexact), redaction took the FIRST, the renderer ignored it.
+- **New pub fn:** `pdfcer_text::text_state::single_operand(&[f64]) -> Option<f64>`, `Some` only for exactly one numeric operand; re-exported at `pdfcer_core::text_state`. Used by `AmbientTextState::apply_operator`, by extraction (`text_extract/page.rs`, which now passes all numeric operands) and by the redaction text surgeon's `Tc`/`Tw`/`Tz`/`TL`/`Ts` arms. The surgeon's `w` arm now also requires exactly one operand. Renderer and `vector/decompose.rs` unchanged.
+- **Tests (engineer-reported):** `crates/pdfcer-text/tests/unit_text_state_operands.rs` (2 tests over 5 operators, surplus vs single); `redact::glyph_tests::a_surplus_text_state_operand_is_ignored_as_the_renderer_ignores_it`. Sabotage-checked: restoring `first()` in `text_state.rs` fails the extraction test, in `redact.rs` the redaction test. `redact_proof_tests::apply_over` became `pub(crate)` for reuse.
+- **Results (engineer-reported):** pdfcer-text 81+19+38 and pdfcer-core 2386+3354+291+1 pass; fmt, clippy, string-gaps, code-structure, tests-harnessed, core-api-verbs clean. No dependency or manifest change, so `cargo tree` is unaffected.
+- **FEATURES:** no row changed (a correctness fix to the extraction and redaction rows; no new capability, no box delivered).
+
 ### `45d6b341` `v0.161.0` PUBLISHED, 2026-11-19 (1631st filing)
 
 Engineer-reported; no shell here, git, push, CI, GitHub, crates.io and OneDrive state not checked from here. Annotated tag `v0.161.0` is on `45d6b341` (the 1630th filing commit) and is pushed; CI green at that commit. `tools/gh-release.py`: "PASS v0.161.0: 8 asset(s) uploaded at their local sizes" (portable zip `pdfcer-v0.161.0-windows-x64.zip` 32,741,519 bytes; three OCR add-ons, each with a `.sha256`). `deploy-onedrive.py` wrote `pdfcer2`; `pdfcer1` keeps 0.160.0; the next release writes `pdfcer1`.
@@ -28025,6 +28034,8 @@ closes out the *prior* filing's business rather than opening this one's.
 > **`Pass 723.8` (`c2c0efeb`, `X097`) and `Pass 723.9` (`519d0f81`, `X098`) SHIPPED 2026-11-19 (1629th filing); see their *Shipped* entries (opened and shipped in one filing; unreleased, join `v0.161.0`).** Next free IDs: `Pass 647.15`, `Pass 717.4`, `Pass 718.5`, `Pass 720.3`, `Pass 721.15`, `Pass 722.10`, `Pass 723.10`, `Pass 647.3h`; decision `225`, rule `R264` (engineer-supplied; not re-measured; no shell).
 
 > **`v0.161.0` PUBLISHED 2026-11-19 (1631st filing; tag on `45d6b341`, 8 GitHub assets, 16 crates on crates.io, OneDrive `pdfcer2`); see its *Shipped* entry** (carries `723.6`, `723.7`, `647.14`, `723.8`, `723.9`). Next release writes `pdfcer1`. Next free IDs unchanged from the 1629th banner.
+
+> **`Pass 723.10` (`4aae502e`, `X099`) SHIPPED 2026-11-19 (1632nd filing); see its *Shipped* entry (on `main` locally, unreleased; the next release, `v0.162.0`, carries it).** Next free IDs: `Pass 647.15`, `Pass 717.4`, `Pass 718.5`, `Pass 720.3`, `Pass 721.15`, `Pass 722.10`, `Pass 723.11`, `Pass 647.3h`; decision `225`, rule `R264` (engineer-supplied; not re-measured; no shell).
 
 > **`d278cc2a` (follow-up fix to `Pass 647.12`, no new ID) FILED 2026-11-18 (1617th filing); see its *Shipped* entry (unreleased, joins the `v0.159.0` round).** Next free IDs unchanged from the 1616th banner.
 
