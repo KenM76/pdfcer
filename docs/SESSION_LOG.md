@@ -4,6 +4,24 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-11-19 (1640th filing) — `Passes 721.19`-`721.21` (`16d480c6`, `G309`) SHIPPED
+
+**Filed (engineer-reported; no shell here, git, push, CI and the gates not run or checked from here):**
+- `16d480c6d467dde8601723251b4afc65cc3a3b70` `feat(3d): a light map of the lux over a whole model`. Unreleased; ships in `v0.164.0`. `LightMeter::map` (`MapSide` FacingCamera default / AlongNormals, spacing lattice, caps 4,000,000 points and 2e9 rays), `LuxBands` with CPU `render_light_map` and GLSL ES 3.00 shaders, `CANADA_OHS` (61 rows, SOR/86-304 Part VI, SI/97-5), CLI `3d-render --light-map` family. Full list in the ROADMAP *Shipped* entry.
+- Tests (engineer-reported): `pdfcer-3d` 591 lib (+6, +40), CLI light-map and glow tests pass; clippy, fmt, structure (542 baseline, none new), string-gaps, core-api verbs, ledger, entry-size, suite-name clean; no manifest changed; `wasm32` check clean.
+
+**Design findings:**
+- Corner-only sampling was wrong: on a 2-triangle 4x4 floor the corners are far from the lamp, so the floor drew in the wrong band. The map therefore samples a lattice at a stated spacing.
+- A reading takes the side facing the viewer; the test floor is wound facing down, so a normals-only map read 0. Both ship, `FacingCamera` default (standing rule: two defensible answers, ship both, pick the default).
+- **A test went red unseen:** CLI test `illuminance_counts_a_glowing_surface_unless_told_not_to` expected a note that `G308` (`2d00ad39`) changed. That Pass's test run was scoped and missed it; this commit fixed the string and reworded the glow `--help` line.
+- clap gotcha, graduated to `D:/dev/rag/rust/`: `Option<Vec<T>>` with a `value_parser` returning a `Vec` is treated as a repeated flag and panics at access; wrap in a newtype.
+
+**FEATURES:** three Planned rows moved to Implemented (core + cli ticked; gui owed to `pdfcer-gui`).
+
+**Sweep (hard rule 11):** no counter or capability changed meaning in this filing beyond the stale glow test already fixed in the commit. Not swept from here: `crates/` strings.
+
+**Open:** next free IDs `Pass 647.15`, `717.4`, `718.5`, `720.3`, `721.22`, `722.10`, `723.11`, `647.3h`; decision `225`; rule `R264`. `docs/NEXT_SESSION.md` engineer-owned, not edited.
+
 ## 2026-11-19 (1639th filing) — `Pass 721.18` (`2d00ad39`, `G308`) SHIPPED; `G309` filed as `Pass 721.19`-`721.21`, in flight
 
 **Filed (engineer-reported; no shell here, git, push, CI and the register gates not run or checked from here):**
