@@ -3628,7 +3628,13 @@ let image = render_coloured(&meshes, &colours, &camera, &RenderOptions { width: 
   SI/97-5; `CANADA_OHS_SOURCE: LevelSource { title, citation,
   current_to, url, reproduced, scope }` is the citation to show with it.
   `LuxBands::canada_ohs_steps(blend)` is a 14-band table at its distinct
-  levels (0, 10 … 1000 lx). EN 12464-1, the IES Lighting Handbook and
+  levels (0, 10 … 1000 lx). `LuxBands::for_map(&map, blend)` is the
+  default table for any map: `canada_ohs_steps` in lux; for a relative
+  map the same colours spread evenly from `map.range()`'s low to high
+  (0 to 1 for an empty map), where the regulation's levels do not apply.
+  `bands.spread(lo, hi)` keeps a table's colours and blend with band `i`
+  of `n` from `lo + (hi - lo) * i / n`; an empty, reversed or non-finite
+  range is widened so the table stays valid. EN 12464-1, the IES Lighting Handbook and
   the CIBSE/SLL Code are paywalled and not reproduced; pass their levels
   as your own `LuxBands`. The legend (bands, unit, range, source,
   reasons) goes off the canvas; the map never marks the picture.

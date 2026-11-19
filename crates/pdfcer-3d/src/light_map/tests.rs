@@ -155,3 +155,52 @@ fn a_graded_light_map_runs_between_its_corners() {
     let [right, ..] = pixel(&img, 40, 20);
     assert!(right > r, "{right} {r}");
 }
+
+#[test]
+fn a_table_spreads_its_colours_evenly_over_a_range() {
+    let steps = LuxBands::canada_ohs_steps(BandBlend::Graded);
+    let spread = steps.spread(0.4, 1.8);
+    assert_eq!(spread.blend(), BandBlend::Graded);
+    assert_eq!(spread.bands().len(), steps.bands().len());
+    for (i, (s, b)) in spread.bands().iter().zip(steps.bands()).enumerate() {
+        assert_eq!(s.colour, b.colour);
+        assert!(
+            (s.from - (0.4 + 1.4 * i as f64 / 14.0)).abs() < 1e-12,
+            "{i}"
+        );
+    }
+    let last = spread.bands().last().unwrap();
+    assert_eq!(spread.colour(1.8), last.colour);
+    for (lo, hi) in [
+        (2.0, 2.0),
+        (3.0, 1.0),
+        (f64::NAN, f64::INFINITY),
+        (1e300, 1e300),
+    ] {
+        let s = steps.spread(lo, hi);
+        assert!(
+            LuxBands::new(s.bands().to_vec(), s.blend()).is_ok(),
+            "{lo} {hi}"
+        );
+    }
+}
+
+#[test]
+fn a_map_takes_the_steps_in_lux_and_its_own_range_when_relative() {
+    let (mut map, _) = floor_map([[0.4, 1.0, 1.934], [0.4, 1.934, 0.7]]);
+    let steps = LuxBands::canada_ohs_steps(BandBlend::Stepped);
+    assert_eq!(LuxBands::for_map(&map, BandBlend::Stepped), steps);
+    map.unit = IlluminanceUnit::Relative;
+    let relative = LuxBands::for_map(&map, BandBlend::Stepped);
+    assert_eq!(relative, steps.spread(0.4, 1.934));
+    let colours: std::collections::HashSet<_> = [0.4, 0.7, 1.0, 1.934]
+        .iter()
+        .map(|&f| relative.colour(f))
+        .collect();
+    assert_eq!(colours.len(), 4, "a relative map is not one colour");
+    map.meshes.clear();
+    assert_eq!(
+        LuxBands::for_map(&map, BandBlend::Stepped),
+        steps.spread(0.0, 1.0)
+    );
+}

@@ -1102,6 +1102,16 @@ fn light_map_colours_the_floor_by_the_lux_on_it() {
         "normals",
     ]));
     assert_eq!(middle(), [0x14, 0x14, 0x3c]);
+    // Asked relative, the map's default colours are
+    // spread over its own figures, not the regulation's lux.
+    let relative = stdout(&draw(&["--illuminance-basis", "relative"]));
+    assert!(relative.contains("unit=relative"), "{relative}");
+    assert!(relative.contains("spread evenly"), "{relative}");
+    assert!(!relative.contains("SOR/86-304"), "{relative}");
+    assert!(
+        !relative.contains("light-map-band from=1000 "),
+        "{relative}"
+    );
     let mine = stdout(&draw(&[
         "--light-map-bands",
         "0:000000,19:ff0000,21:00ff00",

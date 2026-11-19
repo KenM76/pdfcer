@@ -111,6 +111,62 @@ impl LuxBands {
         Ok(LuxBands { bands, blend })
     }
 
+    /// The same colours and blend with the bounds spread evenly from `lo`
+    /// to `hi`: band `i` of `n` starts at `lo + (hi - lo) * i / n`, so `hi`
+    /// itself falls in the last band. A range that is empty, reversed or
+    /// not finite is widened to `lo` plus the larger of `|lo|` and 1 (`lo`
+    /// itself 0 when not finite), so the table is always valid.
+    #[must_use]
+    pub fn spread(&self, lo: f64, hi: f64) -> LuxBands {
+        let lo = if lo.is_finite() { lo } else { 0.0 };
+        let fallback = lo.abs().max(1.0);
+        let width = if hi.is_finite() && hi > lo {
+            hi - lo
+        } else {
+            fallback
+        };
+        let at = |width: f64| -> Vec<LuxBand> {
+            let n = self.bands.len() as f64;
+            let step = |i: usize| lo + width * i as f64 / n;
+            let spread = self.bands.iter().enumerate();
+            spread
+                .map(|(i, b)| LuxBand {
+                    from: step(i),
+                    colour: b.colour,
+                })
+                .collect()
+        };
+        let mut bands = at(width);
+        if bands
+            .iter()
+            .zip(bands.iter().skip(1))
+            .any(|(a, b)| b.from <= a.from)
+        {
+            bands = at(fallback);
+        }
+        LuxBands {
+            bands,
+            blend: self.blend,
+        }
+    }
+
+    /// The table a map draws in by default: [`Self::canada_ohs_steps`] for
+    /// a map in lux; for a relative map, whose figures the regulation's
+    /// levels say nothing about, the same colours spread evenly from its
+    /// lowest figure to its highest ([`Self::spread`]), 0 to 1 when it has
+    /// none.
+    #[must_use]
+    pub fn for_map(map: &crate::IlluminanceMap, blend: BandBlend) -> LuxBands {
+        let steps = LuxBands::canada_ohs_steps(blend);
+        match map.unit {
+            crate::IlluminanceUnit::Lux => steps,
+            _ => {
+                let (lo, hi) = map.range().unwrap_or((0.0, 1.0));
+                steps.spread(lo, hi)
+            }
+        }
+    }
+
     /// The bands, rising.
     #[must_use]
     pub fn bands(&self) -> &[LuxBand] {

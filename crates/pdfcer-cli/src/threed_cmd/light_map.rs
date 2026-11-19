@@ -33,7 +33,8 @@ pub(crate) struct LightMapArgs {
     /// Regulations, SOR/86-304 Schedules I to IV, 10 to 1000 lux. A
     /// `light-map-band` line per band and the unit follow the `rendered`
     /// line. A model with no lux figure is mapped relative, and the
-    /// default bands then mean nothing; give --light-map-bands.
+    /// default bands are then the same colours spread evenly from its
+    /// lowest figure to its highest.
     #[arg(long, conflicts_with = "exposure_lux")]
     pub(crate) light_map: bool,
     /// The bands, as FROM:RRGGBB pairs rising, comma-separated, at most 16:
@@ -86,20 +87,26 @@ fn parse_bands(s: &str) -> Result<BandList, String> {
 
 #[cfg(feature = "3d")]
 impl LightMapArgs {
-    fn bands(&self) -> Result<pdfcer_3d::LuxBands, String> {
-        let blend = match self.light_map_blend {
+    fn blend(&self) -> pdfcer_3d::BandBlend {
+        match self.light_map_blend {
             LightMapBlendArg::Stepped => pdfcer_3d::BandBlend::Stepped,
             LightMapBlendArg::Graded => pdfcer_3d::BandBlend::Graded,
-        };
+        }
+    }
+
+    /// `--light-map-bands` as a table; `None` when not given.
+    fn given_bands(&self) -> Result<Option<pdfcer_3d::LuxBands>, String> {
         let Some(given) = &self.light_map_bands else {
-            return Ok(pdfcer_3d::LuxBands::canada_ohs_steps(blend));
+            return Ok(None);
         };
         let bands = given
             .0
             .iter()
             .map(|&(from, colour)| pdfcer_3d::LuxBand { from, colour })
             .collect();
-        pdfcer_3d::LuxBands::new(bands, blend).map_err(|err| format!("--light-map-bands: {err}"))
+        pdfcer_3d::LuxBands::new(bands, self.blend())
+            .map(Some)
+            .map_err(|err| format!("--light-map-bands: {err}"))
     }
 
     /// The light map, with the lines to print after the `rendered` line.
@@ -115,7 +122,7 @@ impl LightMapArgs {
         options: &pdfcer_3d::RenderOptions,
         settings: &pdfcer_3d::MeterSettings,
     ) -> Result<(pdfcer_3d::Image, Vec<String>), String> {
-        let bands = self.bands()?;
+        let given = self.given_bands()?;
         let prepared = pdfcer_3d::PreparedModel::new(model);
         let meter = pdfcer_3d::LightMeter::new(model, &prepared, camera, options, settings)
             .map_err(|err| format!("--light-map: {err}"))?;
@@ -131,6 +138,7 @@ impl LightMapArgs {
         let map = meter
             .map(spacing, side, &mut |_| true)
             .map_err(|err| format!("--light-map: {err}"))?;
+        let bands = given.unwrap_or_else(|| pdfcer_3d::LuxBands::for_map(&map, self.blend()));
         let image = pdfcer_3d::render_light_map(&map, &bands, camera, options)
             .map_err(|err| err.to_string())?;
         Ok((image, self.legend(&map, &bands)))
@@ -156,7 +164,13 @@ impl LightMapArgs {
         out.push(format!(
             "note: light-map: figures from {lo:.6} to {hi:.6} {unit}"
         ));
-        if self.light_map_bands.is_none() {
+        let relative = map.unit != pdfcer_3d::IlluminanceUnit::Lux;
+        if self.light_map_bands.is_none() && relative {
+            out.push(
+                "note: light-map: the figures are relative, so the bands are the default colours spread evenly from the lowest figure to the highest; the regulation's levels do not apply"
+                    .to_owned(),
+            );
+        } else if self.light_map_bands.is_none() {
             let s = pdfcer_3d::CANADA_OHS_SOURCE;
             out.push(format!(
                 "note: light-map: bands at the levels of {} ({}), current to {}, {}; {}. {}",
