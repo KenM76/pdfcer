@@ -164,6 +164,7 @@ pub use prc::tree::{
 pub use render::error::RenderError;
 #[cfg(feature = "render")]
 pub use render::mode::{EdgeSet, FaceColour, RenderMode, RenderModeKind};
+pub use render::over_range::{OverRange, toward_white};
 #[cfg(feature = "render")]
 pub use render::prepared::PreparedModel;
 #[cfg(feature = "render")]

@@ -1035,6 +1035,12 @@ fn a_fixed_exposure_draws_lux_over_the_white_point() {
     assert!(twice.abs() <= 2, "{dim} {dimmer}");
     assert_eq!(at("10"), 255);
     assert!(!stdout(&draw(&[])).contains("exposure:"));
+    let roll = "note: over-range: a colour brighter than full white is rolled toward white";
+    assert!(stdout(&draw(&["--exposure-lux", "40"])).contains(roll));
+    assert!(!stdout(&draw(&[])).contains(roll));
+    let clipped = stdout(&draw(&["--exposure-lux", "40", "--over-range", "clip"]));
+    assert!(!clipped.contains(roll), "{clipped}");
+    assert!(stdout(&draw(&["--over-range", "toward-white"])).contains(roll));
     let refused = draw(&["--exposure-lux", "40", "--artwork-headlight"]);
     assert_eq!(refused.status.code(), Some(9), "{refused:?}");
     let err = String::from_utf8_lossy(&refused.stderr);

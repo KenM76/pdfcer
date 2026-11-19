@@ -99,11 +99,24 @@ fn photometric_base(w: &mut BitWriter, name: Option<&str>, p: Photometric, id: u
         Photometric::Candela(v) => (CANDELA_KEY, v),
         Photometric::Lux(v) => (LUX_KEY, v),
     };
-    w.uint(1).uint(ATTRIBUTE);
-    w.bit(false).string(Some(PHOTOMETRIC_TITLE)).uint(1);
-    w.bit(false).string(Some(key)).uint(2).double(value);
+    attribute(w, PHOTOMETRIC_TITLE, (key, value));
     w.bit(false).string(name);
     w.uint(0).uint(0).uint(id);
+}
+
+/// `ContentPRCRefBase` of an unnamed entity (`same_name`) carrying one
+/// attribute `title` with one double `key` = `value`, CAD ids 0 and `id`.
+pub(super) fn attribute_base(w: &mut BitWriter, title: &str, kv: (&str, f64), id: u32) {
+    attribute(w, title, kv);
+    w.bit(true);
+    w.uint(0).uint(0).uint(id);
+}
+
+/// One attribute [WD 7.2.3.3, 7.4.3] titled `title` holding one double.
+fn attribute(w: &mut BitWriter, title: &str, (key, value): (&str, f64)) {
+    w.uint(1).uint(ATTRIBUTE);
+    w.bit(false).string(Some(title)).uint(1);
+    w.bit(false).string(Some(key)).uint(2).double(value);
 }
 
 fn light(w: &mut BitWriter, l: &ModelLight, diffuse: u32, ambient: u32, id: u32) {

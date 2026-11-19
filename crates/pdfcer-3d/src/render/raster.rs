@@ -236,6 +236,9 @@ pub(crate) struct PixelLights<'a> {
     pub(crate) gloss: Option<(&'a Gloss, &'a Resolved)>,
     /// Light bounced between surfaces, added per pixel.
     pub(crate) bounce: Option<&'a BounceLight>,
+    /// Whether an over-range colour rolls toward white
+    /// ([`crate::OverRange`]).
+    pub(crate) roll: bool,
 }
 
 impl PixelLights<'_> {
@@ -352,7 +355,7 @@ impl Target<'_> {
                             [0, 1, 2].map(|j| correct(&|c| at(f(c), j)))
                         })
                     }
-                    None => shaded(colour, shade),
+                    None => shaded(colour, shade, lights.roll),
                 };
                 self.blend(i, key, out);
             }
@@ -413,12 +416,13 @@ impl Target<'_> {
     }
 }
 
-/// `colour`'s RGB scaled channel by channel by `shade`, saturating at 255;
-/// alpha kept.
-fn shaded(colour: [u8; 4], shade: [f64; 3]) -> [u8; 4] {
+/// `colour`'s RGB scaled channel by channel by `shade`, over full white
+/// clipped or rolled toward white (`roll`); alpha kept.
+fn shaded(colour: [u8; 4], shade: [f64; 3], roll: bool) -> [u8; 4] {
     let [r, g, b, a] = colour;
     let [sr, sg, sb] = shade;
-    let [r, g, b] = [(r, sr), (g, sg), (b, sb)].map(|(v, s)| (f64::from(v) * s).round() as u8);
+    let v = [(r, sr), (g, sg), (b, sb)].map(|(v, s)| f64::from(v) * s);
+    let [r, g, b] = crate::render::over_range::to_8_bit(v, roll);
     [r, g, b, a]
 }
 

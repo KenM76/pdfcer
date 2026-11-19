@@ -235,3 +235,82 @@ fn the_gpu_lights_shade_the_floor_as_the_cpu_picture_does() {
     assert!((gpu - 0.25).abs() < 1e-6, "{gpu}");
     assert!((gpu - cpu).abs() <= 1.0 / 255.0, "{gpu} vs {cpu}");
 }
+
+#[test]
+fn a_picture_in_lux_rolls_over_range_toward_white_unless_told_to_clip() {
+    use crate::OverRange;
+    let model = floor(vec![lamp(Some(100.0))]);
+    for (asked, drawn) in [
+        (OverRange::Auto, OverRange::TowardWhite),
+        (OverRange::Clip, OverRange::Clip),
+        (OverRange::TowardWhite, OverRange::TowardWhite),
+    ] {
+        let o = RenderOptions {
+            over_range: asked,
+            ..options()
+        };
+        let exposed = fixed(100.0)
+            .lighting(&model, &o, &MeterSettings::default())
+            .unwrap();
+        assert_eq!(exposed.options.over_range, drawn, "{asked:?}");
+        let gpu = exposed.frame_lights(&camera()).unwrap();
+        assert_eq!(gpu.toward_white, drawn.rolls(), "{asked:?}");
+    }
+}
+
+/// The floor under a 100 cd lamp, glowing a twentieth of white at `nits`.
+fn glowing_floor(nits: Option<f64>) -> AssembledModel {
+    let mut model = floor(vec![lamp(Some(100.0))]);
+    let mut glow = crate::MaterialFinish::new([1.0; 3], [0.0; 3], 0.0);
+    glow.emissive = [0.05; 3];
+    glow.emissive_nits = nits;
+    model.finishes = vec![Some(glow)];
+    model
+}
+
+#[test]
+fn a_glow_of_stated_luminance_is_drawn_against_the_white_point() {
+    let nits = 4000.0 / std::f64::consts::PI;
+    let lit = middle(&floor(vec![lamp(Some(100.0))]), fixed(1000.0));
+    // 0.05 × nits·π / 1000 = 0.2 of full white on top of the lamp's light.
+    let stated = middle(&glowing_floor(Some(nits)), fixed(1000.0));
+    assert!(
+        (i32::from(stated) - i32::from(lit) - 51).abs() <= 1,
+        "{lit} {stated}"
+    );
+    let half = middle(&glowing_floor(Some(nits)), fixed(2000.0));
+    let lit_half = middle(&floor(vec![lamp(Some(100.0))]), fixed(2000.0));
+    assert!(
+        (i32::from(half) - i32::from(lit_half) - 26).abs() <= 1,
+        "{half}"
+    );
+    // Unstated: the stored colour, and a note says so.
+    let relative = middle(&glowing_floor(None), fixed(1000.0));
+    assert!(
+        (i32::from(relative) - i32::from(lit) - 13).abs() <= 1,
+        "{relative}"
+    );
+    let notes = |m| lighting(&m, fixed(1000.0)).notes;
+    assert!(notes(glowing_floor(None)).contains(&IlluminanceNote::GlowRelative(1)));
+    assert!(!notes(glowing_floor(Some(nits))).contains(&IlluminanceNote::GlowRelative(1)));
+    // The GPU's uniform is scaled the same way.
+    let exposed = lighting(&glowing_floor(Some(nits)), fixed(1000.0));
+    let finish = crate::gpu::finish::DrawFinish::new(
+        &glowing_floor(Some(nits)).finishes[0].unwrap(),
+        &exposed.options,
+    );
+    assert!(
+        (finish.emissive[0] - 0.2).abs() < 1e-5,
+        "{:?}",
+        finish.emissive
+    );
+    // Without an exposure the luminance plays no part.
+    let metered = Exposure::Metered
+        .lighting(
+            &glowing_floor(Some(nits)),
+            &options(),
+            &MeterSettings::default(),
+        )
+        .unwrap();
+    assert_eq!(metered.options.emissive_white_lux, None);
+}

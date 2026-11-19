@@ -20,6 +20,13 @@ pub struct MaterialFinish {
     pub specular: [f64; 3],
     /// Light the surface gives off itself, added unlit; black for none.
     pub emissive: [f64; 3],
+    /// The luminance, in cd/m² (nits), a channel of [`Self::emissive`] at 1
+    /// gives off, when the file states one (a glTF material with
+    /// `KHR_materials_emissive_strength`, converted by pdfcer). A picture
+    /// drawn in lux ([`crate::RenderOptions::emissive_white_lux`]) draws the
+    /// glow at that luminance; `None` is a relative glow, drawn at its
+    /// stored colour in every picture.
+    pub emissive_nits: Option<f64>,
     /// The stored shininess, read by [`ShininessScale`].
     pub shininess: f64,
 }
@@ -39,6 +46,7 @@ impl MaterialFinish {
             ambient,
             specular,
             emissive: [0.0; 3],
+            emissive_nits: None,
             shininess,
         }
     }

@@ -14,6 +14,7 @@ pub(crate) mod lines;
 pub(crate) mod mode;
 pub(crate) mod mode_frame;
 pub(crate) mod mode_lines;
+pub(crate) mod over_range;
 pub(crate) mod parallel;
 pub(crate) mod prepared;
 pub(crate) mod raster;
@@ -146,6 +147,17 @@ pub struct RenderOptions {
     /// the camera draws as before. The GPU path draws it from
     /// [`crate::FrameBounce`].
     pub indirect: crate::IndirectOptions,
+    /// What a colour brighter than full white draws as, on both paths
+    /// ([`OverRange::Auto`](crate::OverRange::Auto): rolled toward white in
+    /// a picture drawn in lux, else each channel clipped).
+    pub over_range: crate::OverRange,
+    /// The white point, in lux, a glow with a stated luminance
+    /// ([`crate::MaterialFinish::emissive_nits`]) is drawn against: a glow
+    /// of `L` cd/m² draws at `L·π / white` of full white, the luminance of
+    /// a white surface lit by `white` lux, on both paths. `None` (default)
+    /// draws every glow at its stored colour. [`crate::Exposure::Fixed`]
+    /// sets it.
+    pub emissive_white_lux: Option<f64>,
 }
 
 impl Default for RenderOptions {
@@ -178,6 +190,8 @@ impl Default for RenderOptions {
             render_mode: crate::RenderMode::default(),
             light_gain: 1.0,
             indirect: crate::IndirectOptions::default(),
+            over_range: crate::OverRange::Auto,
+            emissive_white_lux: None,
         }
     }
 }
@@ -378,6 +392,7 @@ pub(crate) fn render_view(
         height,
         gloss,
         bounce,
+        roll: options.over_range.rolls(),
     };
     let frame = Frame {
         scene: &scene,
@@ -435,6 +450,8 @@ pub(crate) struct Scene<'c> {
     gloss: Option<Gloss>,
     /// Light bounced between surfaces, when drawn.
     bounce: Option<&'c BounceLight>,
+    /// Whether an over-range colour rolls toward white.
+    roll: bool,
 }
 
 impl Scene<'_> {
@@ -493,6 +510,7 @@ impl Scene<'_> {
                 .as_ref()
                 .and_then(|g| Some((g, g.finish_of(mesh)?))),
             bounce: self.bounce,
+            roll: self.roll,
         }
     }
 

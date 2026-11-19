@@ -208,6 +208,10 @@ fn check_numbers(scene: &MeshScene) -> Result<(), PrcWriteError> {
         scene.materials.iter().flat_map(|m| m.emissive),
         "emissive colour",
     )?;
+    finite(
+        scene.materials.iter().filter_map(|m| m.emissive_nits),
+        "emissive luminance",
+    )?;
     for l in &scene.lights {
         finite(l.colour.into_iter().chain(l.ambient), "light colour")?;
         finite([l.intensity], "light intensity")?;

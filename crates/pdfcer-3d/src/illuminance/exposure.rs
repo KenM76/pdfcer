@@ -23,8 +23,10 @@ pub enum Exposure {
     /// building draw darker. Each light shines with its stated physical
     /// strength ([`ModelLight::photometric`]), not the strength it is drawn
     /// with: the scale an importer gave the lights, the ambient fill it
-    /// added and [`RenderOptions::light_gain`] play no part. Each channel
-    /// stops at full white, as every picture's does.
+    /// added and [`RenderOptions::light_gain`] play no part. A colour
+    /// brighter than full white rolls toward white
+    /// ([`crate::OverRange::TowardWhite`]) on both paths, unless the
+    /// options ask for [`crate::OverRange::Clip`].
     Fixed {
         /// Lux drawn as full white; positive and finite.
         white_lux: f64,
@@ -80,8 +82,9 @@ impl Exposure {
     ///
     /// [`Exposure::Fixed`] lights the picture as `settings`'
     /// [`LightMeter`](super::LightMeter) reads (its tint and length unit),
-    /// with the meter's light strengths divided by `white_lux` and a light
-    /// gain of 1. A glowing surface draws its own colour as in any picture
+    /// with the meter's light strengths divided by `white_lux`, a light
+    /// gain of 1, and [`crate::OverRange::Auto`] read as
+    /// [`crate::OverRange::TowardWhite`]. A glowing surface draws its own colour as in any picture
     /// and lights nothing ([`GlowLight::LeftOut`] whatever `settings` say).
     ///
     /// # Errors
@@ -143,15 +146,26 @@ impl Exposure {
                 ..l
             })
             .collect();
-        let notes = plan
+        let mut notes: Vec<IlluminanceNote> = plan
             .notes
             .into_iter()
             .filter(|n| !matches!(n, IlluminanceNote::GlowLeftOut(_)))
             .collect();
+        let relative = model
+            .finishes
+            .iter()
+            .flatten()
+            .filter(|f| f.is_emissive() && f.emissive_nits.is_none())
+            .count();
+        if relative > 0 {
+            notes.push(IlluminanceNote::GlowRelative(relative));
+        }
         Ok(ExposedLighting {
             lights,
             options: RenderOptions {
                 light_gain: 1.0,
+                over_range: options.over_range.in_lux(),
+                emissive_white_lux: Some(white_lux),
                 ..*options
             },
             white_lux: Some(white_lux),

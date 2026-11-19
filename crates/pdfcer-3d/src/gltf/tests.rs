@@ -758,3 +758,31 @@ fn a_file_needing_a_later_reader_is_refused() {
         .is_ok()
     );
 }
+
+#[test]
+fn an_emissive_strength_is_carried_through_prc_as_nits() {
+    let m = r#"{"name":"lens","emissiveFactor":[1,0.8,0.5],
+        "extensions":{"KHR_materials_emissive_strength":{"emissiveStrength":40}},
+        "pbrMetallicRoughness":{"baseColorTexture":{"index":0}}}"#;
+    let import = read(&textured_glb(PNG_HEADER, m), GltfOptions::default());
+    assert_eq!(import.scene.materials[0].emissive_nits, Some(40.0));
+    assert_eq!(import.scene.materials[1].emissive_nits, None);
+    let model = assemble(&write_prc(&import.scene).unwrap().prc).unwrap();
+    let nits: Vec<_> = model
+        .finishes
+        .iter()
+        .flatten()
+        .map(|f| f.emissive_nits)
+        .collect();
+    assert!(nits.contains(&Some(40.0)), "{nits:?}");
+    // No extension: a relative glow. The extension with no strength: 1.
+    let bare = r#"{"name":"lens","emissiveFactor":[1,1,1]}"#;
+    let import = read(&textured_glb(PNG_HEADER, bare), GltfOptions::default());
+    assert_eq!(import.scene.materials[0].emissive_nits, None);
+    let one = r#"{"emissiveFactor":[1,1,1],"extensions":{"KHR_materials_emissive_strength":{}}}"#;
+    let import = read(&textured_glb(PNG_HEADER, one), GltfOptions::default());
+    assert_eq!(import.scene.materials[0].emissive_nits, Some(1.0));
+    let bad = r#"{"extensions":{"KHR_materials_emissive_strength":{"emissiveStrength":-2}}}"#;
+    let import = read(&textured_glb(PNG_HEADER, bad), GltfOptions::default());
+    assert_eq!(import.scene.materials[0].emissive_nits, None);
+}

@@ -369,6 +369,7 @@ fn glow_room(emissive: [f64; 3]) -> (AssembledModel, RenderOptions) {
         ambient: [0.0; 3],
         specular: [0.0; 3],
         emissive,
+        emissive_nits: None,
         shininess: 0.0,
     }));
     let dark = RenderOptions {

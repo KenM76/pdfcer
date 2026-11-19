@@ -17,6 +17,7 @@ pub(crate) mod wire;
 use crate::Photometric;
 use crate::PrcError;
 use crate::model::light::{CANDELA_KEY, LUX_KEY, PHOTOMETRIC_TITLE};
+use crate::model::light::{EMISSIVE_TITLE, NITS_KEY};
 use crate::prc::bits::BitReader;
 use crate::prc::schema::Schema;
 use crate::prc::tess::face::{
@@ -164,6 +165,9 @@ pub(crate) struct Ctx<'a, 's> {
     /// The last `ContentPRCBase`'s physical light strength: the attribute
     /// pdfcer's writer puts on a light.
     pub(crate) photometric: Option<Photometric>,
+    /// The last `ContentPRCBase`'s emissive luminance, cd/m²: the attribute
+    /// pdfcer's writer puts on a glowing material.
+    pub(crate) emissive_nits: Option<f64>,
     /// Schema steps the reading pass has taken; a pass over several
     /// sections carries it from one reader to the next.
     pub(crate) schema_steps: u64,
@@ -192,6 +196,7 @@ impl<'a, 's> Ctx<'a, 's> {
             name: None,
             uid: 0,
             photometric: None,
+            emissive_nits: None,
             schema_steps: 0,
             elements: 0,
             names_cs: false,
@@ -276,24 +281,28 @@ impl Ctx<'_, '_> {
 
     /// `ContentPRCBase` [WD 7.2.3]: attributes, then the name; returns the
     /// entity's name, which is also the current name afterwards. Sets
-    /// [`Self::photometric`] from pdfcer's own attribute, clearing it when
-    /// the entity has none.
+    /// [`Self::photometric`] and [`Self::emissive_nits`] from pdfcer's own
+    /// attributes, clearing them when the entity has none.
     pub(crate) fn content_prc_base(&mut self) -> Result<Option<String>, PrcError> {
         self.photometric = None;
+        self.emissive_nits = None;
         let n = self.count(1, "attributes")?;
         for _ in 0..n {
             self.expect_type(ATTRIBUTE)?;
-            let ours = self.attribute_entry()?.as_deref() == Some(PHOTOMETRIC_TITLE);
+            let title = self.attribute_entry()?;
             let pairs = self.count(2, "attribute pairs")?;
             for _ in 0..pairs {
                 let key = self.attribute_entry()?;
-                let value = self.attribute_value()?.filter(|v| ours && v.is_finite());
-                match (key.as_deref(), value) {
-                    (Some(CANDELA_KEY), Some(v)) => {
+                let value = self.attribute_value()?.filter(|v| v.is_finite());
+                match (title.as_deref(), key.as_deref(), value) {
+                    (Some(PHOTOMETRIC_TITLE), Some(CANDELA_KEY), Some(v)) => {
                         self.photometric = Some(Photometric::Candela(v.max(0.0)));
                     }
-                    (Some(LUX_KEY), Some(v)) => {
+                    (Some(PHOTOMETRIC_TITLE), Some(LUX_KEY), Some(v)) => {
                         self.photometric = Some(Photometric::Lux(v.max(0.0)));
+                    }
+                    (Some(EMISSIVE_TITLE), Some(NITS_KEY), Some(v)) => {
+                        self.emissive_nits = Some(v.max(0.0));
                     }
                     _ => {}
                 }

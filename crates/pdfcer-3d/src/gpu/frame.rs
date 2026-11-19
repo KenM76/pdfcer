@@ -127,6 +127,9 @@ pub struct FrameLights {
     /// Lights beyond [`MAX_LIGHTS`] in either list, not drawn; for the host
     /// to disclose.
     pub dropped: usize,
+    /// `u_toward_white`: whether an over-range colour rolls toward white
+    /// ([`crate::OverRange::rolls`] of the options), as the CPU path does.
+    pub toward_white: bool,
 }
 
 impl FrameLights {
@@ -175,6 +178,7 @@ impl FrameLights {
             local_cones: Vec::new(),
             local_reach: Vec::new(),
             dropped: 0,
+            toward_white: options.over_range.rolls(),
         };
         let options = &crate::render::mode::frame_options(options);
         let (shader, lamps) =

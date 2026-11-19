@@ -77,6 +77,8 @@ impl PartialEq for RenderOptions {
             render_mode,
             light_gain,
             indirect,
+            over_range,
+            emissive_white_lux,
         } = self;
         (
             width,
@@ -110,8 +112,7 @@ impl PartialEq for RenderOptions {
             shadow_casters,
             shadow_alpha,
             shininess,
-            line_width,
-            render_mode,
+            (line_width, render_mode),
         ) == (
             &other.shadow_light,
             &other.shadow_map_size,
@@ -122,10 +123,10 @@ impl PartialEq for RenderOptions {
             &other.shadow_casters,
             &other.shadow_alpha,
             &other.shininess,
-            &other.line_width,
-            &other.render_mode,
+            (&other.line_width, &other.render_mode),
         ) && light_gain.to_bits() == other.light_gain.to_bits()
-            && *indirect == other.indirect
+            && (indirect, over_range) == (&other.indirect, &other.over_range)
+            && emissive_white_lux.map(f64::to_bits) == other.emissive_white_lux.map(f64::to_bits)
     }
 }
 
@@ -206,6 +207,34 @@ mod tests {
     #[test]
     fn a_gain_of_one_draws_every_scheme_as_before_the_gain() {
         assert_eq!(digest(1.0), DIGEST_BEFORE_THE_GAIN);
+    }
+
+    #[test]
+    fn an_over_range_frame_rolls_toward_white_only_when_asked() {
+        let at = |over_range| {
+            let o = RenderOptions {
+                colour: [240, 150, 60],
+                over_range,
+                ..options(LightingScheme::Artwork, 4.0)
+            };
+            render(&meshes(), &camera(), &o).unwrap().rgba
+        };
+        let (auto, clip, roll) = (
+            at(crate::OverRange::Auto),
+            at(crate::OverRange::Clip),
+            at(crate::OverRange::TowardWhite),
+        );
+        assert_eq!(auto, clip, "Auto clips outside a picture in lux");
+        let mut whiter = 0;
+        for (c, r) in clip.as_chunks::<4>().0.iter().zip(roll.as_chunks::<4>().0) {
+            let sum = |p: &[u8]| p[..3].iter().map(|&v| u32::from(v)).sum::<u32>();
+            assert!(sum(r) + 1 >= sum(c), "{c:?} {r:?}");
+            whiter += usize::from(r != c);
+        }
+        assert!(
+            whiter > 100,
+            "the gain drives the faces over range: {whiter}"
+        );
     }
 
     #[test]

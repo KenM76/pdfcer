@@ -3601,12 +3601,45 @@ let image = render_coloured(&meshes, &colours, &camera, &RenderOptions { width: 
   whenever `LightMeter` would read relative (`PictureLights`,
   `Headlight`, `Sun`, `UnitlessLights(n)`, `NoUnits`, `Sky`; `Asked` if
   `settings.basis` is `Relative`), so a shell can grey the option and
-  name the reason; `Display` joins the reasons. Only a `Clip` tone curve
-  exists. CLI: `3d-render ... --exposure-lux LUX` (uses
+  name the reason; `Display` joins the reasons. Over range:
+  `exposed.options.over_range` is `options.over_range` with `Auto` read
+  as `TowardWhite` (see **Over-range colour** below). CLI: `3d-render ... --exposure-lux LUX` (uses
   `--illuminance-tint` and `--illuminance-unit-mm`) prints `note:
   exposure: fixed, full white at LUX lux; ...` and any meter notes as
   `note: exposure: ...`, or refuses (exit 9) with `--exposure-lux: the
   picture cannot be drawn in lux: <reasons>`.
+- **Over-range colour** (`G305`, `render` feature):
+  `RenderOptions::over_range: OverRange::{Auto (default), Clip,
+  TowardWhite}` (`#[non_exhaustive]`, `ALL`, `as_str()` = the CLI name,
+  `rolls()`). What a lit colour with a channel above full white draws as,
+  identical on the CPU path and the GPU (`FrameLights::toward_white` →
+  `u_toward_white`, applied as the last step before the clip). `Clip`:
+  each channel stops at full white alone (a warm lamp lens turns amber).
+  `TowardWhite`: `pub fn toward_white([f64; 3]) -> [f64; 3]` (linear,
+  white 1) — scale so the brightest channel is 1, then mix with white
+  until the channel sum equals `min(sum, 3)`; order kept, continuous at 1,
+  negative/NaN as 0; the channel total is kept, not a weighted luminance.
+  `Auto`: `TowardWhite` under `Exposure::Fixed` (which rewrites the
+  options), `Clip` otherwise, so an unexposed picture is unchanged. CLI:
+  `3d-render --over-range auto|clip|toward-white`; when it rolls, prints
+  `note: over-range: a colour brighter than full white is rolled toward
+  white (--over-range clip clips each channel)`.
+- **Glow of stated luminance** (`G306`, `render` feature):
+  `MaterialFinish::emissive_nits: Option<f64>` — cd/m² a channel of
+  `emissive` at 1 gives off. Set from glTF `emissiveFactor` ×
+  `KHR_materials_emissive_strength.emissiveStrength` (default 1 when the
+  extension is present; `None` when it is absent, so a plain glTF glow
+  stays relative), written into the PRC as pdfcer's attribute
+  `pdfcer:emissive`/`nits` on the material and read back by `assemble`
+  (`SceneMaterial::emissive_nits` on the writer side; must be finite).
+  `RenderOptions::emissive_white_lux: Option<f64>` (default `None`): the
+  white point a stated glow is drawn against — emissive × `nits·π / white`
+  of full white (the luminance of a white surface at `white` lux), on both
+  paths (CPU and `DrawFinish`, so build GPU finishes from
+  `exposed.options`). `Exposure::Fixed` sets it to its white point; a
+  glowing material without nits is drawn at its stored colour and adds
+  `IlluminanceNote::GlowRelative(n)` (CLI: `note: exposure: n glowing
+  material(s) state no luminance ...`).
 - **Measure between two surfaces** (`pdfcer-3d`, feature `render`):
   `measure_surfaces(&model.meshes, &a, &b, &tolerance) ->
   Result<SurfaceMeasure, SurfaceMeasureError>` with `a`, `b` a
@@ -4103,9 +4136,7 @@ let image = render_coloured(&meshes, &colours, &camera, &RenderOptions { width: 
   from `BounceStats::for_model(&camera, &options, &model.lights) ->
   Result<BounceStats, RenderError>`; `bouncing` 0 with `camera_lights` > 0
   means "lit from the camera alone — `EveryLight` would bounce it".
-  **The GPU path (`FrameLights`, the WGSL shader) does not draw bounce
-  yet**: a GPU frame of a model with fixed lights differs from the CPU one
-  by the bounce (decision 223 parity gap, Pass 705.3); disclose it. CLI:
+  The GPU draws it from `PreparedModel::frame_bounce` (below). CLI:
   `--bounce off|model-lights|every-light`, `--bounce-strength 0-4`,
   `--bounce-sky dark|background`, disclosed as `note: lighting: bounce: …`.
   Every directional light: `RenderOptions::shadow_casters:
@@ -4446,7 +4477,14 @@ let image = render_coloured(&meshes, &colours, &camera, &RenderOptions { width: 
     `spacing`, `u_bounce_dims` = `dims` (ivec3), `u_bounce_strength` =
     `strength` on the main shader; with `None` set `u_bounce` false (the
     sampler still needs a unit). Rebuild only when the model, paint or
-    lights change, or every frame when `follows_camera` is true. Building
+    lights change, or every frame when `follows_camera` is true. For a new
+    `Exposure::Fixed` white point, `bounce.scaled(old_white / new_white)
+    -> FrameBounce` (`G307`) is the bounce of every light scaled by that
+    factor (bounce is linear in its lights): exact under `LampCut::Off`;
+    otherwise a factor ≤ 1 may keep light past the new lamp reach (at
+    most the cut) and a factor > 1 may lack up to factor × the cut. Draw
+    with it at once and rebuild off the frame loop; non-finite or
+    negative factor → 0. Building
     traces up to ~800,000 rays: do it off the frame loop. Under a
     `FrameLens`, build it once from the fisheye camera and use it on every
     face. WebGL 2 run (headless Edge, SwiftShader; lit room, 256²): GPU vs

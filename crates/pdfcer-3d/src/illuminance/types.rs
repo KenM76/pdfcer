@@ -228,6 +228,10 @@ pub enum IlluminanceNote {
     /// Light from glowing surfaces is counted only where it arrives
     /// straight from them: bounce is off, so none of it is reflected.
     GlowNotBounced,
+    /// This many glowing materials state no luminance, so a picture drawn
+    /// in lux draws them at their stored colour, not against the white
+    /// point.
+    GlowRelative(usize),
 }
 
 impl std::fmt::Display for IlluminanceNote {
@@ -257,6 +261,10 @@ impl std::fmt::Display for IlluminanceNote {
             IlluminanceNote::GlowNotBounced => {
                 f.write_str("the light of glowing surfaces is counted where it falls, not bounced")
             }
+            IlluminanceNote::GlowRelative(n) => write!(
+                f,
+                "{n} glowing material(s) state no luminance and are drawn at their stored colour"
+            ),
         }
     }
 }

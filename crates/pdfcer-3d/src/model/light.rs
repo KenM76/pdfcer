@@ -47,6 +47,11 @@ pub(crate) const PHOTOMETRIC_TITLE: &str = "pdfcer:photometric";
 pub(crate) const CANDELA_KEY: &str = "candela";
 /// The attribute's key for [`Photometric::Lux`].
 pub(crate) const LUX_KEY: &str = "lux";
+/// The title of the PRC attribute pdfcer's writer carries a material's
+/// [`crate::MaterialFinish::emissive_nits`] in.
+pub(crate) const EMISSIVE_TITLE: &str = "pdfcer:emissive";
+/// The attribute's key for the luminance, in cd/m².
+pub(crate) const NITS_KEY: &str = "nits";
 
 /// A light's physical strength ([`ModelLight::photometric`]), as glTF's
 /// `KHR_lights_punctual` states it. Distances are metres whatever the

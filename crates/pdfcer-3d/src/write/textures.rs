@@ -6,6 +6,7 @@ use super::sections::{base, ref_base};
 use super::validate::Plan;
 use super::{BitWriter, MeshScene, SceneMaterial};
 use crate::TextureWrap;
+use crate::model::light::{EMISSIVE_TITLE, NITS_KEY};
 
 const MATERIAL: u32 = 702;
 const PICTURE: u32 = 703;
@@ -193,7 +194,10 @@ fn material(w: &mut BitWriter, (m, mat): (usize, &SceneMaterial), emissive: u32,
     // Double-scaled colour index of material m's colour (WD 7.5.3).
     let colour = 3 * m as u32 + 1;
     w.uint(MATERIAL);
-    ref_base(w, None, id);
+    match mat.emissive_nits.filter(|_| glows(mat)) {
+        Some(nits) => super::lights::attribute_base(w, EMISSIVE_TITLE, (NITS_KEY, nits), id),
+        None => ref_base(w, None, id),
+    }
     w.uint(colour).uint(colour).uint(emissive).uint(0);
     w.double(0.0).doubles([alpha; 4]);
 }

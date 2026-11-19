@@ -119,6 +119,10 @@ pub struct SceneMaterial {
     /// through a material style; a textured material's primitive without
     /// coordinates is drawn in its RGB style and does not glow.
     pub emissive: [f64; 3],
+    /// The luminance, in cd/m² (nits), a channel of [`Self::emissive`] at 1
+    /// gives off, when the source states one; written with a glowing
+    /// material as pdfcer's own attribute ([`crate::MaterialFinish::emissive_nits`]).
+    pub emissive_nits: Option<f64>,
 }
 
 /// A base-colour picture.

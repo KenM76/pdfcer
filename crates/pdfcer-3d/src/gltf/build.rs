@@ -120,6 +120,7 @@ fn materials(
             rgba,
             texture: drawn.map(|d| d.texture),
             emissive: emissive(m, options.colours),
+            emissive_nits: emissive_nits(m),
         });
     }
     unread.note(out);
@@ -138,6 +139,24 @@ fn emissive(m: &Json, colours: GltfColours) -> [f64; 3] {
             c
         }
     })
+}
+
+/// The luminance of the material's emission in cd/m²: `emissiveFactor` is
+/// in nits [§3.9.2] scaled by `KHR_materials_emissive_strength`'s
+/// `emissiveStrength` (default 1). `None` without the extension: a file
+/// that does not ask for a physical glow is drawn at its stored colour,
+/// since reading a bare factor as at most 1 nit would draw every glow
+/// black in a picture drawn in lux. A strength that is not a finite,
+/// non-negative number is `None`.
+fn emissive_nits(m: &Json) -> Option<f64> {
+    let ext = m
+        .get("extensions")?
+        .get("KHR_materials_emissive_strength")?;
+    let s = match ext.get("emissiveStrength") {
+        None => 1.0,
+        Some(v) => v.as_f64()?,
+    };
+    (s.is_finite() && s >= 0.0).then_some(s)
 }
 
 /// The material's alpha: blended as given, opaque, or a mask drawn whole
@@ -206,6 +225,7 @@ fn meshes(doc: &Json, data: &Data<'_>, uses: &[Option<TextureUse>], out: &mut Gl
             rgba: [1.0; 4],
             texture: None,
             emissive: [0.0; 3],
+            emissive_nits: None,
         });
     }
 }

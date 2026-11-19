@@ -225,7 +225,7 @@ impl Gloss {
             add(add(mul(c, shade), ambient), f.emissive),
             mul(f.specular, glow),
         );
-        let [r, g, b] = v.map(|v| v.clamp(0.0, 255.0).round() as u8);
+        let [r, g, b] = crate::render::over_range::to_8_bit(v, lights.roll);
         [r, g, b, a]
     }
 
@@ -288,6 +288,18 @@ fn mul(a: [f64; 3], b: [f64; 3]) -> [f64; 3] {
     [x * u, y * v, z * w]
 }
 
+/// What a glow's stored colour is multiplied by: `nits·π / white_lux`
+/// when both are known (a white surface at `E` lux has luminance `E/π`),
+/// else 1.
+fn glow_scale(nits: Option<f64>, white_lux: Option<f64>) -> f64 {
+    match (nits, white_lux) {
+        (Some(n), Some(w)) if n.is_finite() && n >= 0.0 && w.is_finite() && w > 0.0 => {
+            n * std::f64::consts::PI / w
+        }
+        _ => 1.0,
+    }
+}
+
 /// `max(n·h, 0)^e` with `h` the unit half-vector of `l` and `v`; 0 when
 /// `n·h` is not positive, so `e` = 0 never meets 0⁰.
 fn blinn_phong(n: [f64; 3], v: [f64; 3], l: [f64; 3], e: f64) -> f64 {
@@ -300,13 +312,15 @@ fn blinn_phong(n: [f64; 3], v: [f64; 3], l: [f64; 3], e: f64) -> f64 {
 
 /// `f` in the 0–255 terms the CPU shader works in: the ambient colour
 /// rounded to 8 bits, so one equal to the diffuse colour changes nothing,
-/// and the shininess read through [`RenderOptions::shininess`].
+/// the shininess read through [`RenderOptions::shininess`], and a glow of
+/// stated luminance at [`RenderOptions::emissive_white_lux`].
 pub(crate) fn resolve(f: &MaterialFinish, options: &RenderOptions) -> Resolved {
     let to_255 = |c: [f64; 3]| c.map(|v| v.max(0.0) * 255.0);
+    let glow = glow_scale(f.emissive_nits, options.emissive_white_lux);
     Resolved {
         ambient: f.ambient.map(|v| (v.clamp(0.0, 1.0) * 255.0).round()),
         specular: to_255(f.specular),
-        emissive: to_255(f.emissive),
+        emissive: to_255(f.emissive).map(|v| v * glow),
         exponent: options.shininess.exponent(f.shininess),
     }
 }

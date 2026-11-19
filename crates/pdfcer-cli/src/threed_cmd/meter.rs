@@ -33,6 +33,19 @@ pub(crate) enum MeterGlowArg {
     LeftOut,
 }
 
+/// `--over-range`: what a colour brighter than full white draws as.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, clap::ValueEnum)]
+pub(crate) enum OverRangeArg {
+    /// Rolled toward white under --exposure-lux, clipped otherwise.
+    #[default]
+    Auto,
+    /// Each channel stops at full white on its own (a warm lamp turns amber).
+    Clip,
+    /// Scaled to full white, then mixed with white keeping its light (a warm
+    /// lamp reads near white).
+    TowardWhite,
+}
+
 /// The `3d-render` options that measure the light on a surface.
 #[derive(Clone, Debug, PartialEq, clap::Args)]
 pub(crate) struct MeterArgs {
@@ -91,6 +104,15 @@ pub(crate) struct MeterArgs {
     /// drawn as the lights are stored.
     #[arg(long, value_name = "LUX", value_parser = positive_lux)]
     pub(crate) exposure_lux: Option<f64>,
+    /// What a colour brighter than full white draws as: `auto` (default)
+    /// rolls it toward white under --exposure-lux and clips each channel
+    /// otherwise; `clip` stops each channel at full white on its own, so a
+    /// warm lamp lens turns amber; `toward-white` scales the colour until
+    /// its brightest channel is full white, then mixes in white to keep the
+    /// light the clip would throw away, so the lens reads near white. The
+    /// graphics-card picture uses the same rule.
+    #[arg(long, value_enum, default_value_t)]
+    pub(crate) over_range: OverRangeArg,
 }
 
 fn positive_lux(s: &str) -> Result<f64, String> {
@@ -138,6 +160,14 @@ impl MeterArgs {
             Some(white_lux) => pdfcer_3d::Exposure::Fixed { white_lux },
             None => pdfcer_3d::Exposure::Metered,
         };
+        let options = &pdfcer_3d::RenderOptions {
+            over_range: match self.over_range {
+                OverRangeArg::Auto => pdfcer_3d::OverRange::Auto,
+                OverRangeArg::Clip => pdfcer_3d::OverRange::Clip,
+                OverRangeArg::TowardWhite => pdfcer_3d::OverRange::TowardWhite,
+            },
+            ..*options
+        };
         let exposed = exposure
             .lighting(model, options, &self.settings())
             .map_err(|err| format!("--exposure-lux: {err}"))?;
@@ -151,6 +181,12 @@ impl MeterArgs {
                 "note: exposure: fixed, full white at {white} lux; each light at the physical strength it states, --light-gain and any ambient fill left out"
             ));
             notes.extend(exposed.notes.iter().map(|n| format!("note: exposure: {n}")));
+        }
+        if exposed.options.over_range.rolls() {
+            notes.push(
+                "note: over-range: a colour brighter than full white is rolled toward white (--over-range clip clips each channel)"
+                    .to_owned(),
+            );
         }
         Ok((image, notes))
     }

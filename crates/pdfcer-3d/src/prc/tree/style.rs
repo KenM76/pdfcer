@@ -88,6 +88,8 @@ pub(crate) struct Terms {
     pub(crate) emissive: u32,
     pub(crate) specular: u32,
     pub(crate) shininess: f64,
+    /// pdfcer's emissive luminance attribute, cd/m².
+    pub(crate) emissive_nits: Option<f64>,
 }
 
 /// What `FileStructureGlobals` contributes to placing and colouring.
@@ -180,6 +182,7 @@ impl Globals {
         };
         let mut finish = crate::MaterialFinish::new(ambient, black(terms.specular), shininess);
         finish.emissive = black(terms.emissive);
+        finish.emissive_nits = terms.emissive_nits;
         finish.of(diffuse)
     }
 }
@@ -285,6 +288,7 @@ impl Ctx<'_, '_> {
     fn material(&mut self) -> Result<Material, PrcError> {
         let t = self.r.unsigned_integer()?;
         self.content_prc_ref_base()?;
+        let emissive_nits = self.emissive_nits;
         let m = match t {
             MATERIAL => {
                 let ambient = self.r.unsigned_integer()?;
@@ -301,6 +305,7 @@ impl Ctx<'_, '_> {
                     emissive,
                     specular,
                     shininess,
+                    emissive_nits,
                 };
                 Material::Plain {
                     diffuse,

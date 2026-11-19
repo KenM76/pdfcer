@@ -141,6 +141,52 @@ pub struct FrameBounce {
     pub follows_camera: bool,
 }
 
+impl FrameBounce {
+    /// This bounce with every light that made it `factor` times as strong:
+    /// the irradiance texels times `factor`, the distance moments, the
+    /// in-use flags and [`Self::strength`] unchanged. Bounce light is
+    /// linear in the lights, so this is the bounce a rebuild would trace,
+    /// for a new [`crate::Exposure::Fixed`] white point (`factor` = old
+    /// `white_lux` / new) or [`crate::RenderOptions::light_gain`], with no
+    /// rays traced.
+    ///
+    /// Exact with [`crate::LampCut::Off`]. Under any other cut each lamp's
+    /// reach depends on how bright it is drawn: for `factor` ≤ 1 the result
+    /// still holds the light past the old reach the cut would now drop
+    /// (at most the cut, under half an 8-bit level by default); for
+    /// `factor` > 1 it lacks the light between the old reach and the new,
+    /// at most `factor` times the cut. Draw with it at once and rebuild
+    /// off the frame loop when the cut matters. A `factor` that is not
+    /// finite and non-negative gives 0.
+    ///
+    /// ```
+    /// # fn bounce() -> Option<pdfcer_3d::FrameBounce> { None }
+    /// if let Some(at_100_lux) = bounce() {
+    ///     let at_500_lux = at_100_lux.scaled(100.0 / 500.0);
+    ///     assert_eq!(at_500_lux.strength, at_100_lux.strength);
+    /// }
+    /// ```
+    #[must_use]
+    pub fn scaled(&self, factor: f64) -> FrameBounce {
+        let f = if factor.is_finite() && factor >= 0.0 {
+            factor as f32
+        } else {
+            0.0
+        };
+        let mut out = self.clone();
+        let width = (self.atlas_width as usize).max(1);
+        for (i, texel) in out.atlas.as_chunks_mut::<4>().0.iter_mut().enumerate() {
+            // The left 8 texels of each 16-wide tile hold irradiance.
+            if (i % width) % 16 < 8 {
+                for c in texel.iter_mut().take(3) {
+                    *c *= f;
+                }
+            }
+        }
+        out
+    }
+}
+
 impl PreparedModel {
     /// The bounce light of a frame of `model` drawn from `camera` with
     /// `options`, as [`PreparedModel::render`] adds it; `None` when that
@@ -452,6 +498,34 @@ mod tests {
             let got = prepared.frame_bounce(&model, &lens, &options()).unwrap();
             assert_eq!(got, planar, "{mapping:?}");
         }
+    }
+
+    #[test]
+    fn a_scaled_bounce_is_the_bounce_of_scaled_lights() {
+        let mut model = room();
+        let prepared = PreparedModel::new(&model);
+        let mut o = options();
+        o.lamp_cut = crate::LampCut::Off;
+        let full = prepared
+            .frame_bounce(&model, &camera(), &o)
+            .unwrap()
+            .unwrap();
+        model.lights[0].intensity *= 0.2;
+        let dim = prepared
+            .frame_bounce(&model, &camera(), &o)
+            .unwrap()
+            .unwrap();
+        let scaled = full.scaled(0.2);
+        assert_eq!(scaled.strength, dim.strength);
+        let worst = scaled
+            .atlas
+            .iter()
+            .zip(&dim.atlas)
+            .map(|(a, b)| (a - b).abs() / b.abs().max(1e-3))
+            .fold(0f32, f32::max);
+        assert!(worst < 1e-3, "worst relative {worst}");
+        assert!(full.atlas != dim.atlas, "the lights changed the bounce");
+        assert!(full.scaled(f64::NAN).atlas.iter().all(|v| v.is_finite()));
     }
 
     #[test]

@@ -117,7 +117,9 @@ void main() {
 /// it shows hidden. From [`crate::FrameBounce`], the light bounced off
 /// other surfaces: `u_bounce` (false without one), `u_bounce_atlas`,
 /// `u_bounce_origin`, `u_bounce_spacing`, `u_bounce_dims` and
-/// `u_bounce_strength`. Writes straight RGBA.
+/// `u_bounce_strength`. From [`crate::FrameLights::toward_white`],
+/// `u_toward_white`: the colour rolled toward white
+/// ([`crate::toward_white`]) before it is clipped. Writes straight RGBA.
 ///
 /// It writes `gl_FragDepth`: logarithmic in perspective (see
 /// [`crate::Camera::depth_range`] for the precision), the matrix's linear
@@ -181,6 +183,7 @@ uniform vec3 u_material_ambient;
 uniform vec3 u_specular;
 uniform vec3 u_emissive;
 uniform float u_shininess;
+uniform bool u_toward_white;
 uniform bool u_prepass;
 uniform highp sampler2D u_prepass_depth;
 uniform highp int u_prepass_spread;
@@ -429,6 +432,7 @@ vec3 finish(vec3 rgb, vec3 base, vec3 f, float sh, vec3 lamp_spec) {
 
 ",
     bounce_glsl!(),
+    crate::render::over_range::toward_white_glsl!(),
     r"void main() {
     vec4 base = u_colour;
     if (u_textured) {
@@ -468,6 +472,7 @@ vec3 finish(vec3 rgb, vec3 base, vec3 f, float sh, vec3 lamp_spec) {
     }
     vec3 rgb = base.rgb * s;
     if (u_finished && u_mode != 1) rgb = finish(rgb, base.rgb, f, sh, lamp_spec);
+    if (u_toward_white) rgb = toward_white(rgb);
     o_colour = vec4(clamp(rgb, 0.0, 1.0), base.a);
     gl_FragDepth = depth;
 }
@@ -535,6 +540,7 @@ mod tests {
             "u_bounce_spacing",
             "u_bounce_dims",
             "u_bounce_strength",
+            "u_toward_white",
         ] {
             assert!(
                 GLSL_ES_300_FRAGMENT.contains(&format!(" {name};")),
@@ -546,6 +552,19 @@ mod tests {
         assert!(GLSL_ES_300_FRAGMENT.contains(&format!(" u_lamp_far[{casters}];")));
         assert!(GLSL_ES_300_FRAGMENT.contains(&format!("i >= {casters})")));
         assert!(GLSL_ES_300_FRAGMENT.contains("int i = int(light(r, 1).w) - 1;"));
+    }
+
+    /// The CPU's over-range rule runs on the finished colour, just before
+    /// it is clipped, as `to_8_bit` runs it.
+    #[test]
+    fn the_over_range_roll_is_the_last_step_before_the_clip() {
+        let main = body("void main() {");
+        let at = |s: &str| main.find(s).unwrap_or(usize::MAX);
+        let finish = at("rgb = finish(");
+        let roll = at("if (u_toward_white) rgb = toward_white(rgb);");
+        let out = at("o_colour = vec4(clamp(rgb");
+        assert!(finish < roll && roll < out && out < usize::MAX);
+        assert!(GLSL_ES_300_FRAGMENT.contains("vec3 toward_white(vec3 c) {"));
     }
 
     /// The body of the fragment function declared `head`; empty if there is
