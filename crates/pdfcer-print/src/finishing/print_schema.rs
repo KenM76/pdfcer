@@ -1,8 +1,8 @@
-//! Finishing in the Windows Print Schema: the `JobStapleAllDocuments`,
-//! `JobHolePunch` and `JobOutputBin` features of a printer's
-//! PrintCapabilities document, and the delta PrintTicket that asks for
-//! them (Microsoft Print Schema Specification, public keywords). The
-//! schema has no fold types and no hole count, so those are refused.
+//! Finishing in the Windows Print Schema: the staple, hole-punch and
+//! output-bin features of a printer's PrintCapabilities document, job-,
+//! document- or page-wide, and the delta PrintTicket that asks for them
+//! (Microsoft Print Schema Specification, public keywords). The schema has
+//! no fold types and no hole count, so those are refused.
 
 use super::{Edge, Finishing, Staple};
 
@@ -11,9 +11,12 @@ pub const PSF: &str = "http://schemas.microsoft.com/windows/2003/08/printing/pri
 /// The Print Schema public keywords namespace.
 pub const PSK: &str = "http://schemas.microsoft.com/windows/2003/08/printing/printschemakeywords";
 
-const STAPLE_FEATURE: &str = "JobStapleAllDocuments";
-const PUNCH_FEATURE: &str = "JobHolePunch";
-const BIN_FEATURE: &str = "JobOutputBin";
+/// The features a choice may be listed under, searched in order; many
+/// drivers list only the document- or page-wide one. A choice is asked for
+/// under the first feature that offers it.
+const STAPLE_FEATURES: &[&str] = &["JobStapleAllDocuments", "DocumentStaple"];
+const PUNCH_FEATURES: &[&str] = &["JobHolePunch", "DocumentHolePunch"];
+const BIN_FEATURES: &[&str] = &["JobOutputBin", "DocumentOutputBin", "PageOutputBin"];
 
 /// An output bin, by its qualified option name: bin names are the
 /// driver's own, usually in a private namespace.
@@ -23,6 +26,15 @@ pub struct Bin {
     pub name: String,
     /// The option name's namespace URI.
     pub namespace: String,
+    feature: &'static str,
+}
+
+impl Bin {
+    /// The public-keyword feature the bin is listed under, such as
+    /// `JobOutputBin` or `PageOutputBin`.
+    pub const fn feature(&self) -> &'static str {
+        self.feature
+    }
 }
 
 /// The finishing a printer's PrintCapabilities document offers.
@@ -32,12 +44,43 @@ pub struct Capabilities {
     pub staples: Vec<Staple>,
     /// Hole-punch edges offered.
     pub punch: Vec<Edge>,
-    /// Output bins offered.
+    /// Output bins offered, each name once, under the first feature that
+    /// lists it.
     pub bins: Vec<Bin>,
+    staple_from: Vec<(Staple, &'static str)>,
+    punch_from: Vec<(Edge, &'static str)>,
+    listed: Vec<(&'static str, String, String)>,
+}
+
+impl Capabilities {
+    /// Whether `feature` lists the option `namespace`:`local` (the local
+    /// name without case). This is how a merged ticket is checked: it may
+    /// carry the same option under more than one feature.
+    pub fn lists(&self, feature: &str, namespace: &str, local: &str) -> bool {
+        self.listed
+            .iter()
+            .any(|(f, ns, l)| *f == feature && ns == namespace && l.eq_ignore_ascii_case(local))
+    }
+
+    /// The feature `s` is offered under, if it is offered.
+    pub fn staple_feature(&self, s: Staple) -> Option<&'static str> {
+        self.staple_from
+            .iter()
+            .find(|(v, _)| *v == s)
+            .map(|(_, f)| *f)
+    }
+
+    /// The feature `e` is offered under, if it is offered.
+    pub fn punch_feature(&self, e: Edge) -> Option<&'static str> {
+        self.punch_from
+            .iter()
+            .find(|(v, _)| *v == e)
+            .map(|(_, f)| *f)
+    }
 }
 
 impl Staple {
-    /// The public-keyword option of `JobStapleAllDocuments`.
+    /// The public-keyword option of a staple feature.
     pub const fn print_schema(self) -> &'static str {
         match self {
             Self::TopLeft => "StapleTopLeft",
@@ -54,7 +97,7 @@ impl Staple {
 }
 
 impl Edge {
-    /// The public-keyword option of `JobHolePunch`.
+    /// The public-keyword option of a hole-punch feature.
     pub const fn print_schema(self) -> &'static str {
         match self {
             Self::Left => "LeftEdge",
@@ -78,43 +121,66 @@ const STAPLES: [Staple; 9] = [
 ];
 const EDGES: [Edge; 4] = [Edge::Left, Edge::Top, Edge::Right, Edge::Bottom];
 
-/// Read the finishing features out of a PrintCapabilities document.
-/// Features the document does not carry come back empty.
+/// Each feature in `names`, with its options as (namespace, local name).
+type Listed = Vec<(&'static str, Vec<(String, String)>)>;
+
+/// Read the finishing features out of a PrintCapabilities document, or out
+/// of a PrintTicket (one option per feature). Features the document does
+/// not carry come back empty.
 ///
 /// # Errors
 ///
 /// The XML parser's message when `xml` is not well-formed.
 pub fn parse_capabilities(xml: &str) -> Result<Capabilities, String> {
     let doc = roxmltree::Document::parse(xml).map_err(|e| e.to_string())?;
-    let mut caps = Capabilities::default();
-    for feature in doc.descendants().filter(|n| is_psf(n, "Feature")) {
-        let Some((ns, local)) = qname(&feature, feature.attribute("name")) else {
-            continue;
-        };
-        if ns != PSK {
-            continue;
-        }
-        let options = feature
-            .children()
-            .filter(|n| is_psf(n, "Option"))
-            .filter_map(|o| qname(&o, o.attribute("name")));
-        match local {
-            STAPLE_FEATURE => {
-                caps.staples = keyword_options(options, &STAPLES, |s| s.print_schema())
+    let listed = |names: &[&'static str]| -> Listed {
+        names
+            .iter()
+            .map(|&name| (name, options_of(&doc, name)))
+            .collect()
+    };
+    let (staples, punches, outputs) = (
+        listed(STAPLE_FEATURES),
+        listed(PUNCH_FEATURES),
+        listed(BIN_FEATURES),
+    );
+    let staple_from = keyword_options(&staples, &STAPLES, Staple::print_schema);
+    let punch_from = keyword_options(&punches, &EDGES, Edge::print_schema);
+    let all = staples.iter().chain(&punches).chain(&outputs);
+    let listed = all
+        .flat_map(|(f, opts)| opts.iter().map(|(ns, l)| (*f, ns.clone(), l.clone())))
+        .collect();
+    let mut bins: Vec<Bin> = Vec::new();
+    for (feature, options) in outputs {
+        for (namespace, name) in options {
+            if !bins.iter().any(|b| b.name.eq_ignore_ascii_case(&name)) {
+                bins.push(Bin {
+                    name,
+                    namespace,
+                    feature,
+                });
             }
-            PUNCH_FEATURE => caps.punch = keyword_options(options, &EDGES, |e| e.print_schema()),
-            BIN_FEATURE => {
-                caps.bins = options
-                    .map(|(namespace, name)| Bin {
-                        name: name.to_owned(),
-                        namespace: namespace.to_owned(),
-                    })
-                    .collect();
-            }
-            _ => {}
         }
     }
-    Ok(caps)
+    Ok(Capabilities {
+        staples: staple_from.iter().map(|(s, _)| *s).collect(),
+        punch: punch_from.iter().map(|(e, _)| *e).collect(),
+        bins,
+        staple_from,
+        punch_from,
+        listed,
+    })
+}
+
+/// The options of every public-keyword feature `name` in `doc`.
+fn options_of(doc: &roxmltree::Document<'_>, name: &str) -> Vec<(String, String)> {
+    doc.descendants()
+        .filter(|n| is_psf(n, "Feature"))
+        .filter(|f| qname(f, f.attribute("name")) == Some((PSK, name)))
+        .flat_map(|f| f.children().filter(|n| is_psf(n, "Option")))
+        .filter_map(|o| qname(&o, o.attribute("name")))
+        .map(|(ns, local)| (ns.to_owned(), local.to_owned()))
+        .collect()
 }
 
 fn is_psf(node: &roxmltree::Node<'_, '_>, local: &str) -> bool {
@@ -128,23 +194,26 @@ fn qname<'a>(node: &roxmltree::Node<'a, '_>, value: Option<&'a str>) -> Option<(
     Some((node.lookup_namespace_uri(Some(prefix))?, local))
 }
 
-fn keyword_options<'a, T: Copy>(
-    options: impl Iterator<Item = (&'a str, &'a str)>,
+/// Each of `all` some feature offers as a public keyword, with the first
+/// such feature in `listed` order.
+fn keyword_options<T: Copy>(
+    listed: &Listed,
     all: &[T],
     keyword: impl Fn(T) -> &'static str,
-) -> Vec<T> {
-    let offered: Vec<_> = options
-        .filter(|(ns, _)| *ns == PSK)
-        .map(|(_, l)| l)
-        .collect();
+) -> Vec<(T, &'static str)> {
     all.iter()
-        .copied()
-        .filter(|v| offered.contains(&keyword(*v)))
+        .filter_map(|&v| {
+            listed
+                .iter()
+                .find(|(_, opts)| opts.iter().any(|(ns, l)| ns == PSK && l == keyword(v)))
+                .map(|(feature, _)| (v, *feature))
+        })
         .collect()
 }
 
 /// The delta PrintTicket asking for `f` on a printer offering `caps`, or
-/// `None` when `f` asks for nothing this schema carries.
+/// `None` when `f` asks for nothing this schema carries. Each choice is
+/// asked for under the feature `caps` offers it in.
 ///
 /// # Errors
 ///
@@ -154,17 +223,15 @@ pub fn delta_ticket(f: &Finishing, caps: &Capabilities) -> Result<Option<String>
     let mut refused = Vec::new();
     let mut features = String::new();
     if let Some(s) = f.staple {
-        if caps.staples.contains(&s) {
-            features.push_str(&feature(STAPLE_FEATURE, "psk", s.print_schema()));
-        } else {
-            refused.push(format!("staple {s:?}: not offered by this printer"));
+        match caps.staple_feature(s) {
+            Some(name) => features.push_str(&feature(name, "psk", s.print_schema())),
+            None => refused.push(format!("staple {s:?}: not offered by this printer")),
         }
     }
     if let Some(e) = f.punch {
-        if caps.punch.contains(&e) {
-            features.push_str(&feature(PUNCH_FEATURE, "psk", e.print_schema()));
-        } else {
-            refused.push(format!("punch {e:?}: not offered by this printer"));
+        match caps.punch_feature(e) {
+            Some(name) => features.push_str(&feature(name, "psk", e.print_schema())),
+            None => refused.push(format!("punch {e:?}: not offered by this printer")),
         }
     }
     if f.holes.is_some() {
@@ -183,7 +250,7 @@ pub fn delta_ticket(f: &Finishing, caps: &Capabilities) -> Result<Option<String>
                 if prefix == "bin" {
                     extra_ns = format!(" xmlns:bin=\"{}\"", escape(&bin.namespace));
                 }
-                features.push_str(&feature(BIN_FEATURE, prefix, &bin.name));
+                features.push_str(&feature(bin.feature, prefix, &bin.name));
             }
             None => refused.push(format!("output bin {want:?}: not offered by this printer")),
         }
@@ -199,6 +266,42 @@ pub fn delta_ticket(f: &Finishing, caps: &Capabilities) -> Result<Option<String>
          <psf:PrintTicket xmlns:psf=\"{PSF}\" xmlns:psk=\"{PSK}\"{extra_ns} version=\"1\">\
          {features}</psf:PrintTicket>"
     )))
+}
+
+/// The requests the merged ticket no longer carries under the feature
+/// the delta asked in: a driver resolves a conflict by substituting, and
+/// reports success when it does. `caps` is what the delta was built
+/// from, `kept` the merged ticket read back.
+pub fn dropped(f: &Finishing, caps: &Capabilities, kept: &Capabilities) -> Vec<String> {
+    let mut out = Vec::new();
+    let kept_under = |feature: Option<&str>, option: &str| {
+        feature.is_some_and(|name| kept.lists(name, PSK, option))
+    };
+    if let Some(s) = f
+        .staple
+        .filter(|&s| !kept_under(caps.staple_feature(s), s.print_schema()))
+    {
+        out.push(format!(
+            "staple {s:?}: the driver substituted another setting"
+        ));
+    }
+    if let Some(e) = f
+        .punch
+        .filter(|&e| !kept_under(caps.punch_feature(e), e.print_schema()))
+    {
+        out.push(format!(
+            "punch {e:?}: the driver substituted another setting"
+        ));
+    }
+    let asked = |b: &str| caps.bins.iter().find(|c| c.name.eq_ignore_ascii_case(b));
+    if let Some(b) = &f.output_bin
+        && !asked(b).is_some_and(|c| kept.lists(c.feature(), &c.namespace, &c.name))
+    {
+        out.push(format!(
+            "output bin {b:?}: the driver substituted another bin"
+        ));
+    }
+    out
 }
 
 fn feature(name: &str, prefix: &str, option: &str) -> String {

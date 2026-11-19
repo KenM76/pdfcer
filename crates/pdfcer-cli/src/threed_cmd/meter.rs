@@ -126,6 +126,8 @@ fn positive_lux(s: &str) -> Result<f64, String> {
 
 #[cfg(feature = "3d")]
 impl MeterArgs {
+    /// The meter settings these flags ask for; the light map shares them
+    /// so its figures match a reading taken with the same flags.
     pub(super) fn settings(&self) -> pdfcer_3d::MeterSettings {
         let mut s = pdfcer_3d::MeterSettings::default();
         s.basis = match self.illuminance_basis {

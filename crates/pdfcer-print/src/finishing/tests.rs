@@ -1,7 +1,7 @@
 // Test code: a panic is the failure report.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::indexing_slicing)]
 
-use super::print_schema::{Capabilities, PSF, PSK, delta_ticket, parse_capabilities};
+use super::print_schema::{Capabilities, PSF, PSK, delta_ticket, dropped, parse_capabilities};
 use super::*;
 
 fn ask(
@@ -127,4 +127,98 @@ fn empty_request_needs_no_ticket() {
 #[test]
 fn malformed_capabilities_are_an_error() {
     assert!(parse_capabilities("<psf:PrintCapabilities").is_err());
+}
+
+/// A capabilities document (or ticket) listing one psk feature with one
+/// option.
+fn only(feature: &str, option: &str) -> String {
+    format!(
+        "<psf:PrintCapabilities xmlns:psf=\"{PSF}\" xmlns:psk=\"{PSK}\">\
+         <psf:Feature name=\"psk:{feature}\"><psf:Option name=\"psk:{option}\"/></psf:Feature>\
+         </psf:PrintCapabilities>"
+    )
+}
+
+/// The feature names a delta ticket carries.
+fn ticket_features(ticket: &str) -> Vec<String> {
+    let doc = roxmltree::Document::parse(ticket).unwrap();
+    doc.descendants()
+        .filter(|n| n.tag_name().name() == "Feature")
+        .map(|n| n.attribute("name").unwrap().to_owned())
+        .collect()
+}
+
+#[test]
+fn a_document_wide_staple_is_offered_and_asked_for_by_its_own_name() {
+    let caps = parse_capabilities(&only("DocumentStaple", "SaddleStitch")).unwrap();
+    assert_eq!(caps.staples, vec![Staple::Saddle]);
+    let f = ask(Some(Staple::Saddle), None, None, None);
+    let ticket = delta_ticket(&f, &caps).unwrap().unwrap();
+    assert_eq!(ticket_features(&ticket), ["psk:DocumentStaple"]);
+}
+
+#[test]
+fn a_document_wide_punch_is_offered() {
+    let caps = parse_capabilities(&only("DocumentHolePunch", "TopEdge")).unwrap();
+    assert_eq!(caps.punch, vec![Edge::Top]);
+    let f = ask(None, Some(Edge::Top), None, None);
+    let ticket = delta_ticket(&f, &caps).unwrap().unwrap();
+    assert_eq!(ticket_features(&ticket), ["psk:DocumentHolePunch"]);
+}
+
+#[test]
+fn a_page_wide_bin_is_offered_by_name_without_case() {
+    let caps = parse_capabilities(&only("PageOutputBin", "AutoSelect")).unwrap();
+    assert_eq!(caps.bins.len(), 1);
+    assert_eq!(caps.bins[0].feature(), "PageOutputBin");
+    let f = Finishing {
+        output_bin: Some("autoselect".into()),
+        ..Finishing::default()
+    };
+    let ticket = delta_ticket(&f, &caps).unwrap().unwrap();
+    assert_eq!(ticket_features(&ticket), ["psk:PageOutputBin"]);
+}
+
+#[test]
+fn a_job_wide_feature_wins_over_a_document_wide_one() {
+    let xml = format!(
+        "<psf:PrintCapabilities xmlns:psf=\"{PSF}\" xmlns:psk=\"{PSK}\">\
+         <psf:Feature name=\"psk:DocumentStaple\"><psf:Option name=\"psk:StapleTopLeft\"/></psf:Feature>\
+         <psf:Feature name=\"psk:JobStapleAllDocuments\"><psf:Option name=\"psk:StapleTopLeft\"/></psf:Feature>\
+         </psf:PrintCapabilities>"
+    );
+    let caps = parse_capabilities(&xml).unwrap();
+    assert_eq!(
+        caps.staple_feature(Staple::TopLeft),
+        Some("JobStapleAllDocuments")
+    );
+}
+
+#[test]
+fn a_merge_that_drops_the_document_wide_option_is_refused() {
+    let caps = parse_capabilities(&only("DocumentStaple", "SaddleStitch")).unwrap();
+    let f = ask(Some(Staple::Saddle), None, None, None);
+    let kept = parse_capabilities(&only("DocumentStaple", "SaddleStitch")).unwrap();
+    assert!(dropped(&f, &caps, &kept).is_empty());
+    let substituted = parse_capabilities(&only("DocumentStaple", "StapleTopLeft")).unwrap();
+    assert_eq!(dropped(&f, &caps, &substituted).len(), 1);
+    let moved = parse_capabilities(&only("JobStapleAllDocuments", "SaddleStitch")).unwrap();
+    assert_eq!(
+        dropped(&f, &caps, &moved).len(),
+        1,
+        "kept under another feature"
+    );
+}
+
+#[test]
+fn a_merge_that_drops_a_page_wide_bin_is_refused() {
+    let caps = parse_capabilities(&only("PageOutputBin", "AutoSelect")).unwrap();
+    let f = Finishing {
+        output_bin: Some("autoselect".into()),
+        ..Finishing::default()
+    };
+    let kept = parse_capabilities(&only("PageOutputBin", "AutoSelect")).unwrap();
+    assert!(dropped(&f, &caps, &kept).is_empty());
+    let other = parse_capabilities(&only("PageOutputBin", "Upper")).unwrap();
+    assert_eq!(dropped(&f, &caps, &other).len(), 1);
 }

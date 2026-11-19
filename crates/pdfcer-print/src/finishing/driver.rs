@@ -72,7 +72,7 @@ mod imp {
     };
     use windows::core::{BSTR, HSTRING};
 
-    use super::super::print_schema::{delta_ticket, parse_capabilities};
+    use super::super::print_schema::{delta_ticket, dropped, parse_capabilities};
     use super::{Capabilities, Finishing, PrintError, PrinterConfiguration};
 
     /// A capabilities document or ticket larger than this is refused: the
@@ -290,35 +290,11 @@ mod imp {
         };
         let merged = provider.merge(&provider.ticket_from(base)?, &delta)?;
         let kept = parsed(printer, &read_text(&merged).map_err(|e| fail(printer, &e))?)?;
-        let dropped = dropped(f, &kept);
+        let dropped = dropped(f, &caps, &kept);
         if !dropped.is_empty() {
             return Err(refused(dropped));
         }
         rewind(&merged).map_err(|e| fail(printer, &e))?;
         provider.devmode(&merged)
-    }
-
-    /// The requests the merged ticket no longer carries: a driver resolves a
-    /// conflict by substituting, and reports success when it does.
-    fn dropped(f: &Finishing, kept: &Capabilities) -> Vec<String> {
-        let mut out = Vec::new();
-        if let Some(s) = f.staple.filter(|s| !kept.staples.contains(s)) {
-            out.push(format!(
-                "staple {s:?}: the driver substituted another setting"
-            ));
-        }
-        if let Some(e) = f.punch.filter(|e| !kept.punch.contains(e)) {
-            out.push(format!(
-                "punch {e:?}: the driver substituted another setting"
-            ));
-        }
-        if let Some(b) = &f.output_bin
-            && !kept.bins.iter().any(|k| k.name.eq_ignore_ascii_case(b))
-        {
-            out.push(format!(
-                "output bin {b:?}: the driver substituted another bin"
-            ));
-        }
-        out
     }
 }
