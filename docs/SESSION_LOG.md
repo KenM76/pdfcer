@@ -4,6 +4,16 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-11-19 (1629th filing) — `Pass 723.8` (`c2c0efeb`, `X097`) and `Pass 723.9` (`519d0f81`, `X098`) SHIPPED; both in `v0.161.0`
+
+**Filed (engineer-reported; no shell here, git, push and CI state not checked from here):**
+- `c2c0efeb`: the `pdfcer-text` extractor now honours an ExtGState `/Font [font-ref size]` as it does `Tf` (ISO 32000-2 §8.4.5), cached by object id; `Q` now restores the font's resource name (glyph provenance), fixed on discovery. 3 tests in `crates/pdfcer-text/tests/unit_extgstate_font.rs`, sabotage-checked. Reply `reply_X097_text_extraction_reads_extgstate_font_SHIPPED.md`.
+- `519d0f81`: `pdfcer-model` `parse_rect` used to skip non-number entries, shifting corners; it now returns `BadRectangle` for any non-number, requires four finite values, and still resolves indirect entries. 2 tests in `page_tree.rs`, sabotage-checked. Reply `reply_X098_parse_rect_rejects_non_numbers_SHIPPED.md`.
+- Gates: clippy, workspace tests for model/text/core, fmt, `check-code-structure`, `check-string-gaps`, `check-tests-harnessed` all green.
+- Deliveries: core only for both; cli/gui unchanged. FEATURES: no row changed (bug fixes, no new capability; a grep of FEATURES.md for ExtGState-font and `parse_rect`/`BadRectangle` wording found nothing to correct).
+
+**Open:** unreleased, `v0.161.0` with `723.6`, `723.7`, `647.14`. Next free IDs: `Pass 647.15`, `717.4`, `718.5`, `720.3`, `721.15`, `722.10`, `723.10`, `647.3h`; decision `225`; rule `R264`. `docs/NEXT_SESSION.md` engineer-owned, not edited.
+
 ## 2026-11-19 (1628th filing) — `Pass 647.14` (`08946512`, `G304`) SHIPPED: a choice list's value reads back as its selections; in `v0.161.0`
 
 **Filed (engineer-reported; no shell here, git, push and CI state not checked from here):**

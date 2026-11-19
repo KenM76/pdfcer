@@ -112,6 +112,22 @@ wherever it appears.*
 
 ## Shipped
 
+### `519d0f81` `Pass 723.9`: a rectangle with a non-number entry is rejected, not shifted, 2026-11-19 (1629th filing)
+
+Engineer-reported; no shell here, git, push and CI state not checked from here. `519d0f81` `fix(model): a rectangle with a non-number entry is rejected, not shifted`. Request `X098` (reply `reply_X098_parse_rect_rejects_non_numbers_SHIPPED.md`). Opened and shipped in one filing. **Unreleased**: lands in `v0.161.0` with `723.6`, `723.7`, `723.8` and `647.14`. Reasoning is in the commit message. **core** only; cli/gui boxes unchanged.
+- **Fix:** `pdfcer-model` `parse_rect` used to skip non-number entries, so a rectangle such as `[0 /X 612 792]` read as three numbers shifted into the wrong corners. It now rejects any non-number entry with `BadRectangle`. All four values must be finite; indirect entries still resolve.
+- **Tests (engineer-reported):** two new tests in `page_tree.rs`, sabotage-checked.
+- **Gates (engineer-reported):** clippy, workspace tests for model/text/core, fmt, `check-code-structure`, `check-string-gaps`, `check-tests-harnessed` all green.
+- **FEATURES:** no row changed (a bug fix, no new capability).
+
+### `c2c0efeb` `Pass 723.8`: text extraction selects the font an ExtGState /Font names, 2026-11-19 (1629th filing)
+
+Engineer-reported; no shell here, git, push and CI state not checked from here. `c2c0efeb` `fix(text): text extraction selects the font an ExtGState /Font names`. Request `X097` (reply `reply_X097_text_extraction_reads_extgstate_font_SHIPPED.md`). Opened and shipped in one filing. **Unreleased**: lands in `v0.161.0`. Reasoning is in the commit message. **core** only; text-extraction consumers (cli, gui) get it for free, so their boxes are unchanged.
+- **Fix:** ISO 32000-2 §8.4.5: an ExtGState `/Font [font-ref size]` now selects a font in the `pdfcer-text` extractor, exactly as `Tf` does. The font is cached by object id.
+- **Fixed on discovery:** `Q` now restores the font's resource name, which is used for glyph provenance.
+- **Tests (engineer-reported):** three tests in `crates/pdfcer-text/tests/unit_extgstate_font.rs`, sabotage-checked.
+- **FEATURES:** no row changed (a bug fix, no new capability).
+
 ### `08946512` `Pass 647.14`: a choice list's value reads back as its selections, 2026-11-19 (1628th filing)
 
 Engineer-reported; no shell here, git, push and CI state not checked from here. `08946512` `feat(xfa): a choice list's value reads back as its selections`. Request `G304` (`pdfcer-gui`; `open/request_G304_xfa_multiselect_values_public.md`; reply `open/reply_G304_xfa_multiselect_values_public_SHIPPED.md`, name elided as supplied). Opened and shipped in one filing. **Unreleased**: lands in `v0.161.0` with `723.6` and `723.7`. Reasoning is in the commit message. **core** only; cli unchanged (nothing new, though `--fillable` and the painter already use the rule); gui is the consumer and will delete its own copy (its box not ticked here).
@@ -27990,6 +28006,8 @@ closes out the *prior* filing's business rather than opening this one's.
 > **`Pass 723.6` (`ba072d65`, `X095`) and `Pass 723.7` (`934851fc`, `X096`) SHIPPED 2026-11-18 (1626th filing); see their *Shipped* entries (opened and shipped in one filing; unreleased, they join `v0.161.0`, NOT `v0.160.0`).** Next free IDs: `Pass 647.14`, `Pass 717.4`, `Pass 718.5`, `Pass 720.3`, `Pass 721.15`, `Pass 722.10`, `Pass 723.8`, `Pass 647.3h`; decision `225`, rule `R264`. `723.6` was the next free ID per the 1625th banner and `723.7` followed it (engineer states `723.8` next; no shell).
 
 > **`Pass 647.14` (`08946512`, `G304`) SHIPPED 2026-11-19 (1628th filing); see its *Shipped* entry (opened and shipped in one filing; unreleased, joins `v0.161.0`).** Next free IDs: `Pass 647.15`, `Pass 717.4`, `Pass 718.5`, `Pass 720.3`, `Pass 721.15`, `Pass 722.10`, `Pass 723.8`, `Pass 647.3h`; decision `225`, rule `R264` (the others unchanged from the 1626th filing, not re-measured; no shell).
+
+> **`Pass 723.8` (`c2c0efeb`, `X097`) and `Pass 723.9` (`519d0f81`, `X098`) SHIPPED 2026-11-19 (1629th filing); see their *Shipped* entries (opened and shipped in one filing; unreleased, join `v0.161.0`).** Next free IDs: `Pass 647.15`, `Pass 717.4`, `Pass 718.5`, `Pass 720.3`, `Pass 721.15`, `Pass 722.10`, `Pass 723.10`, `Pass 647.3h`; decision `225`, rule `R264` (engineer-supplied; not re-measured; no shell).
 
 > **`d278cc2a` (follow-up fix to `Pass 647.12`, no new ID) FILED 2026-11-18 (1617th filing); see its *Shipped* entry (unreleased, joins the `v0.159.0` round).** Next free IDs unchanged from the 1616th banner.
 
