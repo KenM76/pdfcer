@@ -4,6 +4,19 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-11-19 (1642nd filing) — `Pass 721.22` (`e7ffcea4`, `X100`) SHIPPED
+
+**Filed (engineer-reported; no shell here, git, push, CI and the gates not run or checked from here):**
+- `e7ffcea4ae8bb1f724d0d6357128df7c00b919e4` `fix(print): finishing reads the document- and page-wide Print Schema features`. Unreleased; inside `v0.164.0` (bump filed in the 1641st, not yet tagged). Windows driver finishing now searches ordered feature lists (staple, punch, bin) and asks under the first feature offering the choice; `dropped` check moved into `print_schema.rs`. Full list in the ROADMAP *Shipped* entry.
+- Same commit restored the missing doc on `MeterArgs::settings` (`threed_cmd/meter.rs`), which had reddened the CI public-fns-documented audit on `866d1836`.
+- Tests (engineer-reported): 6 new finishing tests; `pdfcer-print` 186 lib + 11; CLI `print_finishing` 6. Sabotage (staple list cut) failed 2 tests.
+
+**FEATURES:** Print finishing row gained one clause; no box changed (core `[x]` for the IPP check only, gui `[ ]`).
+
+**Sweep (hard rule 11):** no counter or capability changed meaning. Not swept from here: `crates/` strings (any "one feature per choice" wording in `finishing/` docs would be a survivor).
+
+**Open:** `v0.164.0` still to tag, package, publish. Next free IDs: `Pass 647.15`, `717.4`, `718.5`, `720.3`, `721.23`, `722.10`, `723.11`, `647.3h`; decision `225`; rule `R264`. `docs/NEXT_SESSION.md` engineer-owned, not edited.
+
 ## 2026-11-19 (1641st filing) — `v0.164.0` release bump (`f837cac1`); not yet tagged, packaged or published
 
 **Filed (engineer-reported; no shell here, git, push, CI and OneDrive state not checked from here):**
