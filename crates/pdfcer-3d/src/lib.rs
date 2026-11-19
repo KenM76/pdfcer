@@ -119,9 +119,9 @@ pub use gpu::wide_lines::GLSL_ES_300_WIDE_LINE_VERTEX;
 pub use gpu::{Draw, DrawData, VERTEX_FLOATS};
 #[cfg(feature = "render")]
 pub use illuminance::{
-    GlowLight, Illuminance, IlluminanceError, IlluminanceNote, IlluminanceQuery, IlluminanceUnit,
-    LightMeter, LightShare, LightTint, MAX_ILLUMINANCE_RAYS, MAX_ILLUMINANCE_SAMPLES, MeterBasis,
-    MeterSettings, RelativeReason,
+    ExposedLighting, Exposure, ExposureError, GlowLight, Illuminance, IlluminanceError,
+    IlluminanceNote, IlluminanceQuery, IlluminanceUnit, LightMeter, LightShare, LightTint,
+    MAX_ILLUMINANCE_RAYS, MAX_ILLUMINANCE_SAMPLES, MeterBasis, MeterSettings, RelativeReason,
 };
 pub use length_unit::{LengthUnit, UnknownLengthUnit};
 #[cfg(feature = "render")]

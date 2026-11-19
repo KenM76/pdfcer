@@ -524,7 +524,7 @@ fn render_from_bytes(
     data: &[u8],
     saved: Option<&pdfcer_core::threed::ThreeDSavedView>,
 ) -> u8 {
-    use pdfcer_3d::{Bounds, RenderOptions, render_model};
+    use pdfcer_3d::{Bounds, RenderOptions};
     let refuse = |why: String| {
         eprintln!(
             "pdfcer: {}: 3D artwork {}: {why}",
@@ -596,9 +596,9 @@ fn render_from_bytes(
         indirect: a.light.indirect(),
         ..RenderOptions::default()
     };
-    let image = match render_model(&model, &camera, &options) {
-        Ok(image) => image,
-        Err(err) => return refuse(err.to_string()),
+    let (image, exposure_notes) = match a.meter.draw(&model, &camera, &options) {
+        Ok(drawn) => drawn,
+        Err(why) => return refuse(why),
     };
     let png = match picture::encode(a, image.rgba, (image.width, image.height)) {
         Ok(bytes) => bytes,
@@ -628,6 +628,7 @@ fn render_from_bytes(
     print_assembly_notes(&model, "drawn");
     println!("note: camera: {}", aim.source);
     picture::print_note(a);
+    exposure_notes.iter().for_each(|n| println!("{n}"));
     aim::print_level_note(a, &camera);
     let uncoloured = model.meshes.len() - model.colours.iter().flatten().count();
     let translucent = model

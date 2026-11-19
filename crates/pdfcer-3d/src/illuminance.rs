@@ -7,12 +7,16 @@
 //! unless left out ([`GlowLight`]), from the model's glowing surfaces.
 
 mod disc;
+mod exposure;
 mod plan;
 mod types;
 
 #[cfg(test)]
+mod exposure_tests;
+#[cfg(test)]
 mod tests;
 
+pub use exposure::{ExposedLighting, Exposure, ExposureError};
 pub use types::{
     GlowLight, Illuminance, IlluminanceError, IlluminanceNote, IlluminanceQuery, IlluminanceUnit,
     LightShare, LightTint, MeterBasis, MeterSettings, RelativeReason,

@@ -171,16 +171,26 @@ impl PreparedModel {
         camera: &Camera,
         options: &RenderOptions,
     ) -> Result<Option<FrameBounce>, RenderError> {
+        self.frame_bounce_lit((model, &model.lights), camera, options)
+    }
+
+    /// [`Self::frame_bounce`] lit by `lights` in place of the model's own.
+    pub(crate) fn frame_bounce_lit(
+        &self,
+        (model, lights): (&AssembledModel, &[crate::ModelLight]),
+        camera: &Camera,
+        options: &RenderOptions,
+    ) -> Result<Option<FrameBounce>, RenderError> {
         let plan = crate::render::mode::Plan::of(options);
         let painted = self.paints(model, options);
         let pass = crate::render::mode_frame::face_pass(&plan, model, painted);
         let lit = crate::render::mode::frame_options(options);
-        let scene = (&pass.meshes[..], &model.lights[..], &[][..]);
+        let scene = (&pass.meshes[..], lights, &[][..]);
         let Some(light) = crate::lighting::bounce::frame_bounce(scene, &pass.paints, camera, &lit)?
         else {
             return Ok(None);
         };
-        let stats = BounceStats::for_model(camera, &lit, &model.lights)?;
+        let stats = BounceStats::for_model(camera, &lit, lights)?;
         let atlas = light.atlas();
         Ok(Some(FrameBounce {
             atlas_width: atlas.width as u32,

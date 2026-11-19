@@ -341,3 +341,59 @@ fn no_ambient_keeps_the_scale_and_the_candela() {
 fn the_ambient_fill_is_the_default() {
     assert_eq!(GltfOptions::default().ambient, GltfAmbient::Fill);
 }
+
+/// A fixed exposure draws with each light's stated candela or lux, so it is
+/// the same picture however the import scaled the lights for the metered
+/// one, and with or without the ambient fill.
+#[cfg(feature = "render")]
+#[test]
+fn a_fixed_exposure_does_not_see_the_import_scale() {
+    use crate::{Camera, Exposure, MeterSettings, PreparedModel, Projection, RenderOptions};
+    let camera = Camera {
+        eye: [0.5, -2.0, 3.0],
+        target: [0.5, 0.5, 0.0],
+        up: [0.0, 0.0, 1.0],
+        projection: Projection::Perspective { fov_y: 40.0 },
+    };
+    let options = RenderOptions {
+        width: 48,
+        height: 32,
+        ambient_occlusion: false,
+        ..RenderOptions::default()
+    };
+    let picture = |lights, ambient, exposure: Exposure| {
+        let import = read(
+            THREE,
+            NODES,
+            GltfOptions {
+                lights,
+                ambient,
+                ..AS_STORED
+            },
+        );
+        let m = assemble(&write_prc(&import.scene).unwrap().prc).unwrap();
+        let exposed = exposure
+            .lighting(&m, &options, &MeterSettings::default())
+            .unwrap();
+        exposed
+            .render(&PreparedModel::new(&m), &m, &camera)
+            .unwrap()
+            .rgba
+    };
+    let fixed = Exposure::Fixed { white_lux: 1000.0 };
+    let want = picture(GltfLights::Stored, GltfAmbient::Fill, fixed);
+    for (lights, ambient) in [
+        (GltfLights::Exposure, GltfAmbient::Fill),
+        (GltfLights::Exposure, GltfAmbient::None),
+        (GltfLights::Normalise, GltfAmbient::Fill),
+    ] {
+        assert!(
+            picture(lights, ambient, fixed) == want,
+            "{lights:?} {ambient:?}"
+        );
+    }
+    // The metered pictures do differ, so the comparison can fail.
+    let metered = |l| picture(l, GltfAmbient::Fill, Exposure::Metered);
+    assert!(metered(GltfLights::Exposure) != metered(GltfLights::Normalise));
+    assert!(want.iter().any(|&c| c > 0 && c < 255));
+}

@@ -78,6 +78,26 @@ pub(crate) struct MeterArgs {
     /// a point or spot light depends on it.
     #[arg(long, value_name = "MM")]
     pub(crate) illuminance_unit_mm: Option<f64>,
+    /// Draw the picture at a fixed exposure: a white surface receiving LUX
+    /// lux is drawn full white, and every lit surface in proportion to the
+    /// lux it receives, so a dimly lit model draws dark instead of being
+    /// brightened to suit. Each light shines with the physical strength it
+    /// states (a glTF light's candela or lux), not the strength an import
+    /// scaled it to; the ambient fill and --light-gain play no part, and
+    /// --illuminance-tint and --illuminance-unit-mm apply. Refused, naming
+    /// the reasons, when a light states no physical strength, the model's
+    /// length unit is unknown, or a headlight, aimed sun or
+    /// background-lit bounce is in force. Unset (default): the picture is
+    /// drawn as the lights are stored.
+    #[arg(long, value_name = "LUX", value_parser = positive_lux)]
+    pub(crate) exposure_lux: Option<f64>,
+}
+
+fn positive_lux(s: &str) -> Result<f64, String> {
+    match s.parse::<f64>() {
+        Ok(v) if v.is_finite() && v > 0.0 => Ok(v),
+        _ => Err(format!("`{s}` is not a positive number of lux")),
+    }
 }
 
 #[cfg(feature = "3d")]
@@ -99,6 +119,40 @@ impl MeterArgs {
             MeterGlowArg::LeftOut => pdfcer_3d::GlowLight::LeftOut,
         };
         s
+    }
+
+    /// The picture at `--exposure-lux`, or as stored without it, with the
+    /// notes to print after the `rendered` line.
+    ///
+    /// # Errors
+    ///
+    /// The refusal to print: why the picture cannot be drawn in lux, or the
+    /// renderer's error.
+    pub(super) fn draw(
+        &self,
+        model: &pdfcer_3d::AssembledModel,
+        camera: &pdfcer_3d::Camera,
+        options: &pdfcer_3d::RenderOptions,
+    ) -> Result<(pdfcer_3d::Image, Vec<String>), String> {
+        let exposure = match self.exposure_lux {
+            Some(white_lux) => pdfcer_3d::Exposure::Fixed { white_lux },
+            None => pdfcer_3d::Exposure::Metered,
+        };
+        let exposed = exposure
+            .lighting(model, options, &self.settings())
+            .map_err(|err| format!("--exposure-lux: {err}"))?;
+        let prepared = pdfcer_3d::PreparedModel::new(model);
+        let image = exposed
+            .render(&prepared, model, camera)
+            .map_err(|err| err.to_string())?;
+        let mut notes = Vec::new();
+        if let Some(white) = exposed.white_lux {
+            notes.push(format!(
+                "note: exposure: fixed, full white at {white} lux; each light at the physical                  strength it states, --light-gain and any ambient fill left out"
+            ));
+            notes.extend(exposed.notes.iter().map(|n| format!("note: exposure: {n}")));
+        }
+        Ok((image, notes))
     }
 
     /// One `illuminance` line per `--illuminance`, an `illuminance-light`

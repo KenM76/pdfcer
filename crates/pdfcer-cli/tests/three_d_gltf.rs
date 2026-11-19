@@ -990,3 +990,55 @@ fn illuminance_counts_a_glowing_surface_unless_told_not_to() {
         "{left}"
     );
 }
+
+/// `--exposure-lux`: the floor under a 20 lux lamp draws in proportion to
+/// the white point, the note states it, and a headlight is refused by name.
+#[test]
+fn a_fixed_exposure_draws_lux_over_the_white_point() {
+    let s = Scratch::new("exposure");
+    std::fs::write(s.path("m.glb"), lamp_over_floor()).unwrap();
+    let pdf = format!(
+        "{}/../../fixtures/synthetic/minimal.pdf",
+        env!("CARGO_MANIFEST_DIR")
+    );
+    let (m, out, png) = (s.path("m.glb"), s.path("out.pdf"), s.path("x.png"));
+    let args = ["3d-embed", &pdf, "--model", &m, "--page", "1"];
+    stdout(&run(&[
+        &args[..],
+        &["--rect", "10,10,190,190", "--apply", "-o", &out],
+    ]
+    .concat()));
+    let draw = |extra: &[&str]| {
+        let mut args = vec!["3d-render", &out, "--index", "0", "--eye=1,-3,4"];
+        args.extend_from_slice(&["--no-ambient-occlusion", "--no-shadows", "--bounce", "off"]);
+        args.extend_from_slice(&["--width", "60", "--height", "40", "-o", &png]);
+        args.extend_from_slice(extra);
+        run(&args)
+    };
+    // The red channel mid-picture, on the floor under the lamp.
+    let middle = || {
+        let bytes = std::fs::read(&png).unwrap();
+        let mut reader = png::Decoder::new(bytes.as_slice()).read_info().unwrap();
+        let mut buf = vec![0; reader.output_buffer_size()];
+        let info = reader.next_frame(&mut buf).unwrap();
+        buf[(20 * 60 + 30) * info.color_type.samples()]
+    };
+    let at = |lux: &str| {
+        let text = stdout(&draw(&["--exposure-lux", lux]));
+        let note = format!("note: exposure: fixed, full white at {lux} lux");
+        assert!(text.contains(&note), "{text}");
+        middle()
+    };
+    let (dim, dimmer) = (at("40"), at("80"));
+    assert!((110..=135).contains(&dim), "{dim}");
+    let twice = i32::from(dim) - 2 * i32::from(dimmer);
+    assert!(twice.abs() <= 2, "{dim} {dimmer}");
+    assert_eq!(at("10"), 255);
+    assert!(!stdout(&draw(&[])).contains("exposure:"));
+    let refused = draw(&["--exposure-lux", "40", "--artwork-headlight"]);
+    assert_eq!(refused.status.code(), Some(9), "{refused:?}");
+    let err = String::from_utf8_lossy(&refused.stderr);
+    let why = "--exposure-lux: the picture cannot be drawn in lux: the light at the camera";
+    assert!(err.contains(why), "{err}");
+    assert!(!draw(&["--exposure-lux", "0"]).status.success());
+}

@@ -6,7 +6,7 @@ use crate::render::mode::{Faces, Plan, frame_options};
 use crate::render::mode_lines::{box_mesh, overlays, visible_boxes};
 use crate::render::raster::Paint;
 use crate::render::{Image, RenderError, RenderOptions, render_finished};
-use crate::{AssembledModel, LightingScheme, PreparedModel, TriangleMesh};
+use crate::{AssembledModel, LightingScheme, ModelLight, PreparedModel, TriangleMesh};
 
 /// The faces a mode draws: meshes, their paints and which are opaque.
 pub(crate) struct FacePass<'m> {
@@ -90,10 +90,11 @@ pub(crate) fn face_pass<'m>(
     }
 }
 
-/// Draws `model` as [`PreparedModel::render`] documents.
+/// Draws `model` as [`PreparedModel::render`] documents, lit by `lights`
+/// in place of the model's own.
 pub(crate) fn render(
     prepared: &PreparedModel,
-    model: &AssembledModel,
+    (model, lights): (&AssembledModel, &[ModelLight]),
     camera: &Camera,
     options: &RenderOptions,
 ) -> Result<Image, RenderError> {
@@ -108,7 +109,7 @@ pub(crate) fn render(
         Faces::Painted | Faces::Translucent(_) => &model.finishes[..],
         _ => &[][..],
     };
-    let scene = (&pass.meshes[..], &model.lights[..], finishes);
+    let scene = (&pass.meshes[..], lights, finishes);
     let (mut image, mut depth) = render_finished(scene, &pass.paints, &pass.opaque, camera, &lit)?;
     if plan.emissive > 0.0 {
         let flat = RenderOptions {

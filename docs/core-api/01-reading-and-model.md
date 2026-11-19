@@ -3573,6 +3573,40 @@ let image = render_coloured(&meshes, &colours, &camera, &RenderOptions { width: 
   `illuminance-light x= y= name= direct=` per light, `illuminance x= y=
   miss` or `refused: <why>`, then `note: illuminance: ...` lines for the
   reasons and notes.
+- **Fixed exposure** (`G302`, `render` feature): `Exposure::{Metered
+  (default), Fixed { white_lux: f64 }}` (`#[non_exhaustive]`, `Copy`).
+  `exposure.lighting(&model, &options, &settings: &MeterSettings) ->
+  Result<ExposedLighting, ExposureError>` gives `ExposedLighting { lights:
+  Vec<ModelLight>, options: RenderOptions, white_lux: Option<f64>, notes:
+  Vec<IlluminanceNote> }`. `Metered` returns `model.lights` and `options`
+  unchanged: the picture is byte-identical to `PreparedModel::render`.
+  `Fixed` lights the picture as `LightMeter` would read it in lux (each
+  light at `ModelLight::photometric`, point/spot fading `1/d²` in metres,
+  the fill `Lux(0.0)` lighting nothing, `settings.tint` and
+  `settings.mm_per_unit` applied, glow always left out), divided by
+  `white_lux`, with `options.light_gain` set to 1: a white surface
+  receiving `white_lux` lux draws full white, others in proportion,
+  each channel clipped at full white. No per-model metering, no added
+  ambient. The import scale (`GltfLights::{Stored, Normalise, Exposure}`)
+  and `GltfAmbient` do not change a `Fixed` picture. Draw it with
+  `exposed.render(&prepared, &model, &camera)`; for the GPU path pass
+  `exposed.lights` and `exposed.options` to every frame-data call
+  (`exposed.frame_lights(&camera)` = `FrameLights::for_model`,
+  `exposed.frame_bounce(&prepared, &model, &camera)` =
+  `PreparedModel::frame_bounce`, and `FrameLampShadows::for_model`,
+  `FrameExtraShadows::for_model`, `FrameShadow`, `FrameAmbientOcclusion`
+  with `exposed.options`). Ambient occlusion is the caller's
+  `options.ambient_occlusion`, kept. Refusals: `ExposureError::WhiteLux`
+  (not positive and finite); `ExposureError::Relative(Vec<RelativeReason>)`
+  whenever `LightMeter` would read relative (`PictureLights`,
+  `Headlight`, `Sun`, `UnitlessLights(n)`, `NoUnits`, `Sky`; `Asked` if
+  `settings.basis` is `Relative`), so a shell can grey the option and
+  name the reason; `Display` joins the reasons. Only a `Clip` tone curve
+  exists. CLI: `3d-render ... --exposure-lux LUX` (uses
+  `--illuminance-tint` and `--illuminance-unit-mm`) prints `note:
+  exposure: fixed, full white at LUX lux; ...` and any meter notes as
+  `note: exposure: ...`, or refuses (exit 9) with `--exposure-lux: the
+  picture cannot be drawn in lux: <reasons>`.
 - **Measure between two surfaces** (`pdfcer-3d`, feature `render`):
   `measure_surfaces(&model.meshes, &a, &b, &tolerance) ->
   Result<SurfaceMeasure, SurfaceMeasureError>` with `a`, `b` a

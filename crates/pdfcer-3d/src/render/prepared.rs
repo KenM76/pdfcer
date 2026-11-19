@@ -61,7 +61,7 @@ impl PreparedModel {
         camera: &Camera,
         options: &RenderOptions,
     ) -> Result<Image, RenderError> {
-        crate::render::mode_frame::render(self, model, camera, options)
+        crate::render::mode_frame::render(self, (model, &model.lights), camera, options)
     }
 
     /// Each mesh's paint, and whether it is opaque (opaque colour and, when
