@@ -148,7 +148,7 @@ impl MeterArgs {
         let mut notes = Vec::new();
         if let Some(white) = exposed.white_lux {
             notes.push(format!(
-                "note: exposure: fixed, full white at {white} lux; each light at the physical                  strength it states, --light-gain and any ambient fill left out"
+                "note: exposure: fixed, full white at {white} lux; each light at the physical strength it states, --light-gain and any ambient fill left out"
             ));
             notes.extend(exposed.notes.iter().map(|n| format!("note: exposure: {n}")));
         }
