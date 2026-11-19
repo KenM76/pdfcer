@@ -112,11 +112,21 @@ wherever it appears.*
 
 ## Shipped
 
+### `f9d4ce3f` `Pass 723.5`: a soft mask's backdrop colour is read in the group's colour space, 2026-11-18 (1625th filing)
+
+Engineer-reported; no shell here, git, push and CI state not checked from here. `f9d4ce3f` `fix(render): a soft mask's backdrop colour is read in the group's colour space`. Request `X094` (`open/request_X094_mask_backdrop_in_group_colour_space.md`; reply `open/reply_X094_mask_backdrop_in_group_colour_space_SHIPPED.md`). Opened and shipped in one filing. **Unreleased**: the release bump `51f91d2e` (1624th) is already made, so `v0.160.0` also carries this Pass and the `721.14` follow-up `dcc684dd` (the 1624th's "carries" list names only `723.4`, `647.13`, `721.14` `c039fe16`). Reasoning is in the commit message. **core (`pdfcer-render`) + cli** (via `render-page`); gui by engine pin. No `pub` change.
+- **Fix:** `soft_mask_backdrop` (`interpret/soft_mask.rs`) resolves the mask group `/CS` with the paint path's loader (`color::resolve_object`) and converts `/BC` the way an `sc` in that space paints: device, CalGray, CalRGB, ICCBased (ICC at RelativeColourimetric; §11.6.5.2, §8.6.5.8). DeviceCMYK keeps `cmyk_intent`, the table every `k` paint uses, byte-identical. Private display-path refactor in `interpret.rs` (`display_managed_rgb_of`, explicit `Conversion`).
+- **Fallbacks, each with a diagnostic (tolerated +1, `sample_ops` note):** missing `/CS` (existing note), unloadable `/CS`, disallowed blending space (§11.3.4: Lab, Indexed, Separation, DeviceN, Pattern) all use the old count rule; `/BC` length mismatch gives black.
+- **Acceptance disagreements recorded:** (a) ICC gray gamma-2.2 `/BC` 0.5 gives 128, not ~0.22, matching the paint path (paint has no managed display route for 1-component ICC; the mask value is device-weighted luminosity of encoded sRGB, not linear Y); managing ICC gray on screen would be a separate paint-path change. (b) ICC CMYK goes through its profile only when an output intent is present, as paints do: 75 vs 32.
+- **Tests (engineer-reported):** 8 new in `crates/pdfcer-render/tests/soft_mask_backdrop_colour_space.rs`; sabotage (count rule restored) fails the ICC RGB, ICC CMYK, CalGray and length tests (ICC gray passes by design). `pdfcer-render` 590 lib + 690 integration (2 ignored) + 40 doc.
+- **FEATURES:** new row "Soft-mask backdrop colour in the group's colour space" (core, cli ticked; gui unticked).
+
 ### `51f91d2e` `v0.160.0` release bump, 2026-11-18 (1624th filing)
 
 Engineer-reported; no shell here, git, push, CI and OneDrive state not checked from here. `51f91d2e` `chore: release v0.160.0`: workspace version 0.159.0 -> 0.160.0 in `Cargo.toml` (17 workspace version strings), `Cargo.lock` (20 entries) and `fuzz/Cargo.lock` (16 entries). **NOT yet tagged, deployed or published.** The release writes OneDrive slot `pdfcer1`.
 - **Round carries (code commits since `v0.159.0`):** `d0d2fbe4` (`Pass 723.4`, `X093` addendum); `11d2c93a` (`Pass 647.13`, `G303`); `c039fe16` (`Pass 721.14`, `G302`). Filed in the 1621st to 1623rd filings.
 - **FEATURES:** no change.
+- **Amendment (1625th filing):** the release also carries `f9d4ce3f` (`Pass 723.5`, `X094`) and `dcc684dd` (follow-up to `Pass 721.14`), both made after this bump; the "carries" list above is not exhaustive.
 
 ### `c039fe16` `Pass 721.14`: a picture can be drawn at a fixed exposure in lux, 2026-11-18 (1623rd filing)
 
@@ -127,6 +137,7 @@ Engineer-reported; no shell here, git, push and CI state not checked from here. 
 - **Docs:** `docs/core-api/01-reading-and-model.md` "Fixed exposure" entry, `index.md` count.
 - **Tests (engineer-reported):** 6 exposure, 1 glTF import-scale, 1 CLI; the doubling test sabotage-checked (fails with 3 others). `pdfcer-3d` 571 lib + 6 integration + 38 doc; `pdfcer-cli` 133 unit + 1117 integration. fmt, clippy `-D warnings`, code-structure, core-api-verbs, clap-help, `cargo doc` clean.
 - **FEATURES:** new row "3D picture at a fixed exposure in lux" (core, cli ticked; gui unticked); the lights and light-meter rows not lengthened.
+- **Follow-up (1625th filing, no new Pass):** `dcc684dd` `fix(cli): the fixed-exposure note no longer prints a run of spaces mid-sentence`. A wrapped string literal in `crates/pdfcer-cli/src/threed_cmd/meter.rs` had dropped its line-continuation backslash, so the `--exposure-lux` note printed a run of spaces mid-sentence; found by `check-string-gaps.sh`. Also in `v0.160.0`.
 
 ### `11d2c93a` `Pass 647.13`: a multiSelect list's selections are one per line everywhere, 2026-11-18 (1622nd filing)
 
@@ -27934,6 +27945,8 @@ closes out the *prior* filing's business rather than opening this one's.
 > **`Pass 647.13` (`11d2c93a`, `G303`) SHIPPED 2026-11-18 (1622nd filing); see its *Shipped* entry (opened and shipped in one filing; unreleased, joins the `v0.160.0` round).** Next free IDs: `Pass 647.14`, `Pass 717.4`, `Pass 718.5`, `Pass 720.3`, `Pass 721.14`, `Pass 722.10`, `Pass 723.5`, `Pass 647.3h`; decision `225`, rule `R264`. `647.13` was the next free ID per the 1621st filing (grep of this file found no other `Pass 647.13`; no shell).
 
 > **`Pass 721.14` (`c039fe16`, `G302`) SHIPPED 2026-11-18 (1623rd filing); see its *Shipped* entry (opened and shipped in one filing; unreleased, joins the `v0.160.0` round).** Next free IDs: `Pass 647.14`, `Pass 717.4`, `Pass 718.5`, `Pass 720.3`, `Pass 721.15`, `Pass 722.10`, `Pass 723.5`, `Pass 647.3h`; decision `225`, rule `R264`. `721.14` was the next free ID per the 1622nd banner (grep of `docs/` found it only as a free-ID mention; no shell).
+
+> **`Pass 723.5` (`f9d4ce3f`, `X094`) SHIPPED 2026-11-18 (1625th filing), and `dcc684dd` (follow-up to `Pass 721.14`, no new ID) FILED; see their *Shipped* entries (unreleased, join the `v0.160.0` round).** Next free IDs: `Pass 647.14`, `Pass 717.4`, `Pass 718.5`, `Pass 720.3`, `Pass 721.15`, `Pass 722.10`, `Pass 723.6`, `Pass 647.3h`; decision `225`, rule `R264`. `723.5` was the next free ID per the 1623rd banner (not re-grepped beyond that; no shell).
 
 > **`d278cc2a` (follow-up fix to `Pass 647.12`, no new ID) FILED 2026-11-18 (1617th filing); see its *Shipped* entry (unreleased, joins the `v0.159.0` round).** Next free IDs unchanged from the 1616th banner.
 

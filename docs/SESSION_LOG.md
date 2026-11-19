@@ -4,6 +4,15 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-11-18 (1625th filing) — `Pass 723.5` (`f9d4ce3f`, `X094`) SHIPPED: a soft mask's backdrop colour is read in the group's colour space; plus `dcc684dd`; both in `v0.160.0`
+
+**Filed (engineer-reported; no shell here, git, push and CI state not checked from here):**
+- `f9d4ce3f`: `soft_mask_backdrop` resolves the mask group `/CS` with the paint loader and converts `/BC` as an `sc` would paint (device, CalGray, CalRGB, ICCBased at RelativeColourimetric; DeviceCMYK unchanged). Unloadable or disallowed space falls back to the count rule with a diagnostic; length mismatch gives black. Recorded disagreements with the request: ICC gray gives 128 (matches paint path), ICC CMYK 75 vs 32 (profile only with an output intent). 8 new tests; `pdfcer-render` 590 lib + 690 integration + 40 doc. No pub change.
+- `dcc684dd` (follow-up to `Pass 721.14`, no new Pass): dropped line-continuation backslash in `threed_cmd/meter.rs` printed a run of spaces in the fixed-exposure note; found by `check-string-gaps.sh`.
+- FEATURES: new row for the mask backdrop (core, cli ticked; gui unticked).
+
+**Open:** `v0.160.0` is bumped (`51f91d2e`) but not tagged; it carries these two commits as well as those named in the 1624th (amended there). Next free IDs: `Pass 647.14`, `717.4`, `718.5`, `720.3`, `721.15`, `722.10`, `723.6`, `647.3h`; decision `225`; rule `R264`. `docs/NEXT_SESSION.md` engineer-owned, not edited.
+
 ## 2026-11-18 (1624th filing) — `v0.160.0` release bump (`51f91d2e`); not yet tagged, deployed or published
 
 **Filed (engineer-reported; no shell here, git, push, CI and OneDrive state not checked from here):**
