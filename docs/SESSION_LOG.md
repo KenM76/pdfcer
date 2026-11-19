@@ -4,6 +4,17 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-11-19 (1635th filing) — `Pass 721.15`, `721.16`, `721.17` (`9abc37c3`, `G305`-`G307`) SHIPPED; unreleased, next release `v0.163.0`
+
+**Filed (engineer-reported; no shell here, git, push, CI and the register gates not run or checked from here):**
+- `9abc37c3` `feat(3d): over-range rolls toward white, glows in nits, bounce rescales`, one commit for three GUI-requested 3D-lighting Passes. Local, not pushed at filing time; the engineer pushes after this filing.
+- `721.15`: `RenderOptions::over_range` (`Auto`/`Clip`/`TowardWhite`) and `toward_white`, same rule on CPU and GPU; `3d-render --over-range`. `721.16`: `MaterialFinish::emissive_nits` from glTF `KHR_materials_emissive_strength`, through PRC as `pdfcer:emissive`; decision: a bare glTF glow stays relative (a 1-nit reading would draw every glow black in lux); `GlowRelative` note printed by the CLI. `721.17`: `FrameBounce::scaled(factor)`, exact with `LampCut::Off`.
+- Tests: `pdfcer-3d` 579 lib + suites 6/40/133; `pdfcer-cli` 1117 (2 ignored); fmt, clippy, code-structure, core-api-verbs, string-gaps clean. No manifest change.
+- FEATURES: three new rows (core+cli, core+cli, core only); gui unticked on all.
+- Replies `reply_G305_SHIPPED.md`, `reply_G306_SHIPPED.md`, `reply_G307_SHIPPED.md` already written by the engineer in `open/`; channel "consumed" marking not done by this role.
+
+**Open:** nothing in flight. Next free IDs: `Pass 647.15`, `717.4`, `718.5`, `720.3`, `721.18`, `722.10`, `723.11`, `647.3h`; decision `225`; rule `R264`. `docs/NEXT_SESSION.md` engineer-owned, not edited.
+
 ## 2026-11-19 (1634th filing) — `v0.162.0` PUBLISHED (tag on `052f7c9a`)
 
 **Filed (engineer-reported; no shell here, git, push, CI, GitHub, crates.io and OneDrive state not checked from here):**
