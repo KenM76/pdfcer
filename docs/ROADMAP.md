@@ -112,6 +112,12 @@ wherever it appears.*
 
 ## Shipped
 
+### `ac43cfd0` `v0.163.0` release bump, 2026-11-19 (1637th filing)
+
+Engineer-reported; no shell here, git, push, CI and OneDrive state not checked from here. `ac43cfd04ac217d29297848371b2a29056a946a9` `chore: release v0.163.0`: workspace version 0.162.0 -> 0.163.0 in `Cargo.toml` (17 occurrences), `Cargo.lock` and `fuzz/Cargo.lock` (diffstat 40 and 32 lines, the same as v0.162.0's bump), as supplied by the engineer (not re-counted here). **NOT yet tagged, packaged, deployed or published**; the publication is filed separately. The release writes OneDrive slot `pdfcer2` (`pdfcer1` holds 0.162.0, per the 1634th filing).
+- **Round carries (code commits since `v0.162.0`):** `9abc37c3` (`Pass 721.15`, `721.16`, `721.17`; requests `G305`, `G306`, `G307`) and `6b410132` (`721.15` follow-up fix), filed in the 1635th (`1b9db306`) and 1636th (`048caa07`) filings. Three Passes.
+- **FEATURES:** no change.
+
 ### `9abc37c3` `Pass 721.15`, `721.16`, `721.17`: over-range colour, glow in nits, bounce rescale, 2026-11-19 (1635th filing)
 
 Engineer-reported; no shell here, git, push, CI and the register gates not run or checked from here. `9abc37c3202302fde56bb1d9d331eed54ef10945` `feat(3d): over-range rolls toward white, glows in nits, bounce rescales`. Requests `G305`, `G306`, `G307` (`pdfcer-gui`; replies `open/reply_G305_SHIPPED.md`, `reply_G306_SHIPPED.md`, `reply_G307_SHIPPED.md`). Three Passes opened and shipped in one commit and one filing. **Local, not pushed at filing time; unreleased**: the next release, `v0.163.0`, carries them. Reasoning is in the commit message. `pdfcer-3d` (`render` feature) plus the `pdfcer` CLI. No manifest change, so `cargo tree` is unchanged; no new dependency.
@@ -28069,6 +28075,8 @@ closes out the *prior* filing's business rather than opening this one's.
 > **`v0.162.0` PUBLISHED 2026-11-19 (1634th filing; tag on `052f7c9a`, 8 GitHub assets, 16 crates on crates.io, OneDrive `pdfcer1`); see its *Shipped* entry** (carries `723.10`). Next release writes `pdfcer2`. Next free IDs unchanged from the 1632nd banner.
 
 > **`Pass 721.15` (`G305`), `Pass 721.16` (`G306`) and `Pass 721.17` (`G307`), all `9abc37c3`, SHIPPED 2026-11-19 (1635th filing); see their *Shipped* entry (opened and shipped in one commit; unreleased, the next release is `v0.163.0`).** Next free IDs: `Pass 647.15`, `Pass 717.4`, `Pass 718.5`, `Pass 720.3`, `Pass 721.18`, `Pass 722.10`, `Pass 723.11`, `Pass 647.3h`; decision `225`, rule `R264` (the others unchanged from the 1634th filing, not re-measured; no shell).
+
+> **`v0.163.0` release bump `ac43cfd0` filed 2026-11-19 (1637th filing); see its *Shipped* entry. NOT yet tagged, packaged, deployed or published** (carries `Pass 721.15`, `721.16`, `721.17`). Next release slot: `pdfcer2`. Next free IDs unchanged from the 1635th banner.
 
 > **`d278cc2a` (follow-up fix to `Pass 647.12`, no new ID) FILED 2026-11-18 (1617th filing); see its *Shipped* entry (unreleased, joins the `v0.159.0` round).** Next free IDs unchanged from the 1616th banner.
 

@@ -4,6 +4,15 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-11-19 (1637th filing) — `v0.163.0` release bump (`ac43cfd0`); not yet tagged, packaged, deployed or published
+
+**Filed (engineer-reported; no shell here, git, push, CI and OneDrive state not checked from here):**
+- `ac43cfd0` `chore: release v0.163.0`: `Cargo.toml` (17), `Cargo.lock` and `fuzz/Cargo.lock` (diffstat 40 and 32 lines) 0.162.0 -> 0.163.0; counts as supplied, not re-measured.
+- Round carries three Passes: `721.15`, `721.16`, `721.17` (`9abc37c3`, `G305`-`G307`) plus follow-up `6b410132`, filed in the 1635th (`1b9db306`) and 1636th (`048caa07`) filings.
+- Release writes OneDrive slot `pdfcer2` (`pdfcer1` holds 0.162.0). No FEATURES change.
+
+**Open:** tag, package, smoke-test, `verify-release.py`, deploy and publish still to do; the next filing records the outcome. Next free IDs unchanged: `Pass 647.15`, `717.4`, `718.5`, `720.3`, `721.18`, `722.10`, `723.11`, `647.3h`; decision `225`; rule `R264`. `docs/NEXT_SESSION.md` engineer-owned, not edited.
+
 ## 2026-11-19 (1635th filing) — `Pass 721.15`, `721.16`, `721.17` (`9abc37c3`, `G305`-`G307`) SHIPPED; unreleased, next release `v0.163.0`
 
 **Filed (engineer-reported; no shell here, git, push, CI and the register gates not run or checked from here):**
