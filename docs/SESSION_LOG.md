@@ -4,6 +4,18 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-11-19 (1643rd filing) — `Pass 721.23` (`a23ea1a1`, `G310`) SHIPPED
+
+**Filed (engineer-reported; no shell here, git, push, CI and the gates not run or checked from here):**
+- `a23ea1a179e0c838d44b12bf617a4cbaf9171d8c` `feat(3d): a relative light map draws in its own range of colours`. Unreleased; inside `v0.164.0` (bump `f837cac1`, not yet tagged). `LuxBands::spread` and `LuxBands::for_map`; CLI `3d-render --light-map` default bands now follow the map's unit, with a note for a relative map. Full list in the ROADMAP *Shipped* entry.
+- Tests (engineer-reported): 2 new `pdfcer-3d` `light_map` tests (7 pass); CLI `light_map_colours_the_floor_by_the_lux_on_it` gains a relative case. Sabotage (`for_map` ignoring the unit) fails the engine test.
+
+**FEATURES:** "Draw a 3D light map in lux bands" row gained one clause; no box changed (core, cli `[x]`; gui `[ ]`, owed to `pdfcer-gui`).
+
+**Sweep (hard rule 11):** the default-bands behaviour changed meaning (previously always the Canada OHS steps). Not swept from here: `crates/` strings and `--light-map` help beyond what the commit says it updated; any wording that says the default bands are the Canada steps regardless of unit is a survivor. `docs/FEATURES.md` row 621/622 checked: neither claimed it.
+
+**Open:** `v0.164.0` still to tag, package, publish. Next free IDs: `Pass 647.15`, `717.4`, `718.5`, `720.3`, `721.24`, `722.10`, `723.11`, `647.3h`; decision `225`; rule `R264`. `docs/NEXT_SESSION.md` engineer-owned, not edited.
+
 ## 2026-11-19 (1642nd filing) — `Pass 721.22` (`e7ffcea4`, `X100`) SHIPPED
 
 **Filed (engineer-reported; no shell here, git, push, CI and the gates not run or checked from here):**

@@ -112,6 +112,15 @@ wherever it appears.*
 
 ## Shipped
 
+### `a23ea1a1` `Pass 721.23`: a relative light map draws in its own range of colours, 2026-11-19 (1643rd filing)
+
+Engineer-reported; no shell here, git, push, CI and the gates not run or checked from here. `a23ea1a179e0c838d44b12bf617a4cbaf9171d8c` `feat(3d): a relative light map draws in its own range of colours (Pass 721.23, G310)`. Request `G310` (`pdfcer-gui`, operator ask `O441`; reply `D:\Dev\FeatureRequests\pdfce_FeatureRequests\open\reply_G310_SHIPPED.md`). Opened and shipped in one commit. **Unreleased**: lands inside `v0.164.0` (bump `f837cac1`, not yet tagged). Reasoning is in the commit message. No manifest change, so `cargo tree` is unaffected.
+- **What:** `LuxBands::spread(&self, lo, hi)` keeps the colours and blend but puts band i of n at `lo+(hi-lo)*i/n`; an empty, reversed or non-finite range is widened so the table is always valid. `LuxBands::for_map(&IlluminanceMap, BandBlend)` gives `canada_ohs_steps` for a map in lux, or those colours spread over `map.range()` for a relative map (0..1 when the map is empty).
+- **CLI:** `3d-render --light-map` without `--light-map-bands` now uses `for_map`. A relative map prints a note that the bands are spread over its own figures and the regulation levels do not apply, in place of the Canada citation. Help text updated. `docs/core-api/01-reading-and-model.md` updated.
+- **Tests (engineer-reported):** 2 new `pdfcer-3d` `light_map` tests (7 pass in `light_map`); CLI `three_d_gltf::light_map_colours_the_floor_by_the_lux_on_it` gains a relative case. Sabotage (`for_map` ignoring the unit) fails the engine test. fmt, clippy `-D warnings` (3d + cli, all targets), code-structure, string-gaps, public-fns-documented, core-api-verbs clean.
+- **Delivered:** core and cli. gui not yet: `pdfcer-gui` will call `for_map`; not confirmed there.
+- **FEATURES:** the "Draw a 3D light map in lux bands" row gained one clause; core and cli were already ticked, gui stays `[ ]`.
+
 ### `e7ffcea4` `Pass 721.22`: Windows finishing reads the document- and page-wide Print Schema features, 2026-11-19 (1642nd filing)
 
 Engineer-reported; no shell here, git, push, CI and the gates not run or checked from here. `e7ffcea4ae8bb1f724d0d6357128df7c00b919e4` `fix(print): finishing reads the document- and page-wide Print Schema features (Pass 721.22, X100)`. Request `X100` (operator/crates consumer; reply `D:\Dev\FeatureRequests\pdfce_FeatureRequests\open\reply_X100_SHIPPED.md`). Opened and shipped in one commit. **Unreleased**: lands inside `v0.164.0` (bump already filed in the 1641st; not yet tagged). Reasoning is in the commit message. No manifest change, so `cargo tree` is unaffected.
@@ -28134,6 +28143,8 @@ closes out the *prior* filing's business rather than opening this one's.
 > **`Pass 721.22` (`e7ffcea4`, `X100`) SHIPPED 2026-11-19 (1642nd filing); see its *Shipped* entry (unreleased; inside `v0.164.0`).** Next free IDs: `Pass 647.15`, `Pass 717.4`, `Pass 718.5`, `Pass 720.3`, `Pass 721.23`, `Pass 722.10`, `Pass 723.11`, `Pass 647.3h`; decision `225`, rule `R264`.
 
 > **`v0.164.0` release bump `f837cac1` filed 2026-11-19 (1641st filing); see its *Shipped* entry. NOT yet tagged, packaged or published** (carries `Pass 721.18`, `721.19`, `721.20`, `721.21`). Next release slot: `pdfcer1`. Next free IDs unchanged from the 1640th banner.
+
+> **`Pass 721.23` (`a23ea1a1`, `G310`) SHIPPED 2026-11-19 (1643rd filing); see its *Shipped* entry (unreleased; inside `v0.164.0`).** Next free IDs: `Pass 647.15`, `Pass 717.4`, `Pass 718.5`, `Pass 720.3`, `Pass 721.24`, `Pass 722.10`, `Pass 723.11`, `Pass 647.3h`; decision `225`, rule `R264`.
 
 > **`d278cc2a` (follow-up fix to `Pass 647.12`, no new ID) FILED 2026-11-18 (1617th filing); see its *Shipped* entry (unreleased, joins the `v0.159.0` round).** Next free IDs unchanged from the 1616th banner.
 
