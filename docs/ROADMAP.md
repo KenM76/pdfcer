@@ -112,6 +112,16 @@ wherever it appears.*
 
 ## Shipped
 
+### `b7bef2de` `v0.163.0` PUBLISHED, 2026-11-19 (1638th filing)
+
+Engineer-reported; no shell here, git, push, CI, GitHub, crates.io and OneDrive state not checked from here. Annotated tag `v0.163.0` ("pdfcer v0.163.0") points at commit `b7bef2dec471cfc95acb5d2e62dac72352ebd533` (`docs: file the v0.163.0 version bump (1637th)`); version-bump commit `ac43cfd0`. Tag pushed; `origin/main` contains it. CI green on `b7bef2de` (run 44557297076). `tools/gh-release.py` PASS: 8 assets at local sizes (portable zip `pdfcer-v0.163.0-windows-x64.zip` 32,651,888 bytes, sha256 prefix `c7eac1034941`; `ocr-addon-ocrcer` 3,789,155 bytes `5eec8597a12b`; `ocr-addon-ocrs` 11,352,262 bytes `f169cb726f64`; `ocr-addon-tesseract` 4,483,685 bytes `0ca68565f478`; each with a `.sha256`). `deploy-onedrive.py` wrote `pdfcer2` (6 items, 88,040,960 bytes; was 0.161.0); `pdfcer1` keeps 0.162.0; the next release writes `pdfcer1`.
+- **Contents:** three Passes, `721.15`, `721.16`, `721.17` (`G305`-`G307`; `9abc37c3`, follow-up `6b410132`; filed 1635th and 1636th): over-range colour (`OverRange`, `3d-render --over-range`), glow in nits, `FrameBounce::scaled`.
+- **crates.io:** 16 crates published at 0.163.0 from a detached worktree at the tag with `cargo publish --no-verify`: pdfcer-3d, -3d-nav, -color, -core, -emf, -flatten, -fonts, -function, -image-codec, -jpeg-remux, -json, -model, -pkix, -render, -text, -vec3.
+- **Checks:** portable build `D:\builds\pdfcer-20261119-1034-ac43cfd` (from `ac43cfd0`, revision `v0.162.0-6-gac43cfd0`, version line `pdfcer 0.163.0`); total 68,418,201 bytes, `pdfcer.exe` 52,474,880 bytes. Fresh-folder smoke: `--version` OK; `extract-text` OK (chars=199, failed=0) on `fixtures/external/pdf20examples/PDF 2.0 image with BPC.pdf`; `render-page` OK (PNG 67,779 bytes); `3d-render --help` lists `--over-range`. **NOT smoked:** an actual `3d-render --over-range` run (no 3D PDF fixture at hand), so the new flag is verified only as present in `--help`. `verify-release.py v0.163.0`: every check ok except "working tree clean", which fails only on uncommitted `.claude/agent-memory` files.
+- **GUI channel notice:** `D:\Dev\FeatureRequests\pdfce_FeatureRequests\open\notice_2026-11-19_release_v0.163.0.md`; replies `G305`/`G306`/`G307` SHIPPED already in `open/`.
+- **FEATURES:** no change.
+- **Amendment (1638th filing) to the 1637th entry below:** its "NOT yet tagged, packaged, deployed or published" described the state at that filing and is left as written; the release is now tagged, deployed and published as above.
+
 ### `ac43cfd0` `v0.163.0` release bump, 2026-11-19 (1637th filing)
 
 Engineer-reported; no shell here, git, push, CI and OneDrive state not checked from here. `ac43cfd04ac217d29297848371b2a29056a946a9` `chore: release v0.163.0`: workspace version 0.162.0 -> 0.163.0 in `Cargo.toml` (17 occurrences), `Cargo.lock` and `fuzz/Cargo.lock` (diffstat 40 and 32 lines, the same as v0.162.0's bump), as supplied by the engineer (not re-counted here). **NOT yet tagged, packaged, deployed or published**; the publication is filed separately. The release writes OneDrive slot `pdfcer2` (`pdfcer1` holds 0.162.0, per the 1634th filing).
@@ -28077,6 +28087,8 @@ closes out the *prior* filing's business rather than opening this one's.
 > **`Pass 721.15` (`G305`), `Pass 721.16` (`G306`) and `Pass 721.17` (`G307`), all `9abc37c3`, SHIPPED 2026-11-19 (1635th filing); see their *Shipped* entry (opened and shipped in one commit; unreleased, the next release is `v0.163.0`).** Next free IDs: `Pass 647.15`, `Pass 717.4`, `Pass 718.5`, `Pass 720.3`, `Pass 721.18`, `Pass 722.10`, `Pass 723.11`, `Pass 647.3h`; decision `225`, rule `R264` (the others unchanged from the 1634th filing, not re-measured; no shell).
 
 > **`v0.163.0` release bump `ac43cfd0` filed 2026-11-19 (1637th filing); see its *Shipped* entry. NOT yet tagged, packaged, deployed or published** (carries `Pass 721.15`, `721.16`, `721.17`). Next release slot: `pdfcer2`. Next free IDs unchanged from the 1635th banner.
+
+> **`v0.163.0` PUBLISHED 2026-11-19 (1638th filing; tag on `b7bef2de`, 8 GitHub assets, 16 crates on crates.io, OneDrive `pdfcer2`); see its *Shipped* entry** (carries `721.15`, `721.16`, `721.17`). Next release writes `pdfcer1`. Next free IDs unchanged from the 1635th banner.
 
 > **`d278cc2a` (follow-up fix to `Pass 647.12`, no new ID) FILED 2026-11-18 (1617th filing); see its *Shipped* entry (unreleased, joins the `v0.159.0` round).** Next free IDs unchanged from the 1616th banner.
 

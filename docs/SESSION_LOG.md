@@ -4,6 +4,22 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-11-19 (1638th filing) — `v0.163.0` PUBLISHED (tag on `b7bef2de`)
+
+**Filed (engineer-reported; no shell here, git, push, CI, GitHub, crates.io and OneDrive state not checked from here):**
+- Annotated tag `v0.163.0` on `b7bef2dec471cfc95acb5d2e62dac72352ebd533` (the 1637th filing commit); bump `ac43cfd0`. Tag pushed, `origin/main` contains it. CI green on `b7bef2de` (run 44557297076).
+- Contents: three Passes, `721.15`-`721.17` (`G305`-`G307`, `9abc37c3` + `6b410132`, filed 1635th/1636th).
+- Portable build `D:\builds\pdfcer-20261119-1034-ac43cfd` (revision `v0.162.0-6-gac43cfd0`): total 68,418,201 bytes, `pdfcer.exe` 52,474,880 bytes, `pdfcer 0.163.0`. Fresh-folder smoke: `--version`, `extract-text` (chars=199, failed=0), `render-page` (PNG 67,779 bytes), `3d-render --help` lists `--over-range`. **Not smoked:** a real `3d-render --over-range` run (no 3D PDF fixture at hand).
+- `tools/gh-release.py` PASS: 8 assets at local sizes; zip sha256 prefixes: portable 32,651,888 bytes `c7eac1034941`; ocrcer 3,789,155 `5eec8597a12b`; ocrs 11,352,262 `f169cb726f64`; tesseract 4,483,685 `0ca68565f478`.
+- `deploy-onedrive.py` wrote `pdfcer2` (6 items, 88,040,960 bytes; was 0.161.0); `pdfcer1` keeps 0.162.0; next release writes `pdfcer1`.
+- crates.io: 16 crates at 0.163.0 from a detached worktree at the tag, `cargo publish --no-verify` (model, json, vec3, jpeg-remux, image-codec, fonts, pkix, color, text, function, core, 3d, 3d-nav, render, flatten, emf).
+- `verify-release.py`: all ok except "working tree clean" (uncommitted agent-memory files only).
+- GUI notice `open/notice_2026-11-19_release_v0.163.0.md`; replies `G305`-`G307` SHIPPED already in `open/`.
+- **Amendment to the 1637th entry below:** its "not yet tagged, packaged, deployed or published" was true at its filing; left as written, superseded by this entry.
+- FEATURES: no change.
+
+**Open:** nothing in flight. Next free IDs unchanged from the 1637th: `Pass 647.15`, `717.4`, `718.5`, `720.3`, `721.18`, `722.10`, `723.11`, `647.3h`; decision `225`; rule `R264`. `docs/NEXT_SESSION.md` engineer-owned, not edited.
+
 ## 2026-11-19 (1637th filing) — `v0.163.0` release bump (`ac43cfd0`); not yet tagged, packaged, deployed or published
 
 **Filed (engineer-reported; no shell here, git, push, CI and OneDrive state not checked from here):**
