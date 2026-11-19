@@ -845,6 +845,11 @@ file.
   - `ChoiceList { items: Vec<(display, save)>, open: ChoiceOpen, text_entry }`.
     `ChoiceOpen` = `UserControl` (default) | `OnEntry` | `Always` |
     `MultiSelect`; `is_drop_down()` for the first two.
+    `FieldWidget::selections(value) -> Option<Vec<&str>>` reads a bound
+    value back into a list's selections (`None` off a choice list): a
+    `MultiSelect` value is one per line, or space-separated when it is one
+    line and not itself a save value (pp.198, 485); any other list's value
+    is its one selection. The same rule the painter and `--fillable` use.
   - `Other(tag)`: `passwordEdit`, `imageEdit`, `signature`, `button`,
     `barcode`.
   The values carried are what `fill_xfa_field` takes. CLI `xfa-layout`

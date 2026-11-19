@@ -70,7 +70,8 @@ pub enum ChoiceOpen {
     Always,
     /// `multiSelect`: the list is always shown, several selections. Give
     /// [`crate::edit::EditSession::fill_xfa_field`] the chosen save values
-    /// one per line, joined by `'\n'`.
+    /// one per line, joined by `'\n'`; read a value back with
+    /// [`FieldWidget::selections`].
     MultiSelect,
 }
 
@@ -84,6 +85,52 @@ pub(in crate::xfa) fn multi_select_values<'a>(value: &'a str, save: &[&str]) -> 
         value.lines().filter(|l| !l.is_empty()).collect()
     } else {
         value.split(' ').filter(|l| !l.is_empty()).collect()
+    }
+}
+
+impl FieldWidget {
+    /// The selections `value` makes in this choice list; `None` when the
+    /// field is not a [`FieldWidget::ChoiceList`].
+    ///
+    /// A `multiSelect` list's value holds one selection per line, as a bound
+    /// data group's values are joined (XFA 3.3 p.198). A one-line value that
+    /// is not itself one of the list's save values is read space-separated,
+    /// the form of the widget chapter's example (p.485), so `"bananas pears"`
+    /// is two selections and `"New York"` stays one when it is a save value.
+    /// Any other list's value is its one selection, or none when empty.
+    /// Selections are returned as written, so one that is not a save value
+    /// is kept, not dropped.
+    ///
+    /// Pass a [`crate::xfa::BoundValue::value`]. To add or remove a
+    /// selection, join the new list with `'\n'` and give it to
+    /// [`crate::edit::EditSession::fill_xfa_field`].
+    ///
+    /// ```
+    /// use pdfcer_core::xfa::{ChoiceOpen, FieldWidget};
+    ///
+    /// let list = FieldWidget::ChoiceList {
+    ///     items: vec![("New York".into(), "New York".into()), ("Pears".into(), "pears".into())],
+    ///     open: ChoiceOpen::MultiSelect,
+    ///     text_entry: false,
+    /// };
+    /// assert_eq!(list.selections("New York\npears"), Some(vec!["New York", "pears"]));
+    /// assert_eq!(list.selections("New York"), Some(vec!["New York"]));
+    /// assert_eq!(list.selections("bananas pears"), Some(vec!["bananas", "pears"]));
+    /// assert_eq!(FieldWidget::Numeric.selections("1"), None);
+    /// ```
+    #[must_use]
+    pub fn selections<'a>(&self, value: &'a str) -> Option<Vec<&'a str>> {
+        let FieldWidget::ChoiceList { items, open, .. } = self else {
+            return None;
+        };
+        Some(match open {
+            ChoiceOpen::MultiSelect => {
+                let save: Vec<&str> = items.iter().map(|(_, s)| s.as_str()).collect();
+                multi_select_values(value, &save)
+            }
+            _ if value.is_empty() => Vec::new(),
+            _ => vec![value],
+        })
     }
 }
 

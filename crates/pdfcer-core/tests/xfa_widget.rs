@@ -140,3 +140,33 @@ fn a_choice_list_pairs_display_and_save_items() {
     assert_eq!((open, text_entry), (ChoiceOpen::MultiSelect, false));
     assert!(!open.is_drop_down() && ChoiceOpen::default().is_drop_down());
 }
+
+#[test]
+fn a_choice_lists_value_reads_back_as_its_selections() {
+    // G304: the one rule the paint and fill paths share, published.
+    let t = template(concat!(
+        r#"<field name="m"><ui><choiceList open="multiSelect"/></ui>"#,
+        r#"<items><text>New York</text><text>Pears</text><text>Bananas</text></items>"#,
+        r#"<items save="1"><text>New York</text><text>pears</text><text>bananas</text></items></field>"#,
+        r#"<field name="d"><ui><choiceList/></ui><items><text>New York</text></items></field>"#,
+        r#"<field name="n"><ui><numericEdit/></ui></field>"#,
+    ));
+    let multi = kind(&t, 0).unwrap();
+    let lines = ["pears", "bananas"].join("\n");
+    assert_eq!(multi.selections(&lines), Some(vec!["pears", "bananas"]));
+    assert_eq!(
+        multi.selections("New York"),
+        Some(vec!["New York"]),
+        "a one-line save value is one selection, not split on its space"
+    );
+    assert_eq!(
+        multi.selections("bananas pears"),
+        Some(vec!["bananas", "pears"]),
+        "a one-line value that is not a save value reads space-separated"
+    );
+    assert_eq!(multi.selections(""), Some(vec![]));
+    let single = kind(&t, 1).unwrap();
+    assert_eq!(single.selections("New York"), Some(vec!["New York"]));
+    assert_eq!(single.selections(""), Some(vec![]));
+    assert_eq!(kind(&t, 2).unwrap().selections("1"), None);
+}
