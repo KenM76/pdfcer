@@ -112,6 +112,15 @@ wherever it appears.*
 
 ## Shipped
 
+### `d0d2fbe4` `Pass 723.4`: a whitespace table needs columns that line up, 2026-11-18 (1621st filing)
+
+Engineer-reported; no shell here, git, push and CI state not checked from here. `d0d2fbe4` `fix(tables): a whitespace table needs columns that line up`. Request `X093` addendum (`open/request_X093_table_grid_allocation_bounded.md`, "Addendum"; reply `open/reply_X093_addendum_aligned_columns_SHIPPED.md`). Opened and shipped in one filing. **Unreleased**: lands in `v0.160.0`. Reasoning is in the commit message. **core** only; cli/gui unchanged. No manifest change, so `cargo tree` is unchanged.
+- **A:** the whitespace-table prose limit is per column (a cell over `max_mean_cell_chars` x the column's cell count declines) instead of a block-wide mean.
+- **B:** every column must line up: at least 2 and at least half of its cells share a left, right or centre edge within 0.25 x the median font size (private `column_lines_up`).
+- **C:** new pub field `pdfcer_text::text_extract::ExtractedGlyph::width_guessed`: the width was a fallback (`/MissingWidth`, its zero default, or a no-`/Widths` estimate; ISO 32000-2 §9.6.2.1 Table 122; a composite font's `/DW` counts as stated). `aligned_tables` skips runs carrying one.
+- **Tests (engineer-reported):** 4 new in `pdfcer-core` `tests/table_detect.rs`, 2 new in `pdfcer-text` `tests/unit_width_guessed.rs`; each rule sabotage-checked. `pdfcer-text` 2382 lib tests, `pdfcer-core` 3352 plus integration suites green; fmt, clippy `-D warnings`, `cargo doc` broken-links, code-structure, tests-harnessed clean.
+- **FEATURES:** the table-extraction row's whitespace clause refined (core only; boxes unchanged). `width_guessed` is core-only per-glyph metadata; no separate row.
+
 ### `7be6a351` `v0.159.0` PUBLISHED, 2026-11-18 (1620th filing)
 
 Engineer-reported; no shell here, nothing checked from here. Bump `b61fb116` (filed 1614th); `7be6a351` is the 1619th filing commit (`docs: file Pass 723.3 and the build-cache chore 3f76bf88 (1619th)`). Docs-only filing: no new code commit. Annotated tag `v0.159.0` on `7be6a351`, pushed. CI green at `7be6a351` (run 44426713413); the previous push `91f40080` also green (both read from GitHub by the engineer).
@@ -27894,6 +27903,8 @@ closes out the *prior* filing's business rather than opening this one's.
 > **`Pass 723.2` (`421da52f`, `X092`) SHIPPED 2026-11-18 (1618th filing); see its *Shipped* entry (opened and shipped in one filing; unreleased, joins the `v0.159.0` round).** Next free IDs: `Pass 647.13`, `Pass 717.4`, `Pass 718.5`, `Pass 720.3`, `Pass 721.14`, `Pass 722.10`, `Pass 723.3`, `Pass 647.3h`; decision `225`, rule `R264`. `723.2` was the next free ID per the 1616th banner (not re-grepped beyond that; no shell).
 
 > **`Pass 723.3` (`67b568c2`, `X093`) SHIPPED 2026-11-18 (1619th filing), and chore `3f76bf88` (build-cache pruning) FILED; see their *Shipped* entries (`723.3` opened and shipped in one filing; unreleased, joins the `v0.159.0` round).** Next free IDs: `Pass 647.13`, `Pass 717.4`, `Pass 718.5`, `Pass 720.3`, `Pass 721.14`, `Pass 722.10`, `Pass 723.4`, `Pass 647.3h`; decision `225`, rule `R264`. `723.3` was the next free ID per the 1618th banner (not re-grepped beyond that; no shell).
+
+> **`Pass 723.4` (`d0d2fbe4`, `X093` addendum) SHIPPED 2026-11-18 (1621st filing); see its *Shipped* entry (opened and shipped in one filing; unreleased, joins the `v0.160.0` round).** Next free IDs: `Pass 647.13`, `Pass 717.4`, `Pass 718.5`, `Pass 720.3`, `Pass 721.14`, `Pass 722.10`, `Pass 723.5`, `Pass 647.3h`; decision `225`, rule `R264`. `723.4` was the next free ID per the 1620th filing (not re-grepped beyond that; no shell).
 
 > **`d278cc2a` (follow-up fix to `Pass 647.12`, no new ID) FILED 2026-11-18 (1617th filing); see its *Shipped* entry (unreleased, joins the `v0.159.0` round).** Next free IDs unchanged from the 1616th banner.
 

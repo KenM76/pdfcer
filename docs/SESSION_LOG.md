@@ -4,6 +4,15 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-11-18 (1621st filing) — `Pass 723.4` (`d0d2fbe4`, `X093` addendum) SHIPPED: a whitespace table needs columns that line up; unreleased
+
+**Filed (engineer-reported; no shell here, git, push and CI state not checked from here):**
+- `d0d2fbe4` `fix(tables): a whitespace table needs columns that line up`: (A) prose limit per column, not block-wide mean; (B) every column must line up (>= 2 and >= half its cells share a left/right/centre edge within 0.25 x median font size, private `column_lines_up`); (C) new pub `ExtractedGlyph::width_guessed` (fallback width: `/MissingWidth`, its zero default, or no-`/Widths` estimate; ISO 32000-2 §9.6.2.1 Table 122; composite `/DW` counts as stated), and `aligned_tables` skips runs carrying one.
+- Tests: 4 new in `pdfcer-core` `tests/table_detect.rs`, 2 new in `pdfcer-text` `tests/unit_width_guessed.rs`, each rule sabotage-checked; `pdfcer-text` 2382 lib, `pdfcer-core` 3352 plus integration green; fmt, clippy, `cargo doc`, code-structure, tests-harnessed clean. No manifest change.
+- FEATURES: table-extraction row's whitespace clause refined (core only; boxes unchanged; row kept under cap by a short clause).
+
+**Open:** next free IDs `Pass 647.13`, `717.4`, `718.5`, `720.3`, `721.14`, `722.10`, `723.5`, `647.3h`; decision `225`; rule `R264`. Joins the `v0.160.0` round. `docs/NEXT_SESSION.md` engineer-owned, not edited.
+
 ## 2026-11-18 (1620th filing) — `v0.159.0` PUBLISHED (tag on `7be6a351`)
 
 **Filed (engineer-reported; no shell here, nothing checked from here):**
