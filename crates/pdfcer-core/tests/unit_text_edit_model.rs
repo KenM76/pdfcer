@@ -29,6 +29,7 @@ pub(crate) fn glyph_run(chars: &[(&str, f32, f32, f32, f32)]) -> TextRun {
             size,
             direction: (1.0, 0.0),
             invisible: false,
+            width_guessed: false,
             weight: FontWeight::UNKNOWN,
             provenance: None,
         });

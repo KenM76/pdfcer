@@ -642,6 +642,13 @@ pub struct ExtractedGlyph {
     /// know that covered-but-present text is still extractable, not so
     /// that a caller can drop it.
     pub invisible: bool,
+    /// `true` when [`Self::advance`] rests on a fallback width rather than
+    /// one the font states for this code: a simple font's `/MissingWidth`
+    /// or its zero default (§9.6.2.1, Table 122), or the estimate used
+    /// for a font with no `/Widths` that is not a standard-14 face. The
+    /// glyph's position is still where the content stream put it; what
+    /// is unknown is where it ends.
+    pub width_guessed: bool,
     /// The font weight in effect ([`FontWeight`]).
     pub weight: FontWeight,
     /// Source-operator identity and text state behind this glyph — the

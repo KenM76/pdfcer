@@ -383,8 +383,12 @@ pub fn advance_tx(w0: f64, tfs: f64, tc: f64, tw: f64, th: f64) -> f64 {
 #[derive(Debug, Clone)]
 enum Widths {
     /// §9.6.2.1: `/FirstChar` + `/Widths`, else the standard-14 AFM
-    /// tables, else `/MissingWidth`.
-    Simple(Box<[f32; 256]>),
+    /// tables, else `/MissingWidth`. `measured[code]` is false where the
+    /// width came from `/MissingWidth`, its zero default or an estimate.
+    Simple {
+        table: Box<[f32; 256]>,
+        measured: Box<[bool; 256]>,
+    },
     /// §9.7.4.3: `/W` ranges over `/DW`. Deliberately not materialized —
     /// CIDs run to 65,535 and `7080 8032 1000` is the point of the
     /// format.
@@ -769,7 +773,7 @@ impl ExtractFont {
     #[doc(hidden)]
     pub fn width(&self, code: u32) -> f32 {
         let glyph_space = match &self.widths {
-            Widths::Simple(table) => usize::try_from(code)
+            Widths::Simple { table, .. } => usize::try_from(code)
                 .ok()
                 .and_then(|i| table.get(i))
                 .copied()
@@ -780,6 +784,24 @@ impl ExtractFont {
                 .map_or(*default, |&(_, _, w)| w),
         };
         glyph_space * self.width_scale
+    }
+
+    /// Whether [`Self::width`] for `code` is a fallback rather than a
+    /// width the font states for that code: a simple font's
+    /// `/MissingWidth` (or its zero default) or an estimated table.
+    /// A composite font's `/DW` is the font's stated default, not a guess.
+    // workspace-internal: called by pdfcer-core, not API
+    #[doc(hidden)]
+    #[must_use]
+    pub fn width_guessed(&self, code: u32) -> bool {
+        match &self.widths {
+            Widths::Simple { measured, .. } => !usize::try_from(code)
+                .ok()
+                .and_then(|i| measured.get(i))
+                .copied()
+                .unwrap_or(false),
+            Widths::Composite { .. } => false,
+        }
     }
 
     /// The font's maximum height above the baseline, **text space**
@@ -1109,6 +1131,7 @@ fn simple_widths(
         .unwrap_or(0.0) as f32;
 
     let mut table = Box::new([missing_width; 256]);
+    let mut measured = Box::new([false; 256]);
     let first_char = doc
         .resolve(font_dict.get(b"FirstChar").unwrap_or(&Object::Null))
         .as_int()
@@ -1130,22 +1153,26 @@ fn simple_widths(
                 && let Some(w) = doc.resolve(entry).as_number()
             {
                 *slot = w as f32;
+                if let Some(m) = measured.get_mut(code) {
+                    *m = true;
+                }
             }
         }
-        return Widths::Simple(table);
+        return Widths::Simple { table, measured };
     }
 
     // No /Widths. §9.6.2.2 permits this only for the standard 14, whose
     // metrics pdfcer carries.
     if let Some(std14) = std14 {
-        for (code, slot) in table.iter_mut().enumerate() {
+        for ((code, slot), m) in table.iter_mut().enumerate().zip(measured.iter_mut()) {
             if let Some(Some(name)) = names.get(code)
                 && let Some(w) = fontdata::std14_width(std14, name)
             {
                 *slot = f32::from(w);
+                *m = true;
             }
         }
-        return Widths::Simple(table);
+        return Widths::Simple { table, measured };
     }
 
     // Neither: the true advances live in the font program, which
@@ -1164,7 +1191,7 @@ fn simple_widths(
             .map_or(500.0, f32::from);
         *slot = estimate;
     }
-    Widths::Simple(table)
+    Widths::Simple { table, measured }
 }
 
 /// Resolve a font's vertical extent from dictionary data alone (§9.8

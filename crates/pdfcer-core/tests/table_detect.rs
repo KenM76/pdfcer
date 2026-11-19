@@ -408,3 +408,93 @@ fn a_page_past_the_end_is_refused() {
         TableError::Extract(ExtractError::NoSuchPage { index: 3, count: 3 })
     ));
 }
+
+/// One `Tj` per `(font, size, x, y, text)`.
+fn shows(items: &[(&str, f32, f32, &str)]) -> String {
+    items
+        .iter()
+        .map(|(font, x, y, t)| format!("BT /{font} 10 Tf {x} {y} Td ({t}) Tj ET\n"))
+        .collect()
+}
+
+#[test]
+fn prose_beside_short_cells_is_not_a_table() {
+    let prose = "This column holds a sentence of prose text";
+    let mut items = Vec::new();
+    for (r, y) in [500.0, 486.0, 472.0].into_iter().enumerate() {
+        let (a, b) = [("12", "4.5"), ("7", "0.25"), ("30", "1.0")][r];
+        items.extend([
+            ("F1", 72.0, y, prose),
+            ("F1", 330.0, y, a),
+            ("F1", 440.0, y, b),
+        ]);
+    }
+    let found = detect(&shows(&items), 0);
+    assert!(found.tables.is_empty(), "{:?}", found.tables);
+    assert_eq!(found.diagnostics.aligned_blocks_rejected, 1);
+}
+
+#[test]
+fn a_value_drifting_across_rows_is_not_a_column() {
+    let items = [
+        ("F1", 72.0, 500.0, "Name"),
+        ("F1", 200.0, 500.0, "Value"),
+        ("F1", 72.0, 486.0, "Size"),
+        ("F1", 220.0, 486.0, "Value"),
+        ("F1", 72.0, 472.0, "Mass"),
+        ("F1", 240.0, 472.0, "Value"),
+    ];
+    let found = detect(&shows(&items), 0);
+    assert!(found.tables.is_empty(), "{:?}", found.tables);
+    assert_eq!(found.diagnostics.aligned_blocks_rejected, 1);
+}
+
+#[test]
+fn right_aligned_and_centred_columns_are_still_a_table() {
+    // Helvetica digits are 556/1000 em: 5.56 pt each at 10 pt.
+    let digit = 5.56_f32;
+    let mut items = Vec::new();
+    for (r, (label, n)) in [("Bolt", "1"), ("Nut", "22"), ("Washer", "333")]
+        .into_iter()
+        .enumerate()
+    {
+        #[allow(clippy::cast_precision_loss)]
+        let y = 500.0 - 14.0 * r as f32;
+        #[allow(clippy::cast_precision_loss)]
+        let w = digit * n.len() as f32;
+        items.extend([
+            ("F1", 72.0, y, label),
+            ("F1", 300.0 - w, y, n),
+            ("F1", 420.0 - w / 2.0, y, n),
+        ]);
+    }
+    let found = detect(&shows(&items), 0);
+    assert_eq!(found.tables.len(), 1, "{:?}", found.diagnostics);
+    assert_eq!(found.tables[0].columns.len(), 3);
+    assert_eq!(found.tables[0].cell(2, 1).unwrap().text, "333");
+}
+
+#[test]
+fn a_font_with_no_widths_places_no_table() {
+    let bodies = vec![
+        "<< /Type /Catalog /Pages 2 0 R >>".to_owned(),
+        "<< /Type /Pages /Kids [3 0 R] /Count 1 >>".to_owned(),
+        "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] \
+         /Contents 4 0 R /Resources << /Font << /F1 5 0 R /F2 5 0 R >> >> >>"
+            .to_owned(),
+        format!("STREAM:{}", aligned_rows(&PARTS, "F2")),
+        // Not a standard-14 face, no /Widths, no /FontDescriptor /MissingWidth.
+        "<< /Type /Font /Subtype /Type1 /BaseFont /Unlisted-Face /Encoding /WinAnsiEncoding >>"
+            .to_owned(),
+    ];
+    let d = Document::from_bytes(build_pdf(&bodies)).expect("loads");
+    let found = detect_tables(
+        &d.view(),
+        &ExtractOptions::default(),
+        &TableOptions::default(),
+    )
+    .expect("detects");
+    assert!(found.tables.is_empty(), "{:?}", found.tables);
+    // The same rows in Helvetica are a table.
+    assert_eq!(detect(&aligned_rows(&PARTS, "F2"), 0).tables.len(), 1);
+}

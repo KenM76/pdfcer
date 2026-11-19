@@ -1224,6 +1224,36 @@ fn glyph_text<'a>(
         .unwrap_or("")
 }
 
+/// How far, in em, cells may stray from a shared edge and still line up.
+const ALIGN_TOLERANCE_EM: f64 = 0.25;
+
+/// Whether at least two of a column's cells, and at least half of them,
+/// share a left edge, a right edge or a centre to within `tolerance`.
+/// Overlapping spans alone do not make a column: a value drifting 20 pt a
+/// row overlaps its neighbours and lines up with none of them.
+fn column_lines_up(cells: &[(f64, f64)], tolerance: f64) -> bool {
+    type Edge = fn(&(f64, f64)) -> f64;
+    let edges: [Edge; 3] = [|c| c.0, |c| c.1, |c| (c.0 + c.1) / 2.0];
+    let most = edges
+        .iter()
+        .map(|edge| {
+            let mut at: Vec<f64> = cells.iter().map(edge).collect();
+            at.sort_by(f64::total_cmp);
+            let mut start = 0usize;
+            let mut most = 0usize;
+            for (end, &x) in at.iter().enumerate() {
+                while at.get(start).is_some_and(|&first| x - first > tolerance) {
+                    start = start.saturating_add(1);
+                }
+                most = most.max(end.saturating_add(1).saturating_sub(start));
+            }
+            most
+        })
+        .max()
+        .unwrap_or(0);
+    most >= 2 && most.saturating_mul(2) >= cells.len()
+}
+
 /// Tables laid out by whitespace alone: consecutive rows of at least two
 /// chunks whose gutters line up down the whole block.
 fn aligned_tables(
@@ -1237,6 +1267,11 @@ fn aligned_tables(
     let gutter_em = f64::from(options.min_gutter_em).max(0.1);
     let mut placed = Vec::new();
     for (ri, run) in page.runs.iter().enumerate() {
+        // A guessed width gives a chunk a guessed extent; a gutter measured
+        // from it is not a measurement.
+        if run.glyphs.iter().any(|g| g.width_guessed) {
+            continue;
+        }
         for (gi, g) in run.glyphs.iter().enumerate() {
             let r = GlyphRef { run: ri, glyph: gi };
             if taken.contains(&r) {
@@ -1323,8 +1358,10 @@ fn aligned_tables(
 }
 
 /// One candidate block to a grid, or `None` when its columns do not hold
-/// up: fewer than two, one used by a single row, or cells long enough to
-/// be prose columns.
+/// up: fewer than two, one used by a single row, one whose cells share no
+/// edge ([`column_lines_up`]), or one whose cells average more than
+/// `max_mean_chars` (prose beside short cells, judged per column so the
+/// short cells cannot average it down).
 fn aligned_block(
     rows: &[&TextRow],
     hs: &[Rule],
@@ -1333,7 +1370,8 @@ fn aligned_block(
 ) -> Option<Draft> {
     let mut sizes: Vec<f64> = rows.iter().map(|r| r.size).collect();
     sizes.sort_by(f64::total_cmp);
-    let gutter = gutter_em * sizes.get(sizes.len() / 2).copied()?;
+    let median_size = sizes.get(sizes.len() / 2).copied()?;
+    let gutter = gutter_em * median_size;
     let mut spans: Vec<(f64, f64)> = rows
         .iter()
         .flat_map(|r| r.chunks.iter().map(|c| (c.x0, c.x1)))
@@ -1352,7 +1390,8 @@ fn aligned_block(
     }
     let mut grid: Vec<Vec<GlyphRef>> = vec![Vec::new(); rows.len().checked_mul(ncols)?];
     let mut used = vec![0usize; ncols];
-    let mut chars = 0usize;
+    let mut chars = vec![0usize; ncols];
+    let mut spans_in: Vec<Vec<(f64, f64)>> = vec![Vec::new(); ncols];
     for (ri, row) in rows.iter().enumerate() {
         let mut seen = vec![false; ncols];
         for chunk in &row.chunks {
@@ -1361,20 +1400,25 @@ fn aligned_block(
                 .position(|c| chunk.x0 >= c.0 - 0.01 && chunk.x1 <= c.1 + 0.01)?;
             grid.get_mut(ri * ncols + ci)?
                 .extend(chunk.glyphs.iter().map(|p| p.r));
-            chars = chunk
+            let n = chars.get_mut(ci)?;
+            *n = chunk
                 .glyphs
                 .iter()
-                .fold(chars, |n, p| n.saturating_add(p.chars));
+                .fold(*n, |n, p| n.saturating_add(p.chars));
+            spans_in.get_mut(ci)?.push((chunk.x0, chunk.x1));
             *seen.get_mut(ci)? = true;
         }
         for (u, s) in used.iter_mut().zip(&seen) {
             *u = u.saturating_add(usize::from(*s));
         }
     }
-    let filled: usize = used.iter().sum();
-    #[allow(clippy::cast_precision_loss)]
-    let mean = chars as f64 / filled.max(1) as f64;
-    if used.iter().any(|&u| u < 2) || mean > max_mean_chars {
+    #[allow(clippy::cast_precision_loss)] // counts far below 2^52
+    let prose = |n: usize, u: usize| n as f64 > max_mean_chars * u as f64;
+    let tolerance = ALIGN_TOLERANCE_EM * median_size;
+    if used.iter().any(|&u| u < 2)
+        || chars.iter().zip(&used).any(|(&n, &u)| prose(n, u))
+        || !spans_in.iter().all(|c| column_lines_up(c, tolerance))
+    {
         return None;
     }
 

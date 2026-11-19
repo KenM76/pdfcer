@@ -1277,6 +1277,7 @@ mod tests {
                 size: 10.0,
                 direction: (1.0, 0.0),
                 invisible: false,
+                width_guessed: false,
                 weight: FontWeight::UNKNOWN,
                 provenance: None,
             });

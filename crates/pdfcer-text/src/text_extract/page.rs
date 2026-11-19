@@ -116,6 +116,8 @@ pub(super) struct GlyphItem {
     pub direction: (f32, f32),
     /// Text rendering mode 3 or 7.
     pub invisible: bool,
+    /// The advance is a fallback width ([`ExtractedGlyph::width_guessed`]).
+    pub width_guessed: bool,
     pub weight: FontWeight,
     /// Enclosing `/Artifact` classification, if any.
     pub artifact: Option<ArtifactKind>,
@@ -1069,6 +1071,7 @@ impl Walk<'_> {
         // which is why it is inert under Identity-H and useless as a
         // word-break signal in modern documents (S6).
         let w0 = font.width(code);
+        let width_guessed = font.width_guessed(code);
         let tw = if word_spacing {
             self.ts.word_spacing()
         } else {
@@ -1189,6 +1192,7 @@ impl Walk<'_> {
             size,
             direction,
             invisible,
+            width_guessed,
             weight,
             artifact,
             mcid: self.mcid(),
