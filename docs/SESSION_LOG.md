@@ -4,6 +4,19 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-11-19 (1645th filing) — docs commit `c91e9f0d`: build a frame's bounce light with `threads = 0`
+
+**Filed (engineer-reported; no shell here, git, push, CI and the gates not run or checked from here):**
+- `c91e9f0db7c2a7c2776f295f47463dc7293d94de` `docs(3d): build a frame's bounce light on every core`. No code. A rustdoc line on `FrameBounce` (`crates/pdfcer-3d/src/gpu/bounce.rs`) and a passage in `docs/core-api/01-reading-and-model.md` under `PreparedModel::frame_bounce`: build with `RenderOptions::threads = 0`. core-api `index.md` 5,727 -> 5,731 lines (engineer-reported).
+- Trigger: the EmilysOffice session reported `Bancroft_3D_real_lighting_white_ceiling.pdf` (3d-embed `--gltf-lights exposure --gltf-ambient none`, 84 KHR_lights_punctual spots) far darker in pdfcer-gui than `3d-render --lighting artwork --bounce model-lights`, ceiling black.
+- Finding (engineer scratch probe, not committed): GUI engine inputs equal the CLI defaults (Artwork, Camera light frame, `Bounce::ModelLights` strength 1, `LampCut::Auto`, `Exposure::Metered`). `frame_bounce` succeeds (84 bouncing, 0 camera lights, atlas [14,38,6], 181,056 texels, mean luminance 0.2159, max 3.703) but takes 70.6 s at `threads=1` against 10.4 s at `threads=0` on 20 cores (6.8x), identical atlas. The GUI's `gpu_frame` builds with `look.options()` (threads=1), so the frame draws as `--bounce off` for over a minute. `Exposure::Fixed{500}` would scale lights to 0.4237 and the bounce mean to 0.0302; Metered is the CLI default and is not the cause.
+- GUI request: `pdfce_FeatureRequests/open/notice_2026-11-19_gui_bounce_built_on_one_thread.md` (build with threads 0, keep threads out of the bounce key, disclose a pending or failed bounce off-canvas, rule 4). Owed to `pdfcer-gui`.
+- RAG: `D:/dev/rag/rust/an_off_frame_loop_engine_build_inherits_threads_1_from_the_ui_looks_options_and_runs_seven_times_slower.md`, indexed in `D:/dev/rag/rust/index.md` (verified by `Grep -c` on that file: 4,833 lines now, the other `index.md` is a different file).
+
+**FEATURES:** no change (documentation clarification of an existing core verb; no box moved). **Sweep (hard rule 11):** no counter or capability changed meaning; no Pass consumed.
+
+**Open:** GUI half of the fix. Next free IDs unchanged: `Pass 647.15`, `717.4`, `718.5`, `720.3`, `721.24`, `722.10`, `723.11`, `647.3h`; decision `225`; rule `R264` (verified free by grep of this file's and `ROADMAP.md`'s banners; `R263` was not minted). `docs/NEXT_SESSION.md` engineer-owned, not edited.
+
 ## 2026-11-19 (1644th filing) — `v0.164.0` PUBLISHED (tag on `ac3e5690`)
 
 **Filed (engineer-reported; no shell here, git, push, CI, GitHub, crates.io and OneDrive state not checked from here):**
