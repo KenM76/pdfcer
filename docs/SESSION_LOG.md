@@ -4,6 +4,16 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-11-18 (1623rd filing) — `Pass 721.14` (`c039fe16`, `G302`) SHIPPED: a 3D picture can be drawn at a fixed exposure in lux; unreleased
+
+**Filed (engineer-reported; no shell here, git, push and CI state not checked from here):**
+- `c039fe16`: `pdfcer-3d` `Exposure::{Metered, Fixed { white_lux }}` and `Exposure::lighting` returning `ExposedLighting`; Fixed = white diffuse surface at `white_lux` is full white, no metering, no ambient; refused with `RelativeReason`s when a lamp has no physical strength. CPU and GPU share the same lights (within 1/255). CLI `3d-render --exposure-lux LUX` (note printed; exit 9 when not drawable). Core-api docs updated.
+- Answered: stored candela/lux survive glTF import scaling. Not done: filmic tone curve (G302 item 4; Clip only).
+- Tests: 6 exposure, 1 glTF import-scale, 1 CLI; doubling test sabotage-checked. `pdfcer-3d` 571 lib + 6 integration + 38 doc; `pdfcer-cli` 133 unit + 1117 integration. Gates clean. No manifest change.
+- FEATURES: new row (core, cli ticked; gui unticked).
+
+**Open:** next free IDs `Pass 647.14`, `717.4`, `718.5`, `720.3`, `721.15`, `722.10`, `723.5`, `647.3h`; decision `225`; rule `R264`. Joins the `v0.160.0` round. `docs/NEXT_SESSION.md` engineer-owned, not edited.
+
 ## 2026-11-18 (1622nd filing) — `Pass 647.13` (`11d2c93a`, `G303`) SHIPPED: a multiSelect list's selections are one per line everywhere; unreleased
 
 **Filed (engineer-reported; no shell here, git, push and CI state not checked from here):**

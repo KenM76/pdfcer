@@ -112,6 +112,16 @@ wherever it appears.*
 
 ## Shipped
 
+### `c039fe16` `Pass 721.14`: a picture can be drawn at a fixed exposure in lux, 2026-11-18 (1623rd filing)
+
+Engineer-reported; no shell here, git, push and CI state not checked from here. `c039fe16` `feat(3d): a picture can be drawn at a fixed exposure in lux`. Request `G302` (`pdfcer-gui`; `request_G302_3d_fixed_exposure.md`, operator ask `O446`; reply `open/reply_G302_3d_fixed_exposure_SHIPPED.md`). Opened and shipped in one filing. **Unreleased**: lands in `v0.160.0`. Reasoning is in the commit message. **core + cli**; gui unticked (`pdfcer-gui` has not wired it). No manifest change.
+- **Core (`pdfcer-3d`, `render` feature):** `Exposure::{Metered (default; picture byte-identical to before), Fixed { white_lux }}`; `Exposure::lighting(&model, &options, &MeterSettings) -> Result<ExposedLighting, ExposureError>`; `ExposedLighting { lights, options, white_lux, notes }` with `render`, `frame_lights`, `frame_bounce`; `ExposureError::{WhiteLux, Relative(Vec<RelativeReason>)}`. Fixed: a white diffuse surface receiving `white_lux` is full white, others proportional; no per-model metering, no ambient. Refused when any lamp lacks physical strength. CPU picture and GPU light data are built from the same lights (within 1/255). Internal `mode_frame::render` and new `PreparedModel::frame_bounce_lit` take lights explicitly.
+- **Request item 3 answered:** stored candela/lux survive glTF `Stored`/`Exposure`/`Normalise` import scaling (Fixed pictures byte-identical across them). **Item 4 (filmic tone curve) NOT done**: Clip only; needs a GLSL and CPU rasterizer change.
+- **CLI:** `3d-render --exposure-lux LUX` prints `note: exposure: fixed, full white at LUX lux; ...`; exit 9 with the reasons when not drawable in lux.
+- **Docs:** `docs/core-api/01-reading-and-model.md` "Fixed exposure" entry, `index.md` count.
+- **Tests (engineer-reported):** 6 exposure, 1 glTF import-scale, 1 CLI; the doubling test sabotage-checked (fails with 3 others). `pdfcer-3d` 571 lib + 6 integration + 38 doc; `pdfcer-cli` 133 unit + 1117 integration. fmt, clippy `-D warnings`, code-structure, core-api-verbs, clap-help, `cargo doc` clean.
+- **FEATURES:** new row "3D picture at a fixed exposure in lux" (core, cli ticked; gui unticked); the lights and light-meter rows not lengthened.
+
 ### `11d2c93a` `Pass 647.13`: a multiSelect list's selections are one per line everywhere, 2026-11-18 (1622nd filing)
 
 Engineer-reported; no shell here, git, push and CI state not checked from here. `11d2c93a` `fix(xfa): a multiSelect list's selections are one per line everywhere`. Request `G303` (`pdfcer-gui`; `request_G303_xfa_multiselect_value_separator.md`, reply `open/reply_G303_xfa_multiselect_value_separator_SHIPPED.md`). Opened and shipped in one filing. **Unreleased**: lands in `v0.160.0`. Reasoning is in the commit message. **core** only; cli/gui boxes unchanged. No manifest change.
@@ -27916,6 +27926,8 @@ closes out the *prior* filing's business rather than opening this one's.
 > **`Pass 723.4` (`d0d2fbe4`, `X093` addendum) SHIPPED 2026-11-18 (1621st filing); see its *Shipped* entry (opened and shipped in one filing; unreleased, joins the `v0.160.0` round).** Next free IDs: `Pass 647.13`, `Pass 717.4`, `Pass 718.5`, `Pass 720.3`, `Pass 721.14`, `Pass 722.10`, `Pass 723.5`, `Pass 647.3h`; decision `225`, rule `R264`. `723.4` was the next free ID per the 1620th filing (not re-grepped beyond that; no shell).
 
 > **`Pass 647.13` (`11d2c93a`, `G303`) SHIPPED 2026-11-18 (1622nd filing); see its *Shipped* entry (opened and shipped in one filing; unreleased, joins the `v0.160.0` round).** Next free IDs: `Pass 647.14`, `Pass 717.4`, `Pass 718.5`, `Pass 720.3`, `Pass 721.14`, `Pass 722.10`, `Pass 723.5`, `Pass 647.3h`; decision `225`, rule `R264`. `647.13` was the next free ID per the 1621st filing (grep of this file found no other `Pass 647.13`; no shell).
+
+> **`Pass 721.14` (`c039fe16`, `G302`) SHIPPED 2026-11-18 (1623rd filing); see its *Shipped* entry (opened and shipped in one filing; unreleased, joins the `v0.160.0` round).** Next free IDs: `Pass 647.14`, `Pass 717.4`, `Pass 718.5`, `Pass 720.3`, `Pass 721.15`, `Pass 722.10`, `Pass 723.5`, `Pass 647.3h`; decision `225`, rule `R264`. `721.14` was the next free ID per the 1622nd banner (grep of `docs/` found it only as a free-ID mention; no shell).
 
 > **`d278cc2a` (follow-up fix to `Pass 647.12`, no new ID) FILED 2026-11-18 (1617th filing); see its *Shipped* entry (unreleased, joins the `v0.159.0` round).** Next free IDs unchanged from the 1616th banner.
 
