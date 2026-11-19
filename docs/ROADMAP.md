@@ -112,6 +112,19 @@ wherever it appears.*
 
 ## Shipped
 
+### `7be6a351` `v0.159.0` PUBLISHED, 2026-11-18 (1620th filing)
+
+Engineer-reported; no shell here, nothing checked from here. Bump `b61fb116` (filed 1614th); `7be6a351` is the 1619th filing commit (`docs: file Pass 723.3 and the build-cache chore 3f76bf88 (1619th)`). Docs-only filing: no new code commit. Annotated tag `v0.159.0` on `7be6a351`, pushed. CI green at `7be6a351` (run 44426713413); the previous push `91f40080` also green (both read from GitHub by the engineer).
+- **Carries, since `v0.158.0`:** `Pass 647.10` (`G299`), `647.11` (`G300`), `647.12` (`G301`), `723.0` (`X090`), `723.1` (`X091`), `723.2` (`X092`), `723.3` (`X093`), `721.13` (operator, `E068`), plus `d278cc2a` (`xfa-materialize --fillable` help reworded so `cargo doc` passes) and the build-cache chore `3f76bf88`, plus the bump. Each filed in its own earlier filing (1612th to 1619th); the "Unreleased" wording on those entries is superseded by this one.
+- **GitHub release:** "pdfcer v0.159.0", 8 assets (uploaded at local sizes, `gh-release.py` PASS): `pdfcer-v0.159.0-windows-x64.zip` (`.sha256` `cb07028f0fb3a87f9d8b65a03dd938c00e42b81ca839c8cf6abbb83f2a7cb64d`); `ocr-addon-ocrcer`, `ocr-addon-ocrs`, `ocr-addon-tesseract` zips, each with a `.sha256`, carried unchanged from `v0.158.0`. Per-asset byte sizes not supplied to this filing.
+- **Smoke:** package built from `7be6a351` in `D:\builds\pdfcer-20261118-1909-7be6a35`; fresh-folder smoke: `pdfcer --version` revision `v0.158.0-21-g7be6a351`, `3d-embed --help` shows `--gltf-ambient`, `merge` of a fixture with itself gives 2 pages and `dangling=0`. The binary was built before the tag, so the revision line names the previous tag.
+- **OneDrive:** CLI written to slot `pdfcer2`; `pdfcer1` keeps 0.158.0; the next release writes `pdfcer1`.
+- **`verify-release.py`:** every check ok except "working tree clean" (untracked agent-memory and scratch files the engineer is not to commit; no code).
+- **crates.io:** all 16 engine crates published at 0.159.0 (`-model`, `-color`, `-pkix`, `-vec3`, `-json`, `-jpeg-remux`, `-3d`, `-3d-nav`, `-image-codec`, `-fonts`, `-function`, `-text`, `-core`, `-render`, `-flatten`, `-emf`); `pdfcer-model` `max_version` 0.159.0 confirmed through the crates.io API.
+- **Channel:** `notice_2026-11-18_release_v0.159.0.md` written in `D:\Dev\FeatureRequests\pdfce_FeatureRequests\open`.
+- **Next free IDs (premises from the 1619th filing, not re-measured):** `Pass 647.13`, `717.4`, `718.5`, `720.3`, `721.14`, `722.10`, `723.4`, `647.3h`; decision `225`; rule `R264`.
+- **FEATURES:** `Engine crates on crates.io` row advanced to 0.159.0 (0.158.0 also published). No capability box changed, none rounded up. No Pass, decision or rule minted. Supersedes the "NOT yet tagged" status of the `b61fb116` note below.
+
 ### `3f76bf88` tooling, 2026-11-18: `tools/clean-target-cache.py` finds its cutoff by the version line, prunes under low space, and runs daily (1619th filing)
 
 Engineer-reported; no shell here, git, push and CI state not checked from here. `3f76bf88` `chore(tools): the build cache is pruned by version line, under low space, and daily`. Operator directive (Ken, 2026-11-18): "Clear your rust cache of old files. Please start taking care of this automatically before the drive gets full." Not a Pass; no decision record. Follows `3c679967` (1404th filing) and the `f8f0e2d8` spelling fix.

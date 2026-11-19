@@ -4,6 +4,19 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-11-18 (1620th filing) — `v0.159.0` PUBLISHED (tag on `7be6a351`)
+
+**Filed (engineer-reported; no shell here, nothing checked from here):**
+- Annotated tag `v0.159.0` on `7be6a351` (the 1619th filing commit; bump is `b61fb116`), pushed; CI green at `7be6a351` (run 44426713413), previous push `91f40080` also green. Docs-only filing, no code commit.
+- Carries `647.10`, `647.11`, `647.12`, `723.0` to `723.3`, `721.13`, `d278cc2a`, `3f76bf88`.
+- GitHub release with 8 assets (`gh-release.py` PASS): windows-x64 zip (sha256 `cb07028f0fb3a87f9d8b65a03dd938c00e42b81ca839c8cf6abbb83f2a7cb64d`) plus the three OCR add-on zips carried from `v0.158.0`, each with a `.sha256`.
+- Smoke from `D:\builds\pdfcer-20261118-1909-7be6a35`: revision `v0.158.0-21-g7be6a351`, `3d-embed --help` shows `--gltf-ambient`, `merge` of a fixture twice gives 2 pages, `dangling=0`.
+- OneDrive slot `pdfcer2` written; `pdfcer1` keeps 0.158.0. `verify-release.py`: all ok except "working tree clean" (untracked agent-memory and scratch files the engineer may not commit).
+- crates.io: 16 of 16 at 0.159.0, `pdfcer-model` `max_version` confirmed via the API. GUI notice `notice_2026-11-18_release_v0.159.0.md` written.
+- ROADMAP: new `v0.159.0` PUBLISHED entry. FEATURES: crates.io row to 0.159.0; no box changed.
+
+**Open:** nothing minted; next free IDs (1619th premises): `Pass 647.13`, `717.4`, `718.5`, `720.3`, `721.14`, `722.10`, `723.4`, `647.3h`; decision `225`; rule `R264`. `docs/NEXT_SESSION.md` engineer-owned, not edited.
+
 ## 2026-11-18 (1619th filing) — `Pass 723.3` (`67b568c2`, `X093`) SHIPPED and build-cache chore `3f76bf88` FILED; unreleased
 
 **Filed (engineer-reported; no shell here, git, push and CI state not checked from here):**
