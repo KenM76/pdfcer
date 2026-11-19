@@ -4,6 +4,23 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-11-19 (1634th filing) — `v0.162.0` PUBLISHED (tag on `052f7c9a`)
+
+**Filed (engineer-reported; no shell here, git, push, CI, GitHub, crates.io and OneDrive state not checked from here):**
+- Annotated tag `v0.162.0` (object `1ff1994e197aeed66dc3ae5772796f41b3ba61ca`) on `052f7c9ac4807b18e04fe58a5c2b54505f65c4d0` (the 1633rd filing commit); bump `0499d787e2015ec87838f300b27b3c779e0cf575`. CI green on `052f7c9a`.
+- Contents: one Pass, `723.10` (`X099`, `4aae502e`, filed 1632nd). Surplus-operand text-state operators ignored by redaction and extraction as the renderer ignores them; new pub `pdfcer_text::text_state::single_operand`.
+- Workspace tests green locally; 54 of 54 CI-parity audits passed locally.
+- Portable build `D:\builds\pdfcer-20261119-0506-052f7c9`: `pdfcer.exe` 52,380,672 bytes, total 68,323,914 bytes; `--version` 0.162.0, revision `v0.161.0-6-g052f7c9a`. Fresh-folder smoke test passed (`--version`, `extract-text`, `render-page`).
+- `tools/gh-release.py` PASS: 8 assets (portable zip 32,741,985 bytes; three OCR add-on zips, each with `.sha256`).
+- `deploy-onedrive.py` wrote `pdfcer1` (6 items, 87,946,752 bytes); `pdfcer2` keeps 0.161.0; the next release writes `pdfcer2`.
+- crates.io: all 16 crates at 0.162.0 (model, json, vec3, jpeg-remux, image-codec, fonts, pkix, color, text, function, core, 3d, 3d-nav, render, flatten, emf).
+- `verify-release.py`: all ok except "working tree clean" (uncommitted `.claude/agent-memory` files and untracked scratch, not code).
+- GUI channel notice `open/notice_2026-11-19_release_v0.162.0.md`.
+- **Amendment to the 1633rd entry below:** its "not yet tagged, packaged, deployed or published" was true at its filing; left as written, superseded by this entry.
+- FEATURES: no change.
+
+**Open:** nothing in flight. Next free IDs unchanged from the 1633rd: `Pass 647.15`, `717.4`, `718.5`, `720.3`, `721.15`, `722.10`, `723.11`, `647.3h`; decision `225`; rule `R264`. `docs/NEXT_SESSION.md` engineer-owned, not edited.
+
 ## 2026-11-19 (1633rd filing) — `v0.162.0` release bump (`0499d787`); not yet tagged, packaged, deployed or published
 
 **Filed (engineer-reported; no shell here, git, push, CI and OneDrive state not checked from here):**

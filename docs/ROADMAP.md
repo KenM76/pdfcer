@@ -112,6 +112,16 @@ wherever it appears.*
 
 ## Shipped
 
+### `052f7c9a` `v0.162.0` PUBLISHED, 2026-11-19 (1634th filing)
+
+Engineer-reported; no shell here, git, push, CI, GitHub, crates.io and OneDrive state not checked from here. Annotated tag `v0.162.0` (tag object `1ff1994e197aeed66dc3ae5772796f41b3ba61ca`) points at commit `052f7c9ac4807b18e04fe58a5c2b54505f65c4d0` (`docs: file the v0.162.0 version bump (1633rd)`); version-bump commit `0499d787e2015ec87838f300b27b3c779e0cf575`. CI green on `052f7c9a`. `tools/gh-release.py` PASS: 8 assets (portable zip `pdfcer-v0.162.0-windows-x64.zip` 32,741,985 bytes; `ocr-addon-ocrcer`, `ocr-addon-ocrs`, `ocr-addon-tesseract` zips, each with a `.sha256`). `deploy-onedrive.py` wrote `pdfcer1` (6 items, 87,946,752 bytes); `pdfcer2` keeps 0.161.0; the next release writes `pdfcer2`.
+- **Contents:** one Pass, `723.10` (`X099`; fix `4aae502e`, filed 1632nd in `7c3b3b2a`): a text-state operator (`Tc`, `Tw`, `Tz`, `TL`, `Ts`, `Tr`) and redaction's `w` with surplus operands is ignored by redaction and extraction, as the renderer ignores it. New pub fn `pdfcer_text::text_state::single_operand`.
+- **crates.io:** all 16 crates at 0.162.0 (model, json, vec3, jpeg-remux, image-codec, fonts, pkix, color, text, function, core, 3d, 3d-nav, render, flatten, emf).
+- **Checks:** workspace tests green locally; 54 of 54 CI-parity audits passed locally. Portable build `D:\builds\pdfcer-20261119-0506-052f7c9` (`pdfcer.exe` 52,380,672 bytes; folder total 68,323,914 bytes); `--version` reports 0.162.0, revision `v0.161.0-6-g052f7c9a`. Fresh-folder smoke test passed (`--version`, `extract-text`, `render-page` on a fixture). `verify-release.py`: every check ok except "working tree clean", which fails only on uncommitted `.claude/agent-memory` files and untracked scratch, not on code.
+- **GUI channel notice:** `D:\Dev\FeatureRequests\pdfce_FeatureRequests\open\notice_2026-11-19_release_v0.162.0.md`.
+- **FEATURES:** no change.
+- **Amendment (1634th filing) to the 1633rd entry below:** its "NOT yet tagged, packaged, deployed or published" described the state at that filing and is left as written; the release is now tagged, deployed and published as above.
+
 ### `0499d787` `v0.162.0` release bump, 2026-11-19 (1633rd filing)
 
 Engineer-reported; no shell here, git, push, CI and OneDrive state not checked from here. `0499d787e2015ec87838f300b27b3c779e0cf575` `chore: release v0.162.0`: workspace version 0.161.0 -> 0.162.0 in `Cargo.toml` (17 occurrences), `Cargo.lock` (20) and `fuzz/Cargo.lock` (16), as supplied by the engineer (not re-counted here). **NOT yet tagged, packaged, deployed or published**; the publication is filed separately. The release writes OneDrive slot `pdfcer1` (`pdfcer2` holds 0.161.0, per the 1631st filing).
@@ -28044,6 +28054,8 @@ closes out the *prior* filing's business rather than opening this one's.
 > **`Pass 723.10` (`4aae502e`, `X099`) SHIPPED 2026-11-19 (1632nd filing); see its *Shipped* entry (on `main` locally, unreleased; the next release, `v0.162.0`, carries it).** Next free IDs: `Pass 647.15`, `Pass 717.4`, `Pass 718.5`, `Pass 720.3`, `Pass 721.15`, `Pass 722.10`, `Pass 723.11`, `Pass 647.3h`; decision `225`, rule `R264` (engineer-supplied; not re-measured; no shell).
 
 > **`v0.162.0` release bump `0499d787` filed 2026-11-19 (1633rd filing); see its *Shipped* entry. NOT yet tagged, packaged, deployed or published** (carries `Pass 723.10`). Next release slot: `pdfcer1`. Next free IDs unchanged from the 1632nd banner.
+
+> **`v0.162.0` PUBLISHED 2026-11-19 (1634th filing; tag on `052f7c9a`, 8 GitHub assets, 16 crates on crates.io, OneDrive `pdfcer1`); see its *Shipped* entry** (carries `723.10`). Next release writes `pdfcer2`. Next free IDs unchanged from the 1632nd banner.
 
 > **`d278cc2a` (follow-up fix to `Pass 647.12`, no new ID) FILED 2026-11-18 (1617th filing); see its *Shipped* entry (unreleased, joins the `v0.159.0` round).** Next free IDs unchanged from the 1616th banner.
 
