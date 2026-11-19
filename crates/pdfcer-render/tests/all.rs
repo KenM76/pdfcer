@@ -91,6 +91,7 @@ mod shading_pattern_anchoring;
 mod sibling_font;
 mod signature_widget;
 mod smask_replaces_not_intersects;
+mod soft_mask_backdrop_colour_space;
 mod soft_mask_transfer;
 mod soft_proof;
 mod stray_q_and_text_pen;

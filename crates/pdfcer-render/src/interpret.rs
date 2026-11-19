@@ -4044,14 +4044,30 @@ impl<'a> Interpreter<'a> {
     /// [`Self::display_bridge`] and counts the answer once per paint.
     fn display_managed_rgb(&self, stroking: bool) -> Option<Rgb> {
         let (space, comps) = self.color.device_color(stroking)?;
+        self.display_managed_rgb_of(
+            space,
+            comps,
+            self.conversion(self.gs.current.rendering_intent),
+        )
+    }
+
+    /// The display route for one colour under `conv`: what an `sc` in
+    /// `space` paints on screen when a profile manages it, else `None`.
+    /// Shared with the soft-mask `/BC` backdrop, so the two cannot disagree.
+    fn display_managed_rgb_of(
+        &self,
+        space: &crate::color::ColorSpace,
+        comps: &[f32],
+        conv: crate::icc::Conversion,
+    ) -> Option<Rgb> {
         let resolved = space.indexed_entry(comps);
         let (space, comps) = resolved
             .as_ref()
             .map_or((space, comps), |(b, c)| (*b, c.as_slice()));
-        if let Some(bridge) = self.display_bridge(space) {
+        if let Some(bridge) = self.display_bridge(space, conv) {
             return bridge.convert_to_rgb(comps);
         }
-        self.display_through_ink(space, comps)
+        self.display_through_ink(space, comps, conv)
     }
 
     /// The screen colour of an `ICCBased N 4` paint whose profile bridges
@@ -4061,7 +4077,12 @@ impl<'a> Interpreter<'a> {
     /// numbers as output-intent CMYK (Table 66's fallback) while the plates
     /// convert them. `None` under `preserve_calibrated_cmyk`, where the
     /// cache declines the bridge and the reinterpretation is the answer.
-    fn display_through_ink(&self, space: &crate::color::ColorSpace, comps: &[f32]) -> Option<Rgb> {
+    fn display_through_ink(
+        &self,
+        space: &crate::color::ColorSpace,
+        comps: &[f32],
+        conv: crate::icc::Conversion,
+    ) -> Option<Rgb> {
         let crate::color::ColorSpace::IccBased {
             n: 4,
             profile: Some(src),
@@ -4070,7 +4091,6 @@ impl<'a> Interpreter<'a> {
         else {
             return None;
         };
-        let conv = self.conversion(self.gs.current.rendering_intent);
         let bridge = self.icc.get(src, 4, conv)?;
         crate::icc::ink_on_screen(&bridge, comps, self.policy.cmyk_intent)
     }
@@ -4081,6 +4101,7 @@ impl<'a> Interpreter<'a> {
     fn display_bridge(
         &self,
         space: &crate::color::ColorSpace,
+        conv: crate::icc::Conversion,
     ) -> Option<std::sync::Arc<crate::icc::IccBridge>> {
         let crate::color::ColorSpace::IccBased {
             n: 3,
@@ -4090,8 +4111,7 @@ impl<'a> Interpreter<'a> {
         else {
             return None;
         };
-        self.icc
-            .get_srgb(src, 3, self.conversion(self.gs.current.rendering_intent))
+        self.icc.get_srgb(src, 3, conv)
     }
 
     /// Run `f` against the live [`TextObject`], or diagnose the §9.4.2
@@ -6527,7 +6547,8 @@ impl<'a> Interpreter<'a> {
                 let g = comps.first().copied().unwrap_or(0.0).clamp(0.0, 1.0);
                 return Some([0.0, 0.0, 0.0, 1.0 - g]);
             }
-            if self.display_bridge(space).is_some() {
+            let conv = self.conversion(self.gs.current.rendering_intent);
+            if self.display_bridge(space, conv).is_some() {
                 self.icc.note_managed();
             } else {
                 self.icc.note_unmanaged();

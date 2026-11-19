@@ -12,6 +12,7 @@ use tiny_skia::{FillRule, Mask, PathBuilder, Pixmap};
 
 use super::{Diagnostics, Interpreter, intersect_clip, matrix_entry64, rect_entry, run_nested};
 use crate::canvas::Canvas;
+use crate::color::ColorSpace;
 use crate::compositor::BlendSpace;
 use crate::display_list::Op;
 use crate::gstate::{GraphicsState, Rgb};
@@ -19,6 +20,27 @@ use crate::mask_source::{MaskSource, transfer_table};
 
 /// A built soft mask, and on an export recording what it was built from.
 pub(super) type BuiltMask = (Mask, Option<Arc<MaskSource>>);
+
+/// The mask group's `/Group /CS`, resolved once for its blending space and
+/// its `/BC`.
+enum GroupCs {
+    /// No `/CS` entry (Required for a mask group, Table 147).
+    Missing,
+    /// A `/CS` the colour-space loader could not resolve.
+    Unloadable,
+    /// The resolved space.
+    Loaded(Arc<ColorSpace>),
+}
+
+impl GroupCs {
+    /// The blending space; additive when there is no usable `/CS`.
+    fn blend_space(&self) -> BlendSpace {
+        match self {
+            Self::Loaded(sp) => BlendSpace::of(sp),
+            Self::Missing | Self::Unloadable => BlendSpace::Additive,
+        }
+    }
+}
 
 /// The mask group's stream, read once for both runs of it.
 struct MaskGroup<'g> {
@@ -68,13 +90,14 @@ impl Interpreter<'_> {
         let raw = doc.slice(stream.data_span)?;
         let mut content = ContentChunks::from_stream(&g_dict, raw);
         content.prime().ok()?;
-        let backdrop = luminosity.then(|| self.soft_mask_backdrop(&g_dict, sm));
         let resources = self.mask_resources(&g_dict);
+        let cs = self.mask_group_cs(&g_dict, resources);
+        let backdrop = luminosity.then(|| self.soft_mask_backdrop(&cs, sm));
         let group = MaskGroup {
             dict: &g_dict,
             raw,
             resources,
-            space: self.mask_space(&g_dict, resources),
+            space: cs.blend_space(),
         };
         let mut buf = Pixmap::new(canvas.width(), canvas.height())?;
         // The `/BBox` clip is built on the buffer's own canvas: on a
@@ -137,25 +160,20 @@ impl Interpreter<'_> {
         }
     }
 
-    /// The group's blending space, from its own `/Group /CS` (Table 147:
-    /// Required, the group being rootless); additive when absent.
-    fn mask_space(&mut self, g_dict: &Dict, resources: &Dict) -> BlendSpace {
+    /// The group's own `/Group /CS` (Table 147: Required, the group being
+    /// rootless), through the loader the paint path uses.
+    fn mask_group_cs(&mut self, g_dict: &Dict, resources: &Dict) -> GroupCs {
         let doc = self.doc;
-        g_dict
+        let Some(cs) = g_dict
             .get(b"Group")
             .map(|o| doc.resolve(o))
             .and_then(Object::as_dict)
             .and_then(|g| g.get(b"CS"))
-            .and_then(|cs| {
-                crate::color::resolve_object(
-                    doc,
-                    doc.resolve(cs),
-                    resources,
-                    0,
-                    &mut self.diag.color,
-                )
-            })
-            .map_or(BlendSpace::Additive, |sp| BlendSpace::of(&sp))
+        else {
+            return GroupCs::Missing;
+        };
+        crate::color::resolve_object(doc, doc.resolve(cs), resources, 0, &mut self.diag.color)
+            .map_or(GroupCs::Unloadable, GroupCs::Loaded)
     }
 
     /// The group's initial state: §11.6.6's defaults (Normal, alpha 1,
@@ -238,14 +256,20 @@ impl Interpreter<'_> {
     }
 
     /// The opaque backdrop colour a `/Luminosity` mask composites over:
-    /// `/BC` in the group's space, black when absent or unreadable.
+    /// `/BC` in the group's colour space (§11.6.5.2, Table 144), black when
+    /// absent or unreadable.
     ///
-    /// Read by component count rather than by loading `/CS`: four are
-    /// subtractive, so `[0 0 0 1]` is black and `[0 0 0 0]` white; one and
-    /// three are additive. CMYK goes through the same conversion the
-    /// paint path uses, because outside the `/BBox` the backdrop's
-    /// magnitude is the mask value (§11.6.5.2).
-    fn soft_mask_backdrop(&mut self, g_dict: &Dict, sm: &Dict) -> tiny_skia::Color {
+    /// A device, `CalGray`, `CalRGB` or `ICCBased` `/CS` converts `/BC`
+    /// exactly as an `sc` in that space paints: the profile's display route,
+    /// else [`ColorSpace::to_rgb`]. The mask group runs from a fresh
+    /// graphics state (§11.6.5.2), so the ICC intent is the initial
+    /// `RelativeColorimetric` (§8.6.5.8), not the page's `ri`. `DeviceCMYK`
+    /// keeps the `cmyk_intent` table every `k` uses.
+    ///
+    /// A missing, unloadable or non-blending `/CS` (§11.3.4 forbids `Lab`,
+    /// `Indexed`, `Separation`, `DeviceN` and `Pattern`) falls back to
+    /// reading `/BC` by component count, with a diagnostic naming which.
+    fn soft_mask_backdrop(&mut self, cs: &GroupCs, sm: &Dict) -> tiny_skia::Color {
         let doc = self.doc;
         let black = tiny_skia::Color::BLACK;
         let Some(arr) = sm
@@ -264,17 +288,46 @@ impl Interpreter<'_> {
         if comps.is_empty() {
             return black;
         }
-        let has_cs = g_dict
-            .get(b"Group")
-            .map(|o| doc.resolve(o))
-            .and_then(Object::as_dict)
-            .is_some_and(|g| g.contains_key(b"CS"));
-        if !has_cs {
+        let rgb = match cs {
+            GroupCs::Loaded(space) if is_blending_space(space) => {
+                self.backdrop_in_space(space, &comps)
+            }
+            other => {
+                self.diag.tolerated += 1;
+                self.diag.note(fallback_note(other));
+                self.backdrop_by_count(&comps)
+            }
+        };
+        let Some(Rgb { r, g, b }) = rgb else {
+            return black;
+        };
+        tiny_skia::Color::from_rgba(r.clamp(0.0, 1.0), g.clamp(0.0, 1.0), b.clamp(0.0, 1.0), 1.0)
+            .unwrap_or(black)
+    }
+
+    /// `/BC` converted through the group's own space, as an `sc` there
+    /// paints; `None` (black, diagnosed) when its length is not the space's
+    /// component count (Table 144: "n numbers").
+    fn backdrop_in_space(&mut self, space: &ColorSpace, comps: &[f32]) -> Option<Rgb> {
+        if comps.len() != space.components() {
             self.diag.tolerated += 1;
             self.diag
-                .note(b"gs /SMask /BC without group /CS (Required, Table 147)");
+                .note(b"gs /SMask /BC length does not match the group /CS - assuming black");
+            return None;
         }
-        let Rgb { r, g, b } = match *comps.as_slice() {
+        let conv = crate::icc::Conversion::new(
+            pdfcer_core::color::RenderingIntent::RelativeColorimetric,
+            self.policy.black_point_compensation,
+        )
+        .preserving_cmyk(self.policy.preserve_calibrated_cmyk);
+        self.display_managed_rgb_of(space, comps, conv)
+            .or_else(|| space.to_rgb(comps, self.policy.cmyk_intent, &mut self.diag.color))
+    }
+
+    /// The fallback with no usable `/CS`: one component is gray, three RGB,
+    /// four CMYK (so `[0 0 0 1]` is black and `[0 0 0 0]` white).
+    fn backdrop_by_count(&mut self, comps: &[f32]) -> Option<Rgb> {
+        let rgb = match *comps {
             [v] => Rgb::from_gray(v),
             [r, g, b] => Rgb::from_rgb(r, g, b),
             [c, m, y, k] => Rgb::from_cmyk(self.policy.cmyk_intent, c, m, y, k),
@@ -282,12 +335,36 @@ impl Interpreter<'_> {
                 self.diag.tolerated += 1;
                 self.diag
                     .note(b"gs /SMask /BC with unhandled component count - assuming black");
-                return black;
+                return None;
             }
         };
-        tiny_skia::Color::from_rgba(r.clamp(0.0, 1.0), g.clamp(0.0, 1.0), b.clamp(0.0, 1.0), 1.0)
-            .unwrap_or(black)
+        Some(rgb)
     }
+}
+
+/// The diagnostic for a `/BC` read by component count.
+fn fallback_note(cs: &GroupCs) -> &'static [u8] {
+    match cs {
+        GroupCs::Missing => b"gs /SMask /BC without group /CS (Required, Table 147)",
+        GroupCs::Unloadable => b"gs /SMask /BC: group /CS unloadable - read by component count",
+        GroupCs::Loaded(_) => {
+            b"gs /SMask /BC: group /CS is not a blending space (11.3.4) - read by component count"
+        }
+    }
+}
+
+/// §11.3.4: a blending colour space is a device, `CalGray`, `CalRGB` or
+/// `ICCBased` space; `Lab`, `Indexed`, `Separation`, `DeviceN` and
+/// `Pattern` "shall not be used".
+fn is_blending_space(space: &ColorSpace) -> bool {
+    !matches!(
+        space,
+        ColorSpace::Lab { .. }
+            | ColorSpace::Indexed { .. }
+            | ColorSpace::Separation { .. }
+            | ColorSpace::DeviceN { .. }
+            | ColorSpace::Pattern { .. }
+    )
 }
 
 /// §11.5.3's outer composite, `C = (1 − α_g)·BC + α_g·C_g`: the group's

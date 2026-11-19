@@ -26,7 +26,7 @@ fn s15f16(v: f64) -> [u8; 4] {
 }
 
 /// A v2.1 `mntr GRAY XYZ` profile whose `kTRC` is a 2.2 gamma.
-fn gray_profile() -> Vec<u8> {
+pub(crate) fn gray_profile() -> Vec<u8> {
     let mut desc = b"desc\0\0\0\0".to_vec();
     let text = b"pdfcer synthetic gamma 2.2 gray\0";
     desc.extend_from_slice(&u32::try_from(text.len()).unwrap().to_be_bytes());
@@ -86,7 +86,7 @@ fn expected_ink() -> [f32; 4] {
     std::array::from_fn(|i| out[i] as f32)
 }
 
-fn hex_stream(dict: &str, bytes: &[u8]) -> String {
+pub(crate) fn hex_stream(dict: &str, bytes: &[u8]) -> String {
     let mut hex = String::with_capacity(bytes.len() * 2 + 1);
     for b in bytes {
         write!(hex, "{b:02X}").unwrap();
