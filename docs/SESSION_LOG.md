@@ -4,6 +4,18 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-11-18 (1627th filing) — `v0.160.0` PUBLISHED (tag on `ece71a38`)
+
+**Filed (engineer-reported; no shell here, nothing checked from here):**
+- Tag `v0.160.0` on `ece71a38` (the 1625th filing commit; bump `51f91d2e`); CI green there. Docs-only filing, no code commit. `723.6` and `723.7` (1626th) landed after the tag and are for `v0.161.0`.
+- Carries `721.14` (`c039fe16`, `dcc684dd`), `647.13`, `723.4`, `723.5`.
+- GitHub release, 8 assets: `pdfcer-v0.160.0-windows-x64.zip` 32,736,575 bytes plus the three OCR add-on zips carried from `v0.159.0`.
+- Smoke in `D:\builds\smoke160`: version 0.160.0, revision `v0.159.0-12-gece71a38`; `3d-render --exposure-lux` present; rotate and render-page work.
+- OneDrive slot `pdfcer1` written; `pdfcer2` keeps 0.159.0. crates.io: 16 of 16 at 0.160.0, one `cargo publish`, no 429. `verify-release.py`: all ok except "working tree clean" (uncommitted agent-memory files). GUI notice `notice_2026-11-18_release_v0.160.0.md` written.
+- ROADMAP: new `v0.160.0` PUBLISHED entry. FEATURES: crates.io row to 0.160.0; "unreleased" cleared on the `721.14` and `647.13` rows; `723.5` row names the release; no box changed.
+
+**Open:** nothing minted; next free IDs (1626th premises): `Pass 647.14`, `717.4`, `718.5`, `720.3`, `721.15`, `722.10`, `723.8`, `647.3h`; decision `225`; rule `R264`. `docs/NEXT_SESSION.md` engineer-owned, not edited.
+
 ## 2026-11-18 (1626th filing) — `Pass 723.6` (`ba072d65`, `X095`) and `Pass 723.7` (`934851fc`, `X096`) SHIPPED; both in `v0.161.0`, not `v0.160.0`
 
 **Filed (engineer-reported; no shell here, git, push and CI state not checked from here):**

@@ -112,6 +112,19 @@ wherever it appears.*
 
 ## Shipped
 
+### `ece71a38` `v0.160.0` PUBLISHED, 2026-11-18 (1627th filing)
+
+Engineer-reported; no shell here, nothing checked from here. Bump `51f91d2e` (filed 1624th); `ece71a38` is the 1625th filing commit (`docs: file Pass 723.5 and the 721.14 note fix (1625th)`). Docs-only filing: no new code commit. Tag `v0.160.0` on `ece71a38`; CI green there (read from GitHub by the engineer). `main` has moved on past the tag: `723.6` (`ba072d65`) and `723.7` (`934851fc`), filed 1626th in `0bd4f070`, are NOT in this release; they are for `v0.161.0`.
+- **Carries, since `v0.159.0`:** `Pass 721.14` (`c039fe16`, `G302`) plus its note fix `dcc684dd`; `Pass 647.13` (`11d2c93a`, `G303`); `Pass 723.4` (`d0d2fbe4`, `X093` addendum); `Pass 723.5` (`f9d4ce3f`, `X094`); plus the bump. Each filed in its own earlier filing (1621st to 1625th); the "Unreleased" wording on those entries is superseded by this one.
+- **GitHub release:** 8 assets. Portable zip `pdfcer-v0.160.0-windows-x64.zip`, 32,736,575 bytes; the three OCR add-on zips (each with a `.sha256`) carried unchanged from `v0.159.0`. Other per-asset sizes and the zip's sha256 not supplied to this filing.
+- **Smoke:** fresh folder `D:\builds\smoke160`: `pdfcer --version` 0.160.0, revision `v0.159.0-12-gece71a38` (binary built before the tag, so the revision line names the previous tag); `3d-render --exposure-lux` is present; `rotate` and `render-page` work.
+- **OneDrive:** CLI written to slot `pdfcer1`; `pdfcer2` keeps 0.159.0; the next release writes `pdfcer2`.
+- **`verify-release.py`:** every check passed except "working tree clean", which failed on uncommitted agent-memory files (no code).
+- **crates.io:** all 16 engine crates at 0.160.0, published in one `cargo publish`, no 429 (crate list as in the `v0.159.0` entry).
+- **Channel:** `open/notice_2026-11-18_release_v0.160.0.md` written for the GUI project.
+- **Next free IDs (premises from the 1626th filing, not re-measured):** `Pass 647.14`, `717.4`, `718.5`, `720.3`, `721.15`, `722.10`, `723.8`, `647.3h`; decision `225`; rule `R264`.
+- **FEATURES:** `Engine crates on crates.io` row advanced to 0.160.0 (0.159.0 also published); `721.14` and `647.13` rows' "unreleased" changed to "released, `v0.160.0`"; the `723.5` row names `v0.160.0`. No capability box changed. No Pass, decision or rule minted.
+
 ### `934851fc` `Pass 723.7`: a whitespace table keeps one row's cells in separate columns, 2026-11-18 (1626th filing)
 
 Engineer-reported; no shell here, git, push and CI state not checked from here. `934851fc` `fix(tables): a whitespace table keeps one row's cells in separate columns`. Request `X096`. Opened and shipped in one filing. **Unreleased**: `v0.160.0` is being tagged on `ece71a38` and does not include this; it lands in `v0.161.0`. Reasoning is in the commit message. **core** only; cli/gui boxes unchanged.
