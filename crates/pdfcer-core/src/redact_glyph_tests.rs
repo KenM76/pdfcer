@@ -114,3 +114,25 @@ fn the_font_set_inside_q_does_not_outlive_its_q() {
     );
     assert_only_secret_removed(&after);
 }
+
+/// A text-state operator with a surplus operand is ignored, as the renderer
+/// ignores it, so a mark over the painted glyphs removes all of them (§9.3
+/// Table 105, X099). Each surplus first operand moves glyphs out of the mark
+/// if it were read.
+#[test]
+fn a_surplus_text_state_operand_is_ignored_as_the_renderer_ignores_it() {
+    let cases = [
+        ("40 30 Ts", "(A) Tj", 1),
+        ("40 9 Tc", "(AAA) Tj", 3),
+        ("40 9 Tw", "(A A) Tj", 2),
+        ("300 50 Tz", "(AAA) Tj", 3),
+        ("12 TL 40 30 TL", "(A) Tj T* (A) Tj", 2),
+    ];
+    for (op, show, glyphs) in cases {
+        let content = format!("BT /F1 12 Tf {op} 100 100 Td {show} ET");
+        let (_, text) =
+            crate::redact_proof::tests::apply_over(page_pdf(&content), [98.0, 80.0, 126.0, 115.0]);
+        let removed = text.concat().matches('A').count();
+        assert_eq!(removed, glyphs, "{content}: {text:?}");
+    }
+}

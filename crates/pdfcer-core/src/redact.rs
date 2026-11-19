@@ -1031,8 +1031,9 @@ impl<'a> Surgeon<'a> {
                 }
             }
             b"w" => {
-                if let Some(v) = n.first() {
-                    self.line_width = *v;
+                // One operand, as the renderer reads it.
+                if let &[v] = n.as_slice() {
+                    self.line_width = v;
                 }
             }
             b"cm" => {
@@ -1095,28 +1096,28 @@ impl<'a> Surgeon<'a> {
                 self.set_line(Mat::translate(0.0, -self.tl).mul(self.tlm));
             }
             b"Tc" => {
-                if let Some(v) = n.first() {
-                    self.tc = *v;
+                if let Some(v) = pdfcer_text::text_state::single_operand(&n) {
+                    self.tc = v;
                 }
             }
             b"Tw" => {
-                if let Some(v) = n.first() {
-                    self.tw = *v;
+                if let Some(v) = pdfcer_text::text_state::single_operand(&n) {
+                    self.tw = v;
                 }
             }
             b"Tz" => {
-                if let Some(v) = n.first() {
-                    self.th = *v / 100.0;
+                if let Some(v) = pdfcer_text::text_state::single_operand(&n) {
+                    self.th = v / 100.0;
                 }
             }
             b"TL" => {
-                if let Some(v) = n.first() {
-                    self.tl = *v;
+                if let Some(v) = pdfcer_text::text_state::single_operand(&n) {
+                    self.tl = v;
                 }
             }
             b"Ts" => {
-                if let Some(v) = n.first() {
-                    self.trise = *v;
+                if let Some(v) = pdfcer_text::text_state::single_operand(&n) {
+                    self.trise = v;
                 }
             }
             b"Do" => {

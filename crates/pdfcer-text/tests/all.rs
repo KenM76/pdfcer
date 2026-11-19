@@ -9,5 +9,6 @@ mod unit_structure_tree;
 mod unit_tagged_layout;
 mod unit_text_extract_cmap;
 mod unit_text_state;
+mod unit_text_state_operands;
 mod unit_width_guessed;
 mod unit_word_gap;

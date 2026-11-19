@@ -378,4 +378,4 @@ fn contains(hay: &[u8], needle: &[u8]) -> bool {
 
 #[cfg(test)]
 #[path = "redact_proof_tests.rs"]
-mod tests;
+pub(crate) mod tests;

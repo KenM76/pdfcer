@@ -237,7 +237,7 @@ fn an_image_codec_stream_is_not_counted_as_undecoded() {
 }
 
 /// Mark `rect` on page 0 of `input`, save, reload, apply.
-fn apply_over(input: Vec<u8>, rect: [f64; 4]) -> (Vec<u8>, Vec<String>) {
+pub(crate) fn apply_over(input: Vec<u8>, rect: [f64; 4]) -> (Vec<u8>, Vec<String>) {
     let mut session = EditSession::new(Document::from_bytes(input).unwrap());
     let spec = RedactSpec {
         quads: vec![Quad::from_rect(Rect::from_corners(

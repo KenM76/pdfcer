@@ -648,6 +648,26 @@ pub struct AmbientTextState {
     pub render_mode: AmbientValue,
 }
 
+/// The operand of a one-operand text-state operator (`Tc`, `Tw`, `Tz`, `TL`,
+/// `Ts`, `Tr`; §9.3 Table 105), or `None` when it has any other number
+/// of numeric operands. Every interpreter ignores such an operator, as the
+/// renderer does, so redaction and extraction place glyphs where they paint.
+///
+/// ```
+/// use pdfcer_text::text_state::single_operand;
+///
+/// assert_eq!(single_operand(&[20.0]), Some(20.0));
+/// assert_eq!(single_operand(&[1.0, 20.0]), None);
+/// assert_eq!(single_operand(&[]), None);
+/// ```
+#[must_use]
+pub fn single_operand(operands: &[f64]) -> Option<f64> {
+    match operands {
+        &[v] => Some(v),
+        _ => None,
+    }
+}
+
 impl AmbientTextState {
     /// The Table 105 initial state — every parameter at its default, none
     /// of them observed. This is the state at the start of every page.
@@ -733,10 +753,7 @@ impl AmbientTextState {
     /// ahead of its own dispatch without listing the six names again.
     pub fn apply_operator(&mut self, name: &[u8], operands: &[f64], raw: &[u8]) -> bool {
         if let Some(param) = TextStateParam::from_operator(name) {
-            // Table 105's operators all take exactly one operand; a
-            // malformed operator with none leaves the state alone rather
-            // than inventing a value (§7.8.2 recovery posture).
-            if let Some(&v) = operands.first() {
+            if let Some(v) = single_operand(operands) {
                 self.set(param, v, raw);
             }
             return true;

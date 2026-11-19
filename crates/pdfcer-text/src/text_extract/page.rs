@@ -590,7 +590,7 @@ impl Walk<'_> {
             b"Tf" => self.select_font(op, resources),
             b"Tc" | b"Tw" | b"Tz" | b"TL" | b"Ts" | b"Tr" => {
                 let raw = op_bytes(op, buf).to_vec();
-                let vals = operand_numbers_f64(op, 1);
+                let vals = operand_numbers_f64(op, op.operands.len());
                 self.ts.ambient_mut().apply_operator(name, &vals, &raw);
             }
 
