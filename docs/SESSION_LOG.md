@@ -4,6 +4,15 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-11-19 (1633rd filing) — `v0.162.0` release bump (`0499d787`); not yet tagged, packaged, deployed or published
+
+**Filed (engineer-reported; no shell here, git, push, CI and OneDrive state not checked from here):**
+- `0499d787` `chore: release v0.162.0`: `Cargo.toml` (17), `Cargo.lock` (20), `fuzz/Cargo.lock` (16) 0.161.0 -> 0.162.0; counts as supplied, not re-measured.
+- Round carries one Pass: `723.10` (`4aae502e`, `X099`), filed in the 1632nd filing (`7c3b3b2a`).
+- Release writes OneDrive slot `pdfcer1`. No FEATURES change.
+
+**Open:** tag, package, smoke-test, `verify-release.py`, deploy and publish still to do; the next filing records the outcome. Next free IDs unchanged: `Pass 647.15`, `717.4`, `718.5`, `720.3`, `721.15`, `722.10`, `723.11`, `647.3h`; decision `225`; rule `R264`. `docs/NEXT_SESSION.md` engineer-owned, not edited.
+
 ## 2026-11-19 (1632nd filing) — `Pass 723.10` (`4aae502e`, `X099`) SHIPPED; unreleased, next release `v0.162.0`
 
 **Filed (engineer-reported; no shell here, git, push and CI state not checked from here):**

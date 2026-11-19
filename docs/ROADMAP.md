@@ -112,6 +112,12 @@ wherever it appears.*
 
 ## Shipped
 
+### `0499d787` `v0.162.0` release bump, 2026-11-19 (1633rd filing)
+
+Engineer-reported; no shell here, git, push, CI and OneDrive state not checked from here. `0499d787e2015ec87838f300b27b3c779e0cf575` `chore: release v0.162.0`: workspace version 0.161.0 -> 0.162.0 in `Cargo.toml` (17 occurrences), `Cargo.lock` (20) and `fuzz/Cargo.lock` (16), as supplied by the engineer (not re-counted here). **NOT yet tagged, packaged, deployed or published**; the publication is filed separately. The release writes OneDrive slot `pdfcer1` (`pdfcer2` holds 0.161.0, per the 1631st filing).
+- **Round carries (code commits since `v0.161.0`):** `4aae502e` (`Pass 723.10`, `X099`), filed in the 1632nd filing (`7c3b3b2a`). One Pass.
+- **FEATURES:** no change.
+
 ### `4aae502e` `Pass 723.10`: text-state operators with surplus operands are ignored everywhere, 2026-11-19 (1632nd filing)
 
 Engineer-reported; no shell here, git, push and CI state not checked from here. `4aae502e` `fix(text,redact): text-state operators with surplus operands are ignored everywhere`. Request `X099` (`request_X099_text_state_operand_reads_agree_with_renderer.md`, from the crates consumer; reply `open/reply_X099_SHIPPED.md`). Opened and shipped in one filing. **Local, not yet pushed at filing time; unreleased**: the next release (`v0.162.0`) carries it. Reasoning is in the commit message. **core** only; no cli or gui surface change (`pdfcer redact` and extraction consumers get it for free).
@@ -28036,6 +28042,8 @@ closes out the *prior* filing's business rather than opening this one's.
 > **`v0.161.0` PUBLISHED 2026-11-19 (1631st filing; tag on `45d6b341`, 8 GitHub assets, 16 crates on crates.io, OneDrive `pdfcer2`); see its *Shipped* entry** (carries `723.6`, `723.7`, `647.14`, `723.8`, `723.9`). Next release writes `pdfcer1`. Next free IDs unchanged from the 1629th banner.
 
 > **`Pass 723.10` (`4aae502e`, `X099`) SHIPPED 2026-11-19 (1632nd filing); see its *Shipped* entry (on `main` locally, unreleased; the next release, `v0.162.0`, carries it).** Next free IDs: `Pass 647.15`, `Pass 717.4`, `Pass 718.5`, `Pass 720.3`, `Pass 721.15`, `Pass 722.10`, `Pass 723.11`, `Pass 647.3h`; decision `225`, rule `R264` (engineer-supplied; not re-measured; no shell).
+
+> **`v0.162.0` release bump `0499d787` filed 2026-11-19 (1633rd filing); see its *Shipped* entry. NOT yet tagged, packaged, deployed or published** (carries `Pass 723.10`). Next release slot: `pdfcer1`. Next free IDs unchanged from the 1632nd banner.
 
 > **`d278cc2a` (follow-up fix to `Pass 647.12`, no new ID) FILED 2026-11-18 (1617th filing); see its *Shipped* entry (unreleased, joins the `v0.159.0` round).** Next free IDs unchanged from the 1616th banner.
 
