@@ -112,6 +112,15 @@ wherever it appears.*
 
 ## Shipped
 
+### `11d2c93a` `Pass 647.13`: a multiSelect list's selections are one per line everywhere, 2026-11-18 (1622nd filing)
+
+Engineer-reported; no shell here, git, push and CI state not checked from here. `11d2c93a` `fix(xfa): a multiSelect list's selections are one per line everywhere`. Request `G303` (`pdfcer-gui`; `request_G303_xfa_multiselect_value_separator.md`, reply `open/reply_G303_xfa_multiselect_value_separator_SHIPPED.md`). Opened and shipped in one filing. **Unreleased**: lands in `v0.160.0`. Reasoning is in the commit message. **core** only; cli/gui boxes unchanged. No manifest change.
+- **Defect:** the form painter (`xfa::paint::choice`) split a multiSelect value on spaces; the fillable planner (`xfa::fillable::choice_value`) split on lines, so one value read two ways.
+- **Fix:** both use `xfa::widget::multi_select_values` (`pub(in crate::xfa)`): newline-separated per XFA 3.3 p.198; a one-line value that is not itself a save value reads space-separated (p.485 example). Separator documented on `EditSession::fill_xfa_field`, `ChoiceOpen::MultiSelect` and `docs/core-api/02-editing-and-saving.md`. No new pub item.
+- **Known limit (not done):** binding a multiSelect to a data group of `value` children (p.198); the value is written as one data value's text.
+- **Tests (engineer-reported):** 1 painter test, 1 planner unit test; each sabotaged (old split restored) fails. `pdfcer-core` suites green; fmt, clippy, code-structure, core-api-verbs clean.
+- **FEATURES:** new row "Dynamic XFA, a multiSelect list reads the same everywhere" (core ticked; cli/gui unticked); existing XFA fill / preview rows not lengthened.
+
 ### `d0d2fbe4` `Pass 723.4`: a whitespace table needs columns that line up, 2026-11-18 (1621st filing)
 
 Engineer-reported; no shell here, git, push and CI state not checked from here. `d0d2fbe4` `fix(tables): a whitespace table needs columns that line up`. Request `X093` addendum (`open/request_X093_table_grid_allocation_bounded.md`, "Addendum"; reply `open/reply_X093_addendum_aligned_columns_SHIPPED.md`). Opened and shipped in one filing. **Unreleased**: lands in `v0.160.0`. Reasoning is in the commit message. **core** only; cli/gui unchanged. No manifest change, so `cargo tree` is unchanged.
@@ -27905,6 +27914,8 @@ closes out the *prior* filing's business rather than opening this one's.
 > **`Pass 723.3` (`67b568c2`, `X093`) SHIPPED 2026-11-18 (1619th filing), and chore `3f76bf88` (build-cache pruning) FILED; see their *Shipped* entries (`723.3` opened and shipped in one filing; unreleased, joins the `v0.159.0` round).** Next free IDs: `Pass 647.13`, `Pass 717.4`, `Pass 718.5`, `Pass 720.3`, `Pass 721.14`, `Pass 722.10`, `Pass 723.4`, `Pass 647.3h`; decision `225`, rule `R264`. `723.3` was the next free ID per the 1618th banner (not re-grepped beyond that; no shell).
 
 > **`Pass 723.4` (`d0d2fbe4`, `X093` addendum) SHIPPED 2026-11-18 (1621st filing); see its *Shipped* entry (opened and shipped in one filing; unreleased, joins the `v0.160.0` round).** Next free IDs: `Pass 647.13`, `Pass 717.4`, `Pass 718.5`, `Pass 720.3`, `Pass 721.14`, `Pass 722.10`, `Pass 723.5`, `Pass 647.3h`; decision `225`, rule `R264`. `723.4` was the next free ID per the 1620th filing (not re-grepped beyond that; no shell).
+
+> **`Pass 647.13` (`11d2c93a`, `G303`) SHIPPED 2026-11-18 (1622nd filing); see its *Shipped* entry (opened and shipped in one filing; unreleased, joins the `v0.160.0` round).** Next free IDs: `Pass 647.14`, `Pass 717.4`, `Pass 718.5`, `Pass 720.3`, `Pass 721.14`, `Pass 722.10`, `Pass 723.5`, `Pass 647.3h`; decision `225`, rule `R264`. `647.13` was the next free ID per the 1621st filing (grep of this file found no other `Pass 647.13`; no shell).
 
 > **`d278cc2a` (follow-up fix to `Pass 647.12`, no new ID) FILED 2026-11-18 (1617th filing); see its *Shipped* entry (unreleased, joins the `v0.159.0` round).** Next free IDs unchanged from the 1616th banner.
 

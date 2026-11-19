@@ -4,6 +4,16 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-11-18 (1622nd filing) — `Pass 647.13` (`11d2c93a`, `G303`) SHIPPED: a multiSelect list's selections are one per line everywhere; unreleased
+
+**Filed (engineer-reported; no shell here, git, push and CI state not checked from here):**
+- `11d2c93a`: the XFA form painter split a multiSelect value on spaces and the fillable planner on lines; both now use `xfa::widget::multi_select_values` (newline-separated, XFA 3.3 p.198; a one-line non-save value reads space-separated, p.485). Documented on `EditSession::fill_xfa_field`, `ChoiceOpen::MultiSelect`, `docs/core-api/02-editing-and-saving.md`.
+- Known limit, not done: binding to a data group of `value` children (p.198).
+- Tests: 1 painter, 1 planner unit, each sabotage-checked; `pdfcer-core` green; fmt, clippy, code-structure, core-api-verbs clean. No manifest change.
+- FEATURES: new core-only row; existing XFA rows untouched.
+
+**Open:** next free IDs `Pass 647.14`, `717.4`, `718.5`, `720.3`, `721.14`, `722.10`, `723.5`, `647.3h`; decision `225`; rule `R264`. Joins the `v0.160.0` round. `docs/NEXT_SESSION.md` engineer-owned, not edited.
+
 ## 2026-11-18 (1621st filing) — `Pass 723.4` (`d0d2fbe4`, `X093` addendum) SHIPPED: a whitespace table needs columns that line up; unreleased
 
 **Filed (engineer-reported; no shell here, git, push and CI state not checked from here):**
