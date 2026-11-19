@@ -64,3 +64,21 @@ fn bound_items_are_not_resolved_and_say_so() {
         "{notes:?}"
     );
 }
+
+/// Display/save items whose save values contain a space.
+fn cities(value: &str) -> String {
+    format!(
+        r#"<field name="c" x="0pt" y="0pt" w="80pt" h="60pt"><ui><choiceList open="multiSelect"/></ui><font typeface="Helvetica"/><items><text>NY</text><text>Boston</text></items><items save="1"><text>New York</text><text>Boston</text></items><value><text>{value}</text></value></field>"#
+    )
+}
+
+#[test]
+fn a_multi_select_value_is_one_selection_per_line() {
+    let highlights = |v: &str| {
+        let (ops, _) = painted(&cities(v), &PaintOptions::new());
+        ops.matches("0.6 0.75 0.95 rg").count()
+    };
+    assert_eq!(highlights("New York\nBoston"), 2);
+    // One save value with a space is one selection, not "New" and "York".
+    assert_eq!(highlights("New York"), 1);
+}

@@ -51,9 +51,8 @@ impl Painter<'_> {
             if unresolved {
                 self.note(item, PaintNoteKind::Choice);
             }
-            // A multiSelect value is its selections, space-separated (p.485).
             let chosen: Vec<&str> = if w.attr("open") == Some("multiSelect") {
-                value.split(' ').collect()
+                crate::xfa::widget::multi_select_values(value, &save)
             } else {
                 vec![value]
             };

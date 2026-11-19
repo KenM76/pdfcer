@@ -68,8 +68,23 @@ pub enum ChoiceOpen {
     OnEntry,
     /// `always`: the list is always shown, one selection.
     Always,
-    /// `multiSelect`: the list is always shown, several selections.
+    /// `multiSelect`: the list is always shown, several selections. Give
+    /// [`crate::edit::EditSession::fill_xfa_field`] the chosen save values
+    /// one per line, joined by `'\n'`.
     MultiSelect,
+}
+
+/// The selections in a `multiSelect` choice list's value: one per line, as a
+/// bound data group's values are joined (XFA 3.3 p.198). A one-line value
+/// that is not itself a save value is read space-separated, the form of the
+/// widget chapter's example (p.485), so `"bananas pears"` is two selections
+/// and `"New York"` stays one when it is in `save`.
+pub(in crate::xfa) fn multi_select_values<'a>(value: &'a str, save: &[&str]) -> Vec<&'a str> {
+    if value.contains('\n') || save.contains(&value) {
+        value.lines().filter(|l| !l.is_empty()).collect()
+    } else {
+        value.split(' ').filter(|l| !l.is_empty()).collect()
+    }
 }
 
 impl ChoiceOpen {

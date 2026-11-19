@@ -232,7 +232,8 @@ fn field_of(
             text_entry,
         } => {
             options.clone_from(items);
-            let (more, value) = choice_value(value, open, *text_entry);
+            let save: Vec<&str> = items.iter().map(|(_, s)| s.as_str()).collect();
+            let (more, value) = choice_value(value, open, *text_entry, &save);
             flags |= more;
             (FillKind::Choice, value)
         }
@@ -266,11 +267,21 @@ fn check_state(value: &str, on: &str) -> FillValue {
 }
 
 /// A choice list's extra `/Ff` bits and value.
-fn choice_value(value: String, open: &ChoiceOpen, text_entry: bool) -> (u32, FillValue) {
+fn choice_value(
+    value: String,
+    open: &ChoiceOpen,
+    text_entry: bool,
+    save: &[&str],
+) -> (u32, FillValue) {
     match open {
         ChoiceOpen::MultiSelect => (
             MULTI_SELECT,
-            FillValue::List(value.lines().map(str::to_owned).collect()),
+            FillValue::List(
+                super::widget::multi_select_values(&value, save)
+                    .into_iter()
+                    .map(str::to_owned)
+                    .collect(),
+            ),
         ),
         ChoiceOpen::Always => (0, text_value(value)),
         _ => (COMBO | if text_entry { EDIT } else { 0 }, text_value(value)),
@@ -401,5 +412,24 @@ fn radio_values(template: &Template, widgets: &[&[PaintedWidget]], fields: &mut 
         if let Some(on) = selected {
             f.value = FillValue::Name(on);
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn list(value: &str) -> FillValue {
+        let save = ["New York", "Boston", "a", "p"];
+        choice_value(value.to_owned(), &ChoiceOpen::MultiSelect, false, &save).1
+    }
+
+    #[test]
+    fn a_multi_select_value_is_one_selection_per_line() {
+        let both = FillValue::List(vec!["New York".into(), "Boston".into()]);
+        assert_eq!(list("New York\nBoston"), both);
+        assert_eq!(list("New York"), FillValue::List(vec!["New York".into()]));
+        // The widget chapter's space-separated form still reads.
+        assert_eq!(list("a p"), FillValue::List(vec!["a".into(), "p".into()]));
     }
 }

@@ -47,6 +47,10 @@ impl EditSession {
     /// groups (XFA 3.3 p.199). [`XfaFillOutcome::created`] names what was
     /// created, for the caller to disclose.
     ///
+    /// A `multiSelect` choice list ([`crate::xfa::ChoiceOpen::MultiSelect`])
+    /// takes its selections' save values one per line, joined by `'\n'`;
+    /// the form preview and the fillable `/V` read the value the same way.
+    ///
     /// # Errors
     ///
     /// [`EditError::XfaFill`] with:
