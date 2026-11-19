@@ -114,7 +114,9 @@ vec3 bounce(vec3 p, vec3 n) {
 /// A [`crate::FrameLens`] frame draws every face with this one, built
 /// from the fisheye camera, never from a face's camera.
 /// Building one traces up to about 800,000 rays, so a host builds it off
-/// its frame loop.
+/// its frame loop, with [`crate::RenderOptions::threads`] 0 (every core):
+/// the default of one thread can take a minute on a large lit model, and
+/// the frame lacks its bounce light until it arrives.
 #[derive(Debug, Clone, PartialEq)]
 #[non_exhaustive]
 pub struct FrameBounce {

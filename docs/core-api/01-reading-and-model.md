@@ -4557,7 +4557,11 @@ let image = render_coloured(&meshes, &colours, &camera, &RenderOptions { width: 
     most the cut) and a factor > 1 may lack up to factor × the cut. Draw
     with it at once and rebuild off the frame loop; non-finite or
     negative factor → 0. Building
-    traces up to ~800,000 rays: do it off the frame loop. Under a
+    traces up to ~800,000 rays: do it off the frame loop with
+    `options.threads = 0` (every core; the default is 1). Measured on a
+    430,454-triangle model with 84 lamps: 70.6 s on one thread, 10.4 s
+    on 20, the same atlas. Until it arrives the frame has no bounce
+    light. Under a
     `FrameLens`, build it once from the fisheye camera and use it on every
     face. WebGL 2 run (headless Edge, SwiftShader; lit room, 256²): GPU vs
     CPU 0.075 levels mean, 0.19% of interior pixels over 1 level, max 24 —
