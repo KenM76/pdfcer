@@ -35,11 +35,13 @@ impl Plan {
     pub(super) fn of(model: &AssembledModel, options: &RenderOptions, s: &MeterSettings) -> Plan {
         let given = s.mm_per_unit.filter(|m| m.is_finite() && *m > 0.0);
         let mm = given.or(model.units.map(|u| u.mm_per_unit));
-        let (glow, glowing) = glow(model);
-        let counted = s.glow == GlowLight::Counted && glowing > 0;
+        let (mut glow, glowing) = glow(model);
+        let stated = glowing.iter().filter(|&&nits| nits.is_some()).count();
+        let unstated = glowing.len() - stated;
+        let counted = s.glow == GlowLight::Counted && !glowing.is_empty();
         let mut reasons = reasons(&model.lights, options, s, mm.is_some());
-        if counted {
-            reasons.push(RelativeReason::GlowingParts(glowing));
+        if counted && unstated > 0 {
+            reasons.push(RelativeReason::GlowingParts(unstated));
         }
         let mut notes = Vec::new();
         let (unit, lights, options) = if reasons.is_empty() {
@@ -57,6 +59,10 @@ impl Plan {
             }
             if s.tint == LightTint::Coloured {
                 notes.push(IlluminanceNote::TintApplied);
+            }
+            if counted {
+                physical_glow(&mut glow, model, s.tint);
+                notes.push(IlluminanceNote::GlowLuminance(stated));
             }
             let metres = mm.unwrap_or(1000.0) / 1000.0;
             let lights = model
@@ -77,8 +83,8 @@ impl Plan {
         if counted && notes.contains(&IlluminanceNote::DirectOnly) {
             notes.push(IlluminanceNote::GlowNotBounced);
         }
-        if !counted && glowing > 0 {
-            notes.push(IlluminanceNote::GlowLeftOut(glowing));
+        if !counted && !glowing.is_empty() {
+            notes.push(IlluminanceNote::GlowLeftOut(glowing.len()));
         }
         Plan {
             unit,
@@ -97,8 +103,9 @@ impl Plan {
 }
 
 /// The radiance each of `model`'s meshes gives off (a channel that is not
-/// a positive number gives off none), and how many give off any.
-fn glow(model: &AssembledModel) -> (Vec<[f64; 3]>, usize) {
+/// a positive number gives off none), and the stated luminance of each
+/// mesh that gives off any.
+fn glow(model: &AssembledModel) -> (Vec<[f64; 3]>, Vec<Option<f64>>) {
     let of = |i: usize| {
         let finish = model.finishes.get(i).copied().flatten();
         finish.map_or([0.0; 3], |f| {
@@ -107,8 +114,34 @@ fn glow(model: &AssembledModel) -> (Vec<[f64; 3]>, usize) {
         })
     };
     let glow: Vec<[f64; 3]> = (0..model.meshes.len()).map(of).collect();
-    let glowing = glow.iter().filter(|g| g.iter().any(|&c| c > 0.0)).count();
+    let glowing = glow
+        .iter()
+        .enumerate()
+        .filter(|(_, g)| g.iter().any(|&c| c > 0.0))
+        .map(|(i, _)| nits(model, i))
+        .collect();
     (glow, glowing)
+}
+
+/// Mesh `i`'s stated emissive luminance, when it is a positive number.
+fn nits(model: &AssembledModel, i: usize) -> Option<f64> {
+    let finish = model.finishes.get(i).copied().flatten()?;
+    finish.emissive_nits.filter(|n| n.is_finite() && *n > 0.0)
+}
+
+/// Turns each glow into the illuminance it gives a surface that sees
+/// nothing else: π × its luminance in cd/m² (a Lambertian emitter), the
+/// colour scaling each channel as the picture draws it
+/// (`KHR_materials_emissive_strength`). [`LightTint::Neutral`] keeps only
+/// the colour's luminance, as it does for a lamp.
+fn physical_glow(glow: &mut [[f64; 3]], model: &AssembledModel, tint: LightTint) {
+    for (i, g) in glow.iter_mut().enumerate() {
+        let lux = std::f64::consts::PI * nits(model, i).unwrap_or(0.0);
+        *g = match tint {
+            LightTint::Coloured => g.map(|c| c * lux),
+            LightTint::Neutral => [super::luminance(*g) * lux; 3],
+        };
+    }
 }
 
 fn artwork(lights: &[ModelLight], options: &RenderOptions) -> bool {

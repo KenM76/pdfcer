@@ -35,8 +35,11 @@ pub enum LightTint {
 #[non_exhaustive]
 pub enum GlowLight {
     /// A glowing surface lights what it faces, and that light bounces.
-    /// A glow has no physical strength, so a model with one reads
-    /// relative ([`RelativeReason::GlowingParts`]).
+    /// A glow whose finish states its luminance
+    /// ([`MaterialFinish::emissive_nits`](crate::MaterialFinish::emissive_nits))
+    /// adds lux ([`IlluminanceNote::GlowLuminance`]); one that states none
+    /// has no physical strength, so a model with one reads relative
+    /// ([`RelativeReason::GlowingParts`]).
     #[default]
     Counted,
     /// Glowing surfaces light nothing, as in a picture; a model with
@@ -165,8 +168,9 @@ pub enum RelativeReason {
     /// The bounce takes light from the picture's background colour, which
     /// has no physical strength.
     Sky,
-    /// This many of the model's meshes glow and are counted
-    /// ([`GlowLight::Counted`]); a glow has no physical strength.
+    /// This many of the model's meshes glow, are counted
+    /// ([`GlowLight::Counted`]) and state no luminance, so their glow has
+    /// no physical strength.
     GlowingParts(usize),
 }
 
@@ -188,7 +192,7 @@ impl std::fmt::Display for RelativeReason {
             RelativeReason::Sky => f.write_str("the bounce takes light from the background colour"),
             RelativeReason::GlowingParts(n) => write!(
                 f,
-                "{n} glowing surface(s) are counted, and a glow has no physical strength"
+                "{n} counted glowing surface(s) state no luminance, so have no physical strength"
             ),
         }
     }
@@ -232,6 +236,10 @@ pub enum IlluminanceNote {
     /// in lux draws them at their stored colour, not against the white
     /// point.
     GlowRelative(usize),
+    /// The light of this many glowing surfaces is counted in lux from
+    /// their stated luminance, as a flat surface glowing evenly in every
+    /// direction gives it.
+    GlowLuminance(usize),
 }
 
 impl std::fmt::Display for IlluminanceNote {
@@ -264,6 +272,10 @@ impl std::fmt::Display for IlluminanceNote {
             IlluminanceNote::GlowRelative(n) => write!(
                 f,
                 "{n} glowing material(s) state no luminance and are drawn at their stored colour"
+            ),
+            IlluminanceNote::GlowLuminance(n) => write!(
+                f,
+                "the light of {n} glowing surface(s) is counted from their stated luminance"
             ),
         }
     }

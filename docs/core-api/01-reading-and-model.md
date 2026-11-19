@@ -3528,7 +3528,7 @@ let image = render_coloured(&meshes, &colours, &camera, &RenderOptions { width: 
   assumed or left out (`PictureScaleUnused`, `AmbientFillLeftOut`,
   `UnitAssumed`, `UnitGiven`, `TintApplied`, `DirectOnly`,
   `BounceEstimated`, `BounceStrength(s)`, `GlowLeftOut(n)`,
-  `GlowNotBounced`); both implement `Display`.
+  `GlowNotBounced`, `GlowLuminance(n)`); both implement `Display`.
   **Glowing surfaces (`G291`).** A mesh whose
   `MaterialFinish::emissive` is not black lights what it faces:
   `MeterSettings::glow: GlowLight::{Counted (default), LeftOut}`.
@@ -3537,9 +3537,16 @@ let image = render_coloured(&meshes, &colours, &camera, &RenderOptions { width: 
   `Illuminance::emitted`, in the emissive colour's own units: a point
   that sees nothing but emissive white reads 1. With bounce on, what
   other surfaces reflect of it lands in `bounced`; with bounce off the
-  note `GlowNotBounced` says none is reflected. A glow has no physical
-  strength, so a model with `n` glowing meshes reads `Relative` with
-  `RelativeReason::GlowingParts(n)`. `LeftOut` restores lamps-only
+  note `GlowNotBounced` says none is reflected. A glow whose finish
+  states `emissive_nits` L (finite, > 0) adds lux (`G308`): it counts
+  as a Lambertian emitter of luminance L × the emissive colour per
+  channel, so a point seeing nothing but it reads π·L·Y(colour)
+  (`Neutral` takes the colour's luminance Y, `Coloured` weighs each
+  channel; same total), and the note `GlowLuminance(n)` says how many
+  glows were counted that way. A glow stating no luminance has no
+  physical strength, so a model with `n` such counted glows reads
+  `Relative` with `RelativeReason::GlowingParts(n)`; stated glows are
+  not in `n`. `LeftOut` restores lamps-only
   figures (lux where the lamps allow) and carries the note
   `GlowLeftOut(n)`. A model with no glowing mesh gets neither reason
   nor note. A reading of 0 lux with no reason is a true zero: nothing

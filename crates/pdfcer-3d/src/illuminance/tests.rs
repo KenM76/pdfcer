@@ -476,3 +476,49 @@ fn a_glow_bounces_where_bounce_is_on() {
     assert!(f.emitted > 0.1, "{f:?}");
     assert!((f.total - f.emitted - f.bounced).abs() < 1e-12);
 }
+
+/// `model`'s glow with luminance `nits` stated on mesh `i`.
+fn stating(mut model: AssembledModel, i: usize, nits: f64) -> AssembledModel {
+    if let Some(Some(f)) = model.finishes.get_mut(i) {
+        f.emissive_nits = Some(nits);
+    }
+    model
+}
+
+#[test]
+fn a_glow_of_stated_luminance_reads_in_lux() {
+    let (model, dark) = glow_room([1.0, 0.5, 0.25]);
+    let settings = MeterSettings {
+        gather_rays: 4096,
+        ..MeterSettings::default()
+    };
+    let lit = stating(model, 1, 100.0);
+    let m = meter(&lit, &dark, &settings);
+    assert_eq!(m.unit(), IlluminanceUnit::Lux, "{:?}", m.reasons());
+    assert!(m.notes().contains(&IlluminanceNote::GlowLuminance(1)));
+    assert!(m.notes().contains(&IlluminanceNote::GlowNotBounced));
+    let r = m.read(&at([0.0; 3])).unwrap();
+    let y = 0.2126 + 0.7152 * 0.5 + 0.0722 * 0.25;
+    let want = std::f64::consts::PI * 100.0 * y * square_overhead(2.0, 1.0);
+    assert!((r.emitted - want).abs() < 0.02 * want, "{r:?} want {want}");
+    // Coloured weighs each channel; the luminance is the same.
+    let coloured = MeterSettings {
+        tint: LightTint::Coloured,
+        ..settings
+    };
+    let c = meter(&lit, &dark, &coloured).read(&at([0.0; 3])).unwrap();
+    assert!((c.emitted - r.emitted).abs() < 1e-9 * want, "{c:?}");
+}
+
+#[test]
+fn only_a_glow_stating_no_luminance_makes_the_reading_relative() {
+    let (model, dark) = glow_room([1.0; 3]);
+    let mut two = model.clone();
+    two.meshes.push(two.meshes[1].clone());
+    two.finishes.push(two.finishes[1]);
+    two.colours.push(two.colours[1]);
+    let mixed = stating(two, 1, 50.0);
+    let m = meter(&mixed, &dark, &MeterSettings::default());
+    assert_eq!(m.unit(), IlluminanceUnit::Relative);
+    assert_eq!(m.reasons(), [RelativeReason::GlowingParts(1)]);
+}

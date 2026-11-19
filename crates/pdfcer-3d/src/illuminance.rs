@@ -99,8 +99,10 @@ impl<'m> LightMeter<'m> {
     /// says why.
     ///
     /// A glowing surface ([`MeterSettings::glow`]) lights what it faces
-    /// with its emissive colour: a surface that sees nothing but emissive
-    /// white reads 1. That light is [`Illuminance::emitted`]; where bounce
+    /// with its emissive colour: in a relative reading a surface that sees
+    /// nothing but emissive white reads 1; in lux, one that sees nothing
+    /// but a glow of luminance L cd/m² reads π·L. That light is
+    /// [`Illuminance::emitted`]; where bounce
     /// is on, what other surfaces reflect of it is in
     /// [`Illuminance::bounced`].
     ///
