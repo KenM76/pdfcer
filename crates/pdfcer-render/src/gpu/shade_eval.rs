@@ -24,6 +24,7 @@ use crate::shading::gpu_terms::{Kind, Terms};
 /// An evaluated shading and the edges of the area it draws in each tile.
 pub(super) type Evaluated = (Arc<ShadePaint>, Vec<Option<super::fill_edges::FillEdges>>);
 
+/// `v` as `f32` bit patterns, the scene texture's integer texels.
 #[allow(clippy::cast_possible_wrap)] // bit patterns
 pub(super) fn bits(v: [f32; 4]) -> [i32; 4] {
     v.map(|f| f.to_bits() as i32)
