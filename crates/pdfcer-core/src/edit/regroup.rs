@@ -19,6 +19,9 @@ pub struct WidgetRegroup {
     pub on_state: Option<String>,
     /// Whether the source group was left with no buttons and removed.
     pub source_removed: bool,
+    /// Whether the target named no field, so the move created it as a new
+    /// radio group with this button its first member.
+    pub target_created: bool,
     /// Action target names (`/ResetForm`, `/SubmitForm`, `/Hide`) that named
     /// the removed source group and now name nothing. Zero when the source
     /// survives.
@@ -55,10 +58,19 @@ impl EditSession {
     ///   was selected on this button becomes unselected.
     /// - A target that is one merged field+widget is first split into a
     ///   field with one kid, as a paste into it would.
+    /// - A `target_fqn` that names no field (nor a grouping node) becomes a
+    ///   new radio group with this button its only member
+    ///   ([`WidgetRegroup::target_created`]): it takes the source's `/Ff`
+    ///   (radio bits, read-only, required), and is selected on the button
+    ///   when the source was. Its grouping nodes are created as
+    ///   [`Self::add_radio_button`] would create them.
     ///
     /// # Errors
     ///
-    /// - [`EditError::FieldNotFound`] when either name is not a field.
+    /// - [`EditError::FieldNotFound`] when `fqn` is not a field.
+    /// - `NameIsGroupingNode` or `FieldPathCrossesTerminal` (as a
+    ///   [`forms_author::FormAuthorError`]) when `target_fqn` names no field
+    ///   and cannot become one.
     /// - [`EditError::NotARadioGroup`] when either is not a radio group.
     /// - [`EditError::WidgetAlreadyInField`] when they are the same field.
     /// - [`EditError::RadioGroupUsesPositionalOpt`] when either carries
@@ -66,6 +78,18 @@ impl EditSession {
     /// - [`EditError::WidgetIndexOutOfRange`] for a bad `index`.
     /// - The encryption and strict certification guards.
     pub fn move_widget_to_field(
+        &mut self,
+        fqn: &str,
+        index: usize,
+        target_fqn: &str,
+    ) -> Result<WidgetRegroup, EditError> {
+        if self.names_no_field(target_fqn) {
+            return self.move_widget_to_new_field(fqn, index, target_fqn);
+        }
+        self.move_widget_to_existing_field(fqn, index, target_fqn)
+    }
+
+    pub(super) fn move_widget_to_existing_field(
         &mut self,
         fqn: &str,
         index: usize,
@@ -102,6 +126,7 @@ impl EditSession {
             widget: member.id,
             on_state: on_state.map(|s| String::from_utf8_lossy(&s).into_owned()),
             source_removed,
+            target_created: false,
             action_targets_orphaned: orphaned,
             disclosures,
         })
@@ -112,19 +137,25 @@ impl EditSession {
         source: &forms::Field,
         target: &forms::Field,
     ) -> Result<(), EditError> {
-        for f in [source, target] {
-            let fqn = f.fully_qualified_name.clone();
-            if f.button_kind != Some(forms::ButtonKind::Radio) {
-                return Err(EditError::NotARadioGroup { fqn });
-            }
-            if self.field_has_opt(f.id) {
-                return Err(EditError::RadioGroupUsesPositionalOpt { fqn });
-            }
-        }
+        self.refuse_unless_plain_radio(source)?;
+        self.refuse_unless_plain_radio(target)?;
         if source.id == target.id {
             return Err(EditError::WidgetAlreadyInField {
                 fqn: target.fully_qualified_name.clone(),
             });
+        }
+        Ok(())
+    }
+
+    /// Refuse a field that is not a radio group, or whose on-states index
+    /// an `/Opt`.
+    pub(super) fn refuse_unless_plain_radio(&self, f: &forms::Field) -> Result<(), EditError> {
+        let fqn = f.fully_qualified_name.clone();
+        if f.button_kind != Some(forms::ButtonKind::Radio) {
+            return Err(EditError::NotARadioGroup { fqn });
+        }
+        if self.field_has_opt(f.id) {
+            return Err(EditError::RadioGroupUsesPositionalOpt { fqn });
         }
         Ok(())
     }
@@ -280,14 +311,22 @@ impl EditSession {
         };
         let dict = dict.clone();
         let mut updated = dict.clone();
+        // A field with an empty `/Kids` and no widget keys of its own (as a
+        // new group starts) has no widget to split off.
+        let empty_group = dict.get(b"Kids").is_some_and(|k| {
+            self.graph()
+                .resolve(k)
+                .as_array()
+                .is_some_and(<[Object]>::is_empty)
+        }) && dict.get(b"Subtype").is_none();
         let (mut writes, mut kids) = match shape {
-            FieldShape::MergedSingleWidget => {
+            FieldShape::MergedSingleWidget if !empty_group => {
                 let slots = self.page_slots()?;
                 let (writes, promoted, _) =
                     self.promote_merged_field(target.id, &dict, &mut updated, &slots, None)?;
                 (writes, vec![Object::Reference(promoted)])
             }
-            FieldShape::KidsWidgets { .. } => {
+            _ => {
                 let kids = dict
                     .get(b"Kids")
                     .and_then(|o| self.graph().resolve(o).as_array().map(<[Object]>::to_vec))

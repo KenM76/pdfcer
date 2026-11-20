@@ -17,7 +17,7 @@ pub(crate) struct MoveWidgetToFieldArgs<'a> {
 ///
 /// Prints one `move-widget-to-field …` line carrying `widget=` (object
 /// number, unchanged by the move), `on_state=` (`-` when the widget has
-/// none), `source_removed=` and `action_targets_orphaned=`; every disclosure
+/// none), `source_removed=`, `target_created=` and `action_targets_orphaned=`; every disclosure
 /// goes to stderr. Refusals go through [`report_edit_error`] before anything
 /// is written; the exit code is [`finish_edit`]'s.
 pub(crate) fn cmd_move_widget_to_field(a: &MoveWidgetToFieldArgs<'_>) -> u8 {
@@ -51,7 +51,7 @@ pub(crate) fn cmd_move_widget_to_field(a: &MoveWidgetToFieldArgs<'_>) -> u8 {
     };
     let r = &outcome.report;
     println!(
-        "move-widget-to-field {} name={:?} index={} into={:?} widget={} on_state={} source_removed={} action_targets_orphaned={} mode={} -> {}; changed={} objects={} appended={} out_bytes={} undo_verified={} undo_identical={}",
+        "move-widget-to-field {} name={:?} index={} into={:?} widget={} on_state={} source_removed={} target_created={} action_targets_orphaned={} mode={} -> {}; changed={} objects={} appended={} out_bytes={} undo_verified={} undo_identical={}",
         a.input.display(),
         a.name,
         a.index,
@@ -59,6 +59,7 @@ pub(crate) fn cmd_move_widget_to_field(a: &MoveWidgetToFieldArgs<'_>) -> u8 {
         moved.widget.num,
         moved.on_state.as_deref().unwrap_or("-"),
         u32::from(moved.source_removed),
+        u32::from(moved.target_created),
         moved.action_targets_orphaned,
         a.mode.name(),
         a.output.display(),

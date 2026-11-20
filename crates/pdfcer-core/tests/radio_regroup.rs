@@ -213,3 +213,78 @@ fn refusals_write_nothing() {
     ));
     assert_eq!(s.undo_depth(), depth);
 }
+
+#[test]
+fn a_new_group_name_makes_the_button_its_first_member() {
+    let mut s = session();
+    let depth = s.undo_depth();
+    let flags = field(&s, "Left").flags;
+    let out = s.move_widget_to_field("Left", 0, "Fresh").expect("move");
+    assert_eq!(s.undo_depth(), depth + 1, "one undo entry");
+    assert!(out.target_created && !out.source_removed);
+    assert_eq!(out.widget, id(11), "the object number is kept");
+    assert_eq!(out.on_state.as_deref(), Some("Red"));
+    assert!(
+        out.disclosures
+            .iter()
+            .any(|d| d.contains("new radio group"))
+    );
+
+    let s = reload(&s);
+    let fresh = field(&s, "Fresh");
+    assert_eq!(fresh.flags, flags, "the source's /Ff is carried");
+    assert_eq!(fresh.button_kind, Some(forms::ButtonKind::Radio));
+    assert_eq!(widget_ids(&s, "Fresh"), vec![id(11)]);
+    assert_eq!(widget_ids(&s, "Left"), vec![id(12)]);
+    assert_eq!(
+        fresh.value,
+        forms::FieldValue::Name(b"Red".to_vec()),
+        "the selection moves with its button"
+    );
+    assert_eq!(name(&dict(&s, id(11)), b"AS").as_deref(), Some(&b"Red"[..]));
+    assert_eq!(name(&dict(&s, id(10)), b"V").as_deref(), Some(&b"Off"[..]));
+    assert_eq!(
+        normal_keys(&s, id(11)),
+        vec![b"Off".to_vec(), b"Red".to_vec()],
+        "the appearance is kept, not regenerated"
+    );
+    assert_eq!(annots(&s).len(), 7, "no page entry added or lost");
+}
+
+#[test]
+fn a_merged_last_member_moves_into_a_new_nested_group() {
+    let mut s = session();
+    let out = s.move_widget_to_field("Solo", 0, "New.Deep").unwrap();
+    assert!(out.target_created && out.source_removed);
+    let s = reload(&s);
+    assert!(fields(&s).iter().all(|f| f.fully_qualified_name != "Solo"));
+    assert_eq!(widget_ids(&s, "New.Deep"), vec![id(40)]);
+    assert!(annots(&s).contains(&id(40)));
+}
+
+#[test]
+fn undo_of_a_move_into_a_new_group_restores_the_document_exactly() {
+    let mut s = session();
+    let (before, _) = s.to_full_bytes(&Default::default()).unwrap();
+    s.move_widget_to_field("Left", 0, "Fresh").unwrap();
+    s.undo();
+    let (after, _) = s.to_full_bytes(&Default::default()).unwrap();
+    assert_eq!(before, after);
+}
+
+#[test]
+fn a_refused_move_into_a_new_group_creates_nothing() {
+    let mut s = session();
+    let depth = s.undo_depth();
+    assert!(matches!(
+        s.move_widget_to_field("Left", 5, "Fresh"),
+        Err(EditError::WidgetIndexOutOfRange { .. })
+    ));
+    assert!(matches!(
+        s.move_widget_to_field("Agree", 0, "Fresh"),
+        Err(EditError::NotARadioGroup { .. })
+    ));
+    assert!(s.move_widget_to_field("Left", 0, "Right.Sub").is_err());
+    assert_eq!(s.undo_depth(), depth);
+    assert!(fields(&s).iter().all(|f| f.fully_qualified_name != "Fresh"));
+}

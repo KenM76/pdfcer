@@ -142,6 +142,7 @@ mod history_transfer;
 mod radio_state;
 mod recognised_block;
 mod regroup;
+mod regroup_new;
 pub use history_transfer::{HistoryError, HistoryImport};
 pub use regroup::WidgetRegroup;
 mod content_mark;

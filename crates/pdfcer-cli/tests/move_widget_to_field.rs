@@ -65,3 +65,15 @@ fn a_check_box_is_refused() {
     assert!(out.is_empty(), "{out}");
     assert!(err.contains("not a radio-button group"), "{err}");
 }
+
+#[test]
+fn a_new_name_makes_a_new_group() {
+    let (ok, out, err) = run("new", "Left", "0", "Fresh");
+    assert!(ok, "{err}");
+    assert!(
+        out.contains("on_state=Red source_removed=0 target_created=1"),
+        "{out}"
+    );
+    assert!(out.contains("undo_identical=1"), "{out}");
+    assert!(err.contains("new radio group"), "{err}");
+}
