@@ -4,6 +4,15 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-11-20 (1651st filing) — `Pass 724.4` part 1 of 4 (= `704.1` + `704.4`, `0d9b9761`) SHIPPED: fills, strokes and clips on the GPU
+
+**Filed (engineer-reported; no shell here, git, push, CI and the gates not run or checked from here; nothing committed by this filing):**
+- `0d9b9761` `DisplayList::gpu_scene` in `pdfcer-render` behind the non-default `gpu` feature (decision 223): solid fills and strokes, nested clips, glyph outlines; images, shadings and transparency refused as `GpuRefusal` so the page falls back to the CPU. CAD benchmark drawing, 0 rows different vs CPU replay on Intel Arc (D3D11) and SwiftShader at scale 1, 300 DPI and 50 MP. At 300 DPI: pack ~300 ms + upload ~100 ms + draw/read ~105-135 ms vs ~600-650 ms for 8-band CPU replay. Details in `ROADMAP.md` *Shipped*.
+
+**FEATURES:** new Implemented row `[x] core / — cli / [ ] gui` (fills and strokes only); the Planned GPU-snapshot row narrowed to Images, Shadings, Transparency and the switches, all `[ ]`.
+
+**Open:** `Pass 724.4` stays in progress: `704.2` Images, `704.3` Shadings, `704.5` Transparency. GUI wiring owed. Release waits for the arc. CI feature-on step for `704.1`: `f495dd49` (wasm32 check with `--features gpu`).
+
 ## 2026-11-20 (1650th filing) — `Pass 724.3` (= `669.1`, `b37560b3`) SHIPPED: per-tile lamp lists in the GPU shader
 
 **Filed (engineer-reported; no shell here, git, push, CI and the gates not run or checked from here; nothing committed by this filing):**
