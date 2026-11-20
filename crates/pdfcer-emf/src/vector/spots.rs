@@ -120,6 +120,7 @@ impl Roster {
                     self.paint(brush, shading_inks(brush, shadings), buffer);
                 }
                 Op::Text { ops, .. } => self.walk(ops, shadings, buffer),
+                Op::Shading(_) => {}
                 Op::Layer {
                     ops,
                     isolated,

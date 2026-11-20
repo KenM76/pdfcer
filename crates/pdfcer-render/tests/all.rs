@@ -89,6 +89,7 @@ mod same_program_route;
 mod separation_preview;
 mod shading_ink;
 mod shading_pattern_anchoring;
+mod shading_replay;
 mod sibling_font;
 mod signature_widget;
 mod smask_replaces_not_intersects;

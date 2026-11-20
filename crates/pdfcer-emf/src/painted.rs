@@ -73,7 +73,7 @@ fn painted_in(op: &Op, page: (u32, u32), depth: usize) -> Option<DeviceBounds> {
             .iter()
             .filter_map(|o| painted_in(o, page, depth + 1))
             .reduce(union)?,
-        Op::Fill { .. } | Op::Stroke { .. } => bx,
+        Op::Fill { .. } | Op::Stroke { .. } | Op::Shading(_) => bx,
     };
     intersect(inner, bx)
 }

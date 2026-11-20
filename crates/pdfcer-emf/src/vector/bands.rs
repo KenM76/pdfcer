@@ -253,7 +253,7 @@ fn parts(
             *ctm,
             *bounds,
         ),
-        Op::Layer { .. } | Op::Text { .. } => return Err(Cause::Geometry),
+        Op::Layer { .. } | Op::Text { .. } | Op::Shading(_) => return Err(Cause::Geometry),
     })
 }
 

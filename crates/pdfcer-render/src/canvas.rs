@@ -652,6 +652,19 @@ impl<'a> Canvas<'a> {
         matches!(self, Self::Record(r) if r.export.is_some())
     }
 
+    /// Whether this canvas is the CACHE recorder, which keeps a shading as
+    /// an op for replay to evaluate.
+    pub(crate) fn caching(&self) -> bool {
+        matches!(self, Self::Record(r) if r.export.is_none())
+    }
+
+    /// Record a shading; a no-op on every canvas but a recorder.
+    pub(crate) fn push_shading(&mut self, op: crate::display_list::ShadingOp) {
+        if let Self::Record(r) = self {
+            r.push(Op::Shading(Arc::new(op)));
+        }
+    }
+
     /// Whether shown strings are wrapped as text for an export (G033).
     pub(crate) fn keeps_text(&self) -> bool {
         matches!(self, Self::Record(r) if r.keeps_text())

@@ -179,6 +179,7 @@ fn is_blended(op: &Op) -> bool {
             paint.blend != BlendMode::SourceOver || paint.nonseparable.is_some()
         }
         Op::Text { ops, .. } => ops.iter().any(is_blended),
+        Op::Shading(_) => false,
     }
 }
 

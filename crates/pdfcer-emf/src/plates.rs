@@ -552,6 +552,7 @@ impl<'a> Build<'a> {
                     }
                 }
                 Op::Text { ops, .. } => self.walk(ops),
+                Op::Shading(_) => {}
             }
         }
     }

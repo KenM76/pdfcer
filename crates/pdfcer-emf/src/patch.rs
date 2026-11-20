@@ -204,6 +204,7 @@ pub(crate) fn harvested_shadings(op: &Op, shadings: &[(Arc<Pixmap>, ShadingSourc
         Op::Layer { ops, .. } | Op::Text { ops, .. } => {
             ops.iter().map(|o| harvested_shadings(o, shadings)).sum()
         }
+        Op::Shading(_) => 0,
     }
 }
 
@@ -227,7 +228,7 @@ pub(super) fn composites(op: &Op) -> bool {
             }
             _ => true,
         },
-        Op::Layer { .. } => true,
+        Op::Layer { .. } | Op::Shading(_) => true,
         Op::Text { ops, .. } => ops.iter().any(composites),
     }
 }
@@ -268,6 +269,7 @@ fn drops_blend(op: &Op) -> bool {
                 || ops.iter().any(drops_blend)
         }
         Op::Text { ops, .. } => ops.iter().any(drops_blend),
+        Op::Shading(_) => false,
     }
 }
 

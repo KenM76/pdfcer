@@ -1002,6 +1002,8 @@ impl Writer<'_> {
                         self.write_ops(ops);
                     }
                 },
+                // A cache recording's op; an export never records one.
+                Op::Shading(_) => {}
                 Op::Layer {
                     paint, ops, mask, ..
                 } => {

@@ -4961,7 +4961,7 @@ on its own and stacks them top to bottom.
   which is the page height. Anything else returns
   `RenderError::BandNotAligned { start, end, lattice }`.
 - **Byte-identical only when `list.band_exact()` is `Ok(())`.** Otherwise it
-  returns a `BandBlocker` (`Image`, `Gradient`, `LayerMask`): such a page can
+  returns a `BandBlocker` (`Image`, `Gradient`, `LayerMask`, `Shading`): such a page can
   differ from the whole replay by a level or two where a shader samples. In
   that case replay the whole page on one worker. Do not band it and accept
   the difference, because the stitched picture would not match the snapshot
@@ -5327,6 +5327,13 @@ soft-mask and mesh-shading fixtures.
   mask and a cached replay painted the object unmasked. A shell that caches
   display lists will see a few more `PageNotRecordable` fallbacks; they are
   correct.
+- **A shading records** (`Pass 724.4`): `sh` and a shading-pattern fill no
+  longer poison the cache recorder. The list keeps the shading and replay
+  evaluates it, byte-identical to a direct render of the same region.
+  `PoisonReason::Shading` is now only an export recorder's tally cause.
+  One difference: a mesh is metered against a fresh page budget at replay,
+  so a page whose direct render cut a mesh at the coverage ceiling replays
+  it whole.
 - **Recording scale = raster DPI.** An SVG recorded at 72 DPI has 72 DPI
   shadings inside it forever; the default is 300 for that reason, and the
   CLI's `--dpi` is the same knob.

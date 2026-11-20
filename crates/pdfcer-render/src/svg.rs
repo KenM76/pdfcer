@@ -563,6 +563,8 @@ impl Writer<'_> {
                         None => self.write_ops(ops, depth),
                     }
                 }
+                // Cache recordings only; an export never records one.
+                Op::Shading(_) => {}
             }
         }
     }

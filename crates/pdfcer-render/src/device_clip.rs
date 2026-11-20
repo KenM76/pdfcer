@@ -128,7 +128,8 @@ pub(crate) fn with_row_origin<R>(origin: u32, f: impl FnOnce() -> R) -> R {
     f()
 }
 
-fn row_origin() -> u32 {
+/// The origin [`with_row_origin`] set on this thread, or 0.
+pub(crate) fn row_origin() -> u32 {
     ROW_ORIGIN.with(std::cell::Cell::get)
 }
 

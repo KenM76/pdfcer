@@ -126,6 +126,7 @@ use crate::device_clip::{FitMask, FitPaint};
 
 mod clip_rect;
 mod coverage;
+mod shading_record;
 mod soft_mask;
 mod tiling;
 mod windows;
@@ -5680,7 +5681,6 @@ impl<'a> Interpreter<'a> {
             None => (0, 0, canvas.width() as i32, canvas.height() as i32),
         };
 
-        let clip = self.gs.current.clip.as_deref();
         let alpha = self.gs.current.fill_alpha;
         // A shading is evaluated PER DESTINATION PIXEL, so it needs the
         // destination itself rather than a recordable draw. See
@@ -5723,6 +5723,21 @@ impl<'a> Interpreter<'a> {
                 return;
             }
         }
+        if canvas.caching() {
+            let paint = shading_record::ShadingPaint {
+                to_device: ctm,
+                region,
+                alpha,
+                area: None,
+            };
+            if self.record_shading(shading, paint, canvas) {
+                self.diag.shading.painted += 1;
+            } else {
+                self.diag.shading.refused += 1;
+            }
+            return;
+        }
+        let clip = self.gs.current.clip.as_deref();
         canvas.refuse(PoisonReason::Shading);
         // BRIDGED, NOT NATIVE, AND THE REASON IS UPSTREAM OF THIS CALL.
         // `ColorRamp::at` resolves a shading's colour to three-channel
@@ -7614,6 +7629,21 @@ impl<'a> Interpreter<'a> {
         {
             self.diag.shading.painted += 1;
             return true;
+        }
+        if canvas.caching() {
+            let paint = shading_record::ShadingPaint {
+                to_device,
+                region,
+                alpha,
+                area: Some((path, rule, ctm)),
+            };
+            let painted = self.record_shading(shading, paint, canvas);
+            if painted {
+                self.diag.shading.painted += 1;
+            } else {
+                self.diag.color.patterns_unpainted += 1;
+            }
+            return painted;
         }
         canvas.refuse(PoisonReason::Shading);
         let op = if stroking {

@@ -151,6 +151,9 @@ use crate::font::RenderOptions;
 use crate::interpret::Diagnostics;
 use crate::{RenderError, RenderedPage};
 
+mod shading_op;
+pub use shading_op::{ShadingArea, ShadingOp};
+
 /// The most memory one [`DisplayList`] may occupy before recording is
 /// refused — `ARCHITECTURE.md` §10's output-size ceiling, applied to the one
 /// output in this crate a document can make arbitrarily large.
@@ -352,6 +355,9 @@ pub enum Op {
         /// The glyphs' outline paints.
         ops: Vec<Op>,
     },
+    /// A shading evaluated per destination pixel at replay. Recorded by
+    /// the cache recorder only; an export records a gradient or a raster.
+    Shading(Arc<ShadingOp>),
 }
 
 /// What one shown string drew, for an export that keeps text (G033).
@@ -425,8 +431,9 @@ impl DeviceBounds {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[non_exhaustive]
 pub enum PoisonReason {
-    /// A `sh` operator, or a shading used as a fill pattern (§8.7.4).
-    /// Evaluated per destination pixel.
+    /// A `sh` operator, or a shading used as a fill pattern (§8.7.4), on
+    /// an export recording, which rasterises it into a scratch. The cache
+    /// recorder keeps a shading as an op instead.
     Shading,
     /// An overprint composite (§11.7.4.3), which reads the destination's
     /// own colorants.
@@ -660,7 +667,7 @@ impl DisplayList {
         fn walk(ops: &[Op]) -> usize {
             ops.iter()
                 .map(|op| match op {
-                    Op::Fill { .. } | Op::Stroke { .. } => 1,
+                    Op::Fill { .. } | Op::Stroke { .. } | Op::Shading(_) => 1,
                     Op::Layer { ops, .. } => 1 + walk(ops),
                     Op::Text { ops, .. } => walk(ops),
                 })
@@ -1308,6 +1315,9 @@ pub enum BandBlocker {
     /// A soft mask applied to a group's result.
     #[error("a group carries a soft mask raster")]
     LayerMask,
+    /// A shading, whose inverse transform includes the band's offset.
+    #[error("a shading is sampled through an inverted transform")]
+    Shading,
 }
 
 fn band_blocker(ops: &[Op]) -> Option<BandBlocker> {
@@ -1320,6 +1330,7 @@ fn band_blocker(ops: &[Op]) -> Option<BandBlocker> {
     ops.iter().find_map(|op| match op {
         Op::Fill { brush: b, .. } | Op::Stroke { brush: b, .. } => brush(b),
         Op::Text { ops, .. } => band_blocker(ops),
+        Op::Shading(_) => Some(BandBlocker::Shading),
         Op::Layer { ops, mask, .. } => mask
             .as_ref()
             .map(|_| BandBlocker::LayerMask)
@@ -1378,6 +1389,11 @@ pub fn replay_ops(
                 );
             }
             Op::Text { ops, .. } => replay_ops(ops, pixmap, masks, region),
+            Op::Shading(op) => {
+                if op.bounds().intersects(region) {
+                    shading_op::replay(op, pixmap, masks);
+                }
+            }
             Op::Layer {
                 paint, ops, mask, ..
             } => {
@@ -1459,6 +1475,16 @@ impl<'a> MaskBuilder<'a> {
         ctm.post_translate(-self.x0, -self.y0)
     }
 
+    /// The region's page-device top-left.
+    fn origin(&self) -> (f32, f32) {
+        (self.x0, self.y0)
+    }
+
+    /// The masks' size in pixels, which is the target's.
+    fn size(&self) -> (u32, u32) {
+        (self.width, self.height)
+    }
+
     fn mask_for(&mut self, id: Option<ClipId>) -> Option<Arc<Mask>> {
         let id = id?;
         if let Some(cached) = self.built.get(id.index())? {
@@ -1522,6 +1548,7 @@ fn op_bytes(op: &Op) -> usize {
         + match op {
             Op::Fill { path, .. } | Op::Stroke { path, .. } => path_bytes(path),
             Op::Layer { ops, .. } | Op::Text { ops, .. } => ops.iter().map(op_bytes).sum(),
+            Op::Shading(op) => op.bytes(),
         }
 }
 
@@ -1815,6 +1842,7 @@ impl RecorderState {
             // `push_masked`'s wrapper: its one op was never pushed alone.
             Op::Layer { ops, mask, .. } => mask.is_some() && ops.len() == 1,
             Op::Text { .. } => false,
+            Op::Shading(_) => true,
         };
         export
             .sites

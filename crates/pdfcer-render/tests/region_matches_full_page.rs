@@ -527,47 +527,6 @@ fn a_different_scale_is_refused_by_name() {
 
 /// A page that cannot be recorded says so, rather than recording something
 /// that renders NEARLY right.
-#[test]
-fn an_unrecordable_page_refuses_by_name() {
-    // `sh` — evaluated per destination pixel, so it has no recordable form.
-    let bytes = one_page(
-        "/Shading << /Sh0 << /ShadingType 2 /ColorSpace /DeviceRGB \
-         /Coords [0 0 120 120] /Extend [true true] \
-         /Function << /FunctionType 2 /Domain [0 1] /C0 [1 0 0] /C1 [0 0 1] /N 1 >> >> >>",
-        "/Sh0 sh",
-    );
-    let doc = Document::from_bytes(bytes).expect("fixture parses");
-    let page = page_tree::pages(&doc).expect("page tree").remove(0);
-
-    // The control: the page renders perfectly well. Refusing to RECORD it is
-    // not refusing to draw it, and a test that did not check this could pass
-    // against a page that simply failed.
-    let direct = render_page_region(
-        &doc.view(),
-        &page,
-        1.0,
-        page.crop_box,
-        &RenderOptions::default(),
-    )
-    .expect("a shading page still renders");
-    assert!(
-        direct.diagnostics.shading.painted > 0,
-        "the control must actually paint a shading, or this test proves nothing"
-    );
-
-    match record_page(&doc.view(), &page, 1.0, 0, &RenderOptions::default()) {
-        Err(RenderError::PageNotRecordable { reason }) => {
-            assert_eq!(reason, PoisonReason::Shading);
-        }
-        Err(other) => panic!("wrong error for an unrecordable page: {other}"),
-        Ok(list) => panic!(
-            "a page with a shading produced a display list of {} ops. Replaying \
-             it would draw everything EXCEPT the shading, and report success.",
-            list.op_count()
-        ),
-    }
-}
-
 /// The memory figure criterion 4 asks for is reachable and plausible.
 #[test]
 fn a_list_reports_its_own_size() {

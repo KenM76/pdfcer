@@ -221,6 +221,7 @@ impl Model<'_> {
             {
                 self.shaded(op, out)?;
             }
+            Op::Shading(_) => return Err(Cause::Geometry),
             Op::Fill {
                 path,
                 brush,
@@ -365,6 +366,7 @@ fn overprints(op: &Op) -> bool {
     match op {
         Op::Fill { brush, .. } | Op::Stroke { brush, .. } => brush.overprint_process.is_some(),
         Op::Layer { ops, .. } | Op::Text { ops, .. } => ops.iter().any(overprints),
+        Op::Shading(_) => false,
     }
 }
 
@@ -392,7 +394,7 @@ fn needs(op: &Op, bx: DeviceBounds, rec: &ExportRecording) -> Needs {
             overprint: overprints(op),
             alpha: false,
         },
-        Op::Text { .. } => Needs::default(),
+        Op::Text { .. } | Op::Shading(_) => Needs::default(),
     }
 }
 

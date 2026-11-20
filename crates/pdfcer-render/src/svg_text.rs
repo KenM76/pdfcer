@@ -172,7 +172,7 @@ impl Planner {
                     let decision = self.plan_run(run, ops);
                     self.runs.push(decision);
                 }
-                Op::Fill { .. } | Op::Stroke { .. } => {}
+                Op::Fill { .. } | Op::Stroke { .. } | Op::Shading(_) => {}
             }
         }
     }

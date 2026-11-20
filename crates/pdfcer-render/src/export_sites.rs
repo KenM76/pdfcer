@@ -198,6 +198,7 @@ pub fn op_box(op: &Op) -> Option<DeviceBounds> {
     match op {
         Op::Fill { bounds, .. } | Op::Stroke { bounds, .. } => Some(bounds.unwrap_or(UNKNOWN)),
         Op::Layer { ops, .. } | Op::Text { ops, .. } => ops.iter().filter_map(op_box).reduce(union),
+        Op::Shading(op) => Some(op.bounds()),
     }
 }
 

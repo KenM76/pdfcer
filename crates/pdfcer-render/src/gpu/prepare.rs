@@ -144,6 +144,7 @@ fn prepare(frame: &Frame<'_>, op: &Op, out: &mut Vec<Prepared>) -> Result<(), Gp
         }
         // Flattened into their members.
         Op::Text { .. } | Op::Layer { .. } => return Ok(()),
+        Op::Shading(_) => return Err(GpuRefusal::Shading),
     };
     if bounds.is_some_and(|b| !b.intersects(frame.bounds)) {
         return Ok(());
