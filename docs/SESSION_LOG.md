@@ -4,6 +4,20 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-11-19 (1647th filing) — `Pass 724.0` (`6284ec33`) SHIPPED: bounce light built on the GPU
+
+**Filed (engineer-reported; no shell here, git, push, CI and the gates not run or checked from here; nothing committed by this filing):**
+- `6284ec33` `feat(3d): build a frame's bounce light on the GPU`, `main`, not pushed, unreleased. First member of the arc `724.0`-`724.4`; the arc stays open and the release waits for all of it. Details in `ROADMAP.md` *Shipped*.
+- Agreement on the Bancroft white-ceiling file (430,592 triangles, 3,192 probes, 84 lamps): 0.035% of atlas texels off by over 5%, in-use flags identical. Speed: 1.54 s on an Intel Arc Pro B50 plus 0.73 s CPU packing against 10.2 s on 20 CPU threads (SwiftShader: 287 s).
+
+**Decisions and deviations:** inside-probe classification stays on the CPU (in the pack), not a GPU pass as the filing text said. The acceptance clause "faster, measured on SwiftShader" is unmeetable as worded, since SwiftShader is a CPU emulator; recorded as: SwiftShader checks compile and agreement, a real GPU measures speed.
+
+**Findings:** per-hit texture sampling was the whole disagreement: without it 5.44% of texels were off over 5% (bias -1.8%); with layered pictures, 0.035%. Epsilon changes did nothing.
+
+**FEATURES:** new Implemented row (core `[x]`, cli `[ ]`, gui `[ ]`); Planned meter row narrowed to `724.1`-`724.2`. **Sweep (hard rule 11):** the 724 Next up banner header said "NOT STARTED" and the 724.0 bullet carried the old acceptance; both updated. No counter changed meaning.
+
+**Open:** GUI wiring (notice filed). Next `Pass 724.1` (GPU light-meter map). The 1646th filing (arc filing, `d782a761`) has no entry of its own in this file. Next free IDs otherwise unchanged. `docs/NEXT_SESSION.md` engineer-owned, not edited.
+
 ## 2026-11-19 (1645th filing) — docs commit `c91e9f0d`: build a frame's bounce light with `threads = 0`
 
 **Filed (engineer-reported; no shell here, git, push, CI and the gates not run or checked from here):**
