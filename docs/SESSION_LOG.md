@@ -4,6 +4,16 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-11-20 (1659th filing) — `Pass 724.4` part 5c (`8d81616e`, `7f2cd542`) SHIPPED: axial and radial shadings evaluated on the graphics card
+
+**Filed (engineer-reported; no shell here, git, push and gates not checked from here):**
+- `8d81616e` `feat(render)` + `7f2cd542` `test(render)`, unreleased (latest release `v0.165.0`). Axial (type 2) and radial (type 3) shadings evaluated per pixel by the shader from a packed record; byte-identical to `replay_region`. CPU parameter/ramp-index arithmetic made unfused with reciprocals so the card repeats it bit for bit (A/B vs the `v0.165.0` binary, 15 real shading files at scale 2: 0 of 15 differ). Shader gets a correctly rounded sqrt. Function-based and mesh still record on the CPU. Details in `ROADMAP.md` *Shipped*.
+- **Measured (headless Edge, 300 DPI, `tools/gpu-raster-measure`):** 0 rows differ on Intel Arc Pro B50 and SwiftShader on every page. Axial/radial-only page: pack 4.2 + upload 0.5 + draw 5.1 ms = about 10 ms vs CPU replay 31.8 ms, so the decision 223 §6 speed gate is MET for axial/radial on hardware. Mixed page with function-based and mesh: pack 42.6 ms, draw+read 6.1 ms vs CPU 63.1 ms, not yet a win end to end.
+
+**FEATURES:** Implemented GPU row: axial/radial beat the CPU, function-based/mesh still slower; parts 1-5c. Planned row narrowed to function-based and mesh. Core only; no box rounded up.
+
+**Next:** `Pass 724.4` stays IN PROGRESS for function-based and mesh shadings on the GPU; then a release.
+
 ## 2026-11-20 (1658th filing) — `Pass 724.4` part 5b (`74500d34`) SHIPPED: shadings drawn on the graphics card, byte for byte
 
 **Filed (engineer-reported; no shell here, git, push and gates not checked from here):**

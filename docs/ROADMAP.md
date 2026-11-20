@@ -112,6 +112,17 @@ wherever it appears.*
 
 ## Shipped
 
+### `8d81616e` `Pass 724.4` PART 5c (= `Pass 704.3` Shadings, speed half): axial and radial shadings evaluated on the graphics card, 2026-11-20 (1659th filing)
+
+Engineer-reported; no shell here, git, push, CI and the gates not run or checked from here. `8d81616e` `feat(render): evaluate axial and radial shadings on the graphics card`; `7f2cd542` `test(render): restore line continuations in the evaluated-branches fixture`. Not pushed at filing time. **Unreleased** (latest release `v0.165.0`). **`Pass 724.4` stays IN PROGRESS** for function-based and mesh shadings. Decision 223. Reasoning is in the commit message. No manifest change; `cargo tree` unchanged. All `pub(crate)`; no public API change, no `docs/core-api` change.
+- **What:** axial (type 2) and radial (type 3) shadings are evaluated per pixel by the shader from a packed record (`gpu/shade_eval.rs`, `shading/gpu_terms.rs`) instead of being run through the CPU painter at pack time; byte-identical to `replay_region`. The CPU axial/radial parameter and ramp-index arithmetic was made unfused with reciprocals so the card repeats it bit for bit. The shader has a correctly rounded sqrt (exact 24-bit-limb check, binade-crossing guesses stepped). Function-based (type 1) and mesh (types 4-7) still record on the CPU at pack time.
+- **A/B vs the `v0.165.0` binary:** 15 real shading files at scale 2, 0 of 15 differ.
+- **Tests (engineer-reported):** `pdfcer-render` with `gpu`: 597 lib / 710 integration / 40; without `gpu`: 590 / 692 / 40. One new test, `gpu_shadings::evaluated_branches` (bbox, unextended, rotated matrix, nested circles, translucent clipped cone, degenerate domain). Sabotage of the ramp index fails 4 of 5 `gpu_shadings` tests. fmt, clippy `-D warnings` (gpu, all-targets), code-structure, public-fns, string-gaps and the wasm `gpu` check clean (engineer-reported).
+- **Measured (`tools/gpu-raster-measure`, headless Edge, 300 DPI):** Intel Arc Pro B50 and SwiftShader, 0 rows differ on every page (mixed, axial/radial, edge-case; 300 DPI and 9.13x). Axial/radial-only page: pack 4.2 + upload 0.5 + draw 5.1 ms = about 10 ms vs CPU replay 31.8 ms (shadings block CPU band rendering, so the whole replay is the baseline) = about 3.2x faster; **decision 223 §6 speed gate MET for axial/radial on hardware.** Mixed page with function-based and mesh shadings: pack 42.6 ms, draw+read 6.1 ms vs CPU 63.1 ms; **not yet a win end to end** (pack still records those on the CPU).
+- **Delivered:** core yes; cli no (stays CPU by design); gui no.
+- **FEATURES:** GPU Implemented row: axial/radial beat the CPU end to end at 300 DPI on hardware, function-based/mesh still slower, parts 1-5c. Planned row narrowed to function-based and mesh. Boxes unchanged (core `[x]`, gui `[ ]`).
+- **Next:** `Pass 724.4` remainder: function-based and mesh shadings evaluated on the GPU; then a release.
+
 ### `74500d34` `Pass 724.4` PART 5b (= `Pass 704.3` Shadings, second half): shadings drawn on the graphics card, byte for byte, 2026-11-20 (1658th filing)
 
 Engineer-reported; no shell here, git, push, CI and the gates not run or checked from here. `74500d34` `feat(render): draw shadings on the graphics card, byte for byte`. Not pushed at filing time. **Unreleased.** **`Pass 724.4` stays IN PROGRESS** for the speed gate (below). Decision 223. Reasoning is in the commit message. No manifest change; `cargo tree` unaffected.
