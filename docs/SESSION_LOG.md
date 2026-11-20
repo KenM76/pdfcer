@@ -4,6 +4,20 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-11-20 (1654th filing) — CI repair (`c7ded376`, `4eb312ec`) and v0.165.0 version bump (`2a645070`)
+
+**Filed (engineer-reported; no shell here, git, push, CI and the gates not run or checked from here):**
+- `c7ded376` gated the `pdfcer-3d` GPU bounce-build re-export behind `render`; `4eb312ec` cleared four repository audits the GPU raster tripped; `2a645070` bumped to v0.165.0. Local `run-gates.sh` on `bc376390` was 49 of 54, the 5 failures exactly these; green after. Details in `ROADMAP.md` *Shipped*.
+- v0.165.0 carries `724.0`-`724.3`, `724.5`, `724.4` parts 1-4; shadings (`704.3`) stay on the CPU at Ken's request. ROADMAP arc banner corrected: `704.5` Transparency had shipped (`ed5884aa`) but the banner said NOT STARTED; release rule amended.
+
+**Gotchas:**
+- A `pub use` of a feature-gated module needs its own `#[cfg(feature = ...)]`; the module's gate does not cover the re-export. Default-features-off builds are the only thing that catches it.
+- CI was red for four pushes (from run 44692496910) and was read as green. Read CI's colour from GitHub before calling the tree releasable.
+
+**FEATURES:** no row changes.
+
+**Next:** tag v0.165.0, package, publish, OneDrive `pdfcer2`.
+
 ## 2026-11-20 (1653rd filing) — `Pass 724.4` part 4 (= `704.5` Transparency, `ed5884aa`) SHIPPED: blend modes and transparency groups on the GPU
 
 **Filed (engineer-reported; no shell here, git, push, CI and the gates not run or checked from here; not pushed at filing time):**
