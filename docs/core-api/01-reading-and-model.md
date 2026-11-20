@@ -4279,8 +4279,8 @@ let image = render_coloured(&meshes, &colours, &camera, &RenderOptions { width: 
   lamps: N in the model, N reaching the view, N lit this frame`; lamp
   shadow counts as `note: lamp shadows: …; C of W lamps lit this frame
   casting; D more past the limit of 16, …`.
-  Tiled per-tile lamp lists on the GPU are not shipped: the shader loops
-  over the frame's culled lamps.
+  The CPU raster does not tile: it visits every culled lamp per pixel
+  (unchanged).
   Bounce light (decision 224, `render` feature): `RenderOptions::indirect:
   IndirectOptions { bounce, bounce_strength, bounce_sky }`
   (`#[non_exhaustive]`: build from `IndirectOptions::default()` and set

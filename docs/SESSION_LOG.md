@@ -4,6 +4,17 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-11-20 (1650th filing) — `Pass 724.3` (= `669.1`, `b37560b3`) SHIPPED: per-tile lamp lists in the GPU shader
+
+**Filed (engineer-reported; no shell here, git, push, CI and the gates not run or checked from here; nothing committed by this filing):**
+- `b37560b3` `LampTiles` / `FrameLights::tiles`, 16 px tiles, shader loops only the tile's lamps; picture byte-identical (0 differing channels in every harness run). Intel Arc Pro B50, 1,024 short-reach lamps 1920x1080: 6.5 ms to 0.8 ms (8.3x); SwiftShader 640x400: 1,083 ms to 25 ms (44x). Bancroft (84 lamps) and non-pruning scenes fall back to `tile_size` 0 (they ran 0.9x and 0.8x tiled). Details in `ROADMAP.md` *Shipped*.
+
+**Findings:** the harness caught a GLSL name collision (`n` shadowing `local()`'s normal parameter) that the declaration-string unit test cannot see; shader source in Rust constants needs a real compile before shipping. Filed by this filing as `D:\dev\rag\egui\a_glsl_declaration_string_test_cannot_see_a_name_collision_so_compile_the_shader_in_a_real_webgl2_context.md` (indexed).
+
+**FEATURES:** the "3D lamp culling and cost mode" row extended (core only for tiling; cli and gui boxes unchanged). `Pass 669.1` Backlog entry removed. **Sweep (hard rule 11):** fixed `docs/core-api/01-reading-and-model.md` (a stale "tiled per-tile lamp lists are not shipped" sentence sat beside the new "Lamp tiles" paragraph; replaced by a CPU-raster-does-not-tile line, line count kept at 5,849). Survivor left, engineer-owned: `docs/NEXT_SESSION.md:72` (v0.130.0 follow-ups name `669.1` as open). Historic entries (`ROADMAP.md` 669.0 and 1430th/1431st notes, `SESSION_LOG.md` 1430th) left as history.
+
+**Open:** GUI wiring (notice written by the engineer). Arc: `724.4` (= `704.1`-`704.5`); release waits for it.
+
 ## 2026-11-20 (1649th filing) — `Pass 724.2` (`2c9d3a2a` + `10141128`) SHIPPED: GPU light-meter volume and point reads
 
 **Filed (engineer-reported; no shell here, git, push, CI and the gates not run or checked from here; nothing committed by this filing):**

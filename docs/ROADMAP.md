@@ -112,6 +112,21 @@ wherever it appears.*
 
 ## Shipped
 
+### `b37560b3` `Pass 724.3` (= `Pass 669.1`): per-tile lamp lists in the GPU shader, 2026-11-20 (1650th filing)
+
+Engineer-reported; no shell here, git, push, CI and the gates not run or checked from here (engineer reports the commit pushed to `main`). **Unreleased** (the release waits for the arc). `b37560b3` `feat(3d): list each GPU tile's lamps so a fragment visits only those`. Reasoning is in the commit message. No manifest change, so `cargo tree` is unaffected.
+- **What:** new `crates/pdfcer-3d/src/gpu/lamp_tiles.rs`: `LAMP_TILE_SIZE = 16`; `LampTiles { tile_size, columns, rows, lists: Vec<Vec<u16>> }` (`#[non_exhaustive]`); `LampTiles::texture() -> FloatTexture` (RGBA32F, 2048 wide: header texels `[first,count,0,0]`, then the index run packed 4 per texel). A lamp is listed in a tile unless its reach sphere lies wholly outside an eye plane bounding the tile's column or row widened by 1 px (perspective and orthographic). New public field `FrameLights::tiles`, built in `for_model` from the culled lamps.
+- **Fallback to `tile_size` 0 (visit every lamp):** no lamps, a fisheye, over 65,535 lamps, an over-size texture, or lists that would not halve the average visits.
+- **Shader:** `GLSL_ES_300_FRAGMENT` gains `u_tile_size`, `u_tile_columns`, `u_tile_rows`, `u_tile_count`, `u_lamp_tiles`, `u_tile_origin`; `local()` loops the tile's list in ascending order, so the picture is byte-identical. `u_tile_size` 0 is the old behaviour.
+- **Tests:** 5 new in `lamp_tiles_tests.rs`: perspective and orthographic "every point a lamp reaches lies in a tile listing it" (random points at 0.9-1.0 of reach, f32 GPU matrices; a 10% reach shrink makes them fail), packing and order, fisheye and no-lamps fallback, non-halving fallback. `pdfcer-3d` lib 608 pass (603 before). fmt, clippy `-D warnings`, code-structure, public-fns, tests-harnessed, core-api-verbs, suite-name, reexport-closure, panic-allows reported clean.
+- **Harness:** `tools/3d-measure/src/bin/frame_tiles.rs` + `webgl/frame_tiles.html` draw tiled and untiled and compare bytes: 0 differing channels in every run. Intel Arc Pro B50 (D3D11), 1,024 short-reach lamps, 1920x1080: 6.5 ms untiled to 0.8 ms tiled (8.3x). SwiftShader 640x400: 1,083 ms to 25 ms (44x). Without the non-halving fallback, a non-pruning case (mean list 582 of 1,024) ran at 0.8x and Bancroft (84 lamps, every tile lists all) at 0.9x; Bancroft now takes `tile_size` 0 and is unchanged.
+- **Finding:** the harness caught a shader compile error the declaration-string unit test cannot see: the tile counter `n` shadowed `local()`'s normal parameter `n` (`'n' : redefinition`). Shader source in Rust string constants needs a real compile before shipping. Filed to `D:\dev\rag\egui\` (`a_glsl_declaration_string_test_cannot_see_a_name_collision_...md`).
+- **Not done:** the CPU raster still visits every lamp per pixel (not tiled; a possible later speed-up).
+- **Docs and channel:** `docs/core-api/01-reading-and-model.md` gains a "Lamp tiles" paragraph. GUI notice `D:\Dev\FeatureRequests\pdfce_FeatureRequests\open\notice_2026-11-20_gui_lamp_tiles.md`.
+- **Delivered:** core only; the CLI renders on the CPU; `pdfcer-gui` has not wired it.
+- **FEATURES:** the existing "3D lamp culling and cost mode" row extended (core stated, cli and gui unchanged); the "Per-tile lists not built" claim removed. `Pass 669.1` removed from *Backlog* (shipped under this ID).
+- **Next:** `Pass 724.4` (= `704.1`-`704.5`, GPU snapshot raster); then a release.
+
 ### `2c9d3a2a` + `10141128` `Pass 724.2`: a light meter's volume and disc reads on the GPU, 2026-11-20 (1649th filing)
 
 Engineer-reported; no shell here, git, push, CI and the gates not run or checked from here. Two commits on `main`, not pushed at filing time, **unreleased** (the release waits for the arc): `2c9d3a2a` `feat(3d): build a light meter's bounce on the GPU` and `10141128` `feat(3d): gather a light meter's readings on the GPU`. Reasoning is in the commit messages. No manifest change, so `cargo tree` is unaffected.
@@ -28126,7 +28141,7 @@ closes out the *prior* filing's business rather than opening this one's.
 
 ## Next up
 
-> **`Pass 724.0`-`724.4` FILED 2026-11-19: "Everything that can go on the GPU" (ARC IN PROGRESS: `724.0` SHIPPED `6284ec33` 2026-11-19, `724.1` SHIPPED `66d61890`, `724.5` SHIPPED `2f9a3ab3` and `724.2` SHIPPED `2c9d3a2a`+`10141128` 2026-11-20, `724.3`-`724.4` not started; filed by the librarian, no shell; engineer assigns the final IDs and runs the gates).** Operator ask (Ken, 2026-11-19, verbatim): *"You should put everything on the GPU that you can and put all of it in the next release."* It followed his question whether bounce light runs on the GPU: drawing does, but the probe-volume ray trace is CPU-only. `724` was grep-checked unused across `docs/` before filing (the highest shipped is `723.10`; the one `724.` hit, in `docs/ocr-engine-survey.md`, is unrelated text).
+> **`Pass 724.0`-`724.4` FILED 2026-11-19: "Everything that can go on the GPU" (ARC IN PROGRESS: `724.0` SHIPPED `6284ec33` 2026-11-19, `724.1` SHIPPED `66d61890`, `724.5` SHIPPED `2f9a3ab3` and `724.2` SHIPPED `2c9d3a2a`+`10141128` and `724.3` SHIPPED `b37560b3` 2026-11-20, `724.4` not started; filed by the librarian, no shell; engineer assigns the final IDs and runs the gates).** Operator ask (Ken, 2026-11-19, verbatim): *"You should put everything on the GPU that you can and put all of it in the next release."* It followed his question whether bounce light runs on the GPU: drawing does, but the probe-volume ray trace is CPU-only. `724` was grep-checked unused across `docs/` before filing (the highest shipped is `723.10`; the one `724.` hit, in `docs/ocr-engine-survey.md`, is unrelated text).
 >
 > **Ruling and shape (all members).** Decision 223 governs: a GPU result matches the CPU "pixel for pixel if possible", otherwise a measured, disclosed tolerance band; per-part switches; exports, CLI and Print stay CPU. The engine emits GLSL ES 3.00 text plus plain buffers and has no GL dependency (rule 2, `cargo tree` checked on any manifest change); `pdfcer-gui` runs the passes. WebGL 2 has no compute stage, so every pass is a fragment pass into RGBA32F targets. Validation is headless Edge + SwiftShader (compile, link and agreement only; real-GPU timing is the GUI's). The CPU path stays the oracle for every member.
 >
@@ -28134,7 +28149,7 @@ closes out the *prior* filing's business rather than opening this one's.
 > - **`Pass 724.1` GPU light-meter map: SHIPPED `66d61890` (2026-11-20, unreleased; entry in *Shipped*).**
 > - **`Pass 724.5` GPU bounce build under an exposure: SHIPPED `2f9a3ab3` (2026-11-20, unreleased; entry in *Shipped*).** Added to the arc 2026-11-20 for `G311`; not a prerequisite of `724.4`.
 > - **`Pass 724.2` GPU light-meter volume and disc reads: SHIPPED `2c9d3a2a` + `10141128` (2026-11-20, unreleased; entry in *Shipped*).**
-> - **`Pass 724.3` = `Pass 669.1`, absorbed (ID kept).** Tiled or clustered per-tile light lists; the picture stays byte-identical to `669.0`, plus the GPU pixel-agreement measurement for the cull. Full text stays in *Backlog* under `Pass 669.1` (pointer added there); it is a member of this arc, and `724.3` is not a second Pass.
+> - **`Pass 724.3` = `Pass 669.1` GPU per-tile lamp lists: SHIPPED `b37560b3` (2026-11-20, unreleased; entry in *Shipped*).** Shipped under both IDs; the `669.1` Backlog entry is removed.
 > - **`Pass 724.4` = `Pass 704.1`-`704.5`, pulled in (IDs not renumbered).** The `pdfcer-render` `gpu` feature: module and feature (`704.1`), Images (`704.2`), Shadings (`704.3`), Fills & strokes (`704.4`), Transparency (`704.5`). Full text stays in *Backlog* under `Pass 704.1`+ (pointer added there); decision 223's gate and risks apply unchanged.
 > - **Explicitly NOT moved (serial or trivial):** BVH build (serial, data-dependent splits); `is_closed` welding (serial hash-weld); file parsing; `draw_data` edge welding (serial); `surface_measure` (trivial); camera fit (trivial); lamp culling (trivial; its per-pixel loop is `724.3`); exposure scaling (trivial).
 > - **RELEASE RULE (operator, 2026-11-19):** the next release waits until this arc (`724.0`-`724.4`, including `669.1` and `704.1`-`704.5`) is in. Supersedes any earlier "release when X" banner for the next version. *Note for the engineer:* `704.2`-`704.5` are large; if the arc cannot finish, the release needs a fresh operator decision, not a silent drop.
@@ -39637,11 +39652,6 @@ Not a pdfcer Pass; recorded so `FEATURES.md` gui boxes stay honest. **1469th fil
 ### Write JPEG XL into PDFs (BACKLOG, BLOCKED ON A SPEC; filed 1465th filing; residue of `Pass 692.0`/`692.1`; **1468th filing: operator asked for JXL write 2026-11-09, filed as `Pass 696.0` above, opt-in and disclosed; the missing-spec fact below still stands**)
 
 Not started, no Pass ID yet (assign when unblocked). Keep JXL bytes on save, or optimise images to JXL. **Blocked:** it waits on a PDF Association or ISO document defining JPEG XL in PDF; writing a filter no spec defines would produce files other readers cannot be expected to open. Watch pdf-issues Discussion #852. `692.1` deliberately converts to `/FlateDecode` instead. **FEATURES:** Planned row added (all three boxes `[ ]`).
-
-### `Pass 669.1` — tiled or clustered per-tile light lists (BACKLOG; filed 1430th filing; residue of `Pass 669.0`, `G271`)
-> **2026-11-19: absorbed into *Next up* as `Pass 724.3` (arc `724.0`-`724.4`); ID `669.1` kept. Full text stays here.**
-
-`669.0` culls lamps against the view, but the fragment shader still loops every surviving lamp for every pixel. Build per-tile (or clustered) light lists so a pixel visits only the lamps reaching its tile; the picture must stay byte-identical to `669.0`. Needs a GPU pixel-agreement measurement for the cull as well (unmeasured: shaders compile and link on SwiftShader only). Capability row: none new; extends FEATURES "3D lamp culling".
 
 ### `Pass 658.10` — render-time exposure (`RenderOptions`) (BACKLOG; filed 1401st filing; residue of `Pass 658.9`)
 
