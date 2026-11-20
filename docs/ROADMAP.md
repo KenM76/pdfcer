@@ -112,6 +112,14 @@ wherever it appears.*
 
 ## Shipped
 
+### `8279cc03` `chore`: v0.166.0 version bump, 2026-11-20 (1663rd filing)
+
+Engineer-reported; no shell here, git, push, CI and the gates not run or checked from here. **Unreleased until v0.166.0 is tagged.** Tag, package, publish and crates.io are NOT done.
+- **`8279cc03` `chore: version 0.166.0`:** workspace and all 20 pdfcer crates 0.165.0 to 0.166.0 (`Cargo.toml`, `Cargo.lock`, `fuzz/Cargo.lock`).
+- **v0.166.0 carries, since v0.165.0 (tag on `bce0c21e`):** `Pass 724.4` parts 5a-5d (every shading kind evaluated on the GPU in the `gpu` feature of `pdfcer-render`; closes the everything-on-the-GPU snapshot arc), the `33d09cc7` cfg fix, `Pass 725.0` (`X101`, `c7b77357`) and `Pass 725.1` (`X102`, `a1f09354`).
+- **Release target:** OneDrive `pdfcer1` (`pdfcer2` keeps 0.165.0).
+- **FEATURES:** no row changes. **Next:** tag v0.166.0, package, publish, OneDrive `pdfcer1`.
+
 ### `a1f09354` `Pass 725.1` (`X102`): skew detection no longer pulls small tilts to level, 2026-11-20 (1662nd filing)
 
 Engineer-reported; no shell here, git, push, CI and the gates not run or checked from here. `a1f0935499895236fb2abff7273aa561d88f4f51` `fix(core): skew detection no longer pulls small tilts to level`. Not pushed at filing time. **Unreleased** (latest release `v0.165.0`); release `v0.166.0` (OneDrive `pdfcer1`) follows, carrying `724.4` part 5d, `725.0` and this Pass. Request `D:/Dev/FeatureRequests/pdfce_FeatureRequests/open/request_X102_skew_detection_zero_bias.md`, reply `reply_X102_SHIPPED.md`. Reasoning is in the commit message. No public API change, no `docs/core-api` change, no `Cargo.toml` change.

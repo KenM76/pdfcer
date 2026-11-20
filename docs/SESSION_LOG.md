@@ -4,6 +4,16 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-11-20 (1663rd filing) — v0.166.0 version bump (`8279cc03`)
+
+**Filed (engineer-reported; no shell here, git, push, CI and the gates not checked from here):**
+- `8279cc03` `chore: version 0.166.0`: workspace and all 20 crates 0.165.0 to 0.166.0 in `Cargo.toml`, `Cargo.lock`, `fuzz/Cargo.lock`. Details in `ROADMAP.md` *Shipped*.
+- v0.166.0 carries `724.4` parts 5a-5d (all shading kinds on the GPU; arc closed), `33d09cc7`, `725.0` (`X101`) and `725.1` (`X102`). Release goes to OneDrive `pdfcer1`; `pdfcer2` keeps 0.165.0. Tag, publish and crates.io not done.
+
+**FEATURES:** no row changes.
+
+**Next:** tag v0.166.0, package, publish, OneDrive `pdfcer1`.
+
 ## 2026-11-20 (1662nd filing) — `Pass 725.1` (`X102`, `a1f09354`) SHIPPED: skew detection no longer pulls small tilts to level
 
 **Filed (engineer-reported; no shell here, git, push and gates not checked from here):**
