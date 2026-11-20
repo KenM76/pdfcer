@@ -112,6 +112,18 @@ wherever it appears.*
 
 ## Shipped
 
+### `v0.165.0` PUBLISHED, tag on `bce0c21e` (the 1654th filing; bump `2a645070`), 2026-11-20 (1655th filing)
+
+Engineer-reported; no shell here, tag, CI, release and crates.io state not checked from here.
+- **CI:** green at the tag (run 44719832584). **GitHub release:** 8 assets: portable zip `pdfcer-v0.165.0-windows-x64.zip` (32,788,060 bytes), three OCR add-ons, four `.sha256`.
+- **Fresh-folder smoke:** `--version` 0.165.0 (revision `v0.164.0-26-g2a645070`); `render-page` and `extract-text` on a blend-mode/transparency-group fixture, rc 0.
+- **OneDrive:** slot `pdfcer2` (pdfcer1 keeps 0.164.0; the next release writes pdfcer1).
+- **crates.io:** 16 crates at 0.165.0 in one `cargo publish --no-verify` from a detached worktree at the tag, `pdfcer-vec3` listed first; no 429; worktree removed.
+- **`verify-release.py v0.165.0`:** all ok except "working tree clean" (agent-memory files and untracked research drafts, not release content).
+- **GUI notified:** `open/notice_2026-11-20_release_v0.165.0.md`.
+- **Contents:** `Pass 724.0`-`724.3`, `724.5`, `724.4` parts 1-4. **`Pass 724.4` stays IN PROGRESS** for `704.3` Shadings (CPU until then).
+- **FEATURES:** no row changes. **Next:** `Pass 724.4` part `704.3` Shadings.
+
 ### `c7ded376` + `4eb312ec` + `2a645070` CI repair after the GPU raster, and v0.165.0 version bump, 2026-11-20 (1654th filing)
 
 Engineer-reported; no shell here, git, push, CI and the gates not run or checked from here. **Unreleased until v0.165.0 is tagged.** Reasoning is in the commit messages.

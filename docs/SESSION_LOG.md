@@ -4,6 +4,16 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-11-20 (1655th filing) — v0.165.0 published
+
+**Filed (engineer-reported; no shell here, tag, CI, release and crates.io not checked from here):**
+- Tag `v0.165.0` on `bce0c21e` (bump `2a645070`); CI green (run 44719832584); release with 8 assets (zip 32,788,060 bytes); fresh-folder smoke rc 0; OneDrive `pdfcer2`; 16 crates on crates.io in one publish, no 429; GUI notified. Details in `ROADMAP.md` *Shipped*.
+- `verify-release.py`: all ok except "working tree clean" (agent-memory files, untracked research drafts; not release content).
+
+**FEATURES:** no row changes.
+
+**Next:** `Pass 724.4` part `704.3` Shadings (still IN PROGRESS). Next release writes OneDrive `pdfcer1`.
+
 ## 2026-11-20 (1654th filing) — CI repair (`c7ded376`, `4eb312ec`) and v0.165.0 version bump (`2a645070`)
 
 **Filed (engineer-reported; no shell here, git, push, CI and the gates not run or checked from here):**
