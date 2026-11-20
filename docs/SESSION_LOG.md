@@ -4,6 +4,17 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-11-20 (1662nd filing) — `Pass 725.1` (`X102`, `a1f09354`) SHIPPED: skew detection no longer pulls small tilts to level
+
+**Filed (engineer-reported; no shell here, git, push and gates not checked from here):**
+- `a1f09354` `fix(core)`, unpushed, unreleased (latest release `v0.165.0`). The projection-profile score split points linearly between 1-px bins, so whole-pixel keys (0 degrees) scored 1 and fractional keys 2/3 on average; small tilts read level (+0.1 degrees gave 0). Details in `ROADMAP.md` *Shipped*.
+- Decision within the Pass: the request's constant-phase fix (`0.5 - sqrt(1/12)`) was tried and rejected, it made level 1-px lines read tilted. Shipped instead: average over every sub-pixel offset (cubic B-spline kernel on an 8-sub-bin histogram), points capped at 200,000 (dense 1200x1200 page 182 ms vs text 179-211 ms, release).
+- Tests: `tests/deskew.rs` +2, both fail on the old score; `pdfcer-core` 3360 + 2386 + 291 doctests pass (engineer-reported).
+
+**FEATURES:** skew-detection row gets a short precision clause; boxes unchanged. No RAG finding (algorithm, not a producer quirk).
+
+**Next:** release `v0.166.0` to OneDrive `pdfcer1`, carrying `724.4` part 5d, `725.0` and `725.1`.
+
 ## 2026-11-20 (1661st filing) — `Pass 725.0` (`X101`, `c7b77357`) SHIPPED: a straightened or enlarged scan keeps its source's codec; companion `33d09cc7`
 
 **Filed (engineer-reported; no shell here, git, push and gates not checked from here):**

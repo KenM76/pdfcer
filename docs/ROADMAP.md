@@ -112,6 +112,19 @@ wherever it appears.*
 
 ## Shipped
 
+### `a1f09354` `Pass 725.1` (`X102`): skew detection no longer pulls small tilts to level, 2026-11-20 (1662nd filing)
+
+Engineer-reported; no shell here, git, push, CI and the gates not run or checked from here. `a1f0935499895236fb2abff7273aa561d88f4f51` `fix(core): skew detection no longer pulls small tilts to level`. Not pushed at filing time. **Unreleased** (latest release `v0.165.0`); release `v0.166.0` (OneDrive `pdfcer1`) follows, carrying `724.4` part 5d, `725.0` and this Pass. Request `D:/Dev/FeatureRequests/pdfce_FeatureRequests/open/request_X102_skew_detection_zero_bias.md`, reply `reply_X102_SHIPPED.md`. Reasoning is in the commit message. No public API change, no `docs/core-api` change, no `Cargo.toml` change.
+- **Defect:** the projection-profile score (`pdfcer_core::deskew` `profile_score`) split each point linearly between two 1-px bins. At 0 degrees every key is whole and scores 1; a fractional key scores 2/3 on average, so level was preferred and small tilts read as level (+0.1 degrees measured 0).
+- **Rejected:** the request's suggested fix (constant phase `0.5 - sqrt(1/12)` on every key). It fixed the operator's page but made perfectly level 1-px lines (the `detect_skew` doctest) measure as tilted; it moves the preference rather than removing it.
+- **Shipped fix:** the score averages over every sub-pixel offset of the bin grid, sum over i,j of K(k_i - k_j), K the cubic B-spline (autocorrelation of the tent), evaluated on an 8-sub-bin-per-pixel histogram (`SUB_BINS`); residual alignment preference under 1%.
+- **Cost bound:** scored points capped at 200,000 (`MAX_SCORED_POINTS`), thinned to exactly that count at an even stride. Release: dense 1200x1200 page 182 ms vs text page 179-211 ms.
+- **Hardening:** `Raster::max` uses `checked_shl` (no overflow past 31 bits); `edit/deskew.rs` refuses a decoded bpc not in 1/2/4/8/16 before building a `Raster`.
+- **Tests (engineer-reported):** `crates/pdfcer-core/tests/deskew.rs` +2 (`small_tilts_are_not_pulled_to_level`, `a_mostly_ink_page_is_still_measured`), tolerance 0.03 degrees, both verified to fail on the old score. `pdfcer-core` 3360 + 2386 + 291 doctests pass; `pdfcer-cli` deskew tests pass; fmt, clippy, code-structure, public-fns, string-gaps clean.
+- **Delivered:** core yes (behaviour fix under the existing core and CLI verbs); cli inherits; gui no.
+- **FEATURES:** skew-detection / deskew row (core `[x]`, cli `[x]`, gui `[ ]`) gains a short precision clause; boxes unchanged. No RAG finding filed (algorithm finding, not a producer quirk).
+- **Next:** release `v0.166.0`.
+
 ### `c7b77357` `Pass 725.0` (`X101`): a straightened or enlarged scan keeps its source's codec, 2026-11-20 (1661st filing)
 
 Engineer-reported; no shell here, git, push, CI and the gates not run or checked from here. `c7b77357` `fix(core): a straightened or enlarged scan keeps its source's codec` (code + tests + docs). Companion `33d09cc7` `fix(render)`: see below. Not pushed at filing time. **Unreleased** (latest release `v0.165.0`). Request `D:/Dev/FeatureRequests/pdfce_FeatureRequests/open/request_X101_deskew_keeps_the_source_codec.md`. Reasoning is in the commit message. No manifest change; no new dependency; `cargo tree` unchanged.
