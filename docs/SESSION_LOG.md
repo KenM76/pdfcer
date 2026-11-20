@@ -4,6 +4,17 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-11-20 (1649th filing) — `Pass 724.2` (`2c9d3a2a` + `10141128`) SHIPPED: GPU light-meter volume and point reads
+
+**Filed (engineer-reported; no shell here, git, push, CI and the gates not run or checked from here; nothing committed by this filing):**
+- `2c9d3a2a` `LightMeter::gpu_new` / `GpuLightMeter::finish`, glow bound in the bounce trace; `10141128` `gpu_scene` / `gpu_read` / `GpuLightRead::finish`. Large file: volume 1.53 s against 9.9 s CPU; 2,002 reads 6.8 s against 74.7 s (3.4 ms against 37.3 ms each). Both unpushed, unreleased. Details in `ROADMAP.md` *Shipped*.
+
+**Findings:** a single 256-direction gather per fragment on the large file trips the Windows TDR watchdog and reads back all zeros with no GL error; 16-direction runs summed on the host fixed it, and the same applies to `gpu_map` with bounce. Written to `D:\dev\rag\egui\`. Bounced+emitted 7.1% of reads over 5% is the map's grazing-ray band (decision 223).
+
+**FEATURES:** one new Implemented row (core `[x]`, cli `[ ]`, gui `[ ]`); the Planned meter row deleted (nothing of it remained). **Sweep (hard rule 11):** Next up 724 banner header and the `724.2` bullet updated; the 1648th entry's "Planned meter row narrowed to `724.2`" is now historic, not edited. No counter changed meaning.
+
+**Open:** GUI wiring (notice written by the engineer). Arc: `724.3` (= `669.1`), `724.4` (= `704.1`-`704.5`); release waits for both.
+
 ## 2026-11-20 (1648th filing) — `Pass 724.1` (`66d61890`) and `Pass 724.5` (`2f9a3ab3`) SHIPPED: GPU meter map, GPU bounce under an exposure
 
 **Filed (engineer-reported; no shell here, git, push, CI and the gates not run or checked from here; nothing committed by this filing):**
