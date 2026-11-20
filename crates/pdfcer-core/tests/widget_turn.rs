@@ -184,6 +184,31 @@ fn the_free_angle_reads_back_what_a_turn_wrote() {
     assert_eq!(widget(&s, "T").free_angle, None);
 }
 
+/// `forms::Widget::free_size` is the unturned box a tilt keeps, which the
+/// turned `/Rect` cannot give back (pdfcer-gui G316).
+#[test]
+fn the_unturned_size_reads_back_beside_the_free_angle() {
+    let mut s = session();
+    text(&mut s);
+    assert_eq!(widget(&s, "T").free_size, None);
+    s.turn_widget("T", 0, 45.0).unwrap();
+    let w = widget(&s, "T");
+    let r = w.rect.unwrap();
+    let (rw, rh) = (r.urx - r.llx, r.ury - r.lly);
+    assert!((rw - rh).abs() < 1e-9, "a 45 degree turn's /Rect is square");
+    assert_eq!(w.free_size, Some((100.0, 20.0)));
+    s.turn_widget("T", 0, 0.0).unwrap();
+    assert_eq!(widget(&s, "T").free_size, None);
+    // On a quarter turn the size is still the unswapped `/Rect` frame's.
+    s.rotate_widget("T", 0, 90).unwrap();
+    s.turn_widget("T", 0, 30.0).unwrap();
+    let (w, h) = widget(&s, "T").free_size.unwrap();
+    assert!(
+        (w - 100.0).abs() < 1e-9 && (h - 20.0).abs() < 1e-9,
+        "{w} {h}"
+    );
+}
+
 #[test]
 fn a_free_turn_sits_on_top_of_a_quarter_turn() {
     let mut s = session();

@@ -1348,7 +1348,7 @@ kind.
 
 `Widget` (`forms.rs`) → `id`, `rect`, `appearance_state`, `on_states`,
 `has_off_appearance`, `page`, `caption` (`/MK /CA`), **`background`** (`/MK /BG`,
-`MkColor`), `rotation` (`/MK /R`), **`free_angle`** (`Option<f64>`, the free turn on top of `/MK /R` that `turn_widget` writes, read by its own rule; `None` = upright), **`opacity`** (`/CA` as stated; `None` = absent, i.e. opaque), **`border`**, **`visibility`**,
+`MkColor`), `rotation` (`/MK /R`), **`free_angle`** (`Option<f64>`, the free turn on top of `/MK /R` that `turn_widget` writes, read by its own rule; `None` = upright), **`free_size`** (`Option<(f64, f64)>`, the unturned box that angle turns, `/Rect` frame before the `/MK /R` swap; `Some` exactly when `free_angle` is), **`opacity`** (`/CA` as stated; `None` = absent, i.e. opaque), **`border`**, **`visibility`**,
 **`annot_flags`**, `has_normal_appearance`, `merged`, **`icon`** (`/MK /I`,
 `Option<ObjId>` — the push button's icon form), **`caption_position`**
 (`/MK /TP`, `Option<annot_author::CaptionPosition>`; `None` = absent, which

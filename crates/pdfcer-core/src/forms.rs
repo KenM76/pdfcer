@@ -620,6 +620,12 @@ pub struct Widget {
     /// it by. `None` for an upright widget, a `/Matrix` that is not a pure
     /// rotation, or a remainder that is a multiple of 90.
     pub free_angle: Option<f64>,
+    /// The unturned box [`Self::free_angle`] turns: `(width, height)` in the
+    /// `/Rect` frame before [`Self::rotation`]'s width/height swap, read from
+    /// the same appearance's `/BBox`. While a widget is tilted `/Rect` is
+    /// the turned box's bounding box, so this is the only place its size
+    /// survives. `Some` exactly when `free_angle` is.
+    pub free_size: Option<(f64, f64)>,
     /// `/CA` (ISO 32000-2 Table 166) as the file states it; `None` when
     /// absent or not a number (the reader default is then opaque).
     pub opacity: Option<f64>,
@@ -1756,6 +1762,7 @@ fn model_widget<G: ObjectGraph + ?Sized>(
             .and_then(|i| u32::try_from(i).ok())
             .unwrap_or(0),
     );
+    let free_turn = crate::edit::free_turn_of(graph, dict, rotation);
     Widget {
         id,
         rect,
@@ -1769,7 +1776,8 @@ fn model_widget<G: ObjectGraph + ?Sized>(
         background,
         border_color,
         rotation,
-        free_angle: crate::edit::free_turn_of(graph, dict, rotation).map(|t| t.degrees),
+        free_angle: free_turn.map(|t| t.degrees),
+        free_size: free_turn.map(|t| (t.w, t.h)),
         opacity: dict
             .get(b"CA")
             .map(|o| graph.resolve(o))
