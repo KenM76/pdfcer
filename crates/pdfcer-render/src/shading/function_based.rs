@@ -72,6 +72,7 @@ pub(crate) struct FunctionGrid {
 
 /// What the graphics card needs of a [`FunctionGrid`] to repeat
 /// [`FunctionGrid`]'s lookup bit for bit.
+#[cfg(feature = "gpu")]
 pub(crate) struct GridTerms<'a> {
     /// `/Domain` as `[xmin xmax ymin ymax]`.
     pub domain: [f32; 4],
@@ -139,6 +140,7 @@ impl FunctionGrid {
     }
 
     /// The grid's terms for the graphics card.
+    #[cfg(feature = "gpu")]
     pub(crate) fn gpu_terms(&self) -> GridTerms<'_> {
         GridTerms {
             domain: self.domain,
