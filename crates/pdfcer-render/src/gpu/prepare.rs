@@ -2,6 +2,7 @@
 //! core: the per-item work of [`super::scene`]'s packing is independent, so
 //! it is split across threads and gathered back in display-list order.
 
+use std::sync::Arc;
 use std::sync::atomic::{AtomicUsize, Ordering};
 
 use tiny_skia::FillRule;
@@ -12,6 +13,7 @@ use super::fill_edges::FillEdges;
 use super::image::{self, ImagePaint};
 use super::layer::{self, LAYER_BEGIN, MAX_LAYER_DEPTH};
 use super::scene::{Frame, GpuRefusal, colors};
+use super::shade::{self, SHADING_PAINT, ShadePaint};
 use crate::canvas::Brush;
 use crate::device_clip;
 use crate::display_list::{ClipDef, Op};
@@ -29,6 +31,7 @@ pub(crate) struct Prepared {
     pub memset: i32,
     pub blend: i32,
     pub image: Option<ImagePaint>,
+    pub shade: Option<Arc<ShadePaint>>,
 }
 
 /// One clip ready to lay out: its fill in each `DrawTiler` tile, where it
@@ -144,7 +147,7 @@ fn prepare(frame: &Frame<'_>, op: &Op, out: &mut Vec<Prepared>) -> Result<(), Gp
         }
         // Flattened into their members.
         Op::Text { .. } | Op::Layer { .. } => return Ok(()),
-        Op::Shading(_) => return Err(GpuRefusal::Shading),
+        Op::Shading(s) => return prepare_shading(frame, s, out),
     };
     if bounds.is_some_and(|b| !b.intersects(frame.bounds)) {
         return Ok(());
@@ -168,6 +171,35 @@ fn prepare(frame: &Frame<'_>, op: &Op, out: &mut Vec<Prepared>) -> Result<(), Gp
             memset,
             blend,
             image,
+            shade: None,
+        });
+    }
+    Ok(())
+}
+
+/// A shading `op` packed into `out`: its recorded pixels over the
+/// rectangle it walks, one paint per tile.
+fn prepare_shading(
+    frame: &Frame<'_>,
+    op: &crate::display_list::ShadingOp,
+    out: &mut Vec<Prepared>,
+) -> Result<(), GpuRefusal> {
+    if !op.bounds().intersects(frame.bounds) {
+        return Ok(());
+    }
+    let Some((paint, edges)) = shade::record(frame, op)? else {
+        return Ok(());
+    };
+    for block in fill_blocks(frame, edges).into_iter().flatten() {
+        out.push(Prepared {
+            block: Some(block),
+            marker: None,
+            clip: None,
+            color: SHADING_PAINT,
+            memset: 0,
+            blend: 0,
+            image: None,
+            shade: Some(Arc::clone(&paint)),
         });
     }
     Ok(())
@@ -210,6 +242,7 @@ fn run(frame: &Frame<'_>, job: &Job<'_>) -> Result<Done, GpuRefusal> {
                             memset: 0,
                             blend: 0,
                             image: None,
+                            shade: None,
                         }),
                     }
                 }

@@ -19,6 +19,7 @@ use tiny_skia::{FillRule, Mask, Path, Pixmap, Transform};
 
 use super::{ClipId, DeviceBounds, MaskBuilder};
 use crate::device_clip::FitMask;
+use crate::shading::target::ShadeTarget;
 
 /// One recorded shading paint.
 #[derive(Debug)]
@@ -78,6 +79,11 @@ impl ShadingOp {
 
 /// Paint `op` into `pixmap`, whose device space `masks` describes.
 pub(super) fn replay(op: &ShadingOp, pixmap: &mut Pixmap, masks: &mut MaskBuilder<'_>) {
+    paint_into(op, pixmap, masks);
+}
+
+/// Paint `op` into `target`, whose device space `masks` describes.
+fn paint_into<T: ShadeTarget>(op: &ShadingOp, target: &mut T, masks: &mut MaskBuilder<'_>) {
     #[allow(clippy::cast_precision_loss)] // a row count
     let row0 = crate::device_clip::row_origin() as f32;
     let Some(to_target) = masks
@@ -98,20 +104,58 @@ pub(super) fn replay(op: &ShadingOp, pixmap: &mut Pixmap, masks: &mut MaskBuilde
         None => None,
     };
     let mask = area.as_ref().or(clip.as_deref());
-    let (x0, y0) = masks.origin();
-    let (l, t, r, b) = op.region;
-    #[allow(clippy::cast_possible_truncation, clippy::cast_precision_loss)]
-    let region = (
-        (l as f32 - x0).floor() as i32,
-        (t as f32 - y0 - row0).floor() as i32,
-        (r as f32 - x0).ceil() as i32,
-        (b as f32 - y0 - row0).ceil() as i32,
-    );
+    let region = target_region(op, masks.origin(), row0);
     let budget = crate::page_budget::PageBudget::default();
     let meter = crate::page_budget::MeshMeter::new(&budget, op.canvas_pixels);
     let _ = op
         .shading
-        .paint_metered(to_target, region, mask, op.alpha, pixmap, meter);
+        .paint_metered(to_target, region, mask, op.alpha, target, meter);
+}
+
+/// `op.region` in the pixels of a target whose top-left is `origin`.
+fn target_region(op: &ShadingOp, (x0, y0): (f32, f32), row0: f32) -> (i32, i32, i32, i32) {
+    let (l, t, r, b) = op.region;
+    #[allow(clippy::cast_possible_truncation, clippy::cast_precision_loss)]
+    (
+        (l as f32 - x0).floor() as i32,
+        (t as f32 - y0 - row0).floor() as i32,
+        (r as f32 - x0).ceil() as i32,
+        (b as f32 - y0 - row0).ceil() as i32,
+    )
+}
+
+/// The pixels `op` can write in a `size` target at page-device `origin`
+/// with no row offset, clamped to it: `(left, top, right, bottom)`, right
+/// and bottom exclusive; `None` if empty.
+#[cfg(feature = "gpu")]
+pub(crate) fn walked(
+    op: &ShadingOp,
+    (width, height): (u32, u32),
+    origin: (f32, f32),
+) -> Option<(i32, i32, i32, i32)> {
+    let (l, t, r, b) = target_region(op, origin, 0.0);
+    #[allow(clippy::cast_possible_wrap)] // raster sides are far below `i32::MAX`
+    let (l, t, r, b) = (
+        l.max(0),
+        t.max(0),
+        r.min(width as i32),
+        b.min(height as i32),
+    );
+    (l < r && t < b).then_some((l, t, r, b))
+}
+
+/// [`replay`] into `target`, a `size` raster at page-device `origin` under
+/// `clips`: what the replay would paint, handed to `target` pixel by pixel.
+#[cfg(feature = "gpu")]
+pub(crate) fn paint_target<T: ShadeTarget>(
+    op: &ShadingOp,
+    target: &mut T,
+    clips: &[super::ClipDef],
+    (width, height): (u32, u32),
+    (x0, y0): (f32, f32),
+) {
+    let mut masks = MaskBuilder::new(clips, width, height, x0, y0);
+    paint_into(op, target, &mut masks);
 }
 
 /// `tiling::pattern_area_mask` at replay: the path's coverage times the

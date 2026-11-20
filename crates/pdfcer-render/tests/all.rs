@@ -39,6 +39,7 @@ mod format_style_donor;
 mod function_based_shading;
 mod fuzz_cmyk_page_reaches_the_buffer;
 mod gpu_scene_matches_replay;
+mod gpu_shadings;
 mod gray_icc_through_the_output_intent;
 mod grey_image_into_a_cmyk_group;
 mod grey_overprint;

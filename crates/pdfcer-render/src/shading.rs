@@ -153,6 +153,9 @@ use crate::gstate::Rgb;
 
 mod function_based;
 mod spot_ramp;
+pub(crate) mod target;
+
+use target::ShadeTarget;
 
 pub use spot_ramp::{SpotRamp, SpotTints};
 
@@ -2001,18 +2004,18 @@ fn target_at(
     Some((pt, coverage))
 }
 
-fn paint_region(
+fn paint_region<T: ShadeTarget>(
     shading: &Shading,
     ramp: &ColorRamp,
     to_target: tiny_skia::Transform,
     region: (i32, i32, i32, i32),
     clip: Option<&tiny_skia::Mask>,
     alpha: f32,
-    pixmap: &mut tiny_skia::Pixmap,
+    pixmap: &mut T,
 ) -> usize {
     let (x_lo, y_lo, x_hi, y_hi) = region;
-    let width = pixmap.width() as i32;
-    let height = pixmap.height() as i32;
+    let (width, height) = pixmap.size();
+    let (width, height) = (width as i32, height as i32);
     let alpha = alpha.clamp(0.0, 1.0);
     let mut painted = 0usize;
     // Each sample as an opaque pixel: the blend below at a = 1, computed
@@ -2060,60 +2063,22 @@ fn paint_region(
             // second place for a 0/0 to appear on exactly the pixels where
             // nothing should be drawn anyway.
             if a >= 1.0 {
-                if let Some(&Some(c)) = opaque.get(sample)
-                    && let Some(slot) = pixmap.pixels_mut().get_mut(idx)
-                {
-                    *slot = c;
-                    painted += 1;
+                if let Some(&Some(c)) = opaque.get(sample) {
+                    painted += usize::from(pixmap.opaque(idx, c));
                 }
                 continue;
             }
-            painted += usize::from(source_over(pixmap, idx, [rgb.r, rgb.g, rgb.b], a));
+            painted += usize::from(pixmap.over(idx, unit_terms([rgb.r, rgb.g, rgb.b], a), a));
         }
     }
     painted
 }
 
-/// Composite straight sRGB `rgb` at alpha `a` over pixel `idx`, in
-/// premultiplied space: `out = src·a + dst·(1 − a)`. Whether it wrote.
-fn source_over(pixmap: &mut tiny_skia::Pixmap, idx: usize, rgb: [f32; 3], a: f32) -> bool {
-    if a <= 0.0 {
-        return false;
-    }
-    let Some(&dst) = pixmap.pixels().get(idx) else {
-        return false;
-    };
+/// [`target::over_pixel`]'s source terms for straight unit `rgb` at
+/// alpha `a`: `rgb·a·255`.
+pub(crate) fn unit_terms(rgb: [f32; 3], a: f32) -> [f32; 3] {
     let a = a.min(1.0);
-    let inv = 1.0 - a;
-    let out_a = a
-        .mul_add(255.0, f32::from(dst.alpha()) * inv)
-        .round()
-        .clamp(0.0, 255.0) as u8;
-    // Each channel is CLAMPED TO out_a, not merely to 255: channels and
-    // alpha round independently, a channel can land one unit above alpha,
-    // and `from_rgba` rejects that, which would speckle holes through the
-    // gradient.
-    let mix = |src: f32, d: u8| -> u8 {
-        let v = (src * a)
-            .mul_add(255.0, f32::from(d) * inv)
-            .round()
-            .clamp(0.0, 255.0) as u8;
-        v.min(out_a)
-    };
-    let [r, g, b] = rgb;
-    let Some(c) = tiny_skia::PremultipliedColorU8::from_rgba(
-        mix(r, dst.red()),
-        mix(g, dst.green()),
-        mix(b, dst.blue()),
-        out_a,
-    ) else {
-        return false;
-    };
-    pixmap
-        .pixels_mut()
-        .get_mut(idx)
-        .map(|slot| *slot = c)
-        .is_some()
+    rgb.map(|c| c * a * 255.0)
 }
 
 impl Shading {
@@ -2331,13 +2296,13 @@ impl Shading {
 
     /// [`Self::paint`], charging a mesh's triangles to `meter`: the
     /// interpreter's route, so a page's meshes share its coverage ceiling.
-    pub(crate) fn paint_metered(
+    pub(crate) fn paint_metered<T: ShadeTarget>(
         &self,
         to_target: tiny_skia::Transform,
         region: (i32, i32, i32, i32),
         clip: Option<&tiny_skia::Mask>,
         alpha: f32,
-        pixmap: &mut tiny_skia::Pixmap,
+        pixmap: &mut T,
         meter: crate::page_budget::MeshMeter<'_>,
     ) -> Option<usize> {
         // A mesh is FORWARD-rasterised and shares nothing below this line

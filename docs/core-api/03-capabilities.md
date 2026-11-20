@@ -5007,7 +5007,7 @@ shaders; the shell (WebGL2, or any GL ES 3.0 / wgpu-GLSL host) draws them.
   show the reason off-canvas): `Render(RenderError)` (anything
   `replay_region` refuses), `Image` (bicubic sampling, an inverse image
   transform that is not finite or has a coefficient below `1e-30`, or
-  bilinear samples beyond 2^24 image pixels), `Shading`, `Transparency` (a soft
+  bilinear samples beyond 2^24 image pixels), `Shading` (only an export recording's gradient brush; snapshot shadings are drawn), `Transparency` (a soft
   mask, a non-separable or colour-dodge/burn/soft-light blend mode, an
   image under any blend mode but Normal, groups nested past 8), `Curves`, `TooMuchData { texels }`.
   A refusal is for the whole page: never mix GPU and CPU paints on one
@@ -5022,6 +5022,13 @@ shaders; the shell (WebGL2, or any GL ES 3.0 / wgpu-GLSL host) draws them.
   (several 64 x 48 images, rotated, clipped, translucent) measured 0 rows
   different on both GPUs at scale 1 and 300 DPI; a page of every blend mode
   on paint and on groups, at scale 1, 300 DPI and 50 MP.
+- **Shadings** (`sh` and shading-pattern fills and strokes, every type 1-7,
+  under any clip and constant opacity): the CPU painter runs at pack time
+  and records each pixel's source terms, so the scene grows by one texel per
+  pixel a shading covers; the card composites them over its own backdrop.
+  A page of axial, radial, function-based and mesh shadings, translucent
+  over translucent, at 8x: 0 rows different on the Arc (draw+read 12 ms
+  against 257 ms CPU replay) and on SwiftShader.
 
 ### 7.3 Cancellation — the off-thread contract
 

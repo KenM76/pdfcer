@@ -17,7 +17,8 @@ use std::sync::Arc;
 
 use pdfcer_core::settings::CmykIntent;
 
-use super::{Geometry, Shading, ShadingDiagnostics, ShadingFunction, source_over, target_at};
+use super::target::ShadeTarget;
+use super::{Geometry, Shading, ShadingDiagnostics, ShadingFunction, target_at, unit_terms};
 use crate::color::{ColorDiagnostics, ColorSpace};
 use crate::icc::ColorBridges;
 
@@ -156,19 +157,20 @@ impl FunctionGrid {
 
 /// Paint `shading`'s `grid` over `region`, as [`Shading::paint`] does for
 /// types 2 and 3. Returns the pixels written.
-pub(super) fn paint(
+pub(super) fn paint<T: ShadeTarget>(
     shading: &Shading,
     grid: &FunctionGrid,
     to_target: tiny_skia::Transform,
     region: (i32, i32, i32, i32),
     clip: Option<&tiny_skia::Mask>,
     alpha: f32,
-    pixmap: &mut tiny_skia::Pixmap,
+    pixmap: &mut T,
 ) -> usize {
     let (x_lo, y_lo, x_hi, y_hi) = region;
+    let (width, height) = pixmap.size();
     // Pixmap sides are far below `i32::MAX`.
     #[allow(clippy::cast_possible_wrap)]
-    let (width, height) = (pixmap.width() as i32, pixmap.height() as i32);
+    let (width, height) = (width as i32, height as i32);
     let alpha = alpha.clamp(0.0, 1.0);
     let mut painted = 0;
     for py in y_lo.max(0)..y_hi.min(height) {
@@ -182,7 +184,8 @@ pub(super) fn paint(
             // Both are non-negative and inside the pixmap.
             #[allow(clippy::cast_sign_loss)]
             let idx = (py as usize) * (width as usize) + (px as usize);
-            painted += usize::from(source_over(pixmap, idx, rgb, alpha * coverage));
+            let a = alpha * coverage;
+            painted += usize::from(pixmap.over(idx, unit_terms(rgb, a), a));
         }
     }
     painted

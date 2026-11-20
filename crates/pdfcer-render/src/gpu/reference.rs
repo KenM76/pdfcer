@@ -8,6 +8,7 @@ use super::fill_edges::DRAW_TILE;
 use super::image::{self, IMAGE_PAINT};
 use super::layer;
 use super::scene::{GpuScene, IntTexture};
+use super::shade::{self, SHADING_PAINT};
 
 /// Clip nesting the shader follows before treating a clip as empty.
 pub(crate) const MAX_CLIP_DEPTH: usize = 64;
@@ -296,6 +297,11 @@ fn paint(t: &Tex<'_>, px: i32, py: i32) -> [i32; 4] {
         }
         let c = coverage(t, h, px, py);
         if c == 0 {
+            continue;
+        }
+        if color == SHADING_PAINT {
+            let [base, x0, y0, w] = t.at(memset);
+            d = shade::over(t.at(base + (py - y0) * w + (px - x0)), d);
             continue;
         }
         if color == IMAGE_PAINT {

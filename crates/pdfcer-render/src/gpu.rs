@@ -18,3 +18,4 @@ pub(crate) mod layer;
 pub(crate) mod prepare;
 pub(crate) mod reference;
 pub(crate) mod scene;
+pub(crate) mod shade;

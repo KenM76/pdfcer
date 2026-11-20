@@ -151,7 +151,7 @@ use crate::font::RenderOptions;
 use crate::interpret::Diagnostics;
 use crate::{RenderError, RenderedPage};
 
-mod shading_op;
+pub(crate) mod shading_op;
 pub use shading_op::{ShadingArea, ShadingOp};
 
 /// The most memory one [`DisplayList`] may occupy before recording is

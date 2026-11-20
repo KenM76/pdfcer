@@ -71,8 +71,8 @@ pub enum GpuRefusal {
     /// image pixels.
     #[error("the page paints an image the graphics card cannot sample exactly")]
     Image,
-    /// The page paints a smooth shading, which the graphics card does not
-    /// draw yet.
+    /// The list paints a shading as a gradient brush, which only an export
+    /// recording carries; a snapshot's shadings are drawn.
     #[error("the page paints a shading")]
     Shading,
     /// The page uses a soft mask, a blend mode the graphics card does not
@@ -96,7 +96,7 @@ impl DisplayList {
     /// This list packed to draw `region` on the graphics card, byte for
     /// byte the raster [`Self::replay_region`] returns (decision 223).
     ///
-    /// Only solid and image fills and strokes, clips and glyph outlines
+    /// Solid, image and shading fills and strokes, clips and glyph outlines
     /// are drawn there; a page needing anything else is refused with the reason, for
     /// the host to replay on the CPU.
     ///
@@ -221,6 +221,7 @@ struct Paint {
     /// Its [`super::blend::code`].
     blend: i32,
     image: Option<ImagePaint>,
+    shade: Option<std::sync::Arc<super::shade::ShadePaint>>,
 }
 
 /// The texture's sections, gathered before they are laid out.
@@ -294,6 +295,7 @@ fn builder(frame: &Frame<'_>) -> Result<Builder, GpuRefusal> {
             memset: p.memset,
             blend: p.blend,
             image: p.image,
+            shade: p.shade,
         });
     }
     Ok(b)
@@ -313,8 +315,16 @@ fn pack(frame: &Frame<'_>) -> Result<IntTexture, GpuRefusal> {
     let entry_base = tile_base + lists.len();
     let image_base = entry_base + lists.iter().map(Vec::len).sum::<usize>().div_ceil(4);
     let samplers: Vec<_> = b.paints.iter().map(|p| p.image.as_ref()).collect();
-    let (rec_of, images, div_base) = image::sections(&samplers, image_base);
-    let total = image_base + images.len();
+    let (mut rec_of, images, div_base) = image::sections(&samplers, image_base);
+    let shade_base = image_base + images.len();
+    let shadings: Vec<_> = b.paints.iter().map(|p| p.shade.as_ref()).collect();
+    let (shade_of, shades) = super::shade::sections(&shadings, shade_base);
+    for (r, s) in rec_of.iter_mut().zip(&shade_of) {
+        if *s >= 0 {
+            *r = *s;
+        }
+    }
+    let total = shade_base + shades.len();
     let (width, per) = (SCENE_TEXTURE_WIDTH as usize, SCENE_TEXTURE_ROWS as usize);
     if total > width * per * MAX_LAYERS {
         return Err(GpuRefusal::TooMuchData { texels: total });
@@ -347,6 +357,7 @@ fn pack(frame: &Frame<'_>) -> Result<IntTexture, GpuRefusal> {
         (&lists, entry_base),
     );
     out.extend(images);
+    out.extend(shades);
     out.resize(width * height * layers, [0; 4]);
     Ok(IntTexture {
         texels: out.into_flattened(),

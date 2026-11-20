@@ -1641,7 +1641,7 @@ pub(crate) fn subdivision_for(extent: f32) -> u32 {
 /// have distinct types, so a transposition is a compile error rather than a
 /// silent wrong render.
 #[allow(clippy::too_many_arguments)]
-pub(crate) fn paint(
+pub(crate) fn paint<T: crate::shading::target::ShadeTarget>(
     mesh: &Mesh,
     ramp: Option<&ColorRamp>,
     to_target: tiny_skia::Transform,
@@ -1649,16 +1649,17 @@ pub(crate) fn paint(
     region: (i32, i32, i32, i32),
     clip: Option<&tiny_skia::Mask>,
     alpha: f32,
-    pixmap: &mut tiny_skia::Pixmap,
+    pixmap: &mut T,
     meter: MeshMeter<'_>,
 ) -> Option<usize> {
+    let (width, height) = pixmap.size();
     #[allow(clippy::cast_possible_wrap)]
     let (scratch, ox, oy) = rasterise(
         mesh,
         ramp,
         to_target,
         region,
-        (pixmap.width() as i32, pixmap.height() as i32),
+        (width as i32, height as i32),
         (false, false),
         meter,
     )?;
@@ -2296,7 +2297,7 @@ fn interpolate(shade: [Shade; 3], w: [f32; 3]) -> Shade {
 /// does and honouring `MSH-A5`: `/BBox` **clips**, it does not cause
 /// geometry to be discarded at parse time.
 #[allow(clippy::too_many_arguments)]
-fn composite(
+fn composite<T: crate::shading::target::ShadeTarget>(
     scratch: &tiny_skia::Pixmap,
     ox: i32,
     oy: i32,
@@ -2304,13 +2305,13 @@ fn composite(
     bbox: Option<[f32; 4]>,
     clip: Option<&tiny_skia::Mask>,
     alpha: f32,
-    pixmap: &mut tiny_skia::Pixmap,
+    pixmap: &mut T,
 ) -> usize {
     let alpha = alpha.clamp(0.0, 1.0);
     if alpha <= 0.0 {
         return 0;
     }
-    let dst_w = pixmap.width() as usize;
+    let dst_w = pixmap.size().0 as usize;
     let sw = scratch.width() as usize;
     let sh = scratch.height() as usize;
     let mut painted = 0usize;
@@ -2349,37 +2350,9 @@ fn composite(
                 continue;
             }
 
-            // Source-over in premultiplied space — the same arithmetic, and
-            // the same channel-clamped-to-alpha guard, that
-            // `shading::paint_region` documents at length. The source is
-            // opaque here, so `src.red()` is already the straight value.
-            let Some(&dst) = pixmap.pixels().get(didx) else {
-                continue;
-            };
-            let inv = 1.0 - a;
-            #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
-            let out_a = a
-                .mul_add(255.0, f32::from(dst.alpha()) * inv)
-                .round()
-                .clamp(0.0, 255.0) as u8;
-            let mix = |s: u8, d: u8| -> u8 {
-                #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
-                let v = (f32::from(s) * a)
-                    .mul_add(1.0, f32::from(d) * inv)
-                    .round()
-                    .clamp(0.0, 255.0) as u8;
-                v.min(out_a)
-            };
-            if let Some(c) = tiny_skia::PremultipliedColorU8::from_rgba(
-                mix(src.red(), dst.red()),
-                mix(src.green(), dst.green()),
-                mix(src.blue(), dst.blue()),
-                out_a,
-            ) && let Some(px) = pixmap.pixels_mut().get_mut(didx)
-            {
-                *px = c;
-                painted += 1;
-            }
+            // A byte source: each term is `src·a` (`target::over_pixel`).
+            let p = [src.red(), src.green(), src.blue()].map(|c| f32::from(c) * a);
+            painted += usize::from(pixmap.over(didx, p, a));
         }
     }
     painted

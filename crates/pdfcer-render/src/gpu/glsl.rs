@@ -229,6 +229,19 @@ ivec4 composite(ivec4 d, ivec4 inner, float opacity, int code) {
   }
   return ivec4(roundEven(mul(min(max(r, 0.0), 1.0), 255.0)));
 }
+int byte(float v) {
+  float f = floor(v);
+  return int(clamp(v - f >= 0.5 ? f + 1.0 : f, 0.0, 255.0));
+}
+ivec4 shade_pixel(ivec4 s, ivec4 d) {
+  float a = intBitsToFloat(s.w);
+  if (!(a > 0.0)) return d;
+  float inv = 1.0 - a;
+  int oa = byte(mul(a, 255.0) + mul(float(d.a), inv));
+  ivec4 o = ivec4(0, 0, 0, oa);
+  for (int k = 0; k < 3; k++) o[k] = min(byte(intBitsToFloat(s[k]) + mul(float(d[k]), inv)), oa);
+  return o;
+}
 ivec4 channels(int v) { return ivec4(v & 255, (v >> 8) & 255, (v >> 16) & 255, (v >> 24) & 255); }
 
 void main() {
@@ -255,6 +268,11 @@ void main() {
     }
     int c = coverage(op.x, px, py);
     if (c == 0) continue;
+    if (op.z == 0x00FFFFFC) {
+      ivec4 r = at(op.w);
+      d = shade_pixel(at(r.x + (py - r.z) * r.w + (px - r.y)), d);
+      continue;
+    }
     if (op.z == 0x00FFFFFF) {
       float q = -1.0;
       if (op.y >= 0) {
