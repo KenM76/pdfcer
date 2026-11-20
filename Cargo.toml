@@ -94,6 +94,7 @@ exclude = [
     "tools/icc-census",
     "tools/render-profile",
     "tools/3d-measure",
+    "tools/gpu-raster-measure",
     "tools/unembed-sweep",
     "tools/embed-sweep",
     # Dev-time JPEG XL fixture encoder; never shipped.

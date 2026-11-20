@@ -1,0 +1,61 @@
+<!doctype html><html><head><title>pdfcer GPU raster</title></head>
+<body><pre id="out">running…</pre><script src="data.js"></script><script>
+// Decision 223: draws a packed page, compares each row with the CPU replay's hash, times the draw.
+const out = document.getElementById("out"), lines = [];
+const log = s => { lines.push(s); out.textContent = lines.join("\n"); };
+try {
+  const c = document.createElement("canvas");
+  const gl = c.getContext("webgl2");
+  if (!gl) throw new Error("no WebGL 2");
+  const dbg = gl.getExtension("WEBGL_debug_renderer_info");
+  log("renderer: " + (dbg ? gl.getParameter(dbg.UNMASKED_RENDERER_WEBGL) : gl.getParameter(gl.RENDERER)));
+  const x = new XMLHttpRequest(); x.open("GET", "scene.bin", false); x.overrideMimeType("text/plain; charset=x-user-defined"); x.send();
+  const s = x.responseText, u8 = new Uint8Array(s.length); for (let i = 0; i < s.length; i++) u8[i] = s.charCodeAt(i) & 255;
+  const p = gl.createProgram();
+  for (const [type, src] of [[gl.VERTEX_SHADER, D.vs], [gl.FRAGMENT_SHADER, D.fs]]) {
+    const sh = gl.createShader(type); gl.shaderSource(sh, src); gl.compileShader(sh);
+    if (!gl.getShaderParameter(sh, gl.COMPILE_STATUS)) throw new Error(gl.getShaderInfoLog(sh)); gl.attachShader(p, sh);
+  }
+  gl.linkProgram(p); if (!gl.getProgramParameter(p, gl.LINK_STATUS)) throw new Error(gl.getProgramInfoLog(p));
+  gl.useProgram(p);
+  const tu = performance.now();
+  const t = gl.createTexture(); gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D_ARRAY, t);
+  gl.texImage3D(gl.TEXTURE_2D_ARRAY, 0, gl.RGBA32I, D.tw, D.th, D.tl, 0, gl.RGBA_INTEGER, gl.INT, new Int32Array(u8.buffer));
+  gl.texParameteri(gl.TEXTURE_2D_ARRAY, gl.TEXTURE_MIN_FILTER, gl.NEAREST); gl.texParameteri(gl.TEXTURE_2D_ARRAY, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
+  gl.uniform1i(gl.getUniformLocation(p, "u_scene"), 0);
+  gl.finish(); const upload = performance.now() - tu;
+  gl.bindVertexArray(gl.createVertexArray());
+  // Tiles no larger than TILE (or the device limit), so any raster fits a framebuffer.
+  const TILE = Math.min(D.tile || 4096, gl.getParameter(gl.MAX_RENDERBUFFER_SIZE));
+  const fw = Math.min(D.w, TILE), fh = Math.min(D.h, TILE);
+  const fb = gl.createFramebuffer(); gl.bindFramebuffer(gl.FRAMEBUFFER, fb);
+  const rb = gl.createRenderbuffer(); gl.bindRenderbuffer(gl.RENDERBUFFER, rb); gl.renderbufferStorage(gl.RENDERBUFFER, gl.RGBA8, fw, fh);
+  gl.framebufferRenderbuffer(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.RENDERBUFFER, rb);
+  gl.viewport(0, 0, fw, fh);
+  const origin = gl.getUniformLocation(p, "u_origin");
+  const a = new Uint8Array(D.w * D.h * 4), part = new Uint8Array(fw * fh * 4);
+  // Strips of STRIP rows, each its own submitted draw, keep a big page under the driver's watchdog.
+  const STRIP = 256; gl.enable(gl.SCISSOR_TEST);
+  const draw = () => {
+    for (let ty = 0; ty < D.h; ty += fh) for (let tx = 0; tx < D.w; tx += fw) {
+      const w = Math.min(fw, D.w - tx), h = Math.min(fh, D.h - ty);
+      gl.uniform2i(origin, tx, ty);
+      for (let y = 0; y < h; y += STRIP) { gl.scissor(0, y, w, Math.min(STRIP, h - y)); gl.drawArrays(gl.TRIANGLES, 0, 3); gl.flush(); }
+      if (w === D.w) { gl.readPixels(0, 0, w, h, gl.RGBA, gl.UNSIGNED_BYTE, a, ty * D.w * 4); continue; }
+      gl.readPixels(0, 0, w, h, gl.RGBA, gl.UNSIGNED_BYTE, part);
+      for (let y = 0; y < h; y++) a.set(part.subarray(y * w * 4, (y + 1) * w * 4), ((ty + y) * D.w + tx) * 4);
+    }
+  };
+  const t0 = performance.now(); draw(); const first = performance.now() - t0;
+  const err = gl.getError(); if (err) log("gl error " + err);
+  if (gl.isContextLost()) throw new Error("context lost");
+  const fnv = (o, n) => { let h = 0x811c9dc5; for (let i = o; i < o + n; i++) h = Math.imul(h ^ a[i], 0x01000193) >>> 0; return h; };
+  let bad = 0, firstBad = -1;
+  for (let y = 0; y < D.h; y++) if (fnv(y * D.w * 4, D.w * 4) !== D.rows[y]) { bad++; if (firstBad < 0) firstBad = y; }
+  log(`${D.w}x${D.h} in ${fw}x${fh} tiles: ${bad} rows differ` + (firstBad >= 0 ? `, first ${firstBad}` : ""));
+  if (firstBad >= 0) log("row sample " + Array.from(a.slice(firstBad * D.w * 4, firstBad * D.w * 4 + 32)).join(","));
+  const n = 5, t1 = performance.now();
+  for (let i = 0; i < n; i++) draw();
+  log(`upload ${upload.toFixed(1)} ms, first draw ${first.toFixed(1)} ms, draw+read ${((performance.now() - t1) / n).toFixed(1)} ms, CPU replay ${D.cpu_ms} ms`);
+} catch (e) { log("ERROR " + e.message); }
+</script></body></html>

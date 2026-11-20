@@ -1,0 +1,168 @@
+//! A [`GpuScene`] evaluated the way the shader evaluates it is the CPU
+//! replay's raster, byte for byte (decision 223, fills and strokes part).
+
+use pdfcer_core::document::Document;
+use pdfcer_core::page_tree;
+use pdfcer_render::{GpuRefusal, RenderOptions, record_page};
+
+/// A 100 x 100 pt page painting `content` with `resources`.
+fn page_with(content: &str, resources: &str) -> Document {
+    page_sized(content, resources, (100, 100))
+}
+
+/// A `size` pt page painting `content` with `resources`.
+fn page_sized(content: &str, resources: &str, (w, h): (u32, u32)) -> Document {
+    let objects = [
+        "<< /Type /Catalog /Pages 2 0 R >>".to_owned(),
+        format!("<< /Type /Pages /Kids [3 0 R] /Count 1 /MediaBox [0 0 {w} {h}] >>"),
+        format!("<< /Type /Page /Parent 2 0 R /Contents 4 0 R /Resources {resources} >>"),
+        format!(
+            "<< /Length {} >>\nstream\n{content}endstream",
+            content.len()
+        ),
+    ];
+    let mut out = String::from("%PDF-1.7\n");
+    let mut offsets = Vec::new();
+    for (i, body) in objects.iter().enumerate() {
+        offsets.push(out.len());
+        out.push_str(&format!("{} 0 obj\n{body}\nendobj\n", i + 1));
+    }
+    let xref_at = out.len();
+    out.push_str(&format!(
+        "xref\n0 {}\n0000000000 65535 f \n",
+        objects.len() + 1
+    ));
+    for off in offsets {
+        out.push_str(&format!("{off:010} 00000 n \n"));
+    }
+    out.push_str(&format!(
+        "trailer\n<< /Size {} /Root 1 0 R >>\nstartxref\n{xref_at}\n%%EOF\n",
+        objects.len() + 1
+    ));
+    Document::from_bytes(out.into_bytes()).expect("fixture must load")
+}
+
+/// Asserts the scene's evaluation equals the replay at each scale.
+fn assert_matches(content: &str, resources: &str, what: &str) {
+    assert_matches_at(
+        &page_with(content, resources),
+        &[1.0, 2.37, 300.0 / 72.0],
+        what,
+    );
+}
+
+fn assert_matches_at(doc: &Document, scales: &[f32], what: &str) {
+    let page = page_tree::pages(doc).expect("page tree walks").remove(0);
+    for &scale in scales {
+        let list = record_page(&doc.view(), &page, scale, 1, &RenderOptions::default())
+            .unwrap_or_else(|e| panic!("{what}: recording: {e}"));
+        let cpu = list
+            .replay_region(list.key(), page.crop_box)
+            .unwrap_or_else(|e| panic!("{what}: replay: {e}"));
+        let scene = list
+            .gpu_scene(list.key(), page.crop_box)
+            .unwrap_or_else(|e| panic!("{what} at {scale}: refused: {e}"));
+        assert_eq!(
+            (scene.width, scene.height),
+            (cpu.pixmap.width(), cpu.pixmap.height())
+        );
+        let gpu = scene.evaluate();
+        let want = cpu.pixmap.data();
+        if let Some(i) = gpu.iter().zip(want).position(|(a, b)| a != b) {
+            let p = i / 4;
+            let w = scene.width as usize;
+            panic!(
+                "{what} at {scale}: pixel ({}, {}) is {:?}, replay {:?}",
+                p % w,
+                p / w,
+                &gpu[p * 4..p * 4 + 4],
+                &want[p * 4..p * 4 + 4]
+            );
+        }
+    }
+}
+
+/// Over 8,191 pixels a side the CPU fills tile by tile, the path moved to
+/// each tile and back; fills, a stroke and a clip crossing the seams.
+#[test]
+fn rasters_wider_and_taller_than_one_fill_tile() {
+    let wide = "1 0 0 rg 1940.3 2 30.6 6 re f 0 0 1 rg 1900 1 m 2000 9 l 1950 9.5 l h f
+                q 1945 0 m 1980 10 l 1930 10 l h W n 0 0.6 0 rg 1800 0 300 10 re f Q
+                0.3 g 0.7 w 1700 8 m 2050 2 l S
+";
+    assert_matches_at(&page_sized(wide, "<< >>", (2010, 10)), &[4.2, 4.37], "wide");
+    let tall = "1 0 0 rg 2 1940.3 6 30.6 re f 0 0 1 rg 1 1900 m 9 2000 l 9.5 1950 l h f
+                q 0 1945 m 10 1980 l 10 1930 l h W n 0 0.6 0 rg 0 1800 10 300 re f Q
+                0.3 g 0.7 w 8 1700 m 2 2050 l S
+";
+    assert_matches_at(&page_sized(tall, "<< >>", (10, 2010)), &[4.2], "tall");
+}
+
+#[test]
+fn rectangles_at_fractional_positions() {
+    assert_matches(
+        "1 0 0 rg 10.3 10.7 40.2 30.1 re f 0 0.5 1 rg 30.15 25.6 50 50.33 re f\n",
+        "<< >>",
+        "rectangles",
+    );
+}
+
+#[test]
+fn curves_and_even_odd() {
+    assert_matches(
+        "0.2 0.6 0.3 rg 50 90 m 61 60 l 95 60 l 67 42 l 78 10 l 50 30 l 22 10 l 33 42 l 5 60 l 39 60 l h f*\n\
+         0 0 0.8 rg 50 50 m 50 72 32 90 10 90 c 32 70 30 52 50 50 c f\n",
+        "<< >>",
+        "curves",
+    );
+}
+
+#[test]
+fn strokes_with_joins_and_dashes() {
+    assert_matches(
+        "0 0 0 RG 3.3 w 10 10 m 80 20 l 30 70 l S 1 j 0.7 w [4 2] 0 d 15 90 m 85 85 l 60 40 l S\n\
+         0.3 w 5 50 m 95 51 l S\n",
+        "<< >>",
+        "strokes",
+    );
+}
+
+#[test]
+fn nested_clips() {
+    assert_matches(
+        "q 20 20 60 60 re W n q 50 50 30 0 360 m 10 10 m 90 30 l 40 95 l h W* n \
+         0 0.4 0.9 rg 0 0 100 100 re f Q 1 0 0 rg 0 0 30 100 re f Q 0 1 0 rg 70 0 30 30 re f\n",
+        "<< >>",
+        "clips",
+    );
+}
+
+#[test]
+fn translucent_paint() {
+    assert_matches(
+        "/A gs 1 0 0 rg 10 10 50 50 re f 0 0 1 rg 40 40 50 50 re f q 30 30 40 40 re W n 0 1 0 RG 4 w 0 0 m 100 100 l S Q\n",
+        "<< /ExtGState << /A << /ca 0.45 /CA 0.6 >> >> >>",
+        "alpha",
+    );
+}
+
+#[test]
+fn text_glyph_outlines() {
+    assert_matches(
+        "BT /F1 18 Tf 8 60 Td (Glyphs &ag) Tj 0 -30 Td 0.5 0 0 rg (Wavy 0129) Tj ET\n",
+        "<< /Font << /F1 << /Type /Font /Subtype /Type1 /BaseFont /Helvetica >> >> >>",
+        "text",
+    );
+}
+
+#[test]
+fn a_transparency_group_is_refused() {
+    let doc = page_with(
+        "/B gs 1 0 0 rg 10 10 50 50 re f\n",
+        "<< /ExtGState << /B << /BM /Multiply >> >> >>",
+    );
+    let page = page_tree::pages(&doc).expect("page tree walks").remove(0);
+    let list = record_page(&doc.view(), &page, 1.0, 1, &RenderOptions::default()).expect("records");
+    let r = list.gpu_scene(list.key(), page.crop_box);
+    assert!(matches!(r, Err(GpuRefusal::Transparency)), "{r:?}");
+}

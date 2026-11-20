@@ -408,7 +408,7 @@ impl DeviceBounds {
     /// on every side because an anti-aliased edge writes into the pixel
     /// *outside* the geometric bound, and because a hairline stroke is
     /// widened by the rasteriser rather than by the path.
-    fn intersects(self, region: Self) -> bool {
+    pub(crate) fn intersects(self, region: Self) -> bool {
         self.left - 1.0 < region.right
             && self.right + 1.0 > region.left
             && self.top - 1.0 < region.bottom
@@ -819,6 +819,43 @@ impl DisplayList {
     /// [`BandBlocker`] naming that op. Replay the whole page instead.
     pub fn band_exact(&self) -> Result<(), BandBlocker> {
         band_blocker(&self.ops).map_or(Ok(()), Err)
+    }
+
+    /// The ops, clips and raster geometry [`Self::replay_region`] replays
+    /// for `region`, for the GPU scene to draw the same raster.
+    #[cfg(feature = "gpu")]
+    pub(crate) fn region_frame(
+        &self,
+        expected: DisplayListKey,
+        region: PageRect,
+    ) -> Result<crate::gpu::scene::Frame<'_>, RenderError> {
+        self.check_key(expected)?;
+        #[allow(clippy::cast_possible_truncation)] // as `crate::effective_scale`
+        let scale = (f64::from(self.key.scale) * self.page_user_unit) as f32;
+        let bad = RenderError::BadRasterSize {
+            width: 0,
+            height: 0,
+        };
+        let g = crate::region_base_geometry_of(self.page_box, self.page_rotate, scale, region)
+            .ok_or(bad)?;
+        let anchor = crate::region_lattice_anchor(self.page_box, self.page_rotate, scale, &g);
+        #[allow(clippy::cast_precision_loss)] // pixel counts
+        let bounds = DeviceBounds {
+            left: g.x0,
+            top: g.y0,
+            right: g.x0 + g.width as f32,
+            bottom: g.y0 + g.height as f32,
+        };
+        Ok(crate::gpu::scene::Frame {
+            ops: &self.ops,
+            clips: &self.clips,
+            width: g.width,
+            height: g.height,
+            x0: g.x0,
+            y0: g.y0,
+            anchor,
+            bounds,
+        })
     }
 
     fn check_key(&self, expected: DisplayListKey) -> Result<(), RenderError> {

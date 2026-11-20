@@ -1,0 +1,18 @@
+# Decision 223's speed and byte-identity harness for GPU snapshot
+# rasterising. A DETACHED single-crate workspace, excluded from the root
+# workspace like every other `tools/` crate, so it never enters the
+# shipping dependency graph or `THIRD_PARTY_LICENSES.md`.
+[package]
+name = "gpu-raster-measure"
+version = "0.0.0"
+edition = "2024"
+publish = false
+
+[workspace]
+
+[dependencies]
+pdfcer-core = { path = "../../crates/pdfcer-core" }
+pdfcer-render = { path = "../../crates/pdfcer-render", features = ["gpu"] }
+
+[profile.release]
+opt-level = 3

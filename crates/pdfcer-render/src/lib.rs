@@ -239,6 +239,12 @@ pub mod export;
 mod export_sites;
 pub mod font;
 mod gouraud;
+#[cfg(feature = "gpu")]
+mod gpu;
+#[cfg(feature = "gpu")]
+pub use gpu::glsl::{GLSL_ES_300_FRAGMENT, GLSL_ES_300_VERTEX};
+#[cfg(feature = "gpu")]
+pub use gpu::scene::{GpuRefusal, GpuScene, IntTexture, SCENE_TEXTURE_ROWS, SCENE_TEXTURE_WIDTH};
 pub mod gstate;
 pub mod icc;
 pub mod image;

@@ -4972,6 +4972,44 @@ on its own and stacks them top to bottom.
 
 Measured (`tools/render-profile --bands`): see `docs/render-region-measurements.md`.
 
+### 7.3d Drawing a page on the graphics card (`Pass 724.4`, decision 223)
+
+Behind the non-default `gpu` feature of `pdfcer-render` (no dependencies;
+builds for `wasm32-unknown-unknown`). The engine does not touch a GPU: it
+packs the page into one integer texture and hands over two GLSL ES 3.00
+shaders; the shell (WebGL2, or any GL ES 3.0 / wgpu-GLSL host) draws them.
+
+- `DisplayList::gpu_scene(&self, key: DisplayListKey, region: PageRect) ->
+  Result<GpuScene, GpuRefusal>` — same `key` and `region` contract as
+  `replay_region`. `GpuScene { width, height, data: IntTexture }`
+  (`#[non_exhaustive]`).
+- `IntTexture { texels: Vec<i32>, width, height, layers }`: upload as an
+  `RGBA32I` `TEXTURE_2D_ARRAY` (`texImage3D`, `NEAREST`, no mipmaps).
+  `width` is `SCENE_TEXTURE_WIDTH` (2048); `height` is at most
+  `SCENE_TEXTURE_ROWS` (2048), and exactly that whenever `layers > 1`;
+  at most 16 layers.
+- Draw: bind `u_scene` (unit of your choice), set `ivec2 u_origin`, draw 3
+  vertices with no attributes (`GLSL_ES_300_VERTEX`, `GLSL_ES_300_FRAGMENT`)
+  into an `RGBA8` colour attachment, `readPixels(RGBA, UNSIGNED_BYTE)`.
+  Rows come back top row first, exactly `replay_region`'s RGBA8 bytes.
+- **Tiling.** Framebuffer pixel `(x, y)` is raster pixel `u_origin + (x, y)`.
+  A raster larger than `MAX_RENDERBUFFER_SIZE` / `MAX_VIEWPORT_DIMS` is drawn
+  as several framebuffers, `u_origin` set per tile; the bytes are identical
+  however it is tiled. Splitting one draw into row strips (scissor) keeps
+  each submission short on slow or software GPUs.
+- **Byte-identical, measured:** scale 1, 300 DPI and 50 MP (8418 x 5953) of
+  a CAD drawing, 0 rows different on an Intel Arc (D3D11) and on
+  SwiftShader. At 300 DPI: pack ~300 ms on the CPU, upload ~100 ms,
+  draw+read ~105-135 ms, against ~600-650 ms for the 8-band CPU replay.
+- **Refusals** (`GpuRefusal`, `#[non_exhaustive]`; replay on the CPU and
+  show the reason off-canvas): `Render(RenderError)` (anything
+  `replay_region` refuses), `Image`, `Shading`, `Transparency` (groups,
+  soft masks, blend modes), `Curves`, `Aliased`, `TooMuchData { texels }`.
+  A refusal is for the whole page: never mix GPU and CPU paints on one
+  raster.
+- What is drawn today: solid fills and strokes (any opacity), clips
+  (nested, any depth up to 64), glyph outlines.
+
 ### 7.3 Cancellation — the off-thread contract
 
 `RenderCancel` (`crates/pdfcer-render/src/cancel.rs`) is a plain

@@ -20,6 +20,10 @@ autotests = false
 # rather than throwaway.
 profile = []
 
+# GPU snapshot rasterising (decision 223): the display list as GLSL ES 3.00
+# and buffers for a host's graphics card. OFF by default; no dependencies.
+gpu = []
+
 # ---------------------------------------------------------------------------
 # FORWARDED STRIPPABLE CAPABILITIES — and why forwarding is MANDATORY, not
 # tidiness.
