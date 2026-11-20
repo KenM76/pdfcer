@@ -202,6 +202,7 @@ impl SurfaceArgs {
         options: &pdfcer_3d::RenderOptions,
     ) {
         let mut measured = false;
+        let mut grown = false;
         for &[x, y] in &self.measure_face {
             let at = format!("measure-face at={x},{y}");
             let Some(pick) = picked(&at, x, y, model, camera, options) else {
@@ -211,6 +212,7 @@ impl SurfaceArgs {
                 Err(err) => println!("{at} refused: {err}"),
                 Ok(f) => {
                     measured = true;
+                    grown |= f.source == pdfcer_3d::FaceSource::Grown;
                     let shadow = self
                         .projection_normal(camera)
                         .and_then(|n| pdfcer_3d::face_projected_area(&model.meshes, &pick, n).ok());
@@ -231,6 +233,12 @@ impl SurfaceArgs {
                 "note: measure-face: the shape is fitted from the face's triangles, not read \
                  from the file; residual is the farthest a corner lies off the fit, and a \
                  curved outline's perimeter is the sum of its straight edges"
+            );
+        }
+        if grown {
+            println!(
+                "note: measure-face: source=grown: the file's face is not one surface (or the \
+                 file separates no faces), so the figures are the flat patch round the pick"
             );
         }
     }
@@ -270,9 +278,14 @@ fn face_line(f: &pdfcer_3d::FaceFigures, r: &readout::Readout) -> String {
         _ => "shape=unfitted".to_owned(),
     };
     format!(
-        "mesh={} face={} triangles={} area={:.6}{} perimeter={:.6}{} {shape}",
+        "mesh={} face={} source={} triangles={} area={:.6}{} perimeter={:.6}{} {shape}",
         f.mesh,
         f.face.map_or("none".to_owned(), |i| i.to_string()),
+        match f.source {
+            pdfcer_3d::FaceSource::File => "file",
+            pdfcer_3d::FaceSource::WholeMesh => "whole-mesh",
+            _ => "grown",
+        },
         f.triangles,
         f.area,
         r.area(f.area),

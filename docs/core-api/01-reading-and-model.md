@@ -3833,9 +3833,17 @@ let image = render_coloured(&meshes, &colours, &camera, &RenderOptions { width: 
 - **Measure one face** (`pdfcer-3d`, feature `render`):
   `face_figures(&model.meshes, &pick, flat_degrees) -> Result<FaceFigures,
   SurfaceMeasureError>` measures the whole face the pick is on (the whole
-  mesh when the file separates no faces, `face == None`).
-  `FaceFigures { mesh, face: Option<usize>, triangles, area, perimeter,
-  shape }` (`#[non_exhaustive]`): `perimeter` sums the edges no second
+  mesh when the file separates no faces). `source: FaceSource` says which
+  triangles: `File` (the file's face, `face == Some(i)`), `WholeMesh` (no
+  faces in the file, `face == None`), or `Grown` (`face == None`): the
+  file's face, or the whole mesh, is not one surface (fits neither plane
+  nor cylinder, or is closed with no outline, e.g. a part given as one
+  face), so the figures are the flat patch round the pick, gathered as
+  `surface_at` does. Disclose `Grown` and `WholeMesh` (rule 4); the CLI
+  prints `source=file|whole-mesh|grown` and a `note: measure-face:
+  source=grown` line. A perimeter is never `-0.0`.
+  `FaceFigures { mesh, face: Option<usize>, source, triangles, area,
+  perimeter, shape }` (`#[non_exhaustive]`): `perimeter` sums the edges no second
   triangle of the face shares (outline plus hole rims; corners at the same
   position weld, so loose triangles still give the true outline; a curved
   rim is the sum of its chords). `shape: FaceShape` is

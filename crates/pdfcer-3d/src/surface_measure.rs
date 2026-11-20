@@ -20,7 +20,7 @@ mod types;
 
 pub use distance::{EntityDistance, MeasureEntity, Selection, Span, entity_distance};
 pub use edge::{EdgeFigures, EdgeShape, edge_at, vertex_at};
-pub use face::{FaceFigures, FaceShape, face_figures};
+pub use face::{FaceFigures, FaceShape, FaceSource, face_figures};
 pub use frame::CoordinateFrame;
 pub use projected::{ProjectedArea, face_projected_area};
 

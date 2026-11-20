@@ -1,3 +1,4 @@
+use super::face::perimeter;
 use super::*;
 use crate::indirect::tests::quad;
 
@@ -282,6 +283,7 @@ fn a_whole_tube_fits_a_cylinder() {
     let chord = 2.0 * 5.0 * (std::f64::consts::PI / 64.0).sin();
     assert!((f.perimeter - 128.0 * chord).abs() < 1e-9);
     assert_eq!((f.face, f.triangles), (Some(0), 128));
+    assert_eq!(f.source, FaceSource::File);
 }
 
 #[test]
@@ -323,7 +325,65 @@ fn a_tube_coarser_than_the_tolerance_is_not_called_a_plane() {
         f.shape,
         FaceShape::Cylinder { .. } | FaceShape::Unfitted
     ));
-    assert!(!matches!(f.shape, FaceShape::Plane { .. }));
+}
+
+/// A unit box whose one file face covers all twelve triangles.
+fn one_face_box() -> TriangleMesh {
+    let mut positions = Vec::new();
+    for i in 0..8_u32 {
+        positions.push([f64::from(i & 1), f64::from((i >> 1) & 1), f64::from(i >> 2)]);
+    }
+    // Each side as two triangles wound outward.
+    let sides: [[u32; 4]; 6] = [
+        [0, 2, 3, 1],
+        [4, 5, 7, 6],
+        [0, 1, 5, 4],
+        [2, 6, 7, 3],
+        [0, 4, 6, 2],
+        [1, 3, 7, 5],
+    ];
+    let triangles: Vec<[u32; 3]> = sides
+        .iter()
+        .flat_map(|&[a, b, c, d]| [[a, b, c], [a, c, d]])
+        .collect();
+    TriangleMesh {
+        positions,
+        triangles,
+        faces: vec![0..12],
+        ..TriangleMesh::default()
+    }
+}
+
+#[test]
+fn a_part_given_as_one_face_measures_the_flat_face_at_the_pick() {
+    // Triangle 2 is on the top, z = 1.
+    let f = face_figures(&[one_face_box()], &pick(0, 2, [0.5, 0.5, 1.0]), 10.0).unwrap();
+    assert_eq!(
+        (f.source, f.face, f.triangles),
+        (FaceSource::Grown, None, 2)
+    );
+    assert!((f.area - 1.0).abs() < 1e-12 && (f.perimeter - 4.0).abs() < 1e-12);
+    let FaceShape::Plane { normal, .. } = f.shape else {
+        panic!("{:?}", f.shape)
+    };
+    assert_eq!(normal, [0.0, 0.0, 1.0]);
+}
+
+#[test]
+fn a_closed_part_with_no_faces_also_grows_the_flat_face() {
+    let mut part = one_face_box();
+    part.faces.clear();
+    let f = face_figures(&[part], &pick(0, 2, [0.5, 0.5, 1.0]), 10.0).unwrap();
+    assert_eq!(
+        (f.source, f.face, f.triangles),
+        (FaceSource::Grown, None, 2)
+    );
+    assert!((f.area - 1.0).abs() < 1e-12 && (f.perimeter - 4.0).abs() < 1e-12);
+}
+
+#[test]
+fn a_closed_shell_never_reports_a_negative_zero_perimeter() {
+    assert_eq!(perimeter(&[]).to_bits(), 0.0_f64.to_bits());
 }
 
 #[test]
@@ -335,6 +395,7 @@ fn a_plate_face_reports_its_area_and_outline() {
     plate.triangles = vec![[0, 1, 2], [3, 4, 5]];
     let f = face_figures(&[plate], &pick(0, 1, [0.0; 3]), 0.5).unwrap();
     assert_eq!((f.area, f.perimeter, f.face), (12.0, 14.0, None));
+    assert_eq!(f.source, FaceSource::WholeMesh);
     let FaceShape::Plane {
         normal,
         flatness_degrees,

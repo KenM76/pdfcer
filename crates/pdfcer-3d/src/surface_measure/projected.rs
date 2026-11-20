@@ -23,8 +23,10 @@ pub struct ProjectedArea {
     pub away: f64,
 }
 
-/// Projects the whole face `pick` lies on (as [`super::face_figures`])
-/// onto the plane square to `direction` (any length).
+/// Projects the file's face `pick` lies on (the whole mesh when the file
+/// separates none) onto the plane square to `direction` (any length). It
+/// does not grow a flat patch as [`super::face_figures`] does for
+/// [`super::FaceSource::Grown`].
 ///
 /// # Errors
 ///

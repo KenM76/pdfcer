@@ -750,7 +750,9 @@ fn measure_face_reports_a_faces_area_perimeter_and_plane() {
     };
     let face = read(&["--measure-face", "60,40"]);
     assert!(
-        face.contains("measure-face at=60,40 triangle=1 mesh=1 face=0 triangles=2 area=1.000000"),
+        face.contains(
+            "measure-face at=60,40 triangle=1 mesh=1 face=0 source=file triangles=2 area=1.000000"
+        ),
         "{face}"
     );
     assert!(face.contains("perimeter=4.000000"), "{face}");

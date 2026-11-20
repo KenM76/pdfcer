@@ -4,7 +4,7 @@
 use std::collections::HashMap;
 
 use super::fit::{across, fit_circle, least_eigenvector};
-use super::{Face, SurfaceMeasureError, SurfacePick, area_and_centre};
+use super::{Face, PLANE_SLACK, SurfaceMeasureError, SurfacePick, area_and_centre, diagonal};
 use crate::TriangleMesh;
 use crate::render::corners;
 use crate::vec3::{add, dot, length, normalize, scale, sub};
@@ -44,15 +44,34 @@ pub enum FaceShape {
     Unfitted,
 }
 
+/// Which triangles a [`FaceFigures`] measured.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[non_exhaustive]
+pub enum FaceSource {
+    /// The face the file gives the pick.
+    File,
+    /// The flat patch round the pick: the triangles of the file's face (or
+    /// of the whole mesh) that lie in the picked triangle's plane. Used when
+    /// the file's face is not one surface: it fits neither a plane nor a
+    /// cylinder, or it is a closed shell, as when a file gives a whole part
+    /// as one face. Fitted, so disclose it (rule 4).
+    Grown,
+    /// The whole mesh: the file separates no faces and the mesh is one
+    /// surface.
+    WholeMesh,
+}
+
 /// What one face measures.
 #[derive(Debug, Clone, Copy, PartialEq)]
 #[non_exhaustive]
 pub struct FaceFigures {
     /// The mesh the face is on.
     pub mesh: usize,
-    /// The face; `None` when the file separates no faces, and the figures
-    /// are then the whole mesh's.
+    /// The file's face, when the figures are exactly that face's
+    /// ([`FaceSource::File`]); `None` otherwise.
     pub face: Option<usize>,
+    /// Which triangles were measured.
+    pub source: FaceSource,
     /// Triangles with an area that were measured.
     pub triangles: usize,
     /// Their area, model units squared.
@@ -67,6 +86,12 @@ pub struct FaceFigures {
 }
 
 /// Measures the whole face `pick` lies on.
+///
+/// The face is the file's ([`FaceSource::File`]), else the whole mesh when
+/// the file separates none ([`FaceSource::WholeMesh`]). When that set is not
+/// one surface (it fits neither a plane nor a cylinder, or it is closed and
+/// so has no outline), the figures are the flat patch round the pick
+/// instead ([`FaceSource::Grown`]), as [`super::surface_at`] gathers it.
 ///
 /// `flat_degrees` (0 to 90) is how far a triangle may turn and still count
 /// as on the fitted plane, or square to the fitted axis.
@@ -95,18 +120,69 @@ pub fn face_figures(
     }
     let face = Face::of(mesh, pick.triangle);
     let tris = face_triangles(mesh, &face);
+    let mut figures = measure(pick.mesh, &tris, flat_degrees)?;
+    figures.face = face.index();
+    figures.source = if figures.face.is_some() {
+        FaceSource::File
+    } else {
+        FaceSource::WholeMesh
+    };
+    if !matches!(figures.shape, FaceShape::Unfitted) && figures.perimeter > 0.0 {
+        return Ok(figures);
+    }
+    let seed = mesh
+        .triangles
+        .get(pick.triangle)
+        .and_then(|t| corners(mesh, t))
+        .ok_or(SurfaceMeasureError::Degenerate)?;
+    let flat = flat_patch(&tris, &seed, flat_degrees, PLANE_SLACK * diagonal(mesh));
+    let mut grown = measure(pick.mesh, &flat, flat_degrees)?;
+    grown.source = FaceSource::Grown;
+    Ok(grown)
+}
+
+/// The figures of `tris`, with no face named.
+fn measure(
+    mesh: usize,
+    tris: &[[[f64; 3]; 3]],
+    flat_degrees: f64,
+) -> Result<FaceFigures, SurfaceMeasureError> {
     let doubled: f64 = tris.iter().map(|w| length(area_and_centre(w).0)).sum();
     if tris.is_empty() || doubled <= 0.0 {
         return Err(SurfaceMeasureError::Degenerate);
     }
     Ok(FaceFigures {
-        mesh: pick.mesh,
-        face: face.index(),
+        mesh,
+        face: None,
+        source: FaceSource::Grown,
         triangles: tris.len(),
         area: doubled / 2.0,
-        perimeter: perimeter(&tris),
-        shape: fit_shape(&tris, flat_degrees),
+        perimeter: perimeter(tris),
+        shape: fit_shape(tris, flat_degrees),
     })
+}
+
+/// The triangles of `tris` facing within `flat_degrees` of `seed` and with
+/// every corner within `slack` of its plane.
+fn flat_patch(
+    tris: &[[[f64; 3]; 3]],
+    seed: &[[f64; 3]; 3],
+    flat_degrees: f64,
+    slack: f64,
+) -> Vec<[[f64; 3]; 3]> {
+    let (area, centre) = area_and_centre(seed);
+    let Some(normal) = normalize(area) else {
+        return Vec::new();
+    };
+    let cos_flat = flat_degrees.to_radians().cos();
+    tris.iter()
+        .filter(|w| {
+            normalize(area_and_centre(w).0).is_some_and(|n| dot(n, normal) >= cos_flat)
+                && w.iter()
+                    .all(|&p| dot(sub(p, centre), normal).abs() <= slack)
+        })
+        .copied()
+        .collect()
 }
 
 /// The corners of each triangle of `face` that has an area.
@@ -119,7 +195,7 @@ pub(super) fn face_triangles(mesh: &TriangleMesh, face: &Face) -> Vec<[[f64; 3];
 }
 
 /// The summed length of the edges only one triangle uses.
-fn perimeter(tris: &[[[f64; 3]; 3]]) -> f64 {
+pub(super) fn perimeter(tris: &[[[f64; 3]; 3]]) -> f64 {
     let mut ids: HashMap<[u64; 3], usize> = HashMap::new();
     let mut id = |p: [f64; 3]| {
         let next = ids.len();
@@ -134,11 +210,13 @@ fn perimeter(tris: &[[[f64; 3]; 3]]) -> f64 {
             entry.or_insert((0, length(sub(q, p)))).0 += 1;
         }
     }
+    // `+ 0.0`: an empty f64 sum is -0.0.
     edges
         .values()
         .filter(|(n, _)| *n == 1)
         .map(|(_, l)| l)
-        .sum()
+        .sum::<f64>()
+        + 0.0
 }
 
 /// Each triangle's unit normal and its area weight.

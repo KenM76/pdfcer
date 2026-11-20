@@ -201,8 +201,8 @@ pub use shadow::{DEFAULT_SHADOW_MAP_SIZE, LightSense, MAX_SHADOW_MAP_SIZE, Shado
 #[cfg(feature = "render")]
 pub use surface_measure::{
     CoordinateFrame, DEFAULT_CORNER_DEGREES, DEFAULT_FLAT_DEGREES, DEFAULT_PARALLEL_DEGREES,
-    EdgeFigures, EdgeShape, EntityDistance, FaceFigures, FaceShape, MeasureEntity, ProjectedArea,
-    Selection, Span, SurfaceMeasure, SurfaceMeasureError, SurfacePatch, SurfacePick,
+    EdgeFigures, EdgeShape, EntityDistance, FaceFigures, FaceShape, FaceSource, MeasureEntity,
+    ProjectedArea, Selection, Span, SurfaceMeasure, SurfaceMeasureError, SurfacePatch, SurfacePick,
     SurfaceRelation, SurfaceTolerance, edge_at, entity_distance, face_figures, face_projected_area,
     measure_surfaces, surface_at, vertex_at,
 };
