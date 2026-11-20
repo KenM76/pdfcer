@@ -30,8 +30,8 @@ use crate::lighting::shade::Local;
 use crate::render::corners;
 use crate::render::parallel::{run_each, workers};
 pub(crate) use atlas::Atlas;
-use grid::Grid;
-use octa::TEXELS;
+pub(crate) use grid::Grid;
+pub(crate) use octa::{TEXELS, texel_direction};
 use trace::Published;
 pub(crate) use trace::{glow_gather, lamp_direct};
 
@@ -215,6 +215,24 @@ impl Volume {
             Stage::Done => {}
         }
         self.is_done()
+    }
+
+    /// Classifies every probe, tracing no bounce; what a GPU build starts
+    /// from.
+    pub(crate) fn classify_all(&mut self, scene: &Scene, threads: usize) {
+        while let Stage::Classify(from) = self.stage {
+            self.classify(scene, from, usize::MAX, threads);
+        }
+    }
+
+    /// The probe lattice.
+    pub(crate) fn grid(&self) -> &Grid {
+        &self.grid
+    }
+
+    /// Per probe, whether it is used.
+    pub(crate) fn active(&self) -> &[bool] {
+        &self.active
     }
 
     /// Builds the whole volume.

@@ -4569,6 +4569,28 @@ let image = render_coloured(&meshes, &colours, &camera, &RenderOptions { width: 
     steep within ~0.001 units of a wall–floor contact. The shader formula
     itself matches the CPU exactly (tested). Lenses tested (same bounce for
     every lens), not run in WebGL.
+  - Bounce built on the GPU instead:
+    `PreparedModel::gpu_bounce_build(&model, &camera, &options) ->
+    Result<Option<GpuBounceBuild>, RenderError>` packs the same scene
+    (BVH, triangles, texture coordinates, texture pictures, lamps, probes)
+    as `FloatTexture`s (RGBA32F) and one `ByteTexture` (RGBA8UI 2D array,
+    `layers` deep). The host runs `GLSL_ES_300_BOUNCE_TRACE_FRAGMENT` then
+    `GLSL_ES_300_BOUNCE_REDUCE_FRAGMENT` (both over
+    `GLSL_ES_300_BOUNCE_BUILD_VERTEX`) once per `bounces`, ping-ponging two
+    atlas targets; the last atlas is `u_bounce_atlas`, with every other
+    uniform from `GpuBounceBuild::bounce`, nothing read back. The rustdoc
+    on `GpuBounceBuild` lists every uniform. `None` where `frame_bounce`
+    gives `None`, or past a 4,096 texture side (about 2 million
+    triangles): build on the CPU then. Textures are sampled per hit as the
+    CPU does; one past 16 picture layers (256 MiB) reflects its centroid
+    colour. Measured (WebGL 2, headless Edge) against the CPU f64 build,
+    over every probe texel: lit test room (512 triangles, 3,375 probes)
+    max |d| 8.8e-7; Bancroft white-ceiling file (430,592 triangles, 3,192
+    probes, 84 lamps, 10 picture layers) mean bias +1.07e-4 on a CPU mean
+    of 0.2008, 0.035% of texels off by more than 5%, max 0.062, in-use
+    flags identical. Time: 1.54 s on an Intel Arc Pro B50 (D3D11) plus
+    0.73 s packing, against 10.2 s on 20 CPU threads; SwiftShader 287 s.
+    The CPU build stays the oracle and the path for exports and the CLI.
   - Lines: `DrawData::lines: Vec<f32>`, two vertices per segment,
     `LINE_VERTEX_FLOATS` (18) per vertex — position 3, colour RGBA 4 (0–1),
     segment midpoint 3, two face normals 3 + 3, kind 1 (0 always drawn), shaded 1;

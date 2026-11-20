@@ -1,0 +1,83 @@
+<!doctype html><html><head><title>pdfcer GPU bounce build</title></head>
+<body><pre id="out">running…</pre><script src="data.js"></script><script>
+// Pass 724.0: runs GpuBounceBuild's passes and compares the atlas with the CPU's.
+const out = document.getElementById("out"), lines = [];
+const log = s => { lines.push(s); out.textContent = lines.join("\n"); };
+try {
+  const c = document.createElement("canvas");
+  const gl = c.getContext("webgl2");
+  if (!gl) throw new Error("no WebGL 2");
+  if (!gl.getExtension("EXT_color_buffer_float")) throw new Error("no EXT_color_buffer_float");
+  const dbg = gl.getExtension("WEBGL_debug_renderer_info");
+  log("renderer: " + (dbg ? gl.getParameter(dbg.UNMASKED_RENDERER_WEBGL) : gl.getParameter(gl.RENDERER)));
+  const f32 = b => { const s = atob(b), u = new Uint8Array(s.length); for (let i = 0; i < s.length; i++) u[i] = s.charCodeAt(i); return new Float32Array(u.buffer); };
+  function tex(w, h, data) {
+    const t = gl.createTexture(); gl.bindTexture(gl.TEXTURE_2D, t);
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA32F, w, h, 0, gl.RGBA, gl.FLOAT, data);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
+    return t;
+  }
+  function target(w, h) { const t = tex(w, h, null); const f = gl.createFramebuffer(); gl.bindFramebuffer(gl.FRAMEBUFFER, f);
+    gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, t, 0); return { t, f, w, h }; }
+  function prog(fs) {
+    const p = gl.createProgram();
+    for (const [type, src] of [[gl.VERTEX_SHADER, D.vs], [gl.FRAGMENT_SHADER, fs]]) {
+      const s = gl.createShader(type); gl.shaderSource(s, src); gl.compileShader(s);
+      if (!gl.getShaderParameter(s, gl.COMPILE_STATUS)) throw new Error(gl.getShaderInfoLog(s)); gl.attachShader(p, s);
+    }
+    gl.linkProgram(p); if (!gl.getProgramParameter(p, gl.LINK_STATUS)) throw new Error(gl.getProgramInfoLog(p)); return p;
+  }
+  const bytes = b => { const s = atob(b), u = new Uint8Array(s.length); for (let i = 0; i < s.length; i++) u[i] = s.charCodeAt(i); return u; };
+  const pictures = gl.createTexture(); gl.bindTexture(gl.TEXTURE_2D_ARRAY, pictures);
+  gl.texImage3D(gl.TEXTURE_2D_ARRAY, 0, gl.RGBA8UI, D.pictures.w, D.pictures.h, D.pictures.l, 0, gl.RGBA_INTEGER, gl.UNSIGNED_BYTE, bytes(D.pictures.b));
+  gl.texParameteri(gl.TEXTURE_2D_ARRAY, gl.TEXTURE_MIN_FILTER, gl.NEAREST); gl.texParameteri(gl.TEXTURE_2D_ARRAY, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
+  const T = { uvs: tex(D.uvs.w, D.uvs.h, f32(D.uvs.b)), materials: tex(D.materials.w, D.materials.h, f32(D.materials.b)), pictures, nodes: tex(D.nodes.w, D.nodes.h, f32(D.nodes.b)), tris: tex(D.tris.w, D.tris.h, f32(D.tris.b)),
+              lamps: tex(D.lamps.w, D.lamps.h, f32(D.lamps.b)), probes: tex(D.probes.w, D.probes.h, f32(D.probes.b)) };
+  const trace = prog(D.trace), reduce = prog(D.reduce);
+  const tt = target(D.tw, D.th), atlas = [target(D.aw, D.ah), target(D.aw, D.ah)];
+  const vao = gl.createVertexArray(); gl.bindVertexArray(vao);
+  function bind(p, name, unit, t, target) { gl.activeTexture(gl.TEXTURE0 + unit); gl.bindTexture(target || gl.TEXTURE_2D, t); gl.uniform1i(gl.getUniformLocation(p, name), unit); }
+  const u = (p, n) => gl.getUniformLocation(p, n);
+  const t0 = performance.now();
+  let last = null, k = 0;
+  for (let bounce = 0; bounce < D.bounces; bounce++) {
+    gl.useProgram(trace); gl.bindFramebuffer(gl.FRAMEBUFFER, tt.f); gl.viewport(0, 0, tt.w, tt.h);
+    bind(trace, "u_nodes", 0, T.nodes); bind(trace, "u_tris", 1, T.tris); bind(trace, "u_lamps", 2, T.lamps); bind(trace, "u_probes", 3, T.probes);
+    bind(trace, "u_bounce_atlas", 4, last ? last.t : T.probes);
+    bind(trace, "u_uvs", 5, T.uvs); bind(trace, "u_materials", 6, T.materials); bind(trace, "u_pictures", 7, T.pictures, gl.TEXTURE_2D_ARRAY);
+    gl.uniform1i(u(trace, "u_lamp_count"), D.lamp_count); gl.uniform1i(u(trace, "u_probe_count"), D.probe_count);
+    gl.uniform1f(u(trace, "u_far"), D.far); gl.uniform1f(u(trace, "u_eps"), D.eps); gl.uniform3fv(u(trace, "u_sky"), D.sky);
+    gl.uniform3fv(u(trace, "u_rays"), D.rays); gl.uniform1i(u(trace, "u_first"), bounce == 0 ? 1 : 0);
+    gl.uniform3fv(u(trace, "u_bounce_origin"), [0, 0, 0]); gl.uniform3fv(u(trace, "u_bounce_spacing"), D.spacing); gl.uniform3iv(u(trace, "u_bounce_dims"), D.dims);
+    gl.drawArrays(gl.TRIANGLES, 0, 3);
+    const a = atlas[k]; k ^= 1;
+    gl.useProgram(reduce); gl.bindFramebuffer(gl.FRAMEBUFFER, a.f); gl.viewport(0, 0, a.w, a.h);
+    bind(reduce, "u_trace", 0, tt.t); bind(reduce, "u_probes", 1, T.probes);
+    gl.uniform1i(u(reduce, "u_probe_count"), D.probe_count); gl.uniform3fv(u(reduce, "u_rays"), D.rays); gl.uniform3fv(u(reduce, "u_texels"), D.texels);
+    gl.uniform1f(u(reduce, "u_far"), D.far); gl.uniform1f(u(reduce, "u_cap"), D.cap);
+    gl.drawArrays(gl.TRIANGLES, 0, 3);
+    last = a;
+  }
+  const got = new Float32Array(D.aw * D.ah * 4);
+  gl.bindFramebuffer(gl.FRAMEBUFFER, last.f); gl.readPixels(0, 0, D.aw, D.ah, gl.RGBA, gl.FLOAT, got);
+  const gpu_ms = performance.now() - t0;
+  const err = gl.getError(); if (err) log("gl error " + err);
+  const cpu = f32(D.cpu);
+  let n = 0, sum = 0, sumAbs = 0, max = 0, cpuSum = 0, flags = 0, dn = 0, dRel = 0, dMax = 0, big = 0;
+  for (let i = 0; i < D.aw * D.ah; i++) {
+    const x = i % D.aw;
+    if (x % 16 < 8) {
+      if (got[4 * i + 3] !== cpu[4 * i + 3]) flags++;
+      if (cpu[4 * i + 3] < 0.5) continue;
+      for (let ch = 0; ch < 3; ch++) { const d = got[4 * i + ch] - cpu[4 * i + ch]; sum += d; sumAbs += Math.abs(d); max = Math.max(max, Math.abs(d)); cpuSum += cpu[4 * i + ch]; n++;
+        if (Math.abs(d) > 0.05 * Math.max(cpu[4 * i + ch], 0.02)) big++; }
+    } else {
+      const d = Math.abs(got[4 * i] - cpu[4 * i]) / Math.max(cpu[4 * i], 1e-6); dRel += d; dMax = Math.max(dMax, d); dn++;
+    }
+  }
+  log(`triangles ${D.triangles}, probes ${D.probe_count}, lamps ${D.lamp_count}`);
+  log(`cpu build ${D.cpu_ms.toFixed(0)} ms (all cores), pack ${D.pack_ms.toFixed(0)} ms, gpu passes ${gpu_ms.toFixed(0)} ms`);
+  log(`irradiance: cpu mean ${(cpuSum / n).toFixed(5)}, gpu-cpu mean ${(sum / n).toExponential(3)}, mean |d| ${(sumAbs / n).toExponential(3)}, max |d| ${max.toExponential(3)}, >5% ${(100 * big / n).toFixed(3)}%`);
+  log(`in-use flags differing: ${flags}; depth mean rel ${(dRel / dn).toExponential(3)}, max rel ${dMax.toExponential(3)}`);
+} catch (e) { log("ERROR " + e.message); }
+</script></body></html>

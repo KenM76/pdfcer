@@ -551,4 +551,49 @@ mod tests {
         let follows = prepared.frame_bounce(&model, &camera(), &every).unwrap();
         assert!(follows.unwrap().follows_camera);
     }
+
+    #[test]
+    fn a_gpu_build_packs_the_probes_and_lamps_the_cpu_build_uses() {
+        let model = room();
+        let prepared = PreparedModel::new(&model);
+        let cpu = prepared
+            .frame_bounce(&model, &camera(), &options())
+            .unwrap()
+            .unwrap();
+        let gpu = prepared
+            .gpu_bounce_build(&model, &camera(), &options())
+            .unwrap()
+            .unwrap();
+        let b = &gpu.bounce;
+        assert_eq!(
+            (b.atlas_width, b.atlas_height),
+            (cpu.atlas_width, cpu.atlas_height)
+        );
+        assert_eq!(
+            (b.origin, b.spacing, b.dims),
+            (cpu.origin, cpu.spacing, cpu.dims)
+        );
+        assert_eq!(b.strength, cpu.strength);
+        assert!(b.atlas.is_empty());
+        let count = gpu.probe_count as usize;
+        assert_eq!(count, cpu.dims.iter().product::<i32>() as usize);
+        let width = cpu.atlas_width as usize;
+        let mut used = 0;
+        for i in 0..count {
+            let tile = (i % 64) * 16 + (i / 64) * 8 * width;
+            let flag = gpu.probes.texels[4 * i + 3];
+            assert_eq!(flag, cpu.atlas[4 * tile + 3], "probe {i}");
+            used += usize::from(flag == 1.0);
+        }
+        assert!(used > 0, "{used} of {count}");
+        assert_eq!(gpu.lamp_count, 1);
+        let lamp = &gpu.lamps.texels[..4];
+        let want: [f32; 3] = [0.5, 0.5, 0.9];
+        for k in 0..3 {
+            assert!((lamp[k] + cpu.origin[k] - want[k]).abs() < 1e-6);
+        }
+        assert_eq!(lamp[3], 1.0);
+        assert_eq!((gpu.rays.len(), gpu.texels.len(), gpu.bounces), (64, 64, 3));
+        assert_eq!(gpu.trace_height as usize, count.div_ceil(8));
+    }
 }

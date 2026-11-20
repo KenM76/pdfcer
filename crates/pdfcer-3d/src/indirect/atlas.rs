@@ -22,15 +22,19 @@ pub(crate) struct Atlas {
 }
 
 impl Volume {
+    /// The atlas's width and height in texels.
+    pub(crate) fn atlas_size(&self) -> (usize, usize) {
+        let width = TILES_PER_ROW * TILE_WIDTH;
+        (width, self.grid.len().div_ceil(TILES_PER_ROW).max(1) * SIDE)
+    }
+
     /// The last complete bounce as an [`Atlas`]. Probe `i`'s tile starts at
     /// texel (`16 (i mod 64)`, `8 (i div 64)`); its texel (`u`, `v`) is the
     /// irradiance of octahedral texel `v * 8 + u` (RGB, alpha 1 when the
     /// probe is used, else 0) and (`8 + u`, `v`) that texel's mean distance
     /// and the variance of the distance, as the lookup weighs them.
     pub(crate) fn atlas(&self) -> Atlas {
-        let len = self.grid.len();
-        let width = TILES_PER_ROW * TILE_WIDTH;
-        let height = len.div_ceil(TILES_PER_ROW).max(1) * SIDE;
+        let (width, height) = self.atlas_size();
         let mut texels = vec![0.0f32; width * height * 4];
         for (i, (probe, &active)) in self.current.iter().zip(&self.active).enumerate() {
             let (x0, y0) = ((i % TILES_PER_ROW) * TILE_WIDTH, (i / TILES_PER_ROW) * SIDE);

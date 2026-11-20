@@ -225,11 +225,51 @@ impl BounceStats {
 /// As [`Shader::for_frame`], and [`RenderError::Camera`] for a camera with
 /// no basis.
 pub(crate) fn frame_bounce(
-    (meshes, model_lights, _): crate::lighting::gloss::Model<'_>,
+    model: crate::lighting::gloss::Model<'_>,
     paints: &[Paint<'_>],
     camera: &Camera,
     options: &RenderOptions,
 ) -> Result<Option<BounceLight>, RenderError> {
+    let Some(setup) = bounce_setup(model, paints, camera, options)? else {
+        return Ok(None);
+    };
+    let BounceSetup {
+        mut volume,
+        index,
+        surfaces,
+        lamps,
+        sky,
+        strength,
+    } = setup;
+    let scene = Scene {
+        meshes: surfaces.meshes,
+        index: &index,
+        surfaces: &surfaces,
+        lamps: &lamps,
+        sky,
+        glow: &[],
+    };
+    volume.build(&scene, options.threads);
+    Ok(Some(BounceLight { volume, strength }))
+}
+
+/// What a frame's bounce is built from, before any ray is traced.
+pub(crate) struct BounceSetup<'a, 'p> {
+    pub(crate) volume: Volume,
+    pub(crate) index: PickIndex,
+    pub(crate) surfaces: Painted<'a, 'p>,
+    pub(crate) lamps: Vec<Lamp>,
+    pub(crate) sky: [f64; 3],
+    pub(crate) strength: f64,
+}
+
+/// [`frame_bounce`]'s inputs, unbuilt; `None` where it gives `None`.
+pub(crate) fn bounce_setup<'a, 'p>(
+    (meshes, model_lights, _): crate::lighting::gloss::Model<'a>,
+    paints: &'a [Paint<'p>],
+    camera: &Camera,
+    options: &RenderOptions,
+) -> Result<Option<BounceSetup<'a, 'p>>, RenderError> {
     let indirect = options.indirect;
     let strength = indirect.strength();
     if indirect.bounce == Bounce::Off || strength == 0.0 {
@@ -242,11 +282,9 @@ pub(crate) fn frame_bounce(
     if lamps.is_empty() {
         return Ok(None);
     }
-    let Some(mut volume) = Volume::new(meshes) else {
+    let Some(volume) = Volume::new(meshes) else {
         return Ok(None);
     };
-    let index = PickIndex::new(meshes);
-    let surfaces = Painted { meshes, paints };
     let sky = match indirect.bounce_sky {
         BounceSky::Dark => [0.0; 3],
         BounceSky::Background => {
@@ -254,16 +292,14 @@ pub(crate) fn frame_bounce(
             [r * a, g * a, b * a]
         }
     };
-    let scene = Scene {
-        meshes,
-        index: &index,
-        surfaces: &surfaces,
-        lamps: &lamps,
+    Ok(Some(BounceSetup {
+        volume,
+        index: PickIndex::new(meshes),
+        surfaces: Painted { meshes, paints },
+        lamps,
         sky,
-        glow: &[],
-    };
-    volume.build(&scene, options.threads);
-    Ok(Some(BounceLight { volume, strength }))
+        strength,
+    }))
 }
 
 /// The lights of `shader` that bounce under `options`. `artwork` says the
@@ -352,7 +388,12 @@ impl Painted<'_, '_> {
     /// The colour drawn at `hit`, straight RGBA; clear for a mesh with no
     /// paint, which is not drawn.
     fn colour(&self, hit: &Hit, weights: [f64; 3]) -> [u8; 4] {
-        let Some(paint) = self.paints.get(hit.mesh) else {
+        self.colour_at(hit.mesh, hit.triangle, weights)
+    }
+
+    /// The colour drawn on `triangle` of `mesh` at barycentric `weights`.
+    pub(crate) fn colour_at(&self, mesh: usize, triangle: usize, weights: [f64; 3]) -> [u8; 4] {
+        let Some(paint) = self.paints.get(mesh) else {
             return [0; 4];
         };
         let Some(texture) = paint.texture else {
@@ -360,8 +401,8 @@ impl Painted<'_, '_> {
         };
         let corners = self
             .meshes
-            .get(hit.mesh)
-            .and_then(|m| triangle_uvs(m, texture.uv_set, hit.triangle))
+            .get(mesh)
+            .and_then(|m| triangle_uvs(m, texture.uv_set, triangle))
             .unwrap_or([[0.0; 2]; 3]);
         let mut uv = [0.0; 2];
         for (w, c) in weights.iter().zip(corners) {

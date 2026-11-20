@@ -6,6 +6,8 @@ use crate::TriangleMesh;
 use crate::camera::pick::{Hit, Ray, intersect_weighted};
 use crate::render::corners;
 
+pub(crate) mod flat;
+
 /// Triangles per leaf; more costs intersection tests, fewer costs nodes.
 const LEAF_SIZE: usize = 4;
 
@@ -360,7 +362,7 @@ mod tests {
     use crate::render::corners;
 
     /// A deterministic scatter of `n` small triangles in a 10-unit cube.
-    fn scatter(n: usize, seed: u64) -> TriangleMesh {
+    pub(super) fn scatter(n: usize, seed: u64) -> TriangleMesh {
         let mut s = seed;
         let mut next = || {
             s = s
@@ -382,7 +384,8 @@ mod tests {
         mesh
     }
 
-    fn rays() -> Vec<Ray> {
+    /// Rays over the scatter, half from below and half slanted from above.
+    pub(super) fn rays() -> Vec<Ray> {
         let mut out = Vec::new();
         for i in 0..20 {
             for j in 0..20 {

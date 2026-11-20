@@ -6,6 +6,7 @@
 pub(crate) mod ao;
 #[macro_use]
 pub(crate) mod bounce;
+pub(crate) mod bounce_build;
 pub(crate) mod finish;
 pub(crate) mod frame;
 pub(crate) mod lamp_shadow;

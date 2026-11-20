@@ -78,7 +78,7 @@ dependencies = [
 
 [[package]]
 name = "pdfcer-3d"
-version = "0.143.0"
+version = "0.164.0"
 dependencies = [
  "flate2",
  "pdfcer-jpeg-remux",
@@ -91,21 +91,21 @@ dependencies = [
 
 [[package]]
 name = "pdfcer-jpeg-remux"
-version = "0.143.0"
+version = "0.164.0"
 dependencies = [
  "thiserror",
 ]
 
 [[package]]
 name = "pdfcer-json"
-version = "0.143.0"
+version = "0.164.0"
 dependencies = [
  "thiserror",
 ]
 
 [[package]]
 name = "pdfcer-vec3"
-version = "0.143.0"
+version = "0.164.0"
 
 [[package]]
 name = "png"
