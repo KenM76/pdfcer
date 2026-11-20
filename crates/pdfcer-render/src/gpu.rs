@@ -20,3 +20,5 @@ pub(crate) mod reference;
 pub(crate) mod scene;
 pub(crate) mod shade;
 pub(crate) mod shade_eval;
+pub(crate) mod shade_func;
+pub(crate) mod shade_mesh;

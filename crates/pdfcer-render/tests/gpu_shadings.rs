@@ -82,11 +82,21 @@ fn calculator() -> Vec<u8> {
     )
 }
 
+/// Object 7: a calculator over the unit square.
+fn unit_calculator() -> Vec<u8> {
+    stream(
+        "/FunctionType 4 /Domain [0 1 0 1] /Range [0 1 0 1 0 1]",
+        b"{ 2 copy mul 3 1 roll exch }",
+    )
+}
+
 /// Resources naming every shading kind, `/G0` a `/ca 0.5` state.
 fn resources() -> String {
     format!(
         "<< /Shading << /A0 {AXIAL} /R0 {RADIAL} /M0 5 0 R /F0 << /ShadingType 1 \
-         /ColorSpace /DeviceRGB /Domain [0 120 0 120] /Function 6 0 R >> >> \
+         /ColorSpace /DeviceRGB /Domain [0 120 0 120] /Function 6 0 R >> \
+         /F1 << /ShadingType 1 /ColorSpace /DeviceRGB /Domain [0 1 0 1] \
+         /Matrix [70 20 -15 80 30 10] /BBox [20 15 95 100] /Function 7 0 R >> >> \
          /Pattern << /P0 << /PatternType 2 /Shading {AXIAL} >> \
          /P1 << /PatternType 2 /Shading 5 0 R /Matrix [1 0 0 1 -10 -5] >> >> \
          /ExtGState << /G0 << /ca 0.5 >> /G1 << /ca 0.37 >> >> >>"
@@ -94,7 +104,11 @@ fn resources() -> String {
 }
 
 fn assert_matches(content: &str, what: &str) {
-    let doc = page(content, &resources(), &[mesh(), calculator()]);
+    let doc = page(
+        content,
+        &resources(),
+        &[mesh(), calculator(), unit_calculator()],
+    );
     let page = page_tree::pages(&doc).expect("page tree").remove(0);
     for scale in [1.0_f32, 2.37, 300.0 / 72.0] {
         let list = record_page(&doc.view(), &page, scale, 1, &RenderOptions::default())
@@ -170,10 +184,87 @@ fn evaluated_branches() {
 #[test]
 fn function_based_and_mesh() {
     assert_matches("/F0 sh", "function-based");
+    assert_matches("/F1 sh", "function-based, matrix and bbox");
+    assert_matches(
+        "q 0.8 0.5 -0.4 0.9 30 -10 cm /F0 sh Q",
+        "function-based rotated",
+    );
+    assert_matches(
+        "0 0 1 rg 0 0 120 120 re f q /G1 gs 15 20 m 100 10 l 70 110 l h W n /F0 sh Q",
+        "function-based translucent, clipped",
+    );
     assert_matches(
         "0 1 0 rg 0 0 120 120 re f q 10 10 100 90 re W n /G0 gs /M0 sh Q",
         "mesh at half alpha",
     );
+}
+
+/// Mesh branches the shader evaluates: a Coons patch (subdivided), a
+/// parametric mesh through a ramp, a `/BBox`, a rotated matrix, alpha.
+#[test]
+fn mesh_branches() {
+    let mut coons = vec![0u8];
+    for (x, y) in [
+        (20, 20),
+        (20, 95),
+        (10, 170),
+        (20, 235),
+        (95, 245),
+        (170, 225),
+        (235, 235),
+        (235, 160),
+        (245, 85),
+        (235, 20),
+        (160, 10),
+        (85, 30),
+    ] {
+        coons.extend_from_slice(&[x, y]);
+    }
+    coons.extend_from_slice(&[255, 0, 0, 0, 255, 0, 0, 0, 255, 255, 255, 0]);
+    let param: [u8; 24] = [
+        0, 10, 10, 0, 0, 240, 60, 128, 0, 120, 240, 255, //
+        0, 250, 230, 30, 0, 30, 200, 200, 0, 200, 20, 90, //
+    ];
+    let keys = "/ColorSpace /DeviceRGB /BitsPerCoordinate 8 /BitsPerComponent 8         /BitsPerFlag 8 /Decode [0 120 0 120 0 1 0 1 0 1]";
+    let objs = [
+        stream(&format!("/ShadingType 6 {keys}"), &coons),
+        stream(
+            &format!("/ShadingType 6 {keys} /BBox [15 25 90 100]"),
+            &coons,
+        ),
+        stream(
+            "/ShadingType 4 /ColorSpace /DeviceRGB /BitsPerCoordinate 8              /BitsPerComponent 8 /BitsPerFlag 8 /Decode [0 120 0 120 0 1]              /Function << /FunctionType 2 /Domain [0 1] /C0 [0.9 0.2 0.1]              /C1 [0.1 0.3 0.9] /N 1.7 >>",
+            &param,
+        ),
+    ];
+    let res = "<< /Shading << /K0 5 0 R /K1 6 0 R /T0 7 0 R >>         /ExtGState << /G0 << /ca 0.43 >> >> >>";
+    for (content, what) in [
+        ("/K0 sh", "coons patch"),
+        ("/K1 sh", "patch in a bbox"),
+        ("q 0.8 0.5 -0.4 0.9 30 -10 cm /K0 sh Q", "rotated patch"),
+        ("/T0 sh", "parametric mesh"),
+        (
+            "0 0 1 rg 0 0 120 120 re f q /G0 gs /T0 sh Q",
+            "translucent parametric",
+        ),
+    ] {
+        let doc = page(content, res, &objs);
+        let page = page_tree::pages(&doc).expect("page tree").remove(0);
+        for scale in [1.0_f32, 2.37, 300.0 / 72.0] {
+            let list =
+                record_page(&doc.view(), &page, scale, 1, &RenderOptions::default()).unwrap();
+            let cpu = list.replay_region(list.key(), page.crop_box).unwrap();
+            assert!(
+                cpu.pixmap.data().chunks(4).any(|p| p != [255; 4]),
+                "{what}: paints"
+            );
+            let scene = list.gpu_scene(list.key(), page.crop_box).unwrap();
+            assert!(
+                scene.evaluate() == cpu.pixmap.data(),
+                "{what} at {scale} differs"
+            );
+        }
+    }
 }
 
 /// Translucent shadings over a translucent backdrop, where the composite's

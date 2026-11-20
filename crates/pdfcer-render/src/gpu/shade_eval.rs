@@ -1,5 +1,6 @@
 //! An axial or radial shading's record for the shader to evaluate, and that
-//! evaluation in Rust for [`super::reference`].
+//! evaluation in Rust for [`super::reference`]; meshes and type 1 shadings
+//! are handed to [`super::shade_mesh`] and [`super::shade_func`].
 //!
 //! Record layout from its first texel, `f32`s as bit patterns:
 //! `[tag, flags, 0, 0]` (tag −1 axial, −2 radial; flags bit 0/1 extend,
@@ -21,10 +22,10 @@ use crate::display_list::shading_op::{self, ShadingOp};
 use crate::shading::gpu_terms::{Kind, Terms};
 
 /// An evaluated shading and the edges of the area it draws in each tile.
-type Evaluated = (Arc<ShadePaint>, Vec<Option<super::fill_edges::FillEdges>>);
+pub(super) type Evaluated = (Arc<ShadePaint>, Vec<Option<super::fill_edges::FillEdges>>);
 
 #[allow(clippy::cast_possible_wrap)] // bit patterns
-fn bits(v: [f32; 4]) -> [i32; 4] {
+pub(super) fn bits(v: [f32; 4]) -> [i32; 4] {
     v.map(|f| f.to_bits() as i32)
 }
 
@@ -38,6 +39,12 @@ pub(crate) fn eval(
     frame: &Frame<'_>,
     op: &ShadingOp,
 ) -> Option<Result<Option<Evaluated>, GpuRefusal>> {
+    if let Some(mesh) = super::shade_mesh::eval(frame, op) {
+        return Some(mesh);
+    }
+    if let Some(func) = super::shade_func::eval(frame, op) {
+        return Some(func);
+    }
     let terms = op.shading.gpu_terms()?;
     let size = (frame.width, frame.height);
     let Some((to_target, rect)) =
@@ -45,7 +52,23 @@ pub(crate) fn eval(
     else {
         return Some(Ok(None));
     };
-    let edges = match &op.area {
+    let edges = area_edges(frame, op, rect);
+    let texels = texels(&terms, to_target, rect, op.alpha);
+    Some(edges.map(|e| Some((Arc::new(ShadePaint::Evaluated(texels)), e))))
+}
+
+/// The edges of the area `op` draws over `frame`: its path, or else the
+/// walked rectangle `rect`.
+///
+/// # Errors
+///
+/// What [`Frame::edges`] refuses.
+pub(super) fn area_edges(
+    frame: &Frame<'_>,
+    op: &ShadingOp,
+    rect: (i32, i32, i32, i32),
+) -> Result<Vec<Option<super::fill_edges::FillEdges>>, GpuRefusal> {
+    match &op.area {
         Some(a) => frame.edges(&a.path, a.rule, frame.to_region(a.ctm), a.anti_alias),
         None => {
             let (l, t, r, b) = rect;
@@ -53,13 +76,24 @@ pub(crate) fn eval(
             let Some(path) =
                 Rect::from_ltrb(l as f32, t as f32, r as f32, b as f32).map(PathBuilder::from_rect)
             else {
-                return Some(Ok(None));
+                return Ok(vec![]);
             };
             frame.edges(&path, FillRule::Winding, Transform::identity(), false)
         }
-    };
-    let texels = texels(&terms, to_target, rect, op.alpha);
-    Some(edges.map(|e| Some((Arc::new(ShadePaint::Evaluated(texels)), e))))
+    }
+}
+
+/// `paint_region`'s `alpha * coverage` per clip byte, four lanes a texel.
+pub(super) fn alpha_lanes(alpha: f32) -> impl Iterator<Item = [i32; 4]> {
+    let alpha = alpha.clamp(0.0, 1.0);
+    let lanes: Vec<f32> = (0..=255u8)
+        .map(|c| alpha * (f32::from(c) / 255.0))
+        .collect();
+    (0..64).map(move |i| {
+        bits(std::array::from_fn(|k| {
+            lanes.get(i * 4 + k).copied().unwrap_or(0.0)
+        }))
+    })
 }
 
 fn texels(
@@ -86,16 +120,7 @@ fn texels(
     out.push(bits(terms.origin));
     out.push(bits(terms.axis));
     out.push(bits(terms.cone));
-    // `paint_region`'s `alpha * coverage`, coverage a clip byte over 255.
-    let alpha = alpha.clamp(0.0, 1.0);
-    let lanes: Vec<f32> = (0..=255u8)
-        .map(|c| alpha * (f32::from(c) / 255.0))
-        .collect();
-    out.extend(
-        lanes
-            .chunks(4)
-            .map(|c| bits(std::array::from_fn(|k| c.get(k).copied().unwrap_or(0.0)))),
-    );
+    out.extend(alpha_lanes(alpha));
     for s in &terms.samples {
         out.push(match s {
             Some((rgb, o)) => {
@@ -178,6 +203,12 @@ pub(crate) fn reference(
     #[allow(clippy::cast_sign_loss)] // bit patterns
     let f = |t: [i32; 4]| t.map(|v| f32::from_bits(v as u32));
     let [tag, flags, _, _] = at(rec);
+    if tag == super::shade_mesh::MESH_TAG {
+        return super::shade_mesh::reference(at, rec, (px, py), cb);
+    }
+    if tag == super::shade_func::FUNC_TAG {
+        return super::shade_func::reference(at, rec, (px, py), cb);
+    }
     let [l, t, r, b] = at(rec + 1);
     if px < l || py < t || px >= r || py >= b {
         return None;

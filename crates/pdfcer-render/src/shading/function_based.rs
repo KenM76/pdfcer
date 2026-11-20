@@ -23,7 +23,7 @@ use crate::color::{ColorDiagnostics, ColorSpace};
 use crate::icc::ColorBridges;
 
 /// Lattice nodes per domain axis.
-const GRID: usize = 128;
+pub(crate) const GRID: usize = 128;
 
 /// The grid for a type 1 `geometry`, counted and noted in `diag` like a
 /// ramp; `None` for any other type, or when there is no colour to sample.
@@ -61,13 +61,26 @@ pub(super) fn grid_for(
 
 /// A type 1 shading's colour, pre-sampled over its domain.
 #[derive(Debug, Clone)]
-pub(super) struct FunctionGrid {
+pub(crate) struct FunctionGrid {
     /// `/Domain` as `[xmin xmax ymin ymax]` (Table 78's order).
     domain: [f32; 4],
     /// `/Matrix`⁻¹: target space to domain space.
     from_target: tiny_skia::Transform,
     /// sRGB per node, row-major in `y`; `None` where the function failed.
     nodes: Vec<Option<[f32; 3]>>,
+}
+
+/// What the graphics card needs of a [`FunctionGrid`] to repeat
+/// [`FunctionGrid`]'s lookup bit for bit.
+pub(crate) struct GridTerms<'a> {
+    /// `/Domain` as `[xmin xmax ymin ymax]`.
+    pub domain: [f32; 4],
+    /// Lattice cells per domain unit, per axis.
+    pub scale: [f32; 2],
+    /// Target space to domain space.
+    pub from_target: tiny_skia::Transform,
+    /// The nodes, row-major in `y`, [`GRID`] a row.
+    pub nodes: &'a [Option<[f32; 3]>],
 }
 
 impl FunctionGrid {
@@ -116,6 +129,25 @@ impl FunctionGrid {
         })
     }
 
+    /// Lattice cells per domain unit, per axis: a reciprocal, so the card's
+    /// unrounded division is not needed.
+    fn scale(&self) -> [f32; 2] {
+        let [x0, x1, y0, y1] = self.domain;
+        #[allow(clippy::cast_precision_loss)]
+        let last = (GRID - 1) as f32;
+        [last / (x1 - x0), last / (y1 - y0)]
+    }
+
+    /// The grid's terms for the graphics card.
+    pub(crate) fn gpu_terms(&self) -> GridTerms<'_> {
+        GridTerms {
+            domain: self.domain,
+            scale: self.scale(),
+            from_target: self.from_target,
+            nodes: &self.nodes,
+        }
+    }
+
     /// Whether every node has a colour.
     fn is_complete(&self) -> bool {
         self.nodes.iter().all(Option::is_some)
@@ -131,10 +163,8 @@ impl FunctionGrid {
         }
         #[allow(clippy::cast_precision_loss)]
         let last = (GRID - 1) as f32;
-        let (u, v) = (
-            (pt.x - x0) / (x1 - x0) * last,
-            (pt.y - y0) / (y1 - y0) * last,
-        );
+        let [su, sv] = self.scale();
+        let (u, v) = ((pt.x - x0) * su, (pt.y - y0) * sv);
         // In 0..=GRID-2 after the clamp, so the cast is exact.
         #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
         let cell = |t: f32| t.floor().clamp(0.0, last - 1.0) as usize;
@@ -147,9 +177,10 @@ impl FunctionGrid {
         let mut out = [0.0; 3];
         for (k, o) in out.iter_mut().enumerate() {
             let ch = |c: [f32; 3]| c.get(k).copied().unwrap_or(0.0);
-            let top = fu.mul_add(ch(c10) - ch(c00), ch(c00));
-            let bottom = fu.mul_add(ch(c11) - ch(c01), ch(c01));
-            *o = fv.mul_add(bottom - top, top);
+            // Unfused, so the graphics card repeats it exactly.
+            let top = fu * (ch(c10) - ch(c00)) + ch(c00);
+            let bottom = fu * (ch(c11) - ch(c01)) + ch(c01);
+            *o = fv * (bottom - top) + top;
         }
         Some(out)
     }

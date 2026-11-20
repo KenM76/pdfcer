@@ -166,8 +166,10 @@ use pdfcer_core::settings::MeshPatchPadding;
 
 use crate::color::{ColorDiagnostics, ColorSpace};
 use crate::gstate::Rgb;
-use crate::page_budget::{MESH_TRIANGLE_COST, MeshMeter};
+use crate::page_budget::MeshMeter;
 use crate::shading::ColorRamp;
+
+pub(crate) mod walk;
 
 /// Ceiling on records (vertices or patches) decoded from one mesh stream.
 ///
@@ -1892,98 +1894,18 @@ fn rasterise(
         },
     };
 
-    let mut budget = MAX_TRIANGLES;
-
-    match &mesh.data {
-        MeshData::Triangles(tris) => {
-            for tri in tris {
-                if budget == 0 {
-                    break;
-                }
-                budget -= 1;
-                let dev = [
-                    map(to_device, tri.xy[0]),
-                    map(to_device, tri.xy[1]),
-                    map(to_device, tri.xy[2]),
-                ];
-                if !fill_triangle(&mut scratch, (ox, oy), dev, tri.shade, ramp, meter) {
-                    break;
-                }
+    #[allow(clippy::cast_possible_wrap)] // a pixmap's side fits i32
+    let dims = (sw as i32, sh as i32);
+    walk::walk(mesh, to_device, meter, |dev, shade| {
+        match walk::setup(dev, (ox, oy), dims, meter) {
+            walk::Step::Skip => true,
+            walk::Step::Stop => false,
+            walk::Step::Fill(set) => {
+                fill_triangle(&mut scratch, (ox, oy), &set, shade, ramp);
+                true
             }
         }
-        MeshData::Patches(patches) => {
-            let mut grid_p: Vec<[f32; 2]> = Vec::new();
-            let mut grid_s: Vec<Shade> = Vec::new();
-            'mesh: for patch in patches {
-                if budget == 0 {
-                    break;
-                }
-                let n = subdivision_for(patch_device_extent(patch, to_device));
-                let side = (n + 1) as usize;
-                let cells = (n as usize) * (n as usize) * 2;
-                if cells > budget {
-                    // The ceiling is on the whole mesh, not on one patch,
-                    // so a patch that does not fit stops the mesh rather
-                    // than being drawn at a coarser density it never asked
-                    // for.
-                    break;
-                }
-                budget -= cells;
-                if !meter.charge((side * side) as u64) {
-                    break;
-                }
-
-                grid_p.clear();
-                grid_s.clear();
-                for jv in 0..=n {
-                    let v = jv as f32 / n as f32;
-                    for iu in 0..=n {
-                        let u = iu as f32 / n as f32;
-                        grid_p.push(map(to_device, patch.at(u, v)));
-                        grid_s.push(patch.shade_at(u, v));
-                    }
-                }
-                // MSH32: increasing v outer, increasing u inner, painted in
-                // that order, so the largest-v point wins a fold.
-                let rows_p = grid_p
-                    .chunks_exact(side)
-                    .zip(grid_p.chunks_exact(side).skip(1));
-                let rows_s = grid_s
-                    .chunks_exact(side)
-                    .zip(grid_s.chunks_exact(side).skip(1));
-                for ((p0, p1), (s0, s1)) in rows_p.zip(rows_s) {
-                    let cells = p0
-                        .windows(2)
-                        .zip(p1.windows(2))
-                        .zip(s0.windows(2).zip(s1.windows(2)));
-                    for ((pt, pb), (st, sb)) in cells {
-                        let (&[pa, pb_], &[pc, pd], &[sa, sb_], &[sc, sd]) = (pt, pb, st, sb)
-                        else {
-                            continue;
-                        };
-                        let o = (ox, oy);
-                        if !fill_triangle(
-                            &mut scratch,
-                            o,
-                            [pa, pb_, pc],
-                            [sa, sb_, sc],
-                            ramp,
-                            meter,
-                        ) || !fill_triangle(
-                            &mut scratch,
-                            o,
-                            [pb_, pc, pd],
-                            [sb_, sc, sd],
-                            ramp,
-                            meter,
-                        ) {
-                            break 'mesh;
-                        }
-                    }
-                }
-            }
-        }
-    }
+    });
 
     Some((scratch, ox, oy))
 }
@@ -2033,81 +1955,17 @@ pub(crate) fn patch_device_extent(patch: &Patch, to_device: tiny_skia::Transform
 /// would not be harmless writing into the destination, which is the other
 /// half of why [`paint`] uses a scratch.
 ///
-/// Returns `false` once `meter` is spent; the caller stops the mesh there.
+/// The products are unfused so the graphics card repeats them exactly.
 fn fill_triangle(
     scratch: &mut Scratch,
     (ox, oy): (i32, i32),
-    dev: [[f32; 2]; 3],
+    set: &walk::Setup,
     shade: [Shade; 3],
     ramp: Option<&ColorRamp>,
-    meter: MeshMeter<'_>,
-) -> bool {
-    let (x0, y0) = (dev[0][0], dev[0][1]);
-    let (x1, y1) = (dev[1][0], dev[1][1]);
-    let (x2, y2) = (dev[2][0], dev[2][1]);
-    if !(x0.is_finite()
-        && y0.is_finite()
-        && x1.is_finite()
-        && y1.is_finite()
-        && x2.is_finite()
-        && y2.is_finite())
-    {
-        return meter.charge(MESH_TRIANGLE_COST);
-    }
-    // Twice the signed area. Zero means a degenerate triangle, for which
-    // MSH-N5 records that the standard is silent — a zero-area triangle
-    // covers no pixel centre under any scan conversion, so skipping is not
-    // a choice so much as the arithmetic.
-    let area = (x1 - x0).mul_add(y2 - y0, -((x2 - x0) * (y1 - y0)));
-    if area.abs() < f32::EPSILON {
-        return meter.charge(MESH_TRIANGLE_COST);
-    }
-    let inv_area = 1.0 / area;
-
-    // Per-edge coverage thresholds implementing CRACK_MARGIN_PX.
-    //
-    // A normalised barycentric weight IS a normalised distance: `w_i * h_i`
-    // is the distance from the sample point to the edge opposite vertex
-    // `i`, where `h_i = |area| / |edge_i|` and `area` here is already twice
-    // the signed triangle area. So "accept points up to `margin` pixels
-    // outside edge `i`" is exactly `w_i >= -margin * |edge_i| / |area|`.
-    //
-    // Computed per edge rather than as one constant because the three
-    // heights of a sliver triangle differ by orders of magnitude, and a
-    // single threshold would dilate its long edge by a pixel while barely
-    // moving its short one.
-    let len = |ax: f32, ay: f32, bx: f32, by: f32| (bx - ax).hypot(by - ay);
-    let scale = CRACK_MARGIN_PX / area.abs();
-    let t0 = -scale * len(x1, y1, x2, y2);
-    let t1 = -scale * len(x0, y0, x2, y2);
-    let t2 = -scale * len(x0, y0, x1, y1);
-
-    #[allow(clippy::cast_possible_truncation)]
-    let min_x = x0.min(x1).min(x2).floor() as i32;
-    #[allow(clippy::cast_possible_truncation)]
-    let max_x = x0.max(x1).max(x2).ceil() as i32;
-    #[allow(clippy::cast_possible_truncation)]
-    let min_y = y0.min(y1).min(y2).floor() as i32;
-    #[allow(clippy::cast_possible_truncation)]
-    let max_y = y0.max(y1).max(y2).ceil() as i32;
-
-    #[allow(clippy::cast_possible_wrap)]
-    let w = scratch.rgba.width() as i32;
-    #[allow(clippy::cast_possible_wrap)]
-    let h = scratch.rgba.height() as i32;
-    let lo_x = (min_x - ox).max(0);
-    let hi_x = (max_x - ox + 1).min(w);
-    let lo_y = (min_y - oy).max(0);
-    let hi_y = (max_y - oy + 1).min(h);
-    if lo_x >= hi_x || lo_y >= hi_y {
-        return meter.charge(MESH_TRIANGLE_COST);
-    }
-    #[allow(clippy::cast_sign_loss)]
-    let reach = ((hi_x - lo_x) as u64) * ((hi_y - lo_y) as u64);
-    if !meter.charge(MESH_TRIANGLE_COST + reach) {
-        return false;
-    }
-
+) {
+    let [[x0, y0], [x1, y1], [x2, y2]] = set.dev;
+    let (inv_area, [t0, t1, t2]) = (set.inv_area, set.margin);
+    let (lo_x, hi_x, lo_y, hi_y) = set.span;
     for py in lo_y..hi_y {
         let cy = (py + oy) as f32 + 0.5;
         for px in lo_x..hi_x {
@@ -2115,8 +1973,8 @@ fn fill_triangle(
             // Barycentric weights, normalised by the signed area so the
             // test is orientation-agnostic (MSH-N5 again: nothing gives a
             // mesh triangle a facing).
-            let w1 = (cx - x0).mul_add(y2 - y0, -((cy - y0) * (x2 - x0))) * inv_area;
-            let w2 = (x1 - x0).mul_add(cy - y0, -((y1 - y0) * (cx - x0))) * inv_area;
+            let w1 = ((cx - x0) * (y2 - y0) - (cy - y0) * (x2 - x0)) * inv_area;
+            let w2 = ((x1 - x0) * (cy - y0) - (y1 - y0) * (cx - x0)) * inv_area;
             let w0 = 1.0 - w1 - w2;
             #[allow(clippy::cast_sign_loss)]
             let idx = (py as usize) * (scratch.rgba.width() as usize) + (px as usize);
@@ -2182,7 +2040,6 @@ fn fill_triangle(
             }
         }
     }
-    true
 }
 
 /// The two-plane rasterisation target.
@@ -2229,9 +2086,9 @@ struct Scratch {
 fn interpolate(shade: [Shade; 3], w: [f32; 3]) -> Shade {
     match shade {
         [Shade::Rgb(a), Shade::Rgb(b), Shade::Rgb(c)] => Shade::Rgb(Rgb {
-            r: w[0].mul_add(a.r, w[1].mul_add(b.r, w[2] * c.r)),
-            g: w[0].mul_add(a.g, w[1].mul_add(b.g, w[2] * c.g)),
-            b: w[0].mul_add(a.b, w[1].mul_add(b.b, w[2] * c.b)),
+            r: bary(w, a.r, b.r, c.r),
+            g: bary(w, a.g, b.g, c.g),
+            b: bary(w, a.b, b.b, c.b),
         }),
         [
             Shade::Ink { rgb: ra, cmyk: ca },
@@ -2239,9 +2096,9 @@ fn interpolate(shade: [Shade; 3], w: [f32; 3]) -> Shade {
             Shade::Ink { rgb: rc, cmyk: cc },
         ] => Shade::Ink {
             rgb: Rgb {
-                r: w[0].mul_add(ra.r, w[1].mul_add(rb.r, w[2] * rc.r)),
-                g: w[0].mul_add(ra.g, w[1].mul_add(rb.g, w[2] * rc.g)),
-                b: w[0].mul_add(ra.b, w[1].mul_add(rb.b, w[2] * rc.b)),
+                r: bary(w, ra.r, rb.r, rc.r),
+                g: bary(w, ra.g, rb.g, rc.g),
+                b: bary(w, ra.b, rb.b, rc.b),
             },
             cmyk: [
                 w[0].mul_add(ca[0], w[1].mul_add(cb[0], w[2] * cc[0])),
@@ -2271,9 +2128,9 @@ fn interpolate(shade: [Shade; 3], w: [f32; 3]) -> Shade {
             },
         ] => Shade::Spot {
             rgb: Rgb {
-                r: w[0].mul_add(ra.r, w[1].mul_add(rb.r, w[2] * rc.r)),
-                g: w[0].mul_add(ra.g, w[1].mul_add(rb.g, w[2] * rc.g)),
-                b: w[0].mul_add(ra.b, w[1].mul_add(rb.b, w[2] * rc.b)),
+                r: bary(w, ra.r, rb.r, rc.r),
+                g: bary(w, ra.g, rb.g, rc.g),
+                b: bary(w, ra.b, rb.b, rc.b),
             },
             cmyk: bary_n(w, ca, cb, cc),
             process: bary_n(w, pa, pb, pc),
@@ -2283,9 +2140,14 @@ fn interpolate(shade: [Shade; 3], w: [f32; 3]) -> Shade {
             Shade::Parametric(a),
             Shade::Parametric(b),
             Shade::Parametric(c),
-        ] => Shade::Parametric(w[0].mul_add(a, w[1].mul_add(b, w[2] * c))),
+        ] => Shade::Parametric(bary(w, a, b, c)),
         [a, _, _] => a,
     }
+}
+
+/// `w`'s weighted sum, unfused so the graphics card repeats it exactly.
+pub(crate) fn bary(w: [f32; 3], a: f32, b: f32, c: f32) -> f32 {
+    w[0] * a + (w[1] * b + w[2] * c)
 }
 
 /// Composite the finished scratch onto the destination, once.

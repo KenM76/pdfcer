@@ -94,13 +94,13 @@ impl Shading {
     }
 }
 
-fn ramp_scale(ramp: &ColorRamp) -> (f32, Option<f32>) {
+pub(crate) fn ramp_scale(ramp: &ColorRamp) -> (f32, Option<f32>) {
     let [t0, t1] = ramp.domain;
     let span = t1 - t0;
     (t0, (span.abs() >= f32::EPSILON).then(|| 1.0 / span))
 }
 
-fn samples(ramp: &ColorRamp) -> Vec<Option<([f32; 3], [u8; 3])>> {
+pub(crate) fn samples(ramp: &ColorRamp) -> Vec<Option<([f32; 3], [u8; 3])>> {
     #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
     let byte = |src: f32| (src * 255.0).round().clamp(0.0, 255.0) as u8;
     let mut v: Vec<_> = ramp

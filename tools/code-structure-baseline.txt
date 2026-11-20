@@ -513,7 +513,6 @@ fn pdfcer-render/src/mask.rs::soft_mask_plane
 fn pdfcer-render/src/mesh.rs::parse
 fn pdfcer-render/src/mesh.rs::parse_patches
 fn pdfcer-render/src/mesh.rs::parse_type4
-fn pdfcer-render/src/mesh.rs::rasterise
 fn pdfcer-render/src/overprint.rs::classify
 fn pdfcer-render/src/overprint.rs::compatible_overprint_cmyk
 fn pdfcer-render/src/shading.rs::load

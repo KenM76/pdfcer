@@ -303,8 +303,90 @@ bool shade_t(int rec, int tag, int fl, float x, float y, out float t) {
   t = mul(cn.w, clamp(s, 0.0, 1.0)) + o.z;
   return true;
 }
+bool mesh_colour(int rec, int fl, int ramp, vec3 v, out vec3 c) {
+  if ((fl & 1) == 0) {
+    for (int k = 0; k < 3; k++) c[k] = float(byte(mul(clamp(v[k], 0.0, 1.0), 255.0)));
+    return true;
+  }
+  vec4 m1 = fb(at(rec + 3));
+  float frac = (fl & 8) != 0 ? 0.0 : clamp(mul(v.x - m1.z, m1.w), 0.0, 1.0);
+  int o = at(rec + ramp + byte(mul(frac, 255.0))).x;
+  c = vec3(channels(o).rgb);
+  return o != 0;
+}
+bool mesh_eval(int rec, ivec4 h, int px, int py, int cb, out vec4 s) {
+  ivec4 reg = at(rec + 1);
+  if (px < reg.x || py < reg.y || px >= reg.z || py >= reg.w) return false;
+  float cx = float(px) + 0.5, cy = float(py) + 0.5;
+  if ((h.y & 4) != 0) {
+    vec4 m0 = fb(at(rec + 2)), m1 = fb(at(rec + 3)), bb = fb(at(rec + 4));
+    float x = (mul(cx, m0.x) + mul(cy, m0.y)) + m0.z;
+    float y = (mul(cx, m0.w) + mul(cy, m1.x)) + m1.y;
+    if (x < bb.x || x > bb.y || y < bb.z || y > bb.w) return false;
+  }
+  ivec4 sec = at(rec + 5);
+  ivec4 dir = at(rec + sec.x + ((py - reg.y) >> 4) * h.z + ((px - reg.x) >> 4));
+  bool any = false;
+  vec3 col = vec3(0.0);
+  for (int i = dir.x + dir.y - 1; i >= dir.x; i--) {
+    int tri = rec + sec.z + 7 * lane(((rec + sec.y) << 2) + i);
+    ivec4 sp = at(tri + 3);
+    if (px < sp.x || px >= sp.y || py < sp.z || py >= sp.w) continue;
+    vec4 p = fb(at(tri)), q = fb(at(tri + 1)), m = fb(at(tri + 2));
+    float w1 = mul(mul(cx - p.x, q.y - p.y) - mul(cy - p.y, q.x - p.x), q.z);
+    float w2 = mul(mul(p.z - p.x, cy - p.y) - mul(p.w - p.y, cx - p.x), q.z);
+    float w0 = (1.0 - w1) - w2;
+    bool exact = !(w0 < 0.0 || w1 < 0.0 || w2 < 0.0);
+    if (!exact && !(w0 >= q.w && w1 >= m.x && w2 >= m.y)) continue;
+    vec3 a = fb(at(tri + 4)).xyz, b = fb(at(tri + 5)).xyz, d = fb(at(tri + 6)).xyz;
+    vec3 v;
+    for (int k = 0; k < 3; k++) v[k] = mul(w0, a[k]) + (mul(w1, b[k]) + mul(w2, d[k]));
+    vec3 c;
+    if (!mesh_colour(rec, h.y, sec.w, v, c)) continue;
+    col = c;
+    any = true;
+    if (exact) break;
+  }
+  if (!any) return false;
+  float al = fb(lane(((rec + 8) << 2) + cb));
+  if (!(al > 0.0)) return false;
+  s = vec4(mul(col.x, al), mul(col.y, al), mul(col.z, al), al);
+  return true;
+}
+bool func_eval(int rec, ivec4 h, int px, int py, int cb, out vec4 s) {
+  ivec4 reg = at(rec + 1);
+  if (px < reg.x || py < reg.y || px >= reg.z || py >= reg.w) return false;
+  float fx = float(px) + 0.5, fy = float(py) + 0.5;
+  vec4 m0 = fb(at(rec + 2)), m1 = fb(at(rec + 3)), bb = fb(at(rec + 4));
+  float x = (mul(fx, m0.x) + mul(fy, m0.y)) + m0.z;
+  float y = (mul(fx, m0.w) + mul(fy, m1.x)) + m1.y;
+  if ((h.y & 4) != 0 && (x < bb.x || x > bb.y || y < bb.z || y > bb.w)) return false;
+  vec4 d0 = fb(at(rec + 5)), d1 = fb(at(rec + 6)), dom = fb(at(rec + 7));
+  float u0 = (mul(x, d0.x) + mul(y, d0.y)) + d0.z;
+  float v0 = (mul(x, d0.w) + mul(y, d1.x)) + d1.y;
+  if (!(u0 >= dom.x && u0 <= dom.y && v0 >= dom.z && v0 <= dom.w)) return false;
+  float u = mul(u0 - dom.x, d1.z), v = mul(v0 - dom.z, d1.w);
+  int i = int(clamp(floor(u), 0.0, 126.0)), j = int(clamp(floor(v), 0.0, 126.0));
+  float fu = u - float(i), fv = v - float(j);
+  int n = rec + 72 + j * 128 + i;
+  ivec4 n00 = at(n), n10 = at(n + 1), n01 = at(n + 128), n11 = at(n + 129);
+  if (n00.w == 0 || n10.w == 0 || n01.w == 0 || n11.w == 0) return false;
+  vec3 c00 = fb(n00).rgb, c10 = fb(n10).rgb, c01 = fb(n01).rgb, c11 = fb(n11).rgb;
+  float al = fb(lane(((rec + 8) << 2) + cb));
+  if (!(al > 0.0)) return false;
+  al = min(al, 1.0);
+  for (int k = 0; k < 3; k++) {
+    float top = mul(fu, c10[k] - c00[k]) + c00[k];
+    float bot = mul(fu, c11[k] - c01[k]) + c01[k];
+    s[k] = mul(mul(mul(fv, bot - top) + top, al), 255.0);
+  }
+  s.w = al;
+  return true;
+}
 bool shade_eval(int rec, int px, int py, int cb, out vec4 s) {
   ivec4 h = at(rec), reg = at(rec + 1);
+  if (h.x == -3) return mesh_eval(rec, h, px, py, cb, s);
+  if (h.x == -4) return func_eval(rec, h, px, py, cb, s);
   if (px < reg.x || py < reg.y || px >= reg.z || py >= reg.w) return false;
   vec4 m0 = fb(at(rec + 2)), m1 = fb(at(rec + 3)), bb = fb(at(rec + 4));
   float fx = float(px) + 0.5, fy = float(py) + 0.5;

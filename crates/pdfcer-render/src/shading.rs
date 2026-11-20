@@ -151,7 +151,7 @@ use pdfcer_core::view::DocumentView;
 use crate::color::{ColorDiagnostics, ColorSpace};
 use crate::gstate::Rgb;
 
-mod function_based;
+pub(crate) mod function_based;
 #[cfg(feature = "gpu")]
 pub(crate) mod gpu_terms;
 mod spot_ramp;
@@ -892,7 +892,7 @@ pub struct Shading {
     /// A type 1 shading's function, pre-sampled over `/Domain`; `None` for
     /// every other type and for a type 1 with no function, an empty domain
     /// or a singular `/Matrix`.
-    grid: Option<Arc<function_based::FunctionGrid>>,
+    pub(crate) grid: Option<Arc<function_based::FunctionGrid>>,
 }
 
 impl Shading {
