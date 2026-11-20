@@ -116,7 +116,7 @@ wherever it appears.*
 
 Engineer-reported; no shell here, git, push, CI and the gates not run or checked from here. **Unreleased until v0.166.0 is tagged.** Tag, package, publish and crates.io are NOT done.
 - **`8279cc03` `chore: version 0.166.0`:** workspace and all 20 pdfcer crates 0.165.0 to 0.166.0 (`Cargo.toml`, `Cargo.lock`, `fuzz/Cargo.lock`).
-- **v0.166.0 carries, since v0.165.0 (tag on `bce0c21e`):** `Pass 724.4` parts 5a-5d (every shading kind evaluated on the GPU in the `gpu` feature of `pdfcer-render`; closes the everything-on-the-GPU snapshot arc), the `33d09cc7` cfg fix, `Pass 725.0` (`X101`, `c7b77357`) and `Pass 725.1` (`X102`, `a1f09354`).
+- **v0.166.0 carries, since v0.165.0 (tag on `bce0c21e`):** `Pass 724.4` parts 5a-5d (every shading kind evaluated on the GPU in the `gpu` feature of `pdfcer-render`; closes the everything-on-the-GPU snapshot arc), the `33d09cc7` cfg fix, `Pass 725.0` (`X101`, `c7b77357`) and `Pass 725.1` (`X102`, `a1f09354`); also carried: `a53d4695` `docs(render)` (4 doc-comment lines on the shading-term helpers, `724.4` part 5d cleanup after `f293cd05`, no behaviour change).
 - **Release target:** OneDrive `pdfcer1` (`pdfcer2` keeps 0.165.0).
 - **FEATURES:** no row changes. **Next:** tag v0.166.0, package, publish, OneDrive `pdfcer1`.
 

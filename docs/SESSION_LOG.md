@@ -8,7 +8,7 @@ the affected entry. Maintained by `pdfce-librarian`.
 
 **Filed (engineer-reported; no shell here, git, push, CI and the gates not checked from here):**
 - `8279cc03` `chore: version 0.166.0`: workspace and all 20 crates 0.165.0 to 0.166.0 in `Cargo.toml`, `Cargo.lock`, `fuzz/Cargo.lock`. Details in `ROADMAP.md` *Shipped*.
-- v0.166.0 carries `724.4` parts 5a-5d (all shading kinds on the GPU; arc closed), `33d09cc7`, `725.0` (`X101`) and `725.1` (`X102`). Release goes to OneDrive `pdfcer1`; `pdfcer2` keeps 0.165.0. Tag, publish and crates.io not done.
+- v0.166.0 carries `724.4` parts 5a-5d (all shading kinds on the GPU; arc closed), `33d09cc7`, `725.0` (`X101`) and `725.1` (`X102`), plus carried commit `a53d4695` (`docs(render)`: 4 doc-comment lines on the shading-term helpers in `gpu/shade_eval.rs` and `shading/gpu_terms.rs`, part of `724.4` part 5d cleanup after `f293cd05`; no behaviour change). Release goes to OneDrive `pdfcer1`; `pdfcer2` keeps 0.165.0. Tag, publish and crates.io not done.
 
 **FEATURES:** no row changes.
 
