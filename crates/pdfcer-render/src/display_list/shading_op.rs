@@ -160,6 +160,25 @@ pub(crate) fn paint_target<T: ShadeTarget>(
 
 /// `tiling::pattern_area_mask` at replay: the path's coverage times the
 /// clip's, in the target's device space.
+/// What [`paint_into`] hands the painter over a frame: the device-to-target
+/// transform and the rectangle it walks, or `None` where it paints nothing.
+#[cfg(feature = "gpu")]
+pub(crate) fn eval_frame(
+    op: &ShadingOp,
+    clips: &[super::ClipDef],
+    size: (u32, u32),
+    (x0, y0): (f32, f32),
+) -> Option<(Transform, (i32, i32, i32, i32))> {
+    #[allow(clippy::cast_precision_loss)] // a row count
+    let row0 = crate::device_clip::row_origin() as f32;
+    let masks = MaskBuilder::new(clips, size.0, size.1, x0, y0);
+    let to_target = masks
+        .to_region(op.to_device)
+        .post_translate(0.0, -row0)
+        .invert()?;
+    Some((to_target, walked(op, size, (x0, y0))?))
+}
+
 fn area_mask(a: &ShadingArea, clip: Option<&Mask>, masks: &MaskBuilder<'_>) -> Option<Mask> {
     let (width, height) = masks.size();
     let mut mask = Mask::new(width, height)?;

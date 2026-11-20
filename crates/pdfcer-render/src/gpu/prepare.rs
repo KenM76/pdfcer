@@ -14,6 +14,7 @@ use super::image::{self, ImagePaint};
 use super::layer::{self, LAYER_BEGIN, MAX_LAYER_DEPTH};
 use super::scene::{Frame, GpuRefusal, colors};
 use super::shade::{self, SHADING_PAINT, ShadePaint};
+use super::shade_eval;
 use crate::canvas::Brush;
 use crate::device_clip;
 use crate::display_list::{ClipDef, Op};
@@ -187,14 +188,19 @@ fn prepare_shading(
     if !op.bounds().intersects(frame.bounds) {
         return Ok(());
     }
-    let Some((paint, edges)) = shade::record(frame, op)? else {
+    let (evaluated, recorded) = match shade_eval::eval(frame, op) {
+        Some(e) => (true, e?),
+        None => (false, shade::record(frame, op)?),
+    };
+    let Some((paint, edges)) = recorded else {
         return Ok(());
     };
+    let clip = evaluated.then(|| op.clip.map(|c| c.index())).flatten();
     for block in fill_blocks(frame, edges).into_iter().flatten() {
         out.push(Prepared {
             block: Some(block),
             marker: None,
-            clip: None,
+            clip,
             color: SHADING_PAINT,
             memset: 0,
             blend: 0,

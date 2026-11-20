@@ -9,6 +9,7 @@ use super::image::{self, IMAGE_PAINT};
 use super::layer;
 use super::scene::{GpuScene, IntTexture};
 use super::shade::{self, SHADING_PAINT};
+use super::shade_eval;
 
 /// Clip nesting the shader follows before treating a clip as empty.
 pub(crate) const MAX_CLIP_DEPTH: usize = 64;
@@ -301,7 +302,20 @@ fn paint(t: &Tex<'_>, px: i32, py: i32) -> [i32; 4] {
         }
         if color == SHADING_PAINT {
             let [base, x0, y0, w] = t.at(memset);
-            d = shade::over(t.at(base + (py - y0) * w + (px - x0)), d);
+            if base >= 0 {
+                d = shade::over(t.at(base + (py - y0) * w + (px - x0)), d);
+                continue;
+            }
+            let cb = match clip {
+                ..0 => c,
+                _ => c * mask(t, clip_base, (clip, k, stride), px, py) / 255,
+            };
+            let at = |i: i32| t.at(i);
+            if let Some(s) = shade_eval::reference(&at, memset, (px, py), cb) {
+                #[allow(clippy::cast_possible_wrap)] // bit patterns
+                let s = s.map(|f| f.to_bits() as i32);
+                d = shade::over(s, d);
+            }
             continue;
         }
         if color == IMAGE_PAINT {

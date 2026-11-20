@@ -152,6 +152,8 @@ use crate::color::{ColorDiagnostics, ColorSpace};
 use crate::gstate::Rgb;
 
 mod function_based;
+#[cfg(feature = "gpu")]
+pub(crate) mod gpu_terms;
 mod spot_ramp;
 pub(crate) mod target;
 
@@ -738,7 +740,7 @@ impl ColorRamp {
         let frac = if span.abs() < f32::EPSILON {
             0.0
         } else {
-            ((t - t0) / span).clamp(0.0, 1.0)
+            ((t - t0) * (1.0 / span)).clamp(0.0, 1.0)
         };
         #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
         {
@@ -1742,14 +1744,17 @@ impl Geometry {
 /// silence is a *forced* default, not a choice between two readings, so
 /// this is not a settings-register candidate. It also happens to be the
 /// only answer that cannot produce NaN pixels.
+///
+/// Unfused `+ - *` and reciprocals only, in this order: `gpu/shade_eval.rs`
+/// reproduces it on the graphics card bit for bit.
 fn axial_param(coords: [f32; 4], domain: [f32; 2], extend: [bool; 2], x: f32, y: f32) -> Param {
     let [x0, y0, x1, y1] = coords;
     let (dx, dy) = (x1 - x0, y1 - y0);
-    let denom = dx.mul_add(dx, dy * dy);
+    let denom = dx * dx + dy * dy;
     if denom <= f32::EPSILON {
         return Param::Unpainted;
     }
-    let x_prime = dx.mul_add(x - x0, dy * (y - y0)) / denom;
+    let x_prime = (dx * (x - x0) + dy * (y - y0)) * (1.0 / denom);
     let [t0, t1] = domain;
     if x_prime < 0.0 {
         if extend[0] {
@@ -1764,7 +1769,7 @@ fn axial_param(coords: [f32; 4], domain: [f32; 2], extend: [bool; 2], x: f32, y:
             Param::Unpainted
         }
     } else {
-        Param::At((t1 - t0).mul_add(x_prime, t0))
+        Param::At((t1 - t0) * x_prime + t0)
     }
 }
 
@@ -1837,6 +1842,9 @@ fn axial_param(coords: [f32; 4], domain: [f32; 2], extend: [bool; 2], x: f32, y:
 /// > "The radii r0 and r1 shall both be greater than or equal to 0. If one
 /// > radius is 0, the corresponding circle shall be a point… If both are 0,
 /// > nothing shall be painted."
+///
+/// Unfused `+ - *` and reciprocals only, in this order: `gpu/shade_eval.rs`
+/// reproduces it on the graphics card bit for bit.
 fn radial_param(coords: [f32; 6], domain: [f32; 2], extend: [bool; 2], x: f32, y: f32) -> Param {
     let [x0, y0, r0, x1, y1, r1] = coords;
     // SH34: both radii zero paints nothing at all.
@@ -1846,9 +1854,9 @@ fn radial_param(coords: [f32; 6], domain: [f32; 2], extend: [bool; 2], x: f32, y
     let (dx, dy, dr) = (x1 - x0, y1 - y0, r1 - r0);
     let (px, py) = (x - x0, y - y0);
 
-    let a = dx.mul_add(dx, dy * dy) - dr * dr;
-    let b = -2.0 * (px.mul_add(dx, py * dy) + r0 * dr);
-    let c = px.mul_add(px, py * py) - r0 * r0;
+    let a = dx * dx + dy * dy - dr * dr;
+    let b = -2.0 * (px * dx + py * dy + r0 * dr);
+    let c = px * px + py * py - r0 * r0;
 
     // Admissibility, per SH40 plus the informative r(s) >= 0 rule.
     let admissible = |s: f32| {
@@ -1858,7 +1866,7 @@ fn radial_param(coords: [f32; 6], domain: [f32; 2], extend: [bool; 2], x: f32, y
         if s > 1.0 && !extend[1] {
             return false;
         }
-        dr.mul_add(s, r0) >= 0.0
+        dr * s + r0 >= 0.0
     };
 
     // The greatest admissible root wins (SH39/SH40). Both roots are tried
@@ -1874,13 +1882,14 @@ fn radial_param(coords: [f32; 6], domain: [f32; 2], extend: [bool; 2], x: f32, y
             admissible(s).then_some(s)
         }
     } else {
-        let disc = b.mul_add(b, -4.0 * a * c);
+        let disc = b * b - 4.0 * a * c;
         if disc < 0.0 {
             None
         } else {
             let root = disc.sqrt();
-            let s1 = (-b + root) / (2.0 * a);
-            let s2 = (-b - root) / (2.0 * a);
+            let inv = 1.0 / (2.0 * a);
+            let s1 = (-b + root) * inv;
+            let s2 = (-b - root) * inv;
             let (hi, lo) = if s1 >= s2 { (s1, s2) } else { (s2, s1) };
             if admissible(hi) {
                 Some(hi)
@@ -1901,7 +1910,7 @@ fn radial_param(coords: [f32; 6], domain: [f32; 2], extend: [bool; 2], x: f32, y
     // what keeps the shape right while the colour flattens).
     let [t0, t1] = domain;
     let s_clamped = s.clamp(0.0, 1.0);
-    Param::At((t1 - t0).mul_add(s_clamped, t0))
+    Param::At((t1 - t0) * s_clamped + t0)
 }
 
 /// Paint a shading over a device-space region.

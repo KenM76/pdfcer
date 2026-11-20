@@ -130,6 +130,37 @@ fn axial_and_radial() {
     );
 }
 
+/// The evaluator's branches: a `/BBox`, no extension, a rotated and
+/// sheared matrix, a cone whose circles nest, a degenerate domain.
+#[test]
+fn evaluated_branches() {
+    let fill = "/ColorSpace /DeviceRGB /Function << /FunctionType 2 /Domain [0 1]         /C0 [0.2 0.9 0.1] /C1 [0.8 0.1 0.6] /N 2.2 >>";
+    let res = format!(
+        "<< /Shading << /B0 << /ShadingType 2 {fill} /Coords [0 0 90 70] /BBox [10 20 80 100] >>          /N0 << /ShadingType 2 {fill} /Coords [30 30 90 60] >>          /C0 << /ShadingType 3 {fill} /Coords [60 60 40 55 58 8] /Extend [true true] >>          /C1 << /ShadingType 3 {fill} /Coords [30 40 0 80 70 30] >>          /D0 << /ShadingType 2 {fill} /Coords [0 0 100 100] /Domain [0.4 0.4]          /Extend [true true] >> >> /ExtGState << /G0 << /ca 0.61 >> >> >>"
+    );
+    for (content, what) in [
+        ("/B0 sh", "bbox"),
+        ("/N0 sh", "unextended"),
+        ("q 0.8 0.5 -0.4 0.9 30 -10 cm /N0 sh Q", "rotated"),
+        ("/C0 sh", "nested circles"),
+        ("q /G0 gs 10 10 100 90 re W n /C1 sh Q", "translucent cone"),
+        ("/D0 sh", "degenerate domain"),
+    ] {
+        let doc = page(content, &res, &[]);
+        let page = page_tree::pages(&doc).expect("page tree").remove(0);
+        for scale in [1.0_f32, 300.0 / 72.0] {
+            let list =
+                record_page(&doc.view(), &page, scale, 1, &RenderOptions::default()).unwrap();
+            let cpu = list.replay_region(list.key(), page.crop_box).unwrap();
+            let scene = list.gpu_scene(list.key(), page.crop_box).unwrap();
+            assert!(
+                scene.evaluate() == cpu.pixmap.data(),
+                "{what} at {scale} differs"
+            );
+        }
+    }
+}
+
 #[test]
 fn function_based_and_mesh() {
     assert_matches("/F0 sh", "function-based");

@@ -233,16 +233,96 @@ int byte(float v) {
   float f = floor(v);
   return int(clamp(v - f >= 0.5 ? f + 1.0 : f, 0.0, 255.0));
 }
-ivec4 shade_pixel(ivec4 s, ivec4 d) {
-  float a = intBitsToFloat(s.w);
+ivec4 shade_pixel(vec4 s, ivec4 d) {
+  float a = s.w;
   if (!(a > 0.0)) return d;
   float inv = 1.0 - a;
   int oa = byte(mul(a, 255.0) + mul(float(d.a), inv));
   ivec4 o = ivec4(0, 0, 0, oa);
-  for (int k = 0; k < 3; k++) o[k] = min(byte(intBitsToFloat(s[k]) + mul(float(d[k]), inv)), oa);
+  for (int k = 0; k < 3; k++) o[k] = min(byte(s[k] + mul(float(d[k]), inv)), oa);
   return o;
 }
 ivec4 channels(int v) { return ivec4(v & 255, (v >> 8) & 255, (v >> 16) & 255, (v >> 24) & 255); }
+float fb(int v) { return intBitsToFloat(v); }
+vec4 fb(ivec4 v) { return intBitsToFloat(v); }
+bool gt48(uvec2 a, uvec2 b) { return a.x > b.x || (a.x == b.x && a.y > b.y); }
+uvec2 sq48(uint r) {
+  uint h = r >> 12, l = r & 4095u, m = 2u * h * l;
+  uint lo = l * l + ((m & 4095u) << 12);
+  return uvec2(h * h + (m >> 12) + (lo >> 24), lo & 0xFFFFFFu);
+}
+float sqrt_rn(float d) {
+  float r = sqrt(d);
+  if (!(d > 0.0)) return max(r, 0.0);
+  uint db = floatBitsToUint(d);
+  int ed = int(db >> 23);
+  if (ed == 0) return r;
+  uint md = (db & 0x7FFFFFu) | 0x800000u;
+  for (int i = 0; i < 4; i++) {
+    uint rb = floatBitsToUint(r);
+    uint rm = (rb & 0x7FFFFFu) | 0x800000u;
+    int k = ed + 150 - 2 * int(rb >> 23);
+    if (k > 24) { r = uintBitsToFloat(rb + 1u); continue; }
+    if (k < 0) { r = uintBitsToFloat(rb - 1u); continue; }
+    uvec2 dd = uvec2(md >> uint(24 - k), (md & ((1u << uint(24 - k)) - 1u)) << uint(k));
+    uvec2 q = sq48(rm);
+    uvec2 up = uvec2(q.x + ((q.y + rm) >> 24), (q.y + rm) & 0xFFFFFFu);
+    uint dn = rm == 0x800000u ? rm >> 1 : rm;
+    uvec2 lo = q.y >= dn ? uvec2(q.x, q.y - dn) : uvec2(q.x - 1u, q.y + 0x1000000u - dn);
+    if (gt48(dd, up)) r = uintBitsToFloat(rb + 1u);
+    else if (!gt48(dd, lo)) r = uintBitsToFloat(rb - 1u);
+    else return r;
+  }
+  return r;
+}
+bool admit(float s, int fl, float dr, float r0) {
+  return !(s < 0.0 && (fl & 1) == 0) && !(s > 1.0 && (fl & 2) == 0) && mul(dr, s) + r0 >= 0.0;
+}
+bool shade_t(int rec, int tag, int fl, float x, float y, out float t) {
+  vec4 o = fb(at(rec + 5)), ax = fb(at(rec + 6));
+  if (tag == -1) {
+    float xp = mul(mul(ax.x, x - o.x) + mul(ax.y, y - o.y), ax.z);
+    if (xp < 0.0) { t = o.z; return (fl & 1) != 0; }
+    if (xp > 1.0) { t = o.w; return (fl & 2) != 0; }
+    t = mul(ax.w, xp) + o.z;
+    return true;
+  }
+  vec4 cn = fb(at(rec + 7));
+  float px = x - o.x, py = y - o.y;
+  float b = mul(-2.0, (mul(px, ax.x) + mul(py, ax.y)) + mul(ax.w, ax.z));
+  float c = (mul(px, px) + mul(py, py)) - mul(ax.w, ax.w);
+  float disc = mul(b, b) - mul(cn.y, c);
+  if (disc < 0.0) return false;
+  float root = sqrt_rn(disc);
+  float s1 = mul(-b + root, cn.z), s2 = mul(-b - root, cn.z);
+  float hi = s1 >= s2 ? s1 : s2, lo = s1 >= s2 ? s2 : s1;
+  float s;
+  if (admit(hi, fl, ax.z, ax.w)) s = hi;
+  else if (admit(lo, fl, ax.z, ax.w)) s = lo;
+  else return false;
+  t = mul(cn.w, clamp(s, 0.0, 1.0)) + o.z;
+  return true;
+}
+bool shade_eval(int rec, int px, int py, int cb, out vec4 s) {
+  ivec4 h = at(rec), reg = at(rec + 1);
+  if (px < reg.x || py < reg.y || px >= reg.z || py >= reg.w) return false;
+  vec4 m0 = fb(at(rec + 2)), m1 = fb(at(rec + 3)), bb = fb(at(rec + 4));
+  float fx = float(px) + 0.5, fy = float(py) + 0.5;
+  float x = (mul(fx, m0.x) + mul(fy, m0.y)) + m0.z;
+  float y = (mul(fx, m0.w) + mul(fy, m1.x)) + m1.y;
+  if ((h.y & 4) != 0 && (x < bb.x || x > bb.y || y < bb.z || y > bb.w)) return false;
+  float t;
+  if (!shade_t(rec, h.x, h.y, x, y, t)) return false;
+  float frac = (h.y & 8) != 0 ? 0.0 : clamp(mul(t - m1.z, m1.w), 0.0, 1.0);
+  ivec4 smp = at(rec + 72 + byte(mul(frac, 255.0)));
+  if (smp.w == 0) return false;
+  float a = fb(lane(((rec + 8) << 2) + cb));
+  if (!(a > 0.0)) return false;
+  if (a >= 1.0) { s = vec4(vec3(channels(smp.w).rgb), 1.0); return true; }
+  vec3 c = vec3(fb(smp.x), fb(smp.y), fb(smp.z));
+  s = vec4(mul(mul(c.x, a), 255.0), mul(mul(c.y, a), 255.0), mul(mul(c.z, a), 255.0), a);
+  return true;
+}
 
 void main() {
   int px = int(gl_FragCoord.x) + u_origin.x, py = int(gl_FragCoord.y) + u_origin.y;
@@ -270,7 +350,14 @@ void main() {
     if (c == 0) continue;
     if (op.z == 0x00FFFFFC) {
       ivec4 r = at(op.w);
-      d = shade_pixel(at(r.x + (py - r.z) * r.w + (px - r.y)), d);
+      if (r.x >= 0) {
+        d = shade_pixel(fb(at(r.x + (py - r.z) * r.w + (px - r.y))), d);
+        continue;
+      }
+      int cb = c;
+      if (op.y >= 0) cb = c * mask(sections.z, op.y, k, stride, px, py) / 255;
+      vec4 s;
+      if (shade_eval(op.w, px, py, cb, s)) d = shade_pixel(s, d);
       continue;
     }
     if (op.z == 0x00FFFFFF) {

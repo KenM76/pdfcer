@@ -1,7 +1,9 @@
-//! Shadings on the graphics card. The CPU painter runs at packing time
-//! into a [`Recorder`], which keeps each pixel's source terms and alpha
-//! instead of compositing; the shader then composites them over its own
-//! backdrop with [`crate::shading::target::over_pixel`]'s arithmetic.
+//! Shadings on the graphics card. An axial or radial shading is evaluated
+//! there per pixel from [`crate::shading::gpu_terms::Terms`], with the CPU
+//! painter's operations in its order; any other shading's CPU painter runs
+//! at packing time into a [`Recorder`], which keeps each pixel's source
+//! terms and alpha for the shader to composite with
+//! [`crate::shading::target::over_pixel`]'s arithmetic.
 //!
 //! A shading reads no backdrop, so recording its sources is exact: the
 //! card's pixels equal the CPU replay's wherever its composite does.
@@ -18,15 +20,25 @@ use crate::shading::target::ShadeTarget;
 /// An op texel's colour lane for a shading paint.
 pub(crate) const SHADING_PAINT: i32 = 0x00FF_FFFC;
 
-/// A recorded shading: per pixel of its rectangle, `[p_r, p_g, p_b, a]` as
-/// `f32` bit patterns, `a` zero where nothing was painted.
+/// A shading as the shader draws it.
 #[derive(Debug)]
-pub(crate) struct ShadePaint {
-    pub x0: i32,
-    pub y0: i32,
-    pub width: i32,
-    pub texels: Vec<[i32; 4]>,
+pub(crate) enum ShadePaint {
+    /// Per pixel of its rectangle, `[p_r, p_g, p_b, a]` as `f32` bit
+    /// patterns, `a` zero where nothing was painted.
+    Recorded {
+        x0: i32,
+        y0: i32,
+        width: i32,
+        texels: Vec<[i32; 4]>,
+    },
+    /// An [`eval`] record.
+    Evaluated(Vec<[i32; 4]>),
 }
+
+/// An evaluated record's texels before its alpha table.
+pub(crate) const EVAL_HEAD: i32 = 8;
+/// An evaluated record's ramp, after the alpha table's 64 texels.
+pub(crate) const EVAL_RAMP: i32 = EVAL_HEAD + 64;
 
 struct Recorder {
     size: (u32, u32),
@@ -112,7 +124,7 @@ pub(crate) fn record(frame: &Frame<'_>, op: &ShadingOp) -> Result<Option<Recorde
         return Ok(None);
     };
     let edges = frame.edges(&path, FillRule::Winding, Transform::identity(), false)?;
-    let paint = ShadePaint {
+    let paint = ShadePaint::Recorded {
         x0: l,
         y0: t,
         width: r - l,
@@ -121,8 +133,9 @@ pub(crate) fn record(frame: &Frame<'_>, op: &ShadingOp) -> Result<Option<Recorde
     Ok(Some((Arc::new(paint), edges)))
 }
 
-/// The shading section from texel `base`: each recorded paint's record
-/// `[pixels, x0, y0, width]` then its pixels, once per distinct paint.
+/// The shading section from texel `base`: once per distinct paint, a
+/// recorded paint's record `[pixels, x0, y0, width]` then its pixels, or an
+/// evaluated paint's [`eval`] record.
 /// Returns each paint's record texel (`-1` for none) and the section.
 pub(crate) fn sections(
     paints: &[Option<&Arc<ShadePaint>>],
@@ -138,8 +151,18 @@ pub(crate) fn sections(
         };
         let at = *placed.entry(Arc::as_ptr(p)).or_insert_with(|| {
             let rec = (base + out.len()) as i32;
-            out.push([rec + 1, p.x0, p.y0, p.width]);
-            out.extend_from_slice(&p.texels);
+            match &***p {
+                ShadePaint::Recorded {
+                    x0,
+                    y0,
+                    width,
+                    texels,
+                } => {
+                    out.push([rec + 1, *x0, *y0, *width]);
+                    out.extend_from_slice(texels);
+                }
+                ShadePaint::Evaluated(texels) => out.extend_from_slice(texels),
+            }
             rec
         });
         rec_of.push(at);
