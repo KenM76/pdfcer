@@ -206,7 +206,17 @@ impl PreparedModel {
         camera: &Camera,
         options: &RenderOptions,
     ) -> Result<Option<GpuBounceBuild>, RenderError> {
-        let lights = &model.lights[..];
+        self.gpu_bounce_build_lit((model, &model.lights), camera, options)
+    }
+
+    /// [`Self::gpu_bounce_build`] lit by `lights` in place of the model's
+    /// own.
+    pub(crate) fn gpu_bounce_build_lit(
+        &self,
+        (model, lights): (&AssembledModel, &[crate::ModelLight]),
+        camera: &Camera,
+        options: &RenderOptions,
+    ) -> Result<Option<GpuBounceBuild>, RenderError> {
         let plan = crate::render::mode::Plan::of(options);
         let painted = self.paints(model, options);
         let pass = crate::render::mode_frame::face_pass(&plan, model, painted);

@@ -3698,7 +3698,10 @@ let image = render_coloured(&meshes, &colours, &camera, &RenderOptions { width: 
   `exposed.lights` and `exposed.options` to every frame-data call
   (`exposed.frame_lights(&camera)` = `FrameLights::for_model`,
   `exposed.frame_bounce(&prepared, &model, &camera)` =
-  `PreparedModel::frame_bounce`, and `FrameLampShadows::for_model`,
+  `PreparedModel::frame_bounce`,
+  `exposed.gpu_bounce_build(&prepared, &model, &camera)` =
+  `PreparedModel::gpu_bounce_build`, the same bounce built on the GPU,
+  and `FrameLampShadows::for_model`,
   `FrameExtraShadows::for_model`, `FrameShadow`, `FrameAmbientOcclusion`
   with `exposed.options`). Ambient occlusion is the caller's
   `options.ambient_occlusion`, kept. Refusals: `ExposureError::WhiteLux`

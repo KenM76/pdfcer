@@ -212,4 +212,19 @@ impl ExposedLighting {
     ) -> Result<Option<FrameBounce>, RenderError> {
         prepared.frame_bounce_lit((model, &self.lights), camera, &self.options)
     }
+
+    /// [`PreparedModel::gpu_bounce_build`] with these lights and options:
+    /// the GPU twin of [`Self::frame_bounce`], building the same bounce.
+    ///
+    /// # Errors
+    ///
+    /// As [`PreparedModel::gpu_bounce_build`].
+    pub fn gpu_bounce_build(
+        &self,
+        prepared: &PreparedModel,
+        model: &AssembledModel,
+        camera: &Camera,
+    ) -> Result<Option<crate::GpuBounceBuild>, RenderError> {
+        prepared.gpu_bounce_build_lit((model, &self.lights), camera, &self.options)
+    }
 }

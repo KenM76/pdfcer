@@ -314,3 +314,47 @@ fn a_glow_of_stated_luminance_is_drawn_against_the_white_point() {
         .unwrap();
     assert_eq!(metered.options.emissive_white_lux, None);
 }
+
+#[test]
+fn the_gpu_bounce_build_traces_the_exposed_lights() {
+    let model = floor(vec![lamp(Some(100.0))]);
+    let mut lit = options();
+    lit.indirect.bounce = Bounce::ModelLights;
+    let exposed = fixed(100.0)
+        .lighting(&model, &lit, &MeterSettings::default())
+        .unwrap();
+    let prepared = PreparedModel::new(&model);
+    let built = exposed
+        .gpu_bounce_build(&prepared, &model, &camera())
+        .unwrap()
+        .unwrap();
+    let relit = AssembledModel {
+        lights: exposed.lights.clone(),
+        ..model.clone()
+    };
+    let want = PreparedModel::new(&relit)
+        .gpu_bounce_build(&relit, &camera(), &exposed.options)
+        .unwrap()
+        .unwrap();
+    assert_eq!(built, want);
+    let unexposed = prepared
+        .gpu_bounce_build(&model, &camera(), &lit)
+        .unwrap()
+        .unwrap();
+    assert_ne!(built.lamps, unexposed.lamps);
+    let cpu = exposed
+        .frame_bounce(&prepared, &model, &camera())
+        .unwrap()
+        .unwrap();
+    let b = &built.bounce;
+    assert_eq!(
+        (b.origin, b.spacing, b.dims, b.strength, b.follows_camera),
+        (
+            cpu.origin,
+            cpu.spacing,
+            cpu.dims,
+            cpu.strength,
+            cpu.follows_camera
+        )
+    );
+}
