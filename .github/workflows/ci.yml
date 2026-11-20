@@ -841,6 +841,9 @@ jobs:
       # WASM-compilable (ARCHITECTURE.md §3, §1). pdfcer is
       # deliberately excluded — it is a native shell.
       - run: cargo check -p pdfcer-model -p pdfcer-image-codec -p pdfcer-fonts -p pdfcer-pkix -p pdfcer-color -p pdfcer-text -p pdfcer-function -p pdfcer-json -p pdfcer-vec3 -p pdfcer-jpeg-remux -p pdfcer-3d -p pdfcer-3d-nav -p pdfcer-core -p pdfcer-render -p pdfcer-emf -p pdfcer-flatten --target wasm32-unknown-unknown
+      # The GPU snapshot raster (decision 223) is off by default; check it
+      # crosses too. `cargo test --all-features` above covers its tests.
+      - run: cargo check -p pdfcer-render --features gpu --target wasm32-unknown-unknown
 
   no-network:
     name: verify the ENGINE needs no network (core + render)

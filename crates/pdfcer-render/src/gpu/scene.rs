@@ -250,7 +250,6 @@ pub(crate) fn colors(brush: &BrushSpec) -> Result<(i32, i32), GpuRefusal> {
     ))
 }
 
-/// `frame`'s scene texture.
 /// Every clip's and paint's fill, in the order the scene lays them out.
 fn builder(frame: &Frame<'_>) -> Result<Builder, GpuRefusal> {
     let (clips, paints) = super::prepare::all(frame)?;
@@ -283,6 +282,7 @@ fn builder(frame: &Frame<'_>) -> Result<Builder, GpuRefusal> {
     Ok(b)
 }
 
+/// `frame`'s scene texture.
 fn pack(frame: &Frame<'_>) -> Result<IntTexture, GpuRefusal> {
     let b = builder(frame)?;
     let stride = frame.draw_tiles().len();
