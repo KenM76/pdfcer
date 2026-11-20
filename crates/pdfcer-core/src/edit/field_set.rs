@@ -3,10 +3,10 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
-use super::{CommandKind, EditError, EditSession, copyable_field, unique_field_name};
+use super::{CommandKind, EditError, EditSession, copyable_field};
 use crate::formclip::{
-    FieldClipSet, FieldPasteOutcome, FieldPastePolicy, FieldSetPasteOutcome, FieldSetPastePolicy,
-    MAX_CLIP_SET_FIELDS,
+    FieldClipSet, FieldCopyNaming, FieldPasteOutcome, FieldPastePolicy, FieldSetPasteOutcome,
+    FieldSetPastePolicy, MAX_CLIP_SET_FIELDS,
 };
 use crate::forms;
 use crate::page_tree::Rect;
@@ -87,10 +87,11 @@ impl EditSession {
     /// would place it at its translated rectangle.
     ///
     /// - [`FieldSetPastePolicy::NewFields`] creates one field per member. The
-    ///   names are chosen here — the source name when free, else the first
-    ///   free `_2`, `_3`, … — against the document and the batch together;
-    ///   every rename is disclosed and [`FieldSetPasteOutcome::names`] lists
-    ///   them. With `copy_actions`, a calculate script naming another member
+    ///   names are the policy's `names` when given (each checked free), else
+    ///   chosen here — the source name when free, else
+    ///   [`FieldCopyNaming::free_name`] — against the document and the batch
+    ///   together; every derived name is disclosed and
+    ///   [`FieldSetPasteOutcome::names`] lists them. With `copy_actions`, a calculate script naming another member
     ///   (a quoted literal) is re-pointed at that member's copy, disclosed.
     /// - [`FieldSetPastePolicy::AdditionalWidgets`] adds every copied widget
     ///   to the field bearing its source name here. Radio members are
@@ -106,6 +107,8 @@ impl EditSession {
     ///
     /// Any refusal of [`Self::paste_field`], for the first member that
     /// refuses; nothing is written and the undo stack is unchanged.
+    /// [`EditError::PasteNamesCount`] when `names` is not one per member;
+    /// [`EditError::FieldNameTaken`] when a given name is taken or repeated.
     /// [`EditError::SelectionTooLargeForOneUndo`] when the batch needs more
     /// than [`MAX_UNDO_DEPTH`](super::MAX_UNDO_DEPTH) steps.
     pub fn paste_fields(
@@ -127,11 +130,16 @@ impl EditSession {
         let mut set = set.clone();
         let (steps, names) = match policy {
             FieldSetPastePolicy::NewFields {
+                names,
+                naming,
                 tooltip,
                 copy_value,
                 copy_actions,
             } => {
-                let names = self.batch_field_names(&set, &mut disclosures);
+                let names = match names {
+                    Some(given) => self.check_given_names(&set, given)?,
+                    None => self.batch_field_names(&set, *naming, &mut disclosures),
+                };
                 if *copy_actions {
                     repoint(&mut set, &names, &mut disclosures);
                 }
@@ -184,20 +192,17 @@ impl EditSession {
 
     /// The name each member of a `NewFields` paste lands under, disclosing
     /// every one that differs from its source.
-    fn batch_field_names(&self, set: &FieldClipSet, disclosures: &mut Vec<String>) -> Vec<String> {
-        let mut taken: BTreeSet<String> = forms::parse_acroform(&self.graph())
-            .map(|f| {
-                f.fields
-                    .into_iter()
-                    .map(|x| x.fully_qualified_name)
-                    .chain(f.groups.into_iter().map(|g| g.fully_qualified_name))
-                    .collect()
-            })
-            .unwrap_or_default();
+    fn batch_field_names(
+        &self,
+        set: &FieldClipSet,
+        naming: FieldCopyNaming,
+        disclosures: &mut Vec<String>,
+    ) -> Vec<String> {
+        let mut taken = self.taken_field_names();
         let mut names = Vec::with_capacity(set.len());
         for source in set.source_names() {
             let name = if taken.contains(source) {
-                let renamed = unique_field_name(source, &taken);
+                let renamed = naming.free_name(source, &taken);
                 disclosures.push(format!(
                     "paste: \"{source}\" is already a field name here, so its copy is named \"{renamed}\"."
                 ));
@@ -209,6 +214,40 @@ impl EditSession {
             names.push(name);
         }
         names
+    }
+
+    /// `given`, once each is checked free in the document and the batch.
+    fn check_given_names(
+        &self,
+        set: &FieldClipSet,
+        given: &[String],
+    ) -> Result<Vec<String>, EditError> {
+        if given.len() != set.len() {
+            return Err(EditError::PasteNamesCount {
+                fields: set.len(),
+                names: given.len(),
+            });
+        }
+        let mut taken = self.taken_field_names();
+        for name in given {
+            if !taken.insert(name.clone()) {
+                return Err(EditError::FieldNameTaken { name: name.clone() });
+            }
+        }
+        Ok(given.to_vec())
+    }
+
+    /// Every field and grouping-node name the document holds.
+    fn taken_field_names(&self) -> BTreeSet<String> {
+        forms::parse_acroform(&self.graph())
+            .map(|f| {
+                f.fields
+                    .into_iter()
+                    .map(|x| x.fully_qualified_name)
+                    .chain(f.groups.into_iter().map(|g| g.fully_qualified_name))
+                    .collect()
+            })
+            .unwrap_or_default()
     }
 }
 

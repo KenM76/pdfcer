@@ -4909,10 +4909,20 @@ Types (all in `pdfcer_core::formclip`, all `#[non_exhaustive]`):
   object closure, so a font, appearance or script two fields use is carried,
   and pasted, once. Ceiling `MAX_CLIP_SET_FIELDS` (= `MAX_UNDO_DEPTH`, 256);
   more is `ClipError::ClipTooLarge`.
-- `FieldSetPastePolicy::NewFields { tooltip: PasteTooltip, copy_value, copy_actions }`
-  — one new field per member. **The verb chooses the names**: the source name
-  when free, else the first free `_2`, `_3`, …, checked against the document's
-  terminals and grouping nodes and the batch itself. Every rename is disclosed.
+- `FieldSetPastePolicy::NewFields { names: Option<Vec<String>>, naming: FieldCopyNaming, tooltip: PasteTooltip, copy_value, copy_actions }`
+  — one new field per member. **`names: Some`** (`G315`) gives each copy's
+  fully-qualified name, one per member in copy order: a wrong count refuses
+  `EditError::PasteNamesCount { fields, names }`, a name taken in the document
+  or repeated in the list refuses `FieldNameTaken`; nothing is written and no
+  rename is disclosed. **`names: None`**: the source name when free, else
+  `naming.free_name(base, taken)`, checked against the document's terminals and
+  grouping nodes and the batch itself; every rename is disclosed.
+  `FieldCopyNaming` (`#[non_exhaustive]`, `Default`): `ContinueNumber`
+  (default — continue a trailing number keeping its width, `Text1` → `Text2`,
+  `Rev2000` → `Rev2001`, `Item09` → `Item10`, else append from 2, `Drawn By` →
+  `Drawn By2`) or `Underscore` (`Text1` → `Text1_2`). `free_name` is `pub`, so a
+  single-field paste can name its copy by the same rule. CLI: `--name NAME`
+  repeated per field, `--underscore-names`.
   With `copy_actions`, a calculate script (`/AA /C /JS`) naming another member
   as a quoted literal (`"Qty"`, `'Qty'`) is re-pointed at that member's copy,
   disclosed. Other actions' scripts, and names outside the batch, are left
@@ -6189,10 +6199,10 @@ borrow it (`tests/image_placement.rs`).
 ### 6.7 The `EditError` taxonomy
 
 `edit.rs`, `#[derive(Debug, Clone, thiserror::Error)]`, `#[non_exhaustive]`.
-**199 variants**, counted at depth 1 inside `pub enum EditError`.
+**200 variants**, counted at depth 1 inside `pub enum EditError`.
 `RunningText(RunningTextError)` wraps `stamp_running_text`'s request errors.
 `PrinterMarks(PrinterMarksError)` wraps `add_printer_marks`'s request errors.
-(`InfoKeyReserved { key: ReservedInfoKey }` and `InvalidInfoKey { problem: InfoKeyProblem }`, from `set_info_entry`, are the newest; `XfaNotDynamic` and `XfaSigned`; `SourcePageOutOfRange`: a SOURCE document's page index, kept
+(`PasteNamesCount { fields, names }`, from `paste_fields`, is the newest; `InfoKeyReserved { key: ReservedInfoKey }` and `InvalidInfoKey { problem: InfoKeyProblem }`, from `set_info_entry`; `XfaNotDynamic` and `XfaSigned`; `SourcePageOutOfRange`: a SOURCE document's page index, kept
 distinct from `PageOutOfRange` because the two name different mistakes.)
 
 `Pass 270.2` added `AnnotationContentsLocked` — **Table 165 bit 10,

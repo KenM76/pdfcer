@@ -331,18 +331,61 @@ fn rewrite_literals(src: &[u8], renames: &BTreeMap<String, String>) -> Option<Ve
     changed.then_some(out)
 }
 
+/// How a copy's name is derived from a source name already in use.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
+#[non_exhaustive]
+pub enum FieldCopyNaming {
+    /// Continue a trailing number, keeping its width (`Text1` → `Text2`,
+    /// `Rev2000` → `Rev2001`, `Item09` → `Item10`), else append one from 2
+    /// (`Drawn By` → `Drawn By2`); the next free one is taken.
+    #[default]
+    ContinueNumber,
+    /// Append `_2`, `_3`, … (`Text1` → `Text1_2`), the next free one.
+    Underscore,
+}
+
+impl FieldCopyNaming {
+    /// The first name not in `taken` this rule derives from `base`.
+    #[must_use]
+    pub fn free_name(self, base: &str, taken: &std::collections::BTreeSet<String>) -> String {
+        let (stem, start, width) = match self {
+            Self::Underscore => (format!("{base}_"), 2, 0),
+            Self::ContinueNumber => {
+                let digits = base.len() - base.trim_end_matches(|c: char| c.is_ascii_digit()).len();
+                let (stem, tail) = base.split_at(base.len() - digits);
+                match tail.parse::<u64>() {
+                    Ok(n) if n < u64::MAX - 20_000 => (stem.to_owned(), n + 1, digits),
+                    _ => (base.to_owned(), 2, 0),
+                }
+            }
+        };
+        (start..start + 10_000)
+            .map(|n| format!("{stem}{n:0width$}"))
+            .find(|c| !taken.contains(c))
+            .unwrap_or_else(|| format!("{stem}{}", start + 10_000 + taken.len() as u64))
+    }
+}
+
 /// What [`FieldClipSet`] paste should do with each field.
 #[derive(Debug, Clone, PartialEq, Eq)]
 #[non_exhaustive]
 pub enum FieldSetPastePolicy {
-    /// **Ctrl+V** — every field becomes a new, independent field. A source
-    /// name already in use (in the document or earlier in the batch) gets the
-    /// first free `_2`, `_3`, … suffix; each such choice is disclosed and
-    /// reported in [`FieldSetPasteOutcome::names`]. The other three fields
-    /// mean what they mean on
+    /// **Ctrl+V** — every field becomes a new, independent field, named by
+    /// `names` when given, else as `naming` derives a free name from a
+    /// source name already in use (in the document or earlier in the batch);
+    /// each derived name is disclosed and reported in
+    /// [`FieldSetPasteOutcome::names`]. The other three fields mean what
+    /// they mean on
     /// [`FieldPastePolicy::NewField`](super::FieldPastePolicy::NewField), and
     /// apply to every field.
     NewFields {
+        /// The fully-qualified name for each copy, one per member in copy
+        /// order. Each must be free in the document and in the batch, or the
+        /// paste refuses with `FieldNameTaken`; a calculate script re-pointed
+        /// under `copy_actions` names these. `None` derives them by `naming`.
+        names: Option<Vec<String>>,
+        /// How a taken source name is changed when `names` is `None`.
+        naming: FieldCopyNaming,
         /// The accessibility-name decision (R105), for every field.
         tooltip: PasteTooltip,
         /// Carry each source field's `/V`.

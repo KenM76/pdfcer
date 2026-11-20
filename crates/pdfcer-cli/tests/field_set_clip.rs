@@ -81,15 +81,15 @@ fn pasting_as_new_fields_reports_the_chosen_names() {
         "stdout: {out}"
     );
     assert!(
-        out.contains(r#"name="Qty_2" name="Total_2" name="Pick_2""#),
+        out.contains(r#"name="Qty2" name="Total2" name="Pick2""#),
         "stdout: {out}"
     );
-    assert!(err.contains("\"Qty_2\""), "the rename is disclosed: {err}");
+    assert!(err.contains("\"Qty2\""), "the rename is disclosed: {err}");
     assert!(
         err.contains("calculation"),
         "the repoint is disclosed: {err}"
     );
-    assert!(listed.1.contains("Total_2"), "list-fields: {}", listed.1);
+    assert!(listed.1.contains("Total2"), "list-fields: {}", listed.1);
 }
 
 #[test]
@@ -154,4 +154,39 @@ fn a_paste_without_a_policy_or_tooltip_answer_is_refused() {
     assert!(!ok_tip && err_tip.contains("--no-tooltip"), "{err_tip}");
     assert!(!ok_mixed, "--copy-value needs --as-new");
     assert!(!written, "nothing written");
+}
+
+#[test]
+fn pasting_as_new_takes_given_names() {
+    let dir = scratch("named");
+    let clip = dir.join("set.clip");
+    let output = dir.join("out.pdf");
+    copy_three(&clip);
+    let input = fixture();
+    let (ok, out, err) = run(&[
+        "paste-fields".as_ref(),
+        input.as_os_str(),
+        "--clip".as_ref(),
+        clip.as_os_str(),
+        "--page".as_ref(),
+        "1".as_ref(),
+        "--at".as_ref(),
+        "200,100".as_ref(),
+        "--as-new".as_ref(),
+        "--no-tooltip".as_ref(),
+        "--name".as_ref(),
+        "A1".as_ref(),
+        "--name".as_ref(),
+        "B1".as_ref(),
+        "--name".as_ref(),
+        "C1".as_ref(),
+        "-o".as_ref(),
+        output.as_os_str(),
+    ]);
+    let _ = std::fs::remove_dir_all(&dir);
+    assert!(ok, "paste-fields failed: {err}");
+    assert!(
+        out.contains(r#"name="A1" name="B1" name="C1""#),
+        "stdout: {out}"
+    );
 }

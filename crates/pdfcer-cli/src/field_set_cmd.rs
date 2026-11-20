@@ -2,7 +2,7 @@
 //! pasted all or nothing as one undo entry.
 
 use super::*;
-use pdfcer_core::formclip::{FieldClipSet, FieldSetPastePolicy, PasteTooltip};
+use pdfcer_core::formclip::{FieldClipSet, FieldCopyNaming, FieldSetPastePolicy, PasteTooltip};
 
 /// Borrowed argument bundle for [`cmd_paste_fields`].
 pub(crate) struct PasteFieldsArgs<'a> {
@@ -16,6 +16,8 @@ pub(crate) struct PasteFieldsArgs<'a> {
     pub(crate) copy_actions: bool,
     pub(crate) carry_tooltip: bool,
     pub(crate) no_tooltip: bool,
+    pub(crate) names: &'a [String],
+    pub(crate) underscore_names: bool,
     pub(crate) output: &'a Path,
     pub(crate) mode: SaveMode,
     pub(crate) verify_undo: bool,
@@ -169,6 +171,12 @@ fn paste_fields_policy(args: &PasteFieldsArgs<'_>) -> Result<FieldSetPastePolicy
         }
     };
     Ok(FieldSetPastePolicy::NewFields {
+        names: (!args.names.is_empty()).then(|| args.names.to_vec()),
+        naming: if args.underscore_names {
+            FieldCopyNaming::Underscore
+        } else {
+            FieldCopyNaming::ContinueNumber
+        },
         tooltip,
         copy_value: args.copy_value,
         copy_actions: args.copy_actions,

@@ -11,7 +11,7 @@
 
 use pdfcer_core::document::Document;
 use pdfcer_core::edit::{EditError, EditSession};
-use pdfcer_core::formclip::{FieldClipSet, FieldSetPastePolicy, PasteTooltip};
+use pdfcer_core::formclip::{FieldClipSet, FieldCopyNaming, FieldSetPastePolicy, PasteTooltip};
 use pdfcer_core::forms;
 use pdfcer_core::graph::ObjectGraph;
 use pdfcer_core::object::{Dict, ObjId, Object};
@@ -31,7 +31,17 @@ fn reload(s: &EditSession) -> EditSession {
 }
 
 fn new_fields(copy_actions: bool) -> FieldSetPastePolicy {
+    named(None, FieldCopyNaming::ContinueNumber, copy_actions)
+}
+
+fn named(
+    names: Option<Vec<String>>,
+    naming: FieldCopyNaming,
+    copy_actions: bool,
+) -> FieldSetPastePolicy {
     FieldSetPastePolicy::NewFields {
+        names,
+        naming,
         tooltip: PasteTooltip::Declined,
         copy_value: false,
         copy_actions,
@@ -109,19 +119,19 @@ fn new_fields_get_distinct_free_names_in_one_undo_entry() {
     let out = s
         .paste_fields(&set, 0, (200.0, 100.0), &new_fields(false))
         .unwrap();
-    assert_eq!(out.names, ["Qty_2", "Total_2", "Pick_2"]);
+    assert_eq!(out.names, ["Qty2", "Total2", "Pick2"]);
     assert_eq!(out.fields.len(), 3);
     assert!(out.fields.iter().all(|f| f.disclosures.is_empty()));
-    assert!(out.disclosures.iter().any(|d| d.contains("\"Qty_2\"")));
+    assert!(out.disclosures.iter().any(|d| d.contains("\"Qty2\"")));
     let mut unique = out.disclosures.clone();
     unique.dedup();
     assert_eq!(unique.len(), out.disclosures.len(), "each sentence once");
     assert_eq!(s.undo_depth(), depth + 1, "one undo entry");
 
     let r = reload(&s);
-    let qty = field(&r, "Qty_2").expect("Qty_2 exists");
-    let total = field(&r, "Total_2").expect("Total_2 exists");
-    let pick = field(&r, "Pick_2").expect("Pick_2 exists");
+    let qty = field(&r, "Qty2").expect("Qty2 exists");
+    let total = field(&r, "Total2").expect("Total2 exists");
+    let pick = field(&r, "Pick2").expect("Pick2 exists");
     assert_eq!(pick.widgets.len(), 2);
     // Layout kept: the selection's lower-left (Total at 20,200) lands on the
     // origin, and Qty stays 40pt above Total.
@@ -131,7 +141,7 @@ fn new_fields_get_distinct_free_names_in_one_undo_entry() {
     assert!((q.lly - t.lly - 40.0).abs() < 1e-6);
 
     s.undo();
-    assert!(field(&s, "Qty_2").is_none() && field(&s, "Pick_2").is_none());
+    assert!(field(&s, "Qty2").is_none() && field(&s, "Pick2").is_none());
 }
 
 #[test]
@@ -142,7 +152,7 @@ fn a_calculation_naming_a_sibling_names_the_pasted_sibling() {
         .paste_fields(&set, 0, (200.0, 100.0), &new_fields(true))
         .unwrap();
     let js = calculate_js(&s, out.fields[1].field_id);
-    assert!(js.contains("\"Qty_2\""), "{js}");
+    assert!(js.contains("\"Qty2\""), "{js}");
     assert!(!js.contains("\"Qty\""), "{js}");
     assert!(out.disclosures.iter().any(|d| d.contains("calculation")));
     // The source keeps its own script.
@@ -243,4 +253,84 @@ fn a_font_two_fields_share_is_installed_once() {
         "{}",
         String::from_utf8_lossy(&qty)
     );
+}
+
+#[test]
+fn a_taken_name_continues_its_number_or_takes_an_underscore() {
+    let taken: std::collections::BTreeSet<String> =
+        ["Text1", "Text2", "Rev2000", "Item09", "Drawn By"]
+            .into_iter()
+            .map(String::from)
+            .collect();
+    let next = |base| FieldCopyNaming::ContinueNumber.free_name(base, &taken);
+    assert_eq!(next("Text1"), "Text3", "Text2 is taken too");
+    assert_eq!(next("Rev2000"), "Rev2001");
+    assert_eq!(next("Item09"), "Item10");
+    assert_eq!(next("Drawn By"), "Drawn By2");
+    assert_eq!(
+        FieldCopyNaming::Underscore.free_name("Text1", &taken),
+        "Text1_2"
+    );
+    let huge = "N99999999999999999999999";
+    assert_eq!(
+        next(huge),
+        format!("{huge}2"),
+        "a number past u64 is appended to"
+    );
+}
+
+#[test]
+fn underscore_naming_is_still_offered() {
+    let mut s = session("field-set-form.pdf");
+    let set = s.copy_fields(&["Qty", "Total"]).unwrap();
+    let policy = named(None, FieldCopyNaming::Underscore, false);
+    let out = s.paste_fields(&set, 0, (200.0, 100.0), &policy).unwrap();
+    assert_eq!(out.names, ["Qty_2", "Total_2"]);
+}
+
+#[test]
+fn given_names_are_used_and_calculations_follow_them() {
+    let mut s = session("field-set-form.pdf");
+    let set = s.copy_fields(&["Qty", "Total"]).unwrap();
+    let names = vec!["Amount".to_owned(), "Sum".to_owned()];
+    let policy = named(Some(names), FieldCopyNaming::ContinueNumber, true);
+    let out = s.paste_fields(&set, 0, (200.0, 100.0), &policy).unwrap();
+    assert_eq!(out.names, ["Amount", "Sum"]);
+    assert!(
+        !out.disclosures
+            .iter()
+            .any(|d| d.contains("already a field name"))
+    );
+    let js = calculate_js(&s, out.fields[1].field_id);
+    assert!(js.contains("\"Amount\""), "{js}");
+    assert!(field(&reload(&s), "Sum").is_some());
+}
+
+#[test]
+fn given_names_that_clash_or_miscount_write_nothing() {
+    let mut s = session("field-set-form.pdf");
+    let set = s.copy_fields(&["Qty", "Total"]).unwrap();
+    let depth = s.undo_depth();
+    let try_names = |s: &mut EditSession, names: &[&str]| {
+        let names = names.iter().map(|n| (*n).to_owned()).collect();
+        let policy = named(Some(names), FieldCopyNaming::ContinueNumber, false);
+        s.paste_fields(&set, 0, (200.0, 100.0), &policy)
+            .unwrap_err()
+    };
+    assert!(matches!(
+        try_names(&mut s, &["A"]),
+        EditError::PasteNamesCount {
+            fields: 2,
+            names: 1
+        }
+    ));
+    assert!(matches!(
+        try_names(&mut s, &["A", "Qty"]),
+        EditError::FieldNameTaken { ref name } if name == "Qty"
+    ));
+    assert!(matches!(
+        try_names(&mut s, &["A", "A"]),
+        EditError::FieldNameTaken { ref name } if name == "A"
+    ));
+    assert_eq!(s.undo_depth(), depth);
 }

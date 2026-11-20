@@ -174,7 +174,7 @@ use std::collections::BTreeMap;
 
 mod set;
 pub use set::{
-    FIELD_CLIP_SET_MAGIC, FieldClipSet, FieldSetPasteOutcome, FieldSetPastePolicy,
+    FIELD_CLIP_SET_MAGIC, FieldClipSet, FieldCopyNaming, FieldSetPasteOutcome, FieldSetPastePolicy,
     MAX_CLIP_SET_FIELDS,
 };
 

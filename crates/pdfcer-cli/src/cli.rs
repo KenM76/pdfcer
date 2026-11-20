@@ -7545,9 +7545,12 @@ pub(crate) enum Command {
     /// bounding box lands on `--at`; every field keeps its size and its
     /// distance from the others.
     ///
-    /// * `--as-new` — every field becomes a NEW, INDEPENDENT field. pdfcer
-    ///   picks the names: the copied name when it is free, otherwise the
-    ///   first free `_2`, `_3`, …. Each renamed field is reported. With
+    /// * `--as-new` — every field becomes a NEW, INDEPENDENT field. Name
+    ///   them with one `--name` per field, in copy order; otherwise pdfcer
+    ///   keeps the copied name when it is free and else continues its
+    ///   trailing number (`Text1` -> `Text2`, `Drawn By` -> `Drawn By2`), or
+    ///   appends `_2`, `_3`, … with `--underscore-names`. Each renamed field
+    ///   is reported. With
     ///   `--copy-actions`, a calculation naming another copied field is
     ///   pointed at that field's copy.
     /// * `--as-widgets` — every copied widget becomes another widget of the
@@ -7589,6 +7592,14 @@ pub(crate) enum Command {
         /// `--carry-tooltip` / `--no-tooltip` is required with `--as-new`.
         #[arg(long, requires = "as_new")]
         no_tooltip: bool,
+        /// The name for one copy (`--as-new` only); repeat once per field,
+        /// in copy order. Each must be free here.
+        #[arg(long = "name", value_name = "NAME", requires = "as_new")]
+        names: Vec<String>,
+        /// Rename a taken copied name with `_2`, `_3`, … instead of
+        /// continuing its number (`--as-new` only).
+        #[arg(long, requires = "as_new", conflicts_with = "names")]
+        underscore_names: bool,
         /// Output path.
         #[arg(short, long)]
         output: PathBuf,

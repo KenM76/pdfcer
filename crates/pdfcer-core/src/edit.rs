@@ -8753,6 +8753,16 @@ pub enum EditError {
         /// The colliding fully qualified name.
         name: String,
     },
+    /// A set paste was given a name list whose length is not the set's.
+    #[error(
+        "{names} name(s) were given for {fields} copied field(s) — give one name per field, in copy order"
+    )]
+    PasteNamesCount {
+        /// How many fields the clipboard set holds.
+        fields: usize,
+        /// How many names were given.
+        names: usize,
+    },
     /// The destination name is already defined (§12.3.2.3).
     ///
     /// Checked against **both** namespaces — the PDF 1.1 catalog `/Dests`
