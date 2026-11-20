@@ -4,6 +4,16 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-11-20 (1652nd filing) — `Pass 724.4` parts 2-3 SHIPPED: aliased fills (`99b742b5`) and images (`7ba1c19c`) on the GPU
+
+**Filed (engineer-reported; no shell here, git, push, CI and the gates not run or checked from here):**
+- `99b742b5` aliased (`EdgeAntialiasing::Off`) fills, strokes and clips reproduced exactly on the GPU; `GpuRefusal::Aliased` removed.
+- `7ba1c19c` `Pass 704.2` Images: new `gpu/image.rs` reproduces tiny-skia 0.11's pattern pipeline (nearest, bilinear, Pad); `u_zero` uniform blocks FMA. 0 rows different on SwiftShader and Intel Arc Pro B50 at scale 1 and 300 DPI; 300 DPI draw+read 32.6 ms vs CPU replay 92.5 ms. `GpuRefusal::Image` now only bicubic, degenerate inverse, or over 2^24 samples. Also dropped an `indexing_slicing` exemption `0d9b9761` added unnoticed; run `check-panic-allows.py` before each GPU commit. Details in `ROADMAP.md` *Shipped*.
+
+**FEATURES:** Implemented GPU row widened to aliased and images (core `[x]`, cli `—`, gui `[ ]` unchanged); Planned GPU row narrowed to Shadings, Transparency, switches.
+
+**Open:** `Pass 724.4`: `704.3` Shadings, `704.5` Transparency. GUI wiring owed. Release waits for the arc.
+
 ## 2026-11-20 (1651st filing) — `Pass 724.4` part 1 of 4 (= `704.1` + `704.4`, `0d9b9761`) SHIPPED: fills, strokes and clips on the GPU
 
 **Filed (engineer-reported; no shell here, git, push, CI and the gates not run or checked from here; nothing committed by this filing):**

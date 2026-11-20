@@ -112,6 +112,28 @@ wherever it appears.*
 
 ## Shipped
 
+### `7ba1c19c` `Pass 724.4` PART 3 (= `Pass 704.2` Images): images drawn on the GPU, byte for byte, 2026-11-20 (1652nd filing)
+
+Engineer-reported; no shell here, git, push, CI and the gates not run or checked from here. `7ba1c19c` `feat(render): draw images on the GPU, byte for byte`. **Unreleased.** **`Pass 724.4` stays IN PROGRESS**: Shadings (`704.3`) and Transparency (`704.5`) remain, refused as `GpuRefusal::Shading` / `Transparency`. Decision 223. Reasoning is in the commit message. No manifest change, no new dependency (`cargo tree` unchanged).
+- **What:** new `crates/pdfcer-render/src/gpu/image.rs` reproduces tiny-skia 0.11's pattern pipeline (nearest and bilinear, Pad) per f32 rounding. The shader launders products through uniform `u_zero` (default 0) to block FMA. Scene image section: a 3-texel record per image paint, a 256-entry k/255 quotient table (base in texel 1 lane 3), each distinct image's pixels once.
+- **Refusal narrowed:** `GpuRefusal::Image` now means only bicubic, a non-finite inverse or a coefficient below 1e-30, or bilinear samples beyond 2^24 image pixels.
+- **Agreement:** an image page (rotated, clipped, translucent images) at scale 1 and 300 DPI, 0 rows different on SwiftShader and Intel Arc Pro B50 (D3D11).
+- **Speed, 300 DPI:** GPU draw + read 32.6 ms vs CPU replay 92.5 ms (same page).
+- **Tests:** `gpu_scene_matches_replay` 11/11 (new: `images_nearest_and_bilinear`, `an_image_across_fill_tiles`); 6/6 lib gpu tests.
+- **Also:** removed an `indexing_slicing` exemption on `fill_edges.rs` `clip_line` that `0d9b9761` added without `check-panic-allows` catching it; run `check-panic-allows.py` before each GPU commit.
+- **Gates (engineer-reported):** fmt; clippy `-D warnings` with and without `gpu`; code-structure; public-fns-documented; doc-block-spliced; core-api-verbs PASS; suite-name-absent; panic-allows clean; `cargo check -p pdfcer-render --features gpu --target wasm32-unknown-unknown` OK.
+- **Docs:** `docs/core-api/03-capabilities.md` section 7.3d (`u_zero`, Image refusal meaning, images drawn; engineer-owned).
+- **Delivered:** core yes; cli no (CPU by design); gui no (`pdfcer-gui` must wire it).
+- **FEATURES:** Implemented GPU row widened to images (`[x] core / — cli / [ ] gui`); Planned GPU row narrowed to Shadings, Transparency, switches.
+- **Next:** `Pass 724.4` parts `704.3`, `704.5`; then a release.
+
+### `99b742b5` `Pass 724.4` PART 2: aliased fills, strokes and clips drawn on the GPU, byte for byte, 2026-11-20 (1652nd filing)
+
+Engineer-reported; no shell here, gates not run or checked from here. `99b742b5` `feat(render): draw aliased fills on the GPU, byte for byte`. **Unreleased**; part of the same arc.
+- **What:** fills, strokes and clips drawn with anti-aliasing off (`EdgeAntialiasing::Off`) are reproduced exactly on the GPU: fill header lane `shift` 0 means aliased. `GpuRefusal::Aliased` is removed.
+- **Tests:** `tests/gpu_scene_matches_replay.rs` `aliased_fills_strokes_and_clips`; unit `aliased_polygons_match_tiny_skia`.
+- **Delivered:** core yes; cli no (CPU by design); gui no.
+
 ### `0d9b9761` `Pass 724.4` PART 1 of 4 (= `Pass 704.1` + `704.4`): fills, strokes and clips drawn on the GPU, byte for byte, 2026-11-20 (1651st filing)
 
 Engineer-reported; no shell here, git, push, CI and the gates not run or checked from here. `0d9b9761` `feat(render): draw fills, strokes and clips on the GPU, byte for byte`. **Unreleased** (the release waits for the arc). **`Pass 724.4` stays IN PROGRESS**: Images (`704.2`), Shadings (`704.3`) and Transparency (`704.5`) remain, each refused today as `GpuRefusal::Image` / `Shading` / `Transparency` so the page falls back to the CPU with the reason. Decision 223. Reasoning is in the commit message. No new dependency (`gpu = []`; `cargo tree` unchanged).
@@ -28165,9 +28187,9 @@ closes out the *prior* filing's business rather than opening this one's.
 > - **`Pass 724.5` GPU bounce build under an exposure: SHIPPED `2f9a3ab3` (2026-11-20, unreleased; entry in *Shipped*).** Added to the arc 2026-11-20 for `G311`; not a prerequisite of `724.4`.
 > - **`Pass 724.2` GPU light-meter volume and disc reads: SHIPPED `2c9d3a2a` + `10141128` (2026-11-20, unreleased; entry in *Shipped*).**
 > - **`Pass 724.3` = `Pass 669.1` GPU per-tile lamp lists: SHIPPED `b37560b3` (2026-11-20, unreleased; entry in *Shipped*).** Shipped under both IDs; the `669.1` Backlog entry is removed.
-> - **`Pass 724.4` = `Pass 704.1`-`704.5`, pulled in (IDs not renumbered). IN PROGRESS: part 1 of 4 (`704.1` module and feature + `704.4` Fills & strokes) SHIPPED `0d9b9761` (2026-11-20, unreleased; entry in *Shipped*); `704.2` Images, `704.3` Shadings, `704.5` Transparency NOT STARTED (each refused as `GpuRefusal::Image`/`Shading`/`Transparency`).** The `pdfcer-render` `gpu` feature: module and feature (`704.1`), Images (`704.2`), Shadings (`704.3`), Fills & strokes (`704.4`), Transparency (`704.5`). Full text stays in *Backlog* under `Pass 704.1`+ (pointer added there); decision 223's gate and risks apply unchanged.
+> - **`Pass 724.4` = `Pass 704.1`-`704.5`, pulled in (IDs not renumbered). IN PROGRESS: `704.1` module and feature + `704.4` Fills & strokes SHIPPED `0d9b9761`, aliased fills SHIPPED `99b742b5`, `704.2` Images SHIPPED `7ba1c19c` (all 2026-11-20, unreleased; entries in *Shipped*); `704.3` Shadings and `704.5` Transparency NOT STARTED (refused as `GpuRefusal::Shading`/`Transparency`).** The `pdfcer-render` `gpu` feature: module and feature (`704.1`), Images (`704.2`), Shadings (`704.3`), Fills & strokes (`704.4`), Transparency (`704.5`). Full text stays in *Backlog* under `Pass 704.1`+ (pointer added there); decision 223's gate and risks apply unchanged.
 > - **Explicitly NOT moved (serial or trivial):** BVH build (serial, data-dependent splits); `is_closed` welding (serial hash-weld); file parsing; `draw_data` edge welding (serial); `surface_measure` (trivial); camera fit (trivial); lamp culling (trivial; its per-pixel loop is `724.3`); exposure scaling (trivial).
-> - **RELEASE RULE (operator, 2026-11-19):** the next release waits until this arc (`724.0`-`724.4`, including `669.1` and `704.1`-`704.5`) is in. Supersedes any earlier "release when X" banner for the next version. *Note for the engineer:* `704.2`-`704.5` are large; if the arc cannot finish, the release needs a fresh operator decision, not a silent drop.
+> - **RELEASE RULE (operator, 2026-11-19):** the next release waits until this arc (`724.0`-`724.4`, including `669.1` and `704.1`-`704.5`) is in. Supersedes any earlier "release when X" banner for the next version. *Note for the engineer:* `704.3`-`704.5` are large; if the arc cannot finish, the release needs a fresh operator decision, not a silent drop.
 > - *FEATURES:* one new Planned row (all `[ ]`) for `724.0`-`724.2`; the existing GPU-snapshot Planned row (`704.x`) and the "3D lamp culling" row are cross-referenced, not duplicated.
 
 > **`Pass 721.0` SHIPPED 2026-11-17 (1587th filing), `ce8fa9d2`; see its *Shipped* entry, removed from this list.** Rider still owed, not reported shipped: the `paste-clipboard` bitmap-paste note names a temp file path and compression mode the user never asked for (see *Still open* in that entry).
@@ -39588,7 +39610,7 @@ Request `D:\Dev\FeatureRequests\pdfce_FeatureRequests\open\request_X067_renderer
 - *FEATURES:* no new row; these refine the GPU Planned row and the banded-replay row.
 
 ### `Pass 704.1`+ — GPU snapshot rasterising arc (BACKLOG, NOT STARTED; filed 1496th filing; decision 223; follows `704.0`'s numbers going to Ken)
-> **2026-11-19: pulled into *Next up* as `Pass 724.4` (arc `724.0`-`724.4`, "Everything that can go on the GPU"); IDs `704.1`-`704.5` kept. Full text stays here. 2026-11-20 (1651st filing): `704.1` and `704.4` SHIPPED `0d9b9761` (see *Shipped*); `704.2`, `704.3`, `704.5` remain NOT STARTED.**
+> **2026-11-19: pulled into *Next up* as `Pass 724.4` (arc `724.0`-`724.4`, "Everything that can go on the GPU"); IDs `704.1`-`704.5` kept. Full text stays here. 2026-11-20 (1651st filing): `704.1` and `704.4` SHIPPED `0d9b9761`; aliased fills `99b742b5`; `704.2` SHIPPED `7ba1c19c` (see *Shipped*); `704.3`, `704.5` remain NOT STARTED.**
 
 - **`704.1`:** `gpu` module in `pdfcer-render` behind a NON-default `gpu` feature. Reads the `DisplayList`, emits GLSL ES 3.00 shader text plus plain buffers; no GL, windowing or thread dependency, no new crate dependency, builds for wasm32. The GUI hosts it on its glow context, as model3d does. CI: feature-on steps added; lean-graph and `--no-default-features` steps stay green.
 - **Parts, one switch each plus a whole-picture "Graphics card draws snapshots", in this build order:** `704.2` Images (sampling, `/Interpolate`, masks, tiling cells; decode stays CPU); `704.3` Shadings (types 1-7; functions in a CPU-built lookup texture, meshes tessellated on the CPU); `704.4` Fills & strokes (paths, stroke outlines, clips, glyph outlines; stroker stays CPU); `704.5` Transparency (alpha, blend modes, soft masks, groups). Part-to-ID mapping is the librarian's reading of the decision's order; the engineer may renumber before work starts. Colour conversion, CMYK, overprint, separations: always CPU.
