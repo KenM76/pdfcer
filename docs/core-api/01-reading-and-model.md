@@ -3638,6 +3638,24 @@ let image = render_coloured(&meshes, &colours, &camera, &RenderOptions { width: 
   128 gather rays the CPU refuses that file's bounce map (`TooMuchWork`,
   8e9 rays); the GPU path has the same cap. `map` stays the oracle and the
   path for exports and the CLI.
+  **Meter bounce built on the GPU:** `LightMeter::gpu_new(&model,
+  &prepared, &camera, &options, &settings) -> Result<GpuLightMeter,
+  IlluminanceError>` makes the meter as `new` does (same errors) but
+  leaves its bounce unbuilt: `GpuLightMeter::build: Option<GpuBounceBuild>`
+  is the meter's volume (bouncing lamps and glowing meshes) packed as
+  `PreparedModel::gpu_bounce_build` packs a frame's, with
+  `glow`/`glow_count` filled (bind `u_glow`, `u_glow_count`). Run its
+  passes, read the last atlas back (RGBA32F, `atlas_width` ×
+  `atlas_height`) and call `finish(self, &atlas) -> Result<LightMeter,
+  IlluminanceError>` (`BadQuery("atlas")` when the size is wrong); every
+  read and map then uses that bounce. `build` is `None` when the meter has
+  no bounce, or past a 4,096 texture side, where `gpu_new` built it on the
+  CPU and `finish` ignores its argument. Measured (Intel Arc Pro B50,
+  D3D11): glowing test room, every map point within 6e-10 of the CPU-built
+  meter; Bancroft real file (430,592 triangles, 3,192 probes, 84 lamps,
+  1,494 glowing meshes) setup 0.70 s packing + 0.83 s passes against
+  9.9 s on 20 CPU threads, 400 sampled reads mean |d| 1.4e-4 of the CPU
+  mean, max 0.4%, none off by more than 5%.
   **Bands.** `LuxBands::new(Vec<LuxBand { from, colour: [u8;3] }>,
   BandBlend::{Stepped (default), Graded})` (1 to `MAX_LUX_BANDS` = 16,
   bounds finite and strictly rising, else `LuxBandsError::{Empty,
@@ -4612,7 +4630,8 @@ let image = render_coloured(&meshes, &colours, &camera, &RenderOptions { width: 
     as `FloatTexture`s (RGBA32F) and one `ByteTexture` (RGBA8UI 2D array,
     `layers` deep). The host runs `GLSL_ES_300_BOUNCE_TRACE_FRAGMENT` then
     `GLSL_ES_300_BOUNCE_REDUCE_FRAGMENT` (both over
-    `GLSL_ES_300_BOUNCE_BUILD_VERTEX`) once per `bounces`, ping-ponging two
+    `GLSL_ES_300_BOUNCE_BUILD_VERTEX`) once per `bounces` (bind `u_glow`
+    and `u_glow_count` from `glow`/`glow_count`; 0 for a frame), ping-ponging two
     atlas targets; the last atlas is `u_bounce_atlas`, with every other
     uniform from `GpuBounceBuild::bounce`, nothing read back. The rustdoc
     on `GpuBounceBuild` lists every uniform. `None` where `frame_bounce`

@@ -705,3 +705,44 @@ fn a_gpu_map_gathers_a_glow_in_every_direction() {
     assert_eq!(&g.glow.texels[4..7], &[1.0; 3]);
     assert!(g.bounce.is_none() && g.eps > 0.0 && g.far >= g.eps);
 }
+
+#[test]
+fn a_gpu_meter_built_from_the_cpu_atlas_reads_as_the_cpu_meter() {
+    let (mut model, dark) = glow_room([1.0; 3]);
+    model.meshes.push(quad([
+        [-0.5, -0.5, 0.5],
+        [0.5, -0.5, 0.5],
+        [0.5, 0.5, 0.5],
+        [-0.5, 0.5, 0.5],
+    ]));
+    model.colours.push(Some([255, 255, 255, 255]));
+    model.finishes.push(None);
+    let options = RenderOptions {
+        indirect: IndirectOptions::default(),
+        ..dark
+    };
+    let settings = MeterSettings::default();
+    let cpu = meter(&model, &options, &settings);
+    let prepared = PreparedModel::new(&model);
+    let make = || LightMeter::gpu_new(&model, &prepared, &camera(), &options, &settings).unwrap();
+    let gpu = make();
+    let build = gpu.build.as_ref().unwrap();
+    // The probes trace the glow: the ceiling's row is white.
+    assert_eq!(build.glow_count, 3);
+    assert_eq!(&build.glow.texels[4..7], &[1.0; 3]);
+    let atlas = cpu.volume.as_ref().unwrap().atlas().texels;
+    assert!(matches!(
+        make().finish(&atlas[1..]),
+        Err(IlluminanceError::BadQuery("atlas"))
+    ));
+    let gpu = gpu.finish(&atlas).unwrap();
+    for q in [
+        IlluminanceQuery::new(2, [0.0, 0.0, 0.5], [0.0, 0.0, -1.0]),
+        at([1.5, 1.5, 0.0]),
+        at([0.2, -0.3, 0.0]),
+    ] {
+        let (a, b) = (cpu.read(&q).unwrap(), gpu.read(&q).unwrap());
+        assert!(a.bounced > 0.0, "{a:?}");
+        assert!((a.total - b.total).abs() <= 1e-6 * a.total, "{a:?} {b:?}");
+    }
+}

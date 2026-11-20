@@ -8,6 +8,7 @@
 
 mod disc;
 mod exposure;
+mod gpu_meter;
 mod map;
 mod plan;
 mod types;
@@ -18,6 +19,7 @@ mod exposure_tests;
 mod tests;
 
 pub use exposure::{ExposedLighting, Exposure, ExposureError};
+pub use gpu_meter::GpuLightMeter;
 pub use map::{
     GpuLightMap, IlluminanceMap, MAP_VERTEX_FLOATS, MAX_MAP_POINTS, MAX_MAP_RAYS, MapPatch,
     MapProgress, MapSide,
@@ -126,6 +128,20 @@ impl<'m> LightMeter<'m> {
         options: &RenderOptions,
         settings: &MeterSettings,
     ) -> Result<Self, IlluminanceError> {
+        let mut meter = Self::unbuilt(model, prepared, camera, options, settings)?;
+        let threads = meter.threads;
+        meter.on_volume(|volume, scene, _| volume.build(scene, threads));
+        Ok(meter)
+    }
+
+    /// [`Self::new`] with the bounce volume made but not built.
+    fn unbuilt(
+        model: &'m AssembledModel,
+        prepared: &PreparedModel,
+        camera: &Camera,
+        options: &RenderOptions,
+        settings: &MeterSettings,
+    ) -> Result<Self, IlluminanceError> {
         let basis = camera.basis()?;
         let plan = plan::Plan::of(model, options, settings);
         let shader = Shader::for_frame(&plan.options, &plan.lights, &basis)?;
@@ -150,25 +166,10 @@ impl<'m> LightMeter<'m> {
             }
         };
         let glow = plan.glow;
-        let mut volume = match on && !(bouncing.is_empty() && glow.is_empty()) {
+        let volume = match on && !(bouncing.is_empty() && glow.is_empty()) {
             false => None,
             true => Volume::new(meshes),
         };
-        if let Some(volume) = &mut volume {
-            let surfaces = Painted {
-                meshes,
-                paints: &paints,
-            };
-            let scene = Scene {
-                meshes,
-                index: &index,
-                surfaces: &surfaces,
-                lamps: &bouncing,
-                sky,
-                glow: &glow,
-            };
-            volume.build(&scene, options.threads);
-        }
         let far = Bounds::of(meshes).map_or(1.0, |b| 2.0 * length(sub(b.max, b.min)));
         Ok(LightMeter {
             meshes,
@@ -200,6 +201,27 @@ impl<'m> LightMeter<'m> {
             reasons: plan.reasons,
             notes: plan.notes,
         })
+    }
+
+    /// Runs `f` on the bounce volume and the scene it is built from (the
+    /// bouncing lamps and the glow); `None` when there is no volume.
+    fn on_volume<T>(&mut self, f: impl FnOnce(&mut Volume, &Scene, &Painted) -> T) -> Option<T> {
+        let mut volume = self.volume.take()?;
+        let surfaces = Painted {
+            meshes: self.meshes,
+            paints: &self.paints,
+        };
+        let scene = Scene {
+            meshes: self.meshes,
+            index: &self.index,
+            surfaces: &surfaces,
+            lamps: &self.bouncing,
+            sky: self.sky,
+            glow: &self.glow,
+        };
+        let out = f(&mut volume, &scene, &surfaces);
+        self.volume = Some(volume);
+        Some(out)
     }
 
     /// What every reading is in.

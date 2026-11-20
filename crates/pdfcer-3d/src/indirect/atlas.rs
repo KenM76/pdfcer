@@ -28,6 +28,39 @@ impl Volume {
         (width, self.grid.len().div_ceil(TILES_PER_ROW).max(1) * SIDE)
     }
 
+    /// Takes every probe from `texels`, an atlas in [`Self::atlas`]'s
+    /// layout, as the finished bounce; `None` when it is not that size.
+    pub(crate) fn load_atlas(&mut self, texels: &[f32]) -> Option<()> {
+        let (width, height) = self.atlas_size();
+        if texels.len() != width * height * 4 {
+            return None;
+        }
+        let at = |i: usize| -> [f32; 4] {
+            let mut t = [0.0; 4];
+            if let Some(src) = texels.get(4 * i..4 * i + 4) {
+                t.copy_from_slice(src);
+            }
+            t
+        };
+        for (i, probe) in self.current.iter_mut().enumerate() {
+            let (x0, y0) = ((i % TILES_PER_ROW) * TILE_WIDTH, (i / TILES_PER_ROW) * SIDE);
+            for (t, (e, d)) in probe
+                .irradiance
+                .iter_mut()
+                .zip(&mut probe.depth)
+                .enumerate()
+            {
+                let row = (y0 + t / SIDE) * width + x0 + t % SIDE;
+                let [r, g, b, _] = at(row);
+                let [mean, variance, _, _] = at(row + SIDE);
+                *e = [r, g, b];
+                *d = [mean, mean * mean + variance];
+            }
+        }
+        self.stage = super::Stage::Done;
+        Some(())
+    }
+
     /// The last complete bounce as an [`Atlas`]. Probe `i`'s tile starts at
     /// texel (`16 (i mod 64)`, `8 (i div 64)`); its texel (`u`, `v`) is the
     /// irradiance of octahedral texel `v * 8 + u` (RGB, alpha 1 when the

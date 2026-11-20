@@ -264,7 +264,8 @@ void main() {
 /// The trace pass: texel (`x`, `y`) of the target traces ray `x mod 64`
 /// of probe `8 y + x div 64`, writing the radiance it brings back (RGB)
 /// and how far it went (alpha). Reads the previous bounce through
-/// `u_bounce_atlas` unless `u_first`.
+/// `u_bounce_atlas` unless `u_first`; a hit on mesh `m < u_glow_count`
+/// also brings back `u_glow` row `m`, less what the surface lets through.
 pub const GLSL_ES_300_BOUNCE_TRACE_FRAGMENT: &str = concat!(
     "#version 300 es\n",
     scene_glsl!(),
@@ -274,6 +275,8 @@ uniform int u_probe_count;
 uniform vec3 u_rays[64];
 uniform bool u_first;
 uniform vec3 u_sky;
+uniform highp sampler2D u_glow;
+uniform int u_glow_count;
 out vec4 o_ray;
 
 void main() {
@@ -292,7 +295,10 @@ void main() {
     vec4 albedo = scene_colour(p, w);
     vec3 light = scene_direct(hit, n);
     if (!u_first) light += bounce(hit, n);
-    o_ray = vec4(albedo.rgb * albedo.a * light, t);
+    vec3 radiance = albedo.rgb * albedo.a * light;
+    int mesh = int(flat_fetch(u_tris, 4 * p).w);
+    if (mesh < u_glow_count) radiance += flat_fetch(u_glow, mesh).rgb * clamp(albedo.a, 0.0, 1.0);
+    o_ray = vec4(radiance, t);
 }
 "
 );

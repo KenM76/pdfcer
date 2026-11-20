@@ -92,8 +92,8 @@ impl FloatTexture {
 ///
 /// 1. **Trace** into the trace target with
 ///    [`GLSL_ES_300_BOUNCE_TRACE_FRAGMENT`]: `u_nodes`, `u_tris`,
-///    `u_uvs`, `u_materials`, `u_pictures`, `u_lamps`, `u_probes` the
-///    textures; `u_lamp_count`,
+///    `u_uvs`, `u_materials`, `u_pictures`, `u_lamps`, `u_probes`,
+///    `u_glow` the textures; `u_lamp_count`, `u_glow_count`,
 ///    `u_probe_count`, `u_far`, `u_eps`, `u_sky`, `u_rays` from the fields
 ///    of the same names; `u_first` true on the first bounce only;
 ///    `u_bounce_atlas` the previous bounce's atlas (unread on the first);
@@ -153,8 +153,13 @@ pub struct GpuBounceBuild {
     /// The probes, one texel each, 2,048 wide: position and 1 when in use,
     /// else 0.
     pub probes: FloatTexture,
+    /// The radiance each glowing mesh gives off, one texel per mesh by
+    /// mesh index, 2,048 wide; a frame's build counts none.
+    pub glow: FloatTexture,
     pub lamp_count: u32,
     pub probe_count: u32,
+    /// The meshes [`Self::glow`] covers.
+    pub glow_count: u32,
     /// The ray directions, unit.
     pub rays: Vec<[f32; 3]>,
     /// The direction of each texel of a probe's 8 × 8 map, row-major.
@@ -308,7 +313,7 @@ pub(crate) fn lamp_rows(lamps: &[Lamp], origin: [f64; 3]) -> Vec<[f32; 4]> {
 }
 
 /// The scene and classified `volume` as textures; `None` past [`MAX_SIDE`].
-fn pack(
+pub(crate) fn pack(
     (scene, surfaces): (&Scene, &Painted),
     volume: &Volume,
     mut bounce: FrameBounce,
@@ -329,9 +334,13 @@ fn pack(
             [x, y, z, if used { 1.0 } else { 0.0 }]
         })
         .collect();
-    let [lamps, probes] =
-        [lamp_rows(scene.lamps, origin), probes].map(|t| FloatTexture::from_rows(FLAT_WIDTH, t));
-    if lamps.height.max(probes.height) as usize > MAX_SIDE {
+    let glow = scene.glow.iter().map(|g| {
+        let [r, g, b] = g.map(|v| v as f32);
+        [r, g, b, 0.0]
+    });
+    let [lamps, probes, glow] = [lamp_rows(scene.lamps, origin), probes, glow.collect()]
+        .map(|t| FloatTexture::from_rows(FLAT_WIDTH, t));
+    if lamps.height.max(probes.height).max(glow.height) as usize > MAX_SIDE {
         return None;
     }
     let atlas = volume.atlas_size();
@@ -348,8 +357,10 @@ fn pack(
         pictures,
         lamps,
         probes,
+        glow,
         lamp_count: scene.lamps.len() as u32,
         probe_count: grid.len() as u32,
+        glow_count: scene.glow.len() as u32,
         rays: sphere_directions(RAYS, false)
             .into_iter()
             .map(to_f32)
