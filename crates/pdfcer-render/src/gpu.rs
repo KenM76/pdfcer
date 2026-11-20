@@ -7,12 +7,14 @@
 //! against `tiny-skia`.
 
 pub(crate) mod bins;
+pub(crate) mod blend;
 pub(crate) mod block;
 #[cfg(test)]
 pub(crate) mod fill_coverage;
 pub(crate) mod fill_edges;
 pub(crate) mod glsl;
 pub(crate) mod image;
+pub(crate) mod layer;
 pub(crate) mod prepare;
 pub(crate) mod reference;
 pub(crate) mod scene;

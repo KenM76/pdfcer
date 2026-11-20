@@ -11,8 +11,14 @@ fn page_with(content: &str, resources: &str) -> Document {
 }
 
 /// A `size` pt page painting `content` with `resources`.
-fn page_sized(content: &str, resources: &str, (w, h): (u32, u32)) -> Document {
-    let objects = [
+fn page_sized(content: &str, resources: &str, size: (u32, u32)) -> Document {
+    page_objects(content, resources, size, &[])
+}
+
+/// A `size` pt page painting `content` with `resources`, objects 5 on being
+/// `extra`.
+fn page_objects(content: &str, resources: &str, (w, h): (u32, u32), extra: &[String]) -> Document {
+    let mut objects = vec![
         "<< /Type /Catalog /Pages 2 0 R >>".to_owned(),
         format!("<< /Type /Pages /Kids [3 0 R] /Count 1 /MediaBox [0 0 {w} {h}] >>"),
         format!("<< /Type /Page /Parent 2 0 R /Contents 4 0 R /Resources {resources} >>"),
@@ -21,6 +27,7 @@ fn page_sized(content: &str, resources: &str, (w, h): (u32, u32)) -> Document {
             content.len()
         ),
     ];
+    objects.extend_from_slice(extra);
     let mut out = String::from("%PDF-1.7\n");
     let mut offsets = Vec::new();
     for (i, body) in objects.iter().enumerate() {
@@ -170,11 +177,37 @@ fn aliased_fills_strokes_and_clips() {
     assert_matches_with(&doc, &[1.0, 2.37, 300.0 / 72.0], "aliased", &options);
 }
 
+/// Each low-precision blend mode over translucent and opaque paint, with
+/// partial coverage, a clip and a stroke.
 #[test]
-fn a_transparency_group_is_refused() {
+fn separable_blend_modes() {
+    for mode in [
+        "Multiply",
+        "Screen",
+        "Overlay",
+        "Darken",
+        "Lighten",
+        "HardLight",
+        "Difference",
+        "Exclusion",
+    ] {
+        let content = "1 0 0 rg 10 10 50 50 re f /A gs 0 0.5 0.8 rg 30.3 5 40 60.6 re f \
+             /B gs 0.9 0.8 0.1 rg 20 40 m 95 52 l 50 95 l h f \
+             q 15 15 70 70 re W n 0.2 0.9 0.4 RG 3.3 w 0 0 m 100 90 l S Q /N gs 0 0 1 rg 5 80 30 10 re f\n";
+        let res = format!(
+            "<< /ExtGState << /A << /ca 0.6 >> /B << /BM /{mode} >> /N << /BM /Normal /ca 0.7 >> >> >>"
+        );
+        assert_matches(content, &res, mode);
+        let aliased = RenderOptions::default().with_edge_antialiasing(EdgeAntialiasing::Off);
+        assert_matches_with(&page_with(content, &res), &[1.0, 2.37], mode, &aliased);
+    }
+}
+
+#[test]
+fn a_high_precision_blend_mode_is_refused() {
     let doc = page_with(
         "/B gs 1 0 0 rg 10 10 50 50 re f\n",
-        "<< /ExtGState << /B << /BM /Multiply >> >> >>",
+        "<< /ExtGState << /B << /BM /ColorBurn >> >> >>",
     );
     let page = page_tree::pages(&doc).expect("page tree walks").remove(0);
     let list = record_page(&doc.view(), &page, 1.0, 1, &RenderOptions::default()).expect("records");
@@ -220,4 +253,50 @@ fn an_image_across_fill_tiles() {
         &[4.2],
         "wide image",
     );
+}
+
+/// A form XObject painted under `gs`, as `/Fm`, isolated group `group`.
+fn group_page(content: &str, form: &str, group: &str, gs: &str) -> Document {
+    let res = format!("<< /ExtGState << {gs} >> /XObject << /Fm 5 0 R >> >>");
+    let fm = format!(
+        "<< /Type /XObject /Subtype /Form /BBox [0 0 100 100] /Group << /S /Transparency {group} >> /Resources {res} /Length {} >>\nstream\n{form}endstream",
+        form.len()
+    );
+    page_objects(content, &res, (100, 100), &[fm])
+}
+
+/// Transparency groups: group opacity, a group blend mode, nesting, a clip
+/// inside and a translucent member, at every scale, anti-aliased or not.
+#[test]
+fn transparency_groups() {
+    let form = "1 0 0 rg 10.3 10 50 50 re f /M gs 0 0 1 rg 30 30.6 50 50 re f \
+                q 20 20 60 60 re W n 0 1 0 RG 3.3 w 0 0 m 100 100 l S Q\n";
+    for (gs, what) in [
+        ("/G << /ca 0.5 >>", "opacity"),
+        ("/G << /BM /Multiply /ca 0.8 >>", "multiply group"),
+        ("/G << /BM /Screen >>", "screen group"),
+        ("/G << /BM /HardLight /ca 0.6 >>", "hard-light group"),
+        ("/G << /BM /Difference >>", "difference group"),
+    ] {
+        let gs = format!("{gs} /M << /ca 0.6 >>");
+        let content = "0.9 0.8 0.1 rg 0 40 100 20 re f /G gs /Fm Do 0 0.6 0.3 rg 70 5 20 90 re f\n";
+        let doc = group_page(content, form, "/I true", &gs);
+        assert_matches_at(&doc, &[1.0, 2.37, 300.0 / 72.0], what);
+        let aliased = RenderOptions::default().with_edge_antialiasing(EdgeAntialiasing::Off);
+        assert_matches_with(&doc, &[1.0, 2.37], what, &aliased);
+    }
+}
+
+#[test]
+fn nested_transparency_groups() {
+    // The form paints itself again inside a translucent group (the outer
+    // `/Fm` is the same object, so the recursion guard stops it).
+    let form = "0 0 1 rg 20.5 20 40 40 re f /G gs 0.5 0 0 0.5 25 25 cm /Fm Do\n";
+    let doc = group_page(
+        "0.9 0.8 0.1 rg 0 40 100 20 re f /G gs /Fm Do\n",
+        form,
+        "/I true",
+        "/G << /ca 0.7 >>",
+    );
+    assert_matches_at(&doc, &[1.0, 2.37], "nested");
 }

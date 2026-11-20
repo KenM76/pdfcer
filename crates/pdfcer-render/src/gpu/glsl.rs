@@ -178,6 +178,57 @@ ivec4 image_pixel(int h, int rec, int px, int py, ivec4 d, float q, int c) {
   vec4 v = mul(mul(vec4(d), factor()), 1.0 - s.a) + s;
   return ivec4(roundEven(mul(min(max(v, 0.0), 1.0), 255.0)));
 }
+int w16(int v) { return v & 0xFFFF; }
+int d16(int v) { return w16(v + 255) >> 8; }
+int light(int s, int sa, int d, int da, bool c) {
+  int v = c ? w16(w16(2 * s) * d) : w16(w16(sa * da) - w16(w16(2 * w16(sa - s)) * w16(da - d)));
+  return d16(w16(w16(w16(s * w16(255 - da)) + w16(d * w16(255 - sa))) + v));
+}
+int blend_channel(int code, int s, int sa, int d, int da) {
+  int sda = w16(s * da), dsa = w16(d * sa), sum = w16(s + d);
+  if (code == 1) return d16(w16(w16(w16(s * w16(255 - da)) + w16(d * w16(255 - sa))) + w16(s * d)));
+  if (code == 2) return w16(sum - d16(w16(s * d)));
+  if (code == 3) return light(s, sa, d, da, w16(d + d) <= da);
+  if (code == 4) return w16(sum - d16(max(sda, dsa)));
+  if (code == 5) return w16(sum - d16(min(sda, dsa)));
+  if (code == 6) return light(s, sa, d, da, w16(s + s) <= sa);
+  if (code == 7) return w16(sum - w16(2 * d16(min(sda, dsa))));
+  return w16(sum - w16(2 * d16(w16(s * d))));
+}
+ivec4 blend_pixel(int code, ivec4 s, ivec4 d, int c) {
+  ivec4 r;
+  for (int k = 0; k < 3; k++) r[k] = blend_channel(code, s[k], s.a, d[k], d.a);
+  r.a = code <= 2 ? blend_channel(code, s.a, s.a, d.a, d.a) : w16(s.a + d16(w16(d.a * w16(255 - s.a))));
+  if (c < 255) for (int k = 0; k < 4; k++) r[k] = d16(w16(w16(d[k] * w16(255 - c)) + w16(r[k] * c)));
+  return r & 255;
+}
+float hp_light(float s, float sa, float d, float da, bool c) {
+  float v;
+  if (c) { float p = mul(s, d); v = p + p; }
+  else { float p = mul(da - d, sa - s); v = mul(sa, da) - (p + p); }
+  return mul(s, 1.0 - da) + mul(d, 1.0 - sa) + v;
+}
+float hp_channel(int code, float s, float sa, float d, float da) {
+  if (code == 1) return mul(s, 1.0 - da) + mul(d, 1.0 - sa) + mul(s, d);
+  if (code == 2) return s + d - mul(s, d);
+  if (code == 3) return hp_light(s, sa, d, da, d + d <= da);
+  if (code == 4) return s + d - max(mul(s, da), mul(d, sa));
+  if (code == 5) return s + d - min(mul(s, da), mul(d, sa));
+  if (code == 6) return hp_light(s, sa, d, da, s + s <= sa);
+  float m = code == 7 ? min(mul(s, da), mul(d, sa)) : mul(s, d);
+  return s + d - (m + m);
+}
+ivec4 composite(ivec4 d, ivec4 inner, float opacity, int code) {
+  vec4 s = mul(mul(vec4(inner), factor()), opacity);
+  vec4 dv = mul(vec4(d), factor());
+  vec4 r;
+  if (code == 0) r = mul(dv, 1.0 - s.a) + s;
+  else {
+    for (int k = 0; k < 3; k++) r[k] = hp_channel(code, s[k], s.a, dv[k], dv.a);
+    r.a = code <= 2 ? hp_channel(code, s.a, s.a, dv.a, dv.a) : mul(dv.a, 1.0 - s.a) + s.a;
+  }
+  return ivec4(roundEven(mul(min(max(r, 0.0), 1.0), 255.0)));
+}
 ivec4 channels(int v) { return ivec4(v & 255, (v >> 8) & 255, (v >> 16) & 255, (v >> 24) & 255); }
 
 void main() {
@@ -187,8 +238,21 @@ void main() {
   int k = (py / 8191) * dcols + px / 8191;
   ivec4 tile = at(sections.x + (py >> 2) * head.z + (px >> 4));
   ivec4 d = ivec4(0);
+  ivec4 saved[8];
+  int depth = 0;
   for (int e = tile.x; e < tile.x + tile.y; e++) {
     ivec4 op = at(sections.y + lane(e));
+    if (op.z == 0x00FFFFFE) {
+      if (depth < 8) saved[depth] = d;
+      depth++;
+      d = ivec4(0);
+      continue;
+    }
+    if (op.z == 0x00FFFFFD) {
+      depth = max(depth - 1, 0);
+      d = composite(depth < 8 ? saved[depth] : ivec4(0), d, intBitsToFloat(op.x), op.y);
+      continue;
+    }
     int c = coverage(op.x, px, py);
     if (c == 0) continue;
     if (op.z == 0x00FFFFFF) {
@@ -202,6 +266,16 @@ void main() {
       continue;
     }
     ivec4 u = channels(op.z);
+    int code = at(op.x + 3).w;
+    if (code != 0) {
+      if (op.y >= 0) {
+        int m = mask(sections.z, op.y, k, stride, px, py);
+        if (m == 0) continue;
+        u = (u * m + 255) >> 8;
+      }
+      d = blend_pixel(code, u, d, c);
+      continue;
+    }
     if (op.y < 0 && u.a == 255) {
       if (c == 255) d = channels(op.w);
       else d = (d * (255 - c) + u * c + 255) >> 8;

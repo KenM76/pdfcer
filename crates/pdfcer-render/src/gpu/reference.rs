@@ -3,8 +3,10 @@
 //! graphics card's output and the tests can check the packing.
 
 use super::bins::round;
+use super::blend;
 use super::fill_edges::DRAW_TILE;
 use super::image::{self, IMAGE_PAINT};
+use super::layer;
 use super::scene::{GpuScene, IntTexture};
 
 /// Clip nesting the shader follows before treating a clip as empty.
@@ -238,6 +240,42 @@ fn image_pixel(
     image::over(d, s, mask, c)
 }
 
+/// A solid paint of colour `u` drawn over `d` with coverage `c` and clip
+/// mask `m` (`None` unclipped), blend `code`, opaque full-coverage colour
+/// `memset`.
+fn solid(
+    u: [i32; 4],
+    d: [i32; 4],
+    (c, m): (i32, Option<i32>),
+    (code, memset): (i32, i32),
+) -> [i32; 4] {
+    let mut s = m.map_or(u, |m| u.map(|v| div255(v * m)));
+    if code != 0 {
+        return blend::pixel(code, s, d, c);
+    }
+    if m.is_none() && u[3] == 255 {
+        if c == 255 {
+            return channels(memset);
+        }
+        return std::array::from_fn(|k| {
+            let (dv, uv) = (
+                d.get(k).copied().unwrap_or(0),
+                u.get(k).copied().unwrap_or(0),
+            );
+            div255(dv * (255 - c) + uv * c)
+        });
+    }
+    if c < 255 {
+        s = s.map(|v| div255(v * c));
+    }
+    let keep = 255 - s[3];
+    let mut out = d;
+    for (dv, sv) in out.iter_mut().zip(s) {
+        *dv = sv + div255(*dv * keep);
+    }
+    out
+}
+
 /// One pixel of `scene`, premultiplied, before the flatten over white.
 fn paint(t: &Tex<'_>, px: i32, py: i32) -> [i32; 4] {
     let [w, h, cols, _] = t.at(0);
@@ -250,8 +288,12 @@ fn paint(t: &Tex<'_>, px: i32, py: i32) -> [i32; 4] {
     );
     let [first, count, _, _] = t.at(tile_base + py.div_euclid(4) * cols + px.div_euclid(16));
     let mut d = [0i32; 4];
+    let mut stack = layer::Stack::default();
     for e in first..first + count {
         let [h, clip, color, memset] = t.at(op_base + t.lane(e));
+        if stack.apply(&mut d, [h, clip, color]) {
+            continue;
+        }
         let c = coverage(t, h, px, py);
         if c == 0 {
             continue;
@@ -267,32 +309,14 @@ fn paint(t: &Tex<'_>, px: i32, py: i32) -> [i32; 4] {
             d = image_pixel(t, (h, memset), (px, py), d, (mask, c));
             continue;
         }
-        let u = channels(color);
-        if clip < 0 && u[3] == 255 {
-            if c == 255 {
-                d = channels(memset);
-            } else {
-                for (dv, uv) in d.iter_mut().zip(u) {
-                    *dv = div255(*dv * (255 - c) + uv * c);
-                }
-            }
-            continue;
-        }
-        let mut s = u;
-        if clip >= 0 {
-            let m = mask(t, clip_base, (clip, k, stride), px, py);
-            if m == 0 {
-                continue;
-            }
-            s = s.map(|v| div255(v * m));
-        }
-        if c < 255 {
-            s = s.map(|v| div255(v * c));
-        }
-        let keep = 255 - s[3];
-        for (dv, sv) in d.iter_mut().zip(s) {
-            *dv = sv + div255(*dv * keep);
-        }
+        let m = match clip {
+            ..0 => None,
+            _ => match mask(t, clip_base, (clip, k, stride), px, py) {
+                0 => continue,
+                m => Some(m),
+            },
+        };
+        d = solid(channels(color), d, (c, m), (t.at(h + 3)[3], memset));
     }
     d
 }

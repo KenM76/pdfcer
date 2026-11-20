@@ -173,7 +173,7 @@ pub(crate) fn sample(
 
 /// `store_8888`'s rounding of one channel.
 #[allow(clippy::cast_possible_truncation)] // in 0..=255
-fn unnorm(v: f32) -> i32 {
+pub(crate) fn unnorm(v: f32) -> i32 {
     let v = if v > 0.0 { v } else { 0.0 };
     let v = if v < 1.0 { v } else { 1.0 };
     (v * 255.0).round_ties_even() as i32

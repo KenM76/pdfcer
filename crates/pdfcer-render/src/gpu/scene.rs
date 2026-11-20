@@ -4,12 +4,13 @@
 //! in one integer texture.
 
 use pdfcer_core::page_tree::Rect as PageRect;
-use tiny_skia::{BlendMode, Color, FillRule, Path, PathSegment, Transform};
+use tiny_skia::{Color, FillRule, Path, PathSegment, Transform};
 
 use super::bins::{TILE_H, TILE_W};
 use super::block::FillBlock;
 use super::fill_edges::{self, FillEdges};
 use super::image::{self, IMAGE_PAINT, ImagePaint};
+use super::layer::LAYER_BEGIN;
 use crate::RenderError;
 use crate::canvas::{Brush, BrushSpec};
 use crate::device_clip::{self, Fit};
@@ -74,9 +75,10 @@ pub enum GpuRefusal {
     /// draw yet.
     #[error("the page paints a shading")]
     Shading,
-    /// The page uses transparency groups or blend modes, which the
-    /// graphics card does not draw yet.
-    #[error("the page uses transparency groups or blend modes")]
+    /// The page uses a soft mask, a blend mode the graphics card does not
+    /// draw (non-separable, colour dodge or burn, soft light, or any but
+    /// Normal on an image), or groups nested more than 8 deep.
+    #[error("the page uses transparency the graphics card does not draw")]
     Transparency,
     /// A path still carries curves after fitting, which the scene does not
     /// flatten.
@@ -207,12 +209,17 @@ impl Frame<'_> {
 
 /// One paint as the shader draws it.
 struct Paint {
+    /// Its fill; `usize::MAX` for a group marker.
     fill: usize,
+    /// A [`super::layer`] marker's op texel.
+    marker: Option<[i32; 4]>,
     clip: Option<usize>,
     /// The pipeline's colour, premultiplied, `r | g << 8 | b << 16 | a << 24`.
     color: i32,
     /// The colour an opaque unclipped paint writes at full coverage.
     memset: i32,
+    /// Its [`super::blend::code`].
+    blend: i32,
     image: Option<ImagePaint>,
 }
 
@@ -229,15 +236,14 @@ fn pack_rgba(c: [u8; 4]) -> i32 {
 }
 
 /// The pipeline colours of a solid paint ([`IMAGE_PAINT`] and 0 for an
-/// image), or why the scene cannot draw it.
-pub(crate) fn colors(brush: &BrushSpec) -> Result<(i32, i32), GpuRefusal> {
-    if brush.blend != BlendMode::SourceOver {
-        return Err(GpuRefusal::Transparency);
-    }
+/// image) and its [`super::blend::code`], or why the scene cannot draw it.
+pub(crate) fn colors(brush: &BrushSpec) -> Result<(i32, i32, i32), GpuRefusal> {
+    let blend = super::blend::code(brush.blend)?;
     let rgba = match &brush.brush {
         Brush::Solid { rgba } => *rgba,
         Brush::Gradient(_) => return Err(GpuRefusal::Shading),
-        Brush::Image { .. } => return Ok((IMAGE_PAINT, 0)),
+        Brush::Image { .. } if blend == 0 => return Ok((IMAGE_PAINT, 0, 0)),
+        Brush::Image { .. } => return Err(GpuRefusal::Transparency),
     };
     let p = Color::from_rgba8(rgba[0], rgba[1], rgba[2], rgba[3]).premultiply();
     // `push_uniform_color`'s rounding.
@@ -248,6 +254,7 @@ pub(crate) fn colors(brush: &BrushSpec) -> Result<(i32, i32), GpuRefusal> {
     Ok((
         pack_rgba(color),
         pack_rgba([m.red(), m.green(), m.blue(), m.alpha()]),
+        blend,
     ))
 }
 
@@ -272,12 +279,20 @@ fn builder(frame: &Frame<'_>) -> Result<Builder, GpuRefusal> {
         b.clips.push((fills, parent));
     }
     for p in paints {
-        b.fills.push(p.block);
+        let fill = match p.block {
+            Some(f) => {
+                b.fills.push(f);
+                b.fills.len() - 1
+            }
+            None => usize::MAX,
+        };
         b.paints.push(Paint {
-            fill: b.fills.len() - 1,
+            fill,
+            marker: p.marker,
             clip: p.clip,
             color: p.color,
             memset: p.memset,
+            blend: p.blend,
             image: p.image,
         });
     }
@@ -319,6 +334,12 @@ fn pack(frame: &Frame<'_>) -> Result<IntTexture, GpuRefusal> {
         at += f.texels.len();
     }
     super::prepare::copy_fills(out.get_mut(2..).unwrap_or_default(), b.fills);
+    for p in &b.paints {
+        let origin = headers.get(p.fill).map(|h| *h as usize + 3);
+        if let Some([_, _, _, code]) = origin.and_then(|o| out.get_mut(o)) {
+            *code = p.blend;
+        }
+    }
     records(
         &mut out,
         (&b.clips, &b.paints, &rec_of),
@@ -351,6 +372,10 @@ fn records(
         }
     }
     for (p, rec) in paints.iter().zip(rec_of) {
+        if let Some(m) = p.marker {
+            out.push(m);
+            continue;
+        }
         let h = headers.get(p.fill).copied().unwrap_or(-1);
         let memset = if *rec >= 0 { *rec } else { p.memset };
         out.push([h, p.clip.map_or(-1, |c| c as i32), p.color, memset]);
@@ -370,33 +395,67 @@ fn records(
 /// A clip's fill in each `DrawTiler` tile, and its parent.
 type ClipFills = (Vec<Option<usize>>, Option<usize>);
 
-/// Each tile's paints, in paint order: a paint reaches a tile its fill
-/// covers, unless its clip's fill misses it.
-fn tile_lists(b: &Builder, (cols, rows): (i32, i32)) -> Vec<Vec<i32>> {
-    let mut lists: Vec<Vec<i32>> = vec![Vec::new(); (cols * rows) as usize];
-    for (i, p) in b.paints.iter().enumerate() {
-        let Some(fill) = b.fills.get(p.fill) else {
+/// The raster tiles `p`'s fill covers, unless its clip's fill misses them.
+fn paint_tiles(b: &Builder, p: &Paint, (cols, rows): (i32, i32)) -> Vec<u32> {
+    let Some(fill) = b.fills.get(p.fill) else {
+        return Vec::new();
+    };
+    let clip: Option<Vec<_>> = p.clip.and_then(|c| b.clips.get(c)).map(|(fills, _)| {
+        fills
+            .iter()
+            .flatten()
+            .filter_map(|f| b.fills.get(*f))
+            .map(|f| &f.footprint)
+            .collect()
+    });
+    let mut out = Vec::new();
+    for (col, row) in fill.footprint.tiles() {
+        if !(0..cols).contains(&col) || !(0..rows).contains(&row) {
             continue;
+        }
+        // A clip whose own fills miss the tile admits nothing there.
+        if let Some(c) = &clip
+            && !c.iter().any(|f| f.covers(col, row))
+        {
+            continue;
+        }
+        out.push((row * cols + col) as u32);
+    }
+    out
+}
+
+/// Each tile's paints, in paint order. A group's markers reach every tile
+/// one of its members reaches.
+fn tile_lists(b: &Builder, (cols, rows): (i32, i32)) -> Vec<Vec<i32>> {
+    let mut reach: Vec<Vec<u32>> = Vec::with_capacity(b.paints.len());
+    // Per open group: its begin marker's index, the tiles its members reach.
+    let mut open: Vec<(usize, Vec<u32>)> = Vec::new();
+    for p in &b.paints {
+        let tiles = match p.marker {
+            Some([_, _, LAYER_BEGIN, _]) => {
+                open.push((reach.len(), Vec::new()));
+                Vec::new()
+            }
+            Some(_) => {
+                let (begin, mut seen) = open.pop().unwrap_or_default();
+                seen.sort_unstable();
+                seen.dedup();
+                if let Some(r) = reach.get_mut(begin) {
+                    r.clone_from(&seen);
+                }
+                seen
+            }
+            None => paint_tiles(b, p, (cols, rows)),
         };
-        let clip: Option<Vec<_>> = p.clip.and_then(|c| b.clips.get(c)).map(|(fills, _)| {
-            fills
-                .iter()
-                .flatten()
-                .filter_map(|f| b.fills.get(*f))
-                .map(|f| &f.footprint)
-                .collect()
-        });
-        for (col, row) in fill.footprint.tiles() {
-            if !(0..cols).contains(&col) || !(0..rows).contains(&row) {
-                continue;
-            }
-            // A clip whose own fills miss the tile admits nothing there.
-            if let Some(c) = &clip
-                && !c.iter().any(|f| f.covers(col, row))
-            {
-                continue;
-            }
-            if let Some(l) = lists.get_mut((row * cols + col) as usize) {
+        if let Some((_, seen)) = open.last_mut() {
+            seen.extend_from_slice(&tiles);
+        }
+        reach.push(tiles);
+    }
+    let mut lists: Vec<Vec<i32>> = vec![Vec::new(); (cols * rows) as usize];
+    for (i, tiles) in reach.iter().enumerate() {
+        for t in tiles {
+            if let Some(l) = lists.get_mut(*t as usize) {
                 l.push(i as i32);
             }
         }

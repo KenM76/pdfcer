@@ -177,3 +177,11 @@ debug = "line-tables-only"
 
 [profile.test.package."*"]
 debug = false
+
+# tiny-skia's low-precision Overlay and HardLight compute both branches in
+# wrapping u16 lanes and keep one; overflow checks would abort on the other.
+[profile.dev.package.tiny-skia]
+overflow-checks = false
+
+[profile.test.package.tiny-skia]
+overflow-checks = false

@@ -10,6 +10,7 @@ use super::bins;
 use super::block::{self, FillBlock};
 use super::fill_edges::FillEdges;
 use super::image::{self, ImagePaint};
+use super::layer::{self, LAYER_BEGIN, MAX_LAYER_DEPTH};
 use super::scene::{Frame, GpuRefusal, colors};
 use crate::canvas::Brush;
 use crate::device_clip;
@@ -20,10 +21,13 @@ const BLOCK: usize = 512;
 
 /// One paint ready to lay out.
 pub(crate) struct Prepared {
-    pub block: FillBlock,
+    pub block: Option<FillBlock>,
+    /// A [`layer`] marker's op texel.
+    pub marker: Option<[i32; 4]>,
     pub clip: Option<usize>,
     pub color: i32,
     pub memset: i32,
+    pub blend: i32,
     pub image: Option<ImagePaint>,
 }
 
@@ -31,14 +35,40 @@ pub(crate) struct Prepared {
 /// covers anything, and its parent.
 pub(crate) type PreparedClip = (Vec<Option<FillBlock>>, Option<usize>);
 
-/// `ops` with every text run's ops in its place.
-fn flatten<'a>(ops: &'a [Op], out: &mut Vec<&'a Op>) {
+/// A display-list item as the scene draws it.
+enum Item<'a> {
+    Op(&'a Op),
+    /// A [`layer`] marker's op texel.
+    Marker([i32; 4]),
+}
+
+/// `ops` with every text run's ops in its place and every group's between
+/// its markers, `depth` groups in.
+///
+/// # Errors
+///
+/// [`GpuRefusal::Transparency`] for a group with a soft mask, nested past
+/// [`MAX_LAYER_DEPTH`], or composited in a way [`layer::end_marker`]
+/// refuses.
+fn flatten<'a>(ops: &'a [Op], depth: usize, out: &mut Vec<Item<'a>>) -> Result<(), GpuRefusal> {
     for op in ops {
         match op {
-            Op::Text { ops, .. } => flatten(ops, out),
-            _ => out.push(op),
+            Op::Text { ops, .. } => flatten(ops, depth, out)?,
+            Op::Layer {
+                paint, ops, mask, ..
+            } => {
+                if mask.is_some() || depth >= MAX_LAYER_DEPTH {
+                    return Err(GpuRefusal::Transparency);
+                }
+                let end = layer::end_marker(paint)?;
+                out.push(Item::Marker([0, 0, LAYER_BEGIN, 0]));
+                flatten(ops, depth + 1, out)?;
+                out.push(Item::Marker(end));
+            }
+            _ => out.push(Item::Op(op)),
         }
     }
+    Ok(())
 }
 
 /// Each tile's edges laid out, at that tile's origin.
@@ -112,13 +142,13 @@ fn prepare(frame: &Frame<'_>, op: &Op, out: &mut Vec<Prepared>) -> Result<(), Gp
             };
             (brush, clip, bounds, ts, e)
         }
-        Op::Text { .. } => return Ok(()),
-        Op::Layer { .. } => return Err(GpuRefusal::Transparency),
+        // Flattened into their members.
+        Op::Text { .. } | Op::Layer { .. } => return Ok(()),
     };
     if bounds.is_some_and(|b| !b.intersects(frame.bounds)) {
         return Ok(());
     }
-    let (color, memset) = colors(brush)?;
+    let (color, memset, blend) = colors(brush)?;
     let edges = edges?;
     let images = samplers(frame, &brush.brush, ts, &edges)?;
     for (k, block) in fill_blocks(frame, edges).into_iter().enumerate() {
@@ -130,10 +160,12 @@ fn prepare(frame: &Frame<'_>, op: &Op, out: &mut Vec<Prepared>) -> Result<(), Gp
         };
         let Some(block) = block else { continue };
         out.push(Prepared {
-            block,
+            block: Some(block),
+            marker: None,
             clip: clip.map(|c| c.index()),
             color,
             memset,
+            blend,
             image,
         });
     }
@@ -151,7 +183,7 @@ fn prepare_clip(frame: &Frame<'_>, def: &ClipDef) -> Result<PreparedClip, GpuRef
 /// A unit of work, in the order results are gathered.
 enum Job<'a> {
     Clip(&'a ClipDef),
-    Ops(&'a [&'a Op]),
+    Items(&'a [Item<'a>]),
 }
 
 enum Done {
@@ -164,10 +196,21 @@ fn run(frame: &Frame<'_>, job: &Job<'_>) -> Result<Done, GpuRefusal> {
     device_clip::with_lattice_anchor(frame.anchor, || {
         device_clip::with_row_origin(0, || match job {
             Job::Clip(def) => prepare_clip(frame, def).map(Done::Clip),
-            Job::Ops(ops) => {
-                let mut v = Vec::with_capacity(ops.len());
-                for op in *ops {
-                    prepare(frame, op, &mut v)?;
+            Job::Items(items) => {
+                let mut v = Vec::with_capacity(items.len());
+                for item in *items {
+                    match item {
+                        Item::Op(op) => prepare(frame, op, &mut v)?,
+                        Item::Marker(m) => v.push(Prepared {
+                            block: None,
+                            marker: Some(*m),
+                            clip: None,
+                            color: 0,
+                            memset: 0,
+                            blend: 0,
+                            image: None,
+                        }),
+                    }
                 }
                 Ok(Done::Paints(v))
             }
@@ -211,12 +254,12 @@ pub(crate) fn ordered<R: Send>(n: usize, f: impl Fn(usize) -> R + Sync) -> Vec<R
 /// first refusal in that order.
 pub(crate) fn all(frame: &Frame<'_>) -> Result<(Vec<PreparedClip>, Vec<Prepared>), GpuRefusal> {
     let mut flat = Vec::new();
-    flatten(frame.ops, &mut flat);
+    flatten(frame.ops, 0, &mut flat)?;
     let jobs: Vec<Job<'_>> = frame
         .clips
         .iter()
         .map(Job::Clip)
-        .chain(flat.chunks(BLOCK).map(Job::Ops))
+        .chain(flat.chunks(BLOCK).map(Job::Items))
         .collect();
     let (mut clips, mut paints) = (Vec::with_capacity(frame.clips.len()), Vec::new());
     for done in ordered(jobs.len(), |i| jobs.get(i).map(|j| run(frame, j))) {

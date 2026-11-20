@@ -5007,16 +5007,21 @@ shaders; the shell (WebGL2, or any GL ES 3.0 / wgpu-GLSL host) draws them.
   show the reason off-canvas): `Render(RenderError)` (anything
   `replay_region` refuses), `Image` (bicubic sampling, an inverse image
   transform that is not finite or has a coefficient below `1e-30`, or
-  bilinear samples beyond 2^24 image pixels), `Shading`, `Transparency` (groups,
-  soft masks, blend modes), `Curves`, `TooMuchData { texels }`.
+  bilinear samples beyond 2^24 image pixels), `Shading`, `Transparency` (a soft
+  mask, a non-separable or colour-dodge/burn/soft-light blend mode, an
+  image under any blend mode but Normal, groups nested past 8), `Curves`, `TooMuchData { texels }`.
   A refusal is for the whole page: never mix GPU and CPU paints on one
   raster.
 - What is drawn today: solid fills and strokes (any opacity, anti-aliased
   or not), clips (nested, any depth up to 64), glyph outlines, and images
   (nearest or bilinear, any transform, clipped, under constant opacity),
-  each distinct image's pixels packed into the texture once. An image page
+  each distinct image's pixels packed into the texture once; the separable
+  blend modes Multiply, Screen, Overlay, Darken, Lighten, HardLight,
+  Difference and Exclusion on solid paint; and transparency groups (group
+  opacity, any of those blend modes, nested up to 8 deep). An image page
   (several 64 x 48 images, rotated, clipped, translucent) measured 0 rows
-  different on both GPUs at scale 1 and 300 DPI.
+  different on both GPUs at scale 1 and 300 DPI; a page of every blend mode
+  on paint and on groups, at scale 1, 300 DPI and 50 MP.
 
 ### 7.3 Cancellation — the off-thread contract
 
