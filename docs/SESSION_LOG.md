@@ -4,6 +4,21 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-11-20 (1661st filing) — `Pass 725.0` (`X101`, `c7b77357`) SHIPPED: a straightened or enlarged scan keeps its source's codec; companion `33d09cc7`
+
+**Filed (engineer-reported; no shell here, git, push and gates not checked from here):**
+- `c7b77357` `fix(core)`, unpushed, unreleased (latest release `v0.165.0`). New `DeskewEncoding` (same-family default, Flate, Dct) and `EditSession::deskew_image_with`; JPEG stays JPEG at its estimated quality (disclosed), 1-bit fax stays G4, else Flate; the replaced original is deleted in the same undo entry when only the page's own resources reference it. CLI `deskew --encoding/--quality`. Details in `ROADMAP.md` *Shipped*.
+- `33d09cc7` `fix(render)`: `GridTerms` / `FunctionGrid::gpu_terms` gated on the `gpu` feature; crate-local clippy had failed on dead code that workspace builds hid. Follow-up to `f293cd05`.
+- Tests: `pdfcer-core` 3358 + 2386 + 692, `pdfcer-cli` 1119 + 134 pass (engineer-reported).
+
+**Session tail:** the GPU arc closed at `724.4` part 5d (1660th filing), then `X101` was taken from the crates-consumer queue.
+
+**Finding filed:** `D:/dev/rag/rust/a_crate_local_clippy_can_fail_on_dead_code_that_workspace_clippy_passes_because_feature_unification_turns_the_feature_on.md` (indexed).
+
+**FEATURES:** one NEW row (codec kept), the upscale row's "FlateDecode" corrected. Core and CLI ticked; gui `[ ]`, not wired.
+
+**Next:** release `v0.166.0` to OneDrive `pdfcer1`; wiring the GUI for deskew encoding is the GUI project's.
+
 ## 2026-11-20 (1660th filing) — `Pass 724.4` part 5d (`f293cd05`) SHIPPED: mesh and function-based shadings on the graphics card; `Pass 724.4` CLOSED
 
 **Filed (engineer-reported; no shell here, git, push and gates not checked from here):**
