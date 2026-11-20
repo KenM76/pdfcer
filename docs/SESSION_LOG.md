@@ -4,6 +4,16 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-11-20 (1657th filing) — `Pass 724.4` part `704.3` first half (`f27666d0`) SHIPPED: cache recorder records shadings
+
+**Filed (engineer-reported; no shell here, git, push and gates not checked from here):**
+- `f27666d0` `feat(render)`, unpushed, unreleased. `record_page` records `sh` (all types) and shading-pattern paints as `Op::Shading` instead of poisoning; `PoisonReason::Shading` is now export-recording only. Replay byte-identical to a direct region render (clipped, alpha, scales 1.0 and 2.37, three regions); `band_exact()` gains `BandBlocker::Shading`; GPU scene still refuses `GpuRefusal::Shading`. Tiling patterns still refuse. Details in `ROADMAP.md` *Shipped*.
+- Tests: 3 new (`tests/shading_replay.rs`); render `tests/all.rs` 706 pass; two sabotages fail as they should.
+
+**FEATURES:** reusable-page-handle row and GPU Planned row updated; core only, boxes unchanged. The 77-of-3,222 fallback figure is flagged as predating this change, not re-measured.
+
+**Next:** `Pass 724.4` second half of `704.3`, the GPU shading evaluator (still IN PROGRESS); then a release.
+
 ## 2026-11-20 (1656th filing) — `Pass 721.24` (`5fa49f54`) SHIPPED: face_figures measures the flat face at the pick
 
 **Filed (engineer-reported; no shell here, git, push and gates not checked from here):**
