@@ -75,7 +75,7 @@ impl EditSession {
     }
 
     /// How many references to each object the live document holds.
-    fn reference_counts(&self) -> BTreeMap<ObjId, usize> {
+    pub(super) fn reference_counts(&self) -> BTreeMap<ObjId, usize> {
         let mut out = BTreeMap::new();
         for id in self.live_objects() {
             let mut refs = Vec::new();

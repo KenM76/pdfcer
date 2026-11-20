@@ -1,6 +1,7 @@
 //! Measure and correct the skew of a placed scan image (pdfcer-gui request
 //! G165). The image analysis is in [`crate::deskew`].
 
+use super::resample_encode::{self, DeskewEncoding};
 use super::{CommandKind, EditError, EditSession, ObjectWrite};
 use crate::deskew::{MAX_SKEW_DEGREES, Raster, SkewEstimate};
 use crate::object::{Dict, Name, ObjId, Object, Stream};
@@ -21,17 +22,19 @@ pub struct ImageDeskew {
     pub image_id: ObjId,
     /// The `/XObject` resource name the page's content now invokes.
     pub resource_name: Vec<u8>,
-    /// The image XObject no longer drawn at this place. It stays in the
-    /// file: other placements may draw it, and an incremental save keeps
-    /// its bytes.
+    /// The image XObject no longer drawn at this place.
     pub replaced: ObjId,
+    /// Whether `replaced` was deleted, because nothing else drew it. When
+    /// another placement, page or form may still draw it, it stays.
+    pub replaced_dropped: bool,
     /// The correction applied, in degrees: the content was rotated this far
     /// clockwise as displayed ([`crate::deskew`] on the sign).
     pub angle_degrees: f64,
     /// The encoded size of the old image stream, in bytes.
     pub old_stream_bytes: usize,
-    /// The encoded size of the new one. It is `FlateDecode`, so a scan that
-    /// was JPEG- or JBIG2-coded usually grows.
+    /// The encoded size of the new one, in the codec [`DeskewEncoding`]
+    /// chose: by default the source's family, so a JPEG scan stays
+    /// `DCTDecode` and a 1-bit fax or JBIG2 scan becomes CCITT Group 4.
     pub new_stream_bytes: usize,
     /// What the operator should know (rule 4): the pixels were resampled,
     /// and anything about the colour space or resources that changed.
@@ -89,11 +92,14 @@ impl EditSession {
     /// undo entry ([`CommandKind::DeskewImage`]).
     ///
     /// The result is a **new** image XObject of the same size, colour space,
-    /// `/Decode` and bit depth, `FlateDecode`-coded, drawn by a `Do` that
+    /// `/Decode` and bit depth, encoded as [`DeskewEncoding::SameFamily`]
+    /// ([`Self::deskew_image_with`] chooses otherwise), drawn by a `Do` that
     /// replaces this placement's own; the CTM in force is unchanged, so the
     /// image stays where it was on the page. Other placements of the old
-    /// XObject keep drawing it. Corners the rotation uncovers take the
-    /// image's background value ([`crate::deskew`]).
+    /// XObject keep drawing it; when there are none, it is unbound from the
+    /// page and deleted in the same undo entry
+    /// ([`ImageDeskew::replaced_dropped`]). Corners the rotation uncovers
+    /// take the image's background value ([`crate::deskew`]).
     ///
     /// # Errors
     ///
@@ -115,6 +121,28 @@ impl EditSession {
         object_index: usize,
         angle_degrees: f64,
     ) -> Result<ImageDeskew, EditError> {
+        self.deskew_image_with(
+            page_index,
+            object_index,
+            angle_degrees,
+            DeskewEncoding::SameFamily,
+        )
+    }
+
+    /// [`Self::deskew_image`], encoding the new image as `encoding` asks.
+    /// A forced [`DeskewEncoding::Dct`] on an image JPEG cannot hold is
+    /// written `FlateDecode`, with a note saying so.
+    ///
+    /// # Errors
+    ///
+    /// As [`Self::deskew_image`].
+    pub fn deskew_image_with(
+        &mut self,
+        page_index: usize,
+        object_index: usize,
+        angle_degrees: f64,
+        encoding: DeskewEncoding,
+    ) -> Result<ImageDeskew, EditError> {
         check_angle(angle_degrees)?;
         let t = self.deskew_target(page_index, object_index)?;
         let rotated = crate::deskew::rotate_samples(&t.raster, &t.decoded.samples, angle_degrees)
@@ -124,7 +152,7 @@ impl EditSession {
         let mut prior = Vec::new();
         let size = (t.raster.width, t.raster.height);
         let (image_id, new_stream_bytes, mut notes) =
-            self.stage_resampled(&t, &rotated, size, "deskew:", &mut prior)?;
+            self.stage_resampled(&t, &rotated, size, ("deskew:", encoding), &mut prior)?;
         let resource_name = self.repoint_image_placement(
             CommandKind::DeskewImage,
             page_index,
@@ -133,6 +161,8 @@ impl EditSession {
             prior,
             do_operator,
         )?;
+        let replaced_dropped =
+            self.drop_replaced_image(CommandKind::DeskewImage, page_index, t.id)?;
         notes.insert(
             0,
             format!(
@@ -143,6 +173,7 @@ impl EditSession {
             image_id,
             resource_name,
             replaced: t.id,
+            replaced_dropped,
             angle_degrees,
             old_stream_bytes: t.stream.data_span.len,
             new_stream_bytes,
@@ -150,18 +181,22 @@ impl EditSession {
         })
     }
 
-    /// Stage `samples`, a `width x height` image in `t`'s layout (and any
-    /// `/ICCBased` stream its dictionary rewrite needs), into `prior`;
-    /// returns its id, its encoded size and the rewrite's notes, each
-    /// prefixed `note_prefix`.
+    /// Stage `samples`, a `width x height` image in `t`'s layout encoded as
+    /// `encoding` asks (and any `/ICCBased` stream its dictionary rewrite
+    /// needs), into `prior`; returns its id, its encoded size and the notes,
+    /// each prefixed `note_prefix`.
     pub(super) fn stage_resampled(
         &mut self,
         t: &Target,
         samples: &[u8],
         (width, height): (u32, u32),
-        note_prefix: &str,
+        (note_prefix, encoding): (&str, DeskewEncoding),
         prior: &mut Vec<ObjectWrite>,
     ) -> Result<(ObjId, usize, Vec<String>), EditError> {
+        let view = self.view();
+        let raw = view.slice(t.stream.data_span).unwrap_or_default();
+        let coded =
+            resample_encode::encode(t, raw, samples, (width, height), encoding, note_prefix);
         let image_id = ObjId::new(self.alloc_number()?, 0);
         let mut next = self.next_number.ok_or(EditError::ObjectNumbersExhausted)?;
         let mut out = ImageOutcome::default();
@@ -181,7 +216,7 @@ impl EditSession {
         let mut dict = dict;
         dict.insert(Name::from(b"Width"), Object::Integer(i64::from(width)));
         dict.insert(Name::from(b"Height"), Object::Integer(i64::from(height)));
-        let image = alloc.flate_stream(dict, samples);
+        let image = alloc.encoded_stream(dict, &coded.data, coded.filter, coded.parms);
         self.next_number = Some(next);
         let new_bytes = match &image {
             Object::Stream(s) => s.data_span.len,
@@ -198,6 +233,7 @@ impl EditSession {
             .notes
             .into_iter()
             .map(|n| n.replacen("redaction:", note_prefix, 1))
+            .chain(coded.notes)
             .collect();
         Ok((image_id, new_bytes, notes))
     }

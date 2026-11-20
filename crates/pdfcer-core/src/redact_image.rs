@@ -805,17 +805,29 @@ impl Allocator<'_> {
     }
 
     /// A `FlateDecode` stream object over `data` with `dict`'s entries.
-    pub(crate) fn flate_stream(&mut self, mut dict: Dict, data: &[u8]) -> Object {
+    pub(crate) fn flate_stream(&mut self, dict: Dict, data: &[u8]) -> Object {
         let encoded = crate::filters::flate::encode(data);
-        let span = self.stage(&encoded);
+        self.encoded_stream(dict, &encoded, b"FlateDecode", None)
+    }
+
+    /// A stream object over already-encoded `data` with `dict`'s entries,
+    /// `/Filter filter` and, when given, `/DecodeParms parms`.
+    pub(crate) fn encoded_stream(
+        &mut self,
+        mut dict: Dict,
+        data: &[u8],
+        filter: &[u8],
+        parms: Option<Dict>,
+    ) -> Object {
+        let span = self.stage(data);
         dict.insert(
             Name::from(b"Length"),
-            Object::Integer(i64::try_from(encoded.len()).unwrap_or(i64::MAX)),
+            Object::Integer(i64::try_from(data.len()).unwrap_or(i64::MAX)),
         );
-        dict.insert(
-            Name::from(b"Filter"),
-            Object::Name(Name::from(b"FlateDecode")),
-        );
+        dict.insert(Name::from(b"Filter"), Object::Name(Name::from(filter)));
+        if let Some(parms) = parms {
+            dict.insert(Name::from(b"DecodeParms"), Object::Dict(parms));
+        }
         Object::Stream(Stream {
             dict,
             data_span: span,

@@ -327,3 +327,185 @@ fn a_run_of_one_kind_folds_and_a_mixed_run_does_not() {
     );
     assert!(s.coalesce_last_same(0, CommandKind::ReplaceImage));
 }
+
+/// The new image's stream in the incrementally saved file.
+fn saved_image(s: &EditSession, id: ObjId) -> (Document, pdfcer_core::object::Stream) {
+    let (doc, _) = reopened(s);
+    let Object::Stream(image) = doc.resolve(&Object::Reference(id)).clone() else {
+        panic!("no image stream");
+    };
+    (doc, image)
+}
+
+fn filter_of(image: &pdfcer_core::object::Stream) -> Option<&[u8]> {
+    image
+        .dict
+        .get(b"Filter")
+        .and_then(Object::as_name)
+        .map(|n| n.as_bytes())
+}
+
+fn jpeg_grey(grey: &[u8], quality: u8) -> Vec<u8> {
+    let mut out = Vec::new();
+    jpeg_encoder::Encoder::new(&mut out, quality)
+        .encode(grey, W as u16, H as u16, jpeg_encoder::ColorType::Luma)
+        .unwrap();
+    out
+}
+
+#[test]
+fn a_jpeg_scan_stays_jpeg_and_the_original_is_dropped() {
+    let jpeg = jpeg_grey(&skewed_grey(2.0), 75);
+    let bytes = fixture(
+        "/BitsPerComponent 8 /ColorSpace /DeviceGray /Filter /DCTDecode",
+        &jpeg,
+    );
+    let mut s = EditSession::new(Document::from_bytes(bytes).unwrap());
+    let depth = s.undo_kinds().len();
+    let out = s.deskew_image(0, 2, 2.0).unwrap();
+    assert_eq!(s.undo_kinds().len(), depth + 1, "one undo entry");
+    let (_, image) = saved_image(&s, out.image_id);
+    assert_eq!(filter_of(&image), Some(&b"DCTDecode"[..]));
+    assert_eq!(out.old_stream_bytes, jpeg.len());
+    assert!(
+        out.new_stream_bytes * 2 < jpeg.len() * 3,
+        "{} vs {}",
+        out.new_stream_bytes,
+        jpeg.len()
+    );
+    assert!(
+        out.notes.iter().any(|n| n.contains("quality 75")),
+        "{:?}",
+        out.notes
+    );
+    assert!(measured(&mut s).abs() < 0.15);
+
+    // Nothing else drew the original: a full save does not carry it.
+    assert!(out.replaced_dropped);
+    let full = s.to_full_bytes(&SaveOptions::identity()).unwrap().0;
+    let doc = Document::from_bytes(full).unwrap();
+    assert!(doc.get(SCAN).is_none(), "the original image survived");
+    let pages = pdfcer_core::page_tree::pages(&doc).unwrap();
+    let objects = decompose_page(&doc.view(), &pages[0], Matrix::IDENTITY)
+        .unwrap()
+        .objects;
+    assert_eq!(xobject_of(&objects, 2), Some(out.image_id));
+
+    // Undo brings the original back, bound and drawn.
+    s.undo();
+    assert_eq!(xobject_of(&reopened(&s).1, 2), Some(SCAN));
+}
+
+#[test]
+fn a_fax_scan_stays_one_bit_group_4() {
+    let bits = to_bilevel(&skewed_grey(2.0));
+    let g4 = pdfcer_core::image_codec::ccitt::encode_g4(&bits, W, H, false);
+    let dict = format!(
+        "/BitsPerComponent 1 /ColorSpace /DeviceGray /Filter /CCITTFaxDecode \
+         /DecodeParms << /K -1 /Columns {W} /Rows {H} >>"
+    );
+    let mut s = EditSession::new(Document::from_bytes(fixture(&dict, &g4)).unwrap());
+    let out = s.deskew_image(0, 2, 2.0).unwrap();
+    let (_, image) = saved_image(&s, out.image_id);
+    assert_eq!(filter_of(&image), Some(&b"CCITTFaxDecode"[..]));
+    assert_eq!(
+        image.dict.get(b"BitsPerComponent"),
+        Some(&Object::Integer(1))
+    );
+    assert!(
+        out.new_stream_bytes < g4.len() * 2,
+        "{} vs {}",
+        out.new_stream_bytes,
+        g4.len()
+    );
+    assert!(measured(&mut s).abs() < 0.15);
+}
+
+#[test]
+fn a_flate_scan_is_never_larger_than_plain_flate_and_predicted_when_that_wins() {
+    // The skewed bars, and a smooth ramp where a PNG predictor wins.
+    let ramp: Vec<u8> = (0..W * H)
+        .map(|i| {
+            let (x, y) = (f64::from(i % W), f64::from(i / W));
+            (128.0 + 60.0 * (x * 0.031).sin() + 60.0 * (y * 0.047 + x * 0.003).sin()) as u8
+        })
+        .collect();
+    for (grey, predicted) in [(skewed_grey(2.0), false), (ramp, true)] {
+        let packed = pdfcer_core::filters::flate::encode(&grey);
+        let bytes = fixture(
+            "/BitsPerComponent 8 /ColorSpace /DeviceGray /Filter /FlateDecode",
+            &packed,
+        );
+        let mut s = EditSession::new(Document::from_bytes(bytes).unwrap());
+        let out = s.deskew_image(0, 2, 2.0).unwrap();
+        let (doc, image) = saved_image(&s, out.image_id);
+        assert_eq!(filter_of(&image), Some(&b"FlateDecode"[..]));
+        let predictor = image
+            .dict
+            .get(b"DecodeParms")
+            .and_then(Object::as_dict)
+            .and_then(|p| p.get(b"Predictor").cloned());
+        if predicted {
+            assert_eq!(predictor, Some(Object::Integer(15)));
+        }
+        let raw = image.data_span.slice(doc.bytes()).unwrap();
+        let samples = pdfcer_core::filters::decode_stream(&image.dict, raw).unwrap();
+        let plain = pdfcer_core::filters::flate::encode(&samples).len();
+        assert!(
+            out.new_stream_bytes <= plain,
+            "{} vs {plain}",
+            out.new_stream_bytes
+        );
+    }
+}
+
+#[test]
+fn the_encoding_can_be_chosen() {
+    use pdfcer_core::edit::DeskewEncoding;
+    let mut s = grey_session(2.0);
+    let out = s
+        .deskew_image_with(0, 2, 2.0, DeskewEncoding::Dct { quality: 60 })
+        .unwrap();
+    assert_eq!(
+        filter_of(&saved_image(&s, out.image_id).1),
+        Some(&b"DCTDecode"[..])
+    );
+    assert!(
+        out.notes.iter().any(|n| n.contains("quality 60")),
+        "{:?}",
+        out.notes
+    );
+
+    let jpeg = jpeg_grey(&skewed_grey(2.0), 75);
+    let bytes = fixture(
+        "/BitsPerComponent 8 /ColorSpace /DeviceGray /Filter /DCTDecode",
+        &jpeg,
+    );
+    let mut s = EditSession::new(Document::from_bytes(bytes).unwrap());
+    let out = s
+        .deskew_image_with(0, 2, 2.0, DeskewEncoding::Flate)
+        .unwrap();
+    assert_eq!(
+        filter_of(&saved_image(&s, out.image_id).1),
+        Some(&b"FlateDecode"[..])
+    );
+
+    // JPEG cannot hold a 1-bit image: a forced Dct says so and writes Flate.
+    let bytes = fixture(
+        "/BitsPerComponent 1 /ColorSpace /DeviceGray",
+        &to_bilevel(&skewed_grey(2.0)),
+    );
+    let mut s = EditSession::new(Document::from_bytes(bytes).unwrap());
+    let out = s
+        .deskew_image_with(0, 2, 2.0, DeskewEncoding::Dct { quality: 80 })
+        .unwrap();
+    assert_eq!(
+        filter_of(&saved_image(&s, out.image_id).1),
+        Some(&b"FlateDecode"[..])
+    );
+    assert!(
+        out.notes.iter().any(|n| n.contains("not DCTDecode")),
+        "{:?}",
+        out.notes
+    );
+}

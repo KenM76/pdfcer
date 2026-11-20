@@ -274,6 +274,21 @@ fn ccitt(job: &Job, pixels: &[u8], format: (u32, u32)) -> Result<Encoded, SkipRe
         )));
     }
     let (w, h) = job.out;
+    let (data, parms) = g4_smaller(pixels, w, h);
+    Ok(Encoded {
+        data,
+        filter: b"CCITTFaxDecode",
+        bpc: 1,
+        parms: Some(parms),
+        flate_bytes: None,
+        auto: None,
+    })
+}
+
+/// `pixels` (1 bit per sample, rows padded to a byte) as CCITT Group 4 in
+/// whichever `/BlackIs1` polarity is smaller, with the `/DecodeParms` that
+/// reads it back (§7.4.6, Table 11).
+pub(crate) fn g4_smaller(pixels: &[u8], w: u32, h: u32) -> (Vec<u8>, Dict) {
     let black = image_codec::ccitt::encode_g4(pixels, w, h, true);
     let white = image_codec::ccitt::encode_g4(pixels, w, h, false);
     let black_is_1 = black.len() < white.len();
@@ -287,14 +302,7 @@ fn ccitt(job: &Job, pixels: &[u8], format: (u32, u32)) -> Result<Encoded, SkipRe
     if black_is_1 {
         set(b"BlackIs1", Object::Boolean(true));
     }
-    Ok(Encoded {
-        data: if black_is_1 { black } else { white },
-        filter: b"CCITTFaxDecode",
-        bpc: 1,
-        parms: Some(parms),
-        flate_bytes: None,
-        auto: None,
-    })
+    (if black_is_1 { black } else { white }, parms)
 }
 
 /// The never-larger and `min-saving` guards.

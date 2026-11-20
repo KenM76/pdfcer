@@ -169,3 +169,32 @@ fn a_given_angle_is_applied_and_an_impossible_one_refused() {
     assert!(stderr.contains("cannot be deskewed"), "{stderr}");
     assert!(!refused.exists());
 }
+
+#[test]
+fn the_encoding_flag_reaches_the_engine() {
+    let input = fixture("in-dct.pdf");
+    let out = temp_out("dct.pdf");
+    let (code, stdout, stderr) = run(&[
+        "deskew",
+        s(&input),
+        "--pages",
+        "1",
+        "--encoding",
+        "dct",
+        "--quality",
+        "55",
+        "-o",
+        s(&out),
+    ]);
+    assert_eq!(code, 0, "{stdout}\n{stderr}");
+    assert!(stderr.contains("quality 55"), "{stderr}");
+    assert!(
+        stdout.contains("(deleted)"),
+        "the original is dropped: {stdout}"
+    );
+    let bytes = std::fs::read(&out).expect("output written");
+    assert!(
+        bytes.windows(10).any(|w| w == b"/DCTDecode"),
+        "the new image is JPEG"
+    );
+}

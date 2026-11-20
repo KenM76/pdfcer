@@ -2350,6 +2350,8 @@ pub(crate) fn run() -> ExitCode {
             angle,
             min_angle,
             min_confidence,
+            encoding,
+            quality,
             output,
             mode,
         } => cmd_deskew(&DeskewArgs {
@@ -2361,6 +2363,7 @@ pub(crate) fn run() -> ExitCode {
             min_confidence,
             output: output.as_deref(),
             mode,
+            encoding: encoding.to_core(quality),
         }),
         Command::UpscaleImages {
             input,

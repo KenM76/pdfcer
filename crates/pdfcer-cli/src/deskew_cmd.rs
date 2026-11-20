@@ -1,7 +1,32 @@
 //! `deskew` — measure and straighten scanned page images.
 
 use super::*;
-use pdfcer_core::edit::EditError;
+use pdfcer_core::edit::{DeskewEncoding, EditError};
+
+/// `deskew --encoding`: how a straightened image is stored.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, clap::ValueEnum)]
+pub(crate) enum DeskewEncodingArg {
+    /// The scan's own family: JPEG stays JPEG, a 1-bit fax or JBIG2 scan
+    /// becomes CCITT Group 4, anything else lossless Flate.
+    #[default]
+    SameFamily,
+    /// Lossless Flate, PNG-predicted where that is smaller.
+    Flate,
+    /// JPEG at the --quality given; an image JPEG cannot hold is written as
+    /// Flate.
+    Dct,
+}
+
+impl DeskewEncodingArg {
+    /// The core option, with `quality` for `dct`.
+    pub(crate) fn to_core(self, quality: u8) -> DeskewEncoding {
+        match self {
+            Self::SameFamily => DeskewEncoding::SameFamily,
+            Self::Flate => DeskewEncoding::Flate,
+            Self::Dct => DeskewEncoding::Dct { quality },
+        }
+    }
+}
 
 /// Arguments for [`cmd_deskew`].
 pub(crate) struct DeskewArgs<'a> {
@@ -13,6 +38,7 @@ pub(crate) struct DeskewArgs<'a> {
     pub(crate) min_confidence: f64,
     pub(crate) output: Option<&'a Path>,
     pub(crate) mode: SaveMode,
+    pub(crate) encoding: DeskewEncoding,
 }
 
 /// What happened to one page.
@@ -138,10 +164,18 @@ fn deskew_page(
         println!(": would correct");
         return Ok(PageResult::Corrected);
     }
-    let out = session.deskew_image(page_index, object, angle)?;
+    let out = session.deskew_image_with(page_index, object, angle, a.encoding)?;
     println!(
-        ": corrected image_obj={} replaced={} stream_bytes={}->{}",
-        out.image_id.num, out.replaced.num, out.old_stream_bytes, out.new_stream_bytes
+        ": corrected image_obj={} replaced={}{} stream_bytes={}->{}",
+        out.image_id.num,
+        out.replaced.num,
+        if out.replaced_dropped {
+            " (deleted)"
+        } else {
+            ""
+        },
+        out.old_stream_bytes,
+        out.new_stream_bytes
     );
     for note in &out.notes {
         eprintln!("pdfcer: {}: page {page}: {note}", a.input.display());

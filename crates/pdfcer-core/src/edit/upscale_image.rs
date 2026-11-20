@@ -15,17 +15,18 @@ pub struct ImageUpscale {
     pub image_id: ObjId,
     /// The `/XObject` resource name the page's content now invokes.
     pub resource_name: Vec<u8>,
-    /// The image XObject no longer drawn at this place. It stays in the
-    /// file: other placements may draw it, and an incremental save keeps
-    /// its bytes.
+    /// The image XObject no longer drawn at this place.
     pub replaced: ObjId,
+    /// Whether `replaced` was deleted, because nothing else drew it.
+    pub replaced_dropped: bool,
     /// The old `(width, height)` in samples.
     pub old_size: (u32, u32),
     /// The new `(width, height)` in samples.
     pub new_size: (u32, u32),
     /// The encoded size of the old image stream, in bytes.
     pub old_stream_bytes: usize,
-    /// The encoded size of the new one (`FlateDecode`).
+    /// The encoded size of the new one, in the source's codec family
+    /// ([`super::DeskewEncoding::SameFamily`]).
     pub new_stream_bytes: usize,
     /// What the operator should know (rule 4): the pixels were
     /// interpolated, and anything about the colour space or resources that
@@ -42,10 +43,12 @@ impl EditSession {
     /// to the sample range; at 1 bit that is a threshold at one half, so a
     /// bilevel scan stays bilevel. `/Indexed` images take the nearest
     /// sample (palette indices cannot be blended). The result is a **new**
-    /// `FlateDecode` image XObject drawn by a `Do` that replaces this
-    /// placement's own; the CTM is unchanged, so the image keeps its place
-    /// and size on the page. Other placements of the old XObject keep
-    /// drawing it. Fold a run over many pages with
+    /// image XObject in the source's codec family
+    /// ([`super::DeskewEncoding::SameFamily`]) drawn by a `Do` that replaces
+    /// this placement's own; the CTM is unchanged, so the image keeps its
+    /// place and size on the page. Other placements of the old XObject keep
+    /// drawing it; when there are none it is deleted in the same undo entry.
+    /// Fold a run over many pages with
     /// [`Self::coalesce_last_same`].
     ///
     /// # Errors
@@ -84,8 +87,13 @@ impl EditSession {
             upscale.filter(),
         );
         let mut prior = Vec::new();
-        let (image_id, new_stream_bytes, mut notes) =
-            self.stage_resampled(&t, &samples, new_size, "upscale:", &mut prior)?;
+        let (image_id, new_stream_bytes, mut notes) = self.stage_resampled(
+            &t,
+            &samples,
+            new_size,
+            ("upscale:", Default::default()),
+            &mut prior,
+        )?;
         let resource_name = self.repoint_image_placement(
             CommandKind::UpscaleImage,
             page_index,
@@ -94,11 +102,14 @@ impl EditSession {
             prior,
             do_operator,
         )?;
+        let replaced_dropped =
+            self.drop_replaced_image(CommandKind::UpscaleImage, page_index, t.id)?;
         notes.insert(0, resample_note(&t, upscale, old_size, new_size));
         Ok(ImageUpscale {
             image_id,
             resource_name,
             replaced: t.id,
+            replaced_dropped,
             old_size,
             new_size,
             old_stream_bytes: t.stream.data_span.len,

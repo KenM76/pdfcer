@@ -8304,15 +8304,17 @@ pub(crate) enum Command {
     /// (or `--object`, the 0-based index `object-list` prints). Its skew is
     /// measured from the lines of text and rules in it; a page whose skew is
     /// below `--min-angle`, or measured with confidence below
-    /// `--min-confidence`, is left alone. A corrected image is a new,
-    /// losslessly compressed image of the same size, drawn in the same
-    /// place; the uncovered corners take the scan's background colour.
+    /// `--min-confidence`, is left alone. A corrected image is a new image
+    /// of the same size, drawn in the same place and stored as
+    /// `--encoding` says; the uncovered corners take the scan's background
+    /// colour. The old image is deleted when nothing else draws it.
     /// Without `--output` or `--in-place` nothing is written: each page's
     /// measurement is printed and the command stops (a dry run).
     ///
     /// One line per page: `page N object I: skew=+1.20 confidence=0.84:
-    /// corrected ...` or `... skipped (reason)`. A JPEG scan usually grows,
-    /// and the line shows its old and new stream sizes. Refused, with exit
+    /// corrected ...` or `... skipped (reason)`; a corrected line shows the
+    /// old and new stream sizes. Re-encoding a JPEG is lossy, and a note on
+    /// standard error says so with the quality used. Refused, with exit
     /// code 9: inline images, and images with a soft mask or mask.
     Deskew {
         /// Input PDF.
@@ -8334,6 +8336,12 @@ pub(crate) enum Command {
         /// Leave pages whose measurement confidence (0 to 1) is below this.
         #[arg(long, default_value_t = 0.2)]
         min_confidence: f64,
+        /// How the straightened image is stored.
+        #[arg(long, value_enum, default_value_t = DeskewEncodingArg::SameFamily)]
+        encoding: DeskewEncodingArg,
+        /// JPEG quality for `--encoding dct`, 1-100.
+        #[arg(long, default_value_t = 90, value_parser = clap::value_parser!(u8).range(1..=100))]
+        quality: u8,
         /// Output path. Without it, only report (dry run).
         #[arg(short, long)]
         output: Option<PathBuf>,
