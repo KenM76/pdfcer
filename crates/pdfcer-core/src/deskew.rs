@@ -38,6 +38,14 @@ const MIN_INK_POINTS: usize = 64;
 /// subsampled; text lines survive it and the search stays fast.
 const DETECT_SIDE: u32 = 1200;
 
+/// The most ink points scored; a denser sample is thinned to exactly this
+/// many at an even stride, which keeps every line's shape and makes the
+/// search cost the same for any page at or past it.
+const MAX_SCORED_POINTS: usize = 200_000;
+
+/// Sub-bins per pixel in the projection histogram ([`profile_score`]).
+const SUB_BINS: usize = 8;
+
 const COARSE_STEP: f64 = 0.5;
 const FINE_STEP: f64 = 0.05;
 
@@ -115,7 +123,7 @@ impl Raster {
 
     /// The largest sample value at this bit depth.
     pub(crate) fn max(&self) -> u32 {
-        (1u32 << self.bpc) - 1
+        1u32.checked_shl(self.bpc).map_or(u32::MAX, |m| m - 1)
     }
 
     /// Sample `c` of pixel `(x, y)`; 0 when out of the buffer.
@@ -305,6 +313,16 @@ fn estimate(points: &[(f64, f64)]) -> Option<SkewEstimate> {
     if points.len() < MIN_INK_POINTS {
         return None;
     }
+    let thinned: Vec<(f64, f64)>;
+    let points = if points.len() > MAX_SCORED_POINTS {
+        let n = points.len();
+        thinned = (0..MAX_SCORED_POINTS)
+            .filter_map(|i| points.get(i * n / MAX_SCORED_POINTS).copied())
+            .collect();
+        &thinned[..]
+    } else {
+        points
+    };
     let steps = (MAX_SKEW_DEGREES / COARSE_STEP).round() as i32;
     let coarse: Vec<(f64, f64)> = (-steps..=steps)
         .map(|i| {
@@ -335,15 +353,26 @@ fn estimate(points: &[(f64, f64)]) -> Option<SkewEstimate> {
     })
 }
 
-/// Sum of squared bin counts of the points projected perpendicular to a
-/// line at `angle_degrees` (in image coordinates, y down, a line tilted
-/// counter-clockwise as displayed keeps `y·cos + x·sin` constant). Each
-/// point's weight is split linearly between its two nearest bins: rounding
-/// to one bin beats against the pixel grid and biases the angle by about a
-/// pixel over the line length.
+/// How sharply the points' projection perpendicular to a line at
+/// `angle_degrees` peaks (in image coordinates, y down, a line tilted
+/// counter-clockwise as displayed keeps `y·cos + x·sin` constant).
+///
+/// The score is the sum of squared counts of one-pixel bins, each point's
+/// weight split linearly between its two nearest, **averaged over every
+/// sub-pixel offset of the bin grid**: `Σᵢⱼ K(kᵢ − kⱼ)`, `K` the cubic
+/// B-spline (the tent's autocorrelation). A fixed grid scores a whole-pixel
+/// key 1 but a fractional one 2/3 on average, and at 0° every key of a
+/// pixel-row raster is whole, which pulled small tilts to level (request
+/// X102); the average does not depend on where the keys fall. It is
+/// evaluated on a [`SUB_BINS`]-per-pixel histogram, whose own residual
+/// alignment preference is under 1%.
 fn profile_score(points: &[(f64, f64)], angle_degrees: f64) -> f64 {
     let (sin, cos) = angle_degrees.to_radians().sin_cos();
-    let keys: Vec<f64> = points.iter().map(|&(x, y)| y * cos + x * sin).collect();
+    let scale = SUB_BINS as f64;
+    let keys: Vec<f64> = points
+        .iter()
+        .map(|&(x, y)| (y * cos + x * sin) * scale)
+        .collect();
     let lo = keys.iter().copied().fold(f64::INFINITY, f64::min).floor();
     let hi = keys.iter().copied().fold(f64::NEG_INFINITY, f64::max);
     if !lo.is_finite() || !hi.is_finite() || hi < lo {
@@ -361,5 +390,26 @@ fn profile_score(points: &[(f64, f64)], angle_degrees: f64) -> f64 {
             *b += w;
         }
     }
-    bins.iter().map(|n| n * n).sum()
+    let mut score = spline(0.0) * bins.iter().map(|n| n * n).sum::<f64>();
+    for d in 1..2 * SUB_BINS {
+        let lag: f64 = bins
+            .iter()
+            .zip(bins.iter().skip(d))
+            .map(|(a, b)| a * b)
+            .sum();
+        score += 2.0 * spline(d as f64 / scale) * lag;
+    }
+    score
+}
+
+/// The cubic B-spline centred on 0, support (−2, 2), `spline(0) = 2/3`.
+fn spline(t: f64) -> f64 {
+    let t = t.abs();
+    if t < 1.0 {
+        2.0 / 3.0 - t * t + t * t * t / 2.0
+    } else if t < 2.0 {
+        (2.0 - t).powi(3) / 6.0
+    } else {
+        0.0
+    }
 }

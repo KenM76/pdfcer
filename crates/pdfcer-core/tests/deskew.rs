@@ -509,3 +509,73 @@ fn the_encoding_can_be_chosen() {
         out.notes
     );
 }
+
+/// A `w × h` page of rectangle "glyphs" in lines, rotated `angle` degrees
+/// counter-clockwise as displayed about the page centre. `dense` packs the
+/// glyphs so most of the page is ink.
+fn glyph_lines(w: u32, h: u32, angle: f64, dense: bool) -> Vec<u8> {
+    let (sin, cos) = angle.to_radians().sin_cos();
+    let (cx, cy) = (f64::from(w) / 2.0, f64::from(h) / 2.0);
+    let (pitch, glyph_h, glyph_w, gap) = if dense {
+        (18.0, 15.0, 14.0, 2.0)
+    } else {
+        (40.0, 14.0, 12.0, 6.0)
+    };
+    let (half_w, half_h) = (cx * 0.85, cy * 0.85);
+    let mut grey = vec![255u8; (w * h) as usize];
+    for y in 0..h {
+        for x in 0..w {
+            let (dx, dy) = (f64::from(x) - cx, f64::from(y) - cy);
+            // Level-page coordinates: `v` across the lines, `u` along them.
+            let u = dx * cos - dy * sin;
+            let v = dy * cos + dx * sin;
+            if u.abs() > half_w || v.abs() > half_h {
+                continue;
+            }
+            let along = (u + half_w).rem_euclid(glyph_w + gap);
+            let across = (v + half_h).rem_euclid(pitch);
+            // Every seventh glyph is a word space.
+            let word = ((u + half_w) / (glyph_w + gap)) as i64 % 7 == 6;
+            if along < glyph_w && across < glyph_h && !word {
+                grey[(y * w + x) as usize] = 0;
+            }
+        }
+    }
+    grey
+}
+
+/// Tighter than the fine search step (0.05°), so a tilt pulled one step
+/// towards level fails.
+const TILT_TOLERANCE: f64 = 0.03;
+
+#[test]
+fn small_tilts_are_not_pulled_to_level() {
+    for angle in [-0.3, -0.1, 0.1, 0.3] {
+        let skew = detect_skew(W, H, &skewed_grey(angle)).unwrap();
+        assert!(
+            (skew.angle_degrees - angle).abs() <= TILT_TOLERANCE,
+            "bars at {angle}° measured as {}°",
+            skew.angle_degrees
+        );
+    }
+    for angle in [-12.0, -5.0, -2.0, -0.5, -0.1, 0.0, 0.1, 0.3, 2.0, 5.0, 12.0] {
+        let skew = detect_skew(1000, 1300, &glyph_lines(1000, 1300, angle, false)).unwrap();
+        assert!(
+            (skew.angle_degrees - angle).abs() <= TILT_TOLERANCE,
+            "{angle}° measured as {}°",
+            skew.angle_degrees
+        );
+    }
+}
+
+#[test]
+fn a_mostly_ink_page_is_still_measured() {
+    for angle in [-0.1, 1.5] {
+        let skew = detect_skew(1200, 1200, &glyph_lines(1200, 1200, angle, true)).unwrap();
+        assert!(
+            (skew.angle_degrees - angle).abs() <= TILT_TOLERANCE,
+            "{angle}° measured as {}°",
+            skew.angle_degrees
+        );
+    }
+}

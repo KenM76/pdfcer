@@ -374,6 +374,12 @@ pub(super) fn decode_target(
             "its codestream carries transparency, which would not survive",
         ));
     }
+    if !matches!(decoded.bpc, 1 | 2 | 4 | 8 | 16) {
+        return Err(unsupported(&format!(
+            "it has {} bits per component; 1, 2, 4, 8 or 16 are supported",
+            decoded.bpc
+        )));
+    }
     let raster = Raster {
         width: decoded.width,
         height: decoded.height,
