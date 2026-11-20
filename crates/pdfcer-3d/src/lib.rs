@@ -87,6 +87,7 @@ pub use gpu::ao::{
 };
 #[cfg(feature = "render")]
 pub use gpu::bounce::FrameBounce;
+#[cfg(feature = "render")]
 pub use gpu::bounce_build::{
     ByteTexture, FloatTexture, GLSL_ES_300_BOUNCE_BUILD_VERTEX, GLSL_ES_300_BOUNCE_REDUCE_FRAGMENT,
     GLSL_ES_300_BOUNCE_TRACE_FRAGMENT, GLSL_ES_300_LIGHT_METER_MAP_FRAGMENT, GpuBounceBuild,
