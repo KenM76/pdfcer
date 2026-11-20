@@ -124,6 +124,10 @@ pub struct FrameLights {
     /// `local_count` ([`LampCut`](crate::LampCut)). `f32::MAX` when its fade
     /// never falls that far or nothing is cut.
     pub local_reach: Vec<f32>,
+    /// The lamps each tile of an `options.width` × `options.height`
+    /// viewport visits; empty when the fragment shader should visit every
+    /// lamp. The picture is the same either way.
+    pub tiles: crate::LampTiles,
     /// Lights beyond [`MAX_LIGHTS`] in either list, not drawn; for the host
     /// to disclose.
     pub dropped: usize,
@@ -177,6 +181,7 @@ impl FrameLights {
             local_attenuation: Vec::new(),
             local_cones: Vec::new(),
             local_reach: Vec::new(),
+            tiles: crate::LampTiles::default(),
             dropped: 0,
             toward_white: options.over_range.rolls(),
         };
@@ -201,6 +206,12 @@ impl FrameLights {
                 out.dropped = lights.len().saturating_sub(MAX_LIGHTS)
                     + local.len().saturating_sub(MAX_LIGHTS);
                 out.set_local(&local);
+                out.tiles = crate::gpu::lamp_tiles::build(
+                    local.get(..out.local_count).unwrap_or(&local),
+                    camera,
+                    options.width,
+                    options.height,
+                );
                 out.mode = ShadeMode::Lights;
                 out.ambient = ambient.map(|c| c as f32);
                 for (dir, c) in lights.iter().take(MAX_LIGHTS) {

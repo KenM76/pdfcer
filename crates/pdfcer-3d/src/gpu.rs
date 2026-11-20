@@ -10,6 +10,7 @@ pub(crate) mod bounce_build;
 pub(crate) mod finish;
 pub(crate) mod frame;
 pub(crate) mod lamp_shadow;
+pub(crate) mod lamp_tiles;
 pub(crate) mod lens;
 pub(crate) mod lines;
 pub(crate) mod prepass;

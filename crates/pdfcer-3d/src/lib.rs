@@ -102,6 +102,8 @@ pub use gpu::lamp_shadow::{
     FrameLampShadows, GLSL_ES_300_LAMP_SHADOW_FRAGMENT, GLSL_ES_300_LAMP_SHADOW_VERTEX,
 };
 #[cfg(feature = "render")]
+pub use gpu::lamp_tiles::{LAMP_TILE_SIZE, LampTiles};
+#[cfg(feature = "render")]
 pub use gpu::lens::{
     GLSL_ES_300_LENS_LINE_VERTEX, GLSL_ES_300_LENS_POINT_VERTEX, GLSL_ES_300_LENS_RESAMPLE_FRAGMENT,
 };

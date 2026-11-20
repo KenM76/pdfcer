@@ -1,0 +1,75 @@
+<!doctype html><html><head><title>pdfcer GPU lamp tiles</title></head>
+<body><pre id="out">running…</pre><script src="data.js"></script><script>
+// Pass 724.3: draws one frame with its lamp tiles and with every lamp, and compares the pixels.
+const out = document.getElementById("out"), lines = [];
+const log = s => { lines.push(s); out.textContent = lines.join("\n"); };
+try {
+  const c = document.createElement("canvas");
+  const gl = c.getContext("webgl2");
+  if (!gl) throw new Error("no WebGL 2");
+  const dbg = gl.getExtension("WEBGL_debug_renderer_info");
+  log("renderer: " + (dbg ? gl.getParameter(dbg.UNMASKED_RENDERER_WEBGL) : gl.getParameter(gl.RENDERER)));
+  const bytes = b => { const s = atob(b), u = new Uint8Array(s.length); for (let i = 0; i < s.length; i++) u[i] = s.charCodeAt(i); return u; };
+  const f32 = b => new Float32Array(bytes(b).buffer);
+  const p = gl.createProgram();
+  for (const [type, src] of [[gl.VERTEX_SHADER, D.vs], [gl.FRAGMENT_SHADER, D.fs]]) {
+    const s = gl.createShader(type); gl.shaderSource(s, src); gl.compileShader(s);
+    if (!gl.getShaderParameter(s, gl.COMPILE_STATUS)) throw new Error(gl.getShaderInfoLog(s)); gl.attachShader(p, s);
+  }
+  gl.linkProgram(p); if (!gl.getProgramParameter(p, gl.LINK_STATUS)) throw new Error(gl.getProgramInfoLog(p));
+  gl.useProgram(p);
+  const u = n => gl.getUniformLocation(p, n);
+  let unit = 0;
+  function bind(name, target, w, h, data, layers) {
+    const t = gl.createTexture(); gl.activeTexture(gl.TEXTURE0 + unit); gl.bindTexture(target, t);
+    if (target === gl.TEXTURE_2D) gl.texImage2D(target, 0, gl.RGBA32F, w, h, 0, gl.RGBA, gl.FLOAT, data);
+    else gl.texImage3D(target, 0, gl.RGBA32F, w, h, layers, 0, gl.RGBA, gl.FLOAT, data);
+    gl.texParameteri(target, gl.TEXTURE_MIN_FILTER, gl.NEAREST); gl.texParameteri(target, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
+    gl.uniform1i(u(name), unit); unit++;
+  }
+  bind("u_lights", gl.TEXTURE_2D, D.lights.w, D.lights.h, f32(D.lights.b));
+  bind("u_lamp_tiles", gl.TEXTURE_2D, D.tiles.w, D.tiles.h, D.tiles.b ? f32(D.tiles.b) : new Float32Array(4));
+  for (const n of ["u_texture", "u_shadow_map"]) bind(n, gl.TEXTURE_2D, 1, 1, new Float32Array(4));
+  for (const n of ["u_lamp_shadow_map", "u_shadow_extra_map", "u_shadow_veil", "u_shadow_transmit", "u_lamp_veil", "u_lamp_transmit"])
+    bind(n, gl.TEXTURE_2D_ARRAY, 1, 1, new Float32Array(4), 1);
+  gl.uniformMatrix4fv(u("u_view"), false, D.view); gl.uniformMatrix4fv(u("u_projection"), false, D.proj);
+  gl.uniform2fv(u("u_depth_range"), D.depth); gl.uniform1i(u("u_mode"), D.mode); gl.uniform3fv(u("u_ambient"), D.ambient);
+  gl.uniform1i(u("u_count"), D.count); gl.uniform1i(u("u_local_count"), D.local_count);
+  gl.uniform3fv(u("u_eye"), D.eye); gl.uniform3fv(u("u_forward"), D.forward); gl.uniform1i(u("u_orthographic"), D.ortho ? 1 : 0);
+  gl.uniform1i(u("u_shadow_light"), -1); gl.uniform1i(u("u_toward_white"), D.toward_white ? 1 : 0);
+  gl.uniform1i(u("u_tile_columns"), D.tile[1]); gl.uniform1i(u("u_tile_rows"), D.tile[2]); gl.uniform1i(u("u_tile_count"), D.tile[3]);
+  const vao = gl.createVertexArray(); gl.bindVertexArray(vao);
+  const buf = gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER, buf); gl.bufferData(gl.ARRAY_BUFFER, f32(D.vertices), gl.STATIC_DRAW);
+  for (const [loc, n, off] of [[0, 3, 0], [1, 3, 3], [2, 2, 6], [3, 1, 8]]) { gl.enableVertexAttribArray(loc); gl.vertexAttribPointer(loc, n, gl.FLOAT, false, 36, off * 4); }
+  const fb = gl.createFramebuffer(); gl.bindFramebuffer(gl.FRAMEBUFFER, fb);
+  const colour = gl.createRenderbuffer(); gl.bindRenderbuffer(gl.RENDERBUFFER, colour); gl.renderbufferStorage(gl.RENDERBUFFER, gl.RGBA8, D.w, D.h);
+  gl.framebufferRenderbuffer(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.RENDERBUFFER, colour);
+  const depth = gl.createRenderbuffer(); gl.bindRenderbuffer(gl.RENDERBUFFER, depth); gl.renderbufferStorage(gl.RENDERBUFFER, gl.DEPTH_COMPONENT24, D.w, D.h);
+  gl.framebufferRenderbuffer(gl.FRAMEBUFFER, gl.DEPTH_ATTACHMENT, gl.RENDERBUFFER, depth);
+  gl.viewport(0, 0, D.w, D.h); gl.enable(gl.DEPTH_TEST);
+  const px = new Uint8Array(4);
+  function frame(tile) {
+    gl.uniform1i(u("u_tile_size"), tile);
+    gl.clearColor(1, 1, 1, 1); gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+    for (const [first, count, rgba] of D.draws) { gl.uniform4fv(u("u_colour"), rgba); gl.drawArrays(gl.TRIANGLES, first, count); }
+  }
+  function picture(tile) { frame(tile); const a = new Uint8Array(D.w * D.h * 4); gl.readPixels(0, 0, D.w, D.h, gl.RGBA, gl.UNSIGNED_BYTE, a); return a; }
+  function time(tile, n) {
+    frame(tile); gl.readPixels(0, 0, 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, px);
+    const t0 = performance.now();
+    for (let i = 0; i < n; i++) { frame(tile); gl.readPixels(0, 0, 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, px); }
+    return (performance.now() - t0) / n;
+  }
+  const tiled = picture(D.tile[0]), every = picture(0);
+  let differ = 0, maxd = 0, lit = 0;
+  for (let i = 0; i < tiled.length; i++) { const d = Math.abs(tiled[i] - every[i]); if (d) differ++; maxd = Math.max(maxd, d); }
+  for (let i = 0; i < every.length; i += 4) if (every[i] !== 255 || every[i + 1] !== 255) lit++;
+  const err = gl.getError(); if (err) log("gl error " + err);
+  if (gl.isContextLost()) log("context lost");
+  log(`${D.w}x${D.h}, draws ${D.draws.length}, lamps ${D.local_count}, tile ${D.tile[0]} (${D.tile[1]}x${D.tile[2]}), longest list ${D.longest}, mean ${D.mean}, non-white pixels ${lit}`);
+  log(`tiled vs every lamp: ${differ} differing channels, max ${maxd}`);
+  const n = 5;
+  const te = time(0, n), tt = time(D.tile[0], n);
+  log(`every lamp ${te.toFixed(1)} ms, tiled ${tt.toFixed(1)} ms, ${(te / tt).toFixed(1)}x`);
+} catch (e) { log("ERROR " + e.message); }
+</script></body></html>

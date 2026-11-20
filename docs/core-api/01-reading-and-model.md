@@ -4252,6 +4252,22 @@ let image = render_coloured(&meshes, &colours, &camera, &RenderOptions { width: 
   `casting` at most `MAX_LAMP_SHADOWS` of it) from `LampStats::for_model(&camera,
   &options, &model.lights) -> Result<LampStats, RenderError>` (CPU) or
   `FrameLights::lamps` (GPU), equal for the same arguments.
+  Lamp tiles (GPU, always on, exact): `FrameLights::tiles: LampTiles {
+  tile_size, columns, rows, lists: Vec<Vec<u16>> }` (`#[non_exhaustive]`,
+  `Default`, `Eq`) cuts the `options.width × options.height` viewport into
+  `LAMP_TILE_SIZE` (16) px tiles, each listing (ascending, as rows of the
+  lamp part of `u_lights`) the lamps whose reach sphere may meet it; row 0
+  is the viewport's bottom, as `gl_FragCoord`. A fragment visits only its
+  tile's lamps in the same order, so the picture is byte-identical to
+  visiting every lamp. Upload `tiles.texture() -> FloatTexture` (RGBA32F,
+  2,048 wide; texel `t < lists.len()` = `[first, count, 0, 0]`, run entry
+  `k` = channel `k % 4` of texel `lists.len() + k / 4`) as `u_lamp_tiles`
+  and set `u_tile_size`, `u_tile_columns`, `u_tile_rows`, `u_tile_count`
+  (`lists.len()`) and `u_tile_origin` (the viewport's lower-left corner in
+  `gl_FragCoord`, usually `(0, 0)`). `tile_size` 0 (no lamps, a fisheye,
+  more than 65,535 lamps, an over-size texture, or lists that would not
+  halve the average visits) = visit every lamp; `u_tile_size` left 0 does
+  the same, so a host that ignores tiles draws the same picture.
   Cheap mode (changes the picture): `RenderOptions::lamp_cost:
   LampCost::{Full (default), NearestPerFrame(u16)}` (`#[non_exhaustive]`).
   `NearestPerFrame(n)` draws only the `n` lamps meeting the view that add

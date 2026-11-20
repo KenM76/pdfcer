@@ -95,7 +95,13 @@ void main() {
 /// `u_shadow_matrix`, `u_shadow_map` (its depth texture), `u_shadow_size`,
 /// `u_shadow_to_light`, `u_shadow_offset` and `u_shadow_bias`; from
 /// [`crate::FrameLights`], the point and spot lights, added per pixel:
-/// `u_local_count` and their rows of `u_lights`; and from
+/// `u_local_count` and their rows of `u_lights`, and, from
+/// [`crate::FrameLights::tiles`], the lamps each tile of the viewport
+/// visits: `u_tile_size` (0: every lamp everywhere), `u_tile_columns`,
+/// `u_tile_rows`, `u_tile_count`, `u_lamp_tiles`
+/// ([`crate::LampTiles::texture`]) and `u_tile_origin` (the viewport's
+/// lower-left corner in `gl_FragCoord`, `(0, 0)` unless the host draws
+/// into part of its target); and from
 /// [`crate::FrameLampShadows`] up to
 /// [`MAX_LAMP_SHADOWS`](crate::MAX_LAMP_SHADOWS) lamps' shadows:
 /// `u_lamp_shadows` (false without one), `u_lamp_shadow_map`,
@@ -153,6 +159,12 @@ uniform vec3 u_shadow_to_light;
 uniform float u_shadow_offset;
 uniform float u_shadow_bias;
 uniform highp int u_local_count;
+uniform highp int u_tile_size;
+uniform highp int u_tile_columns;
+uniform highp int u_tile_rows;
+uniform highp int u_tile_count;
+uniform highp sampler2D u_lamp_tiles;
+uniform highp ivec2 u_tile_origin;
 uniform bool u_lamp_shadows;
 uniform highp sampler2DArray u_lamp_shadow_map;
 uniform float u_lamp_shadow_size;
@@ -306,6 +318,11 @@ float reach(int r, vec4 at, vec3 l, float d) {
     return k;
 }
 
+// Texel i of u_lamp_tiles, 2,048 wide.
+vec4 tile_texel(int i) {
+    return texelFetch(u_lamp_tiles, ivec2(i % 2048, i / 2048), 0);
+}
+
 // The point and spot lights at p with unit normal n on a face with unit
 // normal f; when shiny, also their highlights into spec, seen along unit
 // v with nv the normal turned towards it. One pass serves both, each
@@ -313,7 +330,24 @@ float reach(int r, vec4 at, vec3 l, float d) {
 vec3 local(vec3 p, vec3 n, vec3 f, bool shiny, vec3 v, vec3 nv, out vec3 spec) {
     vec3 s = vec3(0.0);
     spec = vec3(0.0);
-    for (int i = 0; i < u_local_count; i++) {
+    int first = 0;
+    int visits = u_local_count;
+    bool listed = false;
+    if (u_tile_size > 0) {
+        ivec2 c = (ivec2(gl_FragCoord.xy) - u_tile_origin) / u_tile_size;
+        if (all(greaterThanEqual(c, ivec2(0))) && c.x < u_tile_columns && c.y < u_tile_rows) {
+            vec4 h = tile_texel(c.y * u_tile_columns + c.x);
+            first = int(h.x);
+            visits = int(h.y);
+            listed = true;
+        }
+    }
+    for (int j = 0; j < visits; j++) {
+        int i = j;
+        if (listed) {
+            int k = first + j;
+            i = int(tile_texel(u_tile_count + k / 4)[k % 4]);
+        }
         int r = u_count + i;
         vec4 at = light(r, 0);
         vec3 to_light = at.xyz - p;
@@ -521,6 +555,12 @@ mod tests {
             "u_depth_range",
             "u_orthographic",
             "u_local_count",
+            "u_tile_size",
+            "u_tile_columns",
+            "u_tile_rows",
+            "u_tile_count",
+            "u_lamp_tiles",
+            "u_tile_origin",
             "u_mode",
             "u_ambient",
             "u_count",
