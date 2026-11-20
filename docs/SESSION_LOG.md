@@ -4,6 +4,16 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-11-20 (1656th filing) — `Pass 721.24` (`5fa49f54`) SHIPPED: face_figures measures the flat face at the pick
+
+**Filed (engineer-reported; no shell here, git, push and gates not checked from here):**
+- `5fa49f54` `fix(3d)`, unpushed, unreleased. `FaceFigures.source: FaceSource { File, Grown, WholeMesh }`; a whole-part or unfitted file face measures the flat patch at the pick (one-face box top: area 1, perimeter 4, Plane). Perimeter never -0.0. CLI `--measure-face` prints `source=` and a `grown` note. Answers G312; details in `ROADMAP.md` *Shipped*.
+- Tests: `pdfcer-3d` lib 611 pass; CLI `three_d_gltf` 19 pass.
+
+**FEATURES:** `Pass 721.6` measure-one-face row notes the grown patch; boxes unchanged (core [x] cli [x] gui [ ]).
+
+**Next free:** `Pass 721.25`; decision 225; R264. `Pass 724.4` part `704.3` Shadings still IN PROGRESS.
+
 ## 2026-11-20 (1655th filing) — v0.165.0 published
 
 **Filed (engineer-reported; no shell here, tag, CI, release and crates.io not checked from here):**

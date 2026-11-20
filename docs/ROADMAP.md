@@ -112,6 +112,19 @@ wherever it appears.*
 
 ## Shipped
 
+### `5fa49f54` `Pass 721.24`: `face_figures` measures the flat face at the pick when the file's face is a whole part, 2026-11-20 (1656th filing)
+
+Engineer-reported; no shell here, git, push, CI and the gates not run or checked from here. `5fa49f54` `fix(3d)`. Not pushed at filing time. **Unreleased.** Answers pdfcer-gui request G312 (reply `open/reply_G312_SHIPPED.md`). No decision, no rule, no manifest change; `cargo tree` unaffected. Reasoning is in the commit message.
+- **What:** `FaceFigures` gains `source: FaceSource { File, Grown, WholeMesh }` (new `#[non_exhaustive]` pub enum, re-exported from `pdfcer_3d`); `face` is `Some` only for `File`. When the file's face (or whole mesh) fits neither plane nor cylinder, or is closed (perimeter 0), the figures are the flat patch round the pick (same gathering as `surface_at`): `Grown`. A one-face box's top now measures area 1, perimeter 4, Plane (was area 6, perimeter -0.0, Unfitted, face Some(0)).
+- **Fixed on discovery:** perimeter never returns -0.0 (an empty f64 sum is -0.0; `+ 0.0`).
+- **CLI:** `3d-render --measure-face` prints `source=file|whole-mesh|grown` and a `note: measure-face: source=grown` line (disclosed, never silent).
+- **Unchanged:** `face_projected_area` still projects the file's face; its doc now says it does not grow a patch.
+- **Tests (engineer-reported):** 3 new engine tests (one-face box grows, no-face closed box grows, -0.0 perimeter); sources asserted on the existing tube/plate tests; CLI test line updated. `pdfcer-3d` lib 611 pass; CLI `three_d_gltf` 19 pass.
+- **Gates (engineer-reported):** clippy `-D warnings` (pdfcer-3d, all features), fmt, code-structure, public-fns, string-gaps, bypass-paths clean; `check-core-api-verbs.py` green.
+- **Docs:** `docs/core-api/01-reading-and-model.md` "Measure one face"; `index.md` line count.
+- **Delivered:** core yes; cli yes; gui no (`pdfcer-gui` consumes it).
+- **FEATURES:** the `Pass 721.6` measure-one-face row notes the grown patch (boxes unchanged). **Next free:** `Pass 721.25`; decision 225; R264.
+
 ### `v0.165.0` PUBLISHED, tag on `bce0c21e` (the 1654th filing; bump `2a645070`), 2026-11-20 (1655th filing)
 
 Engineer-reported; no shell here, tag, CI, release and crates.io state not checked from here.
