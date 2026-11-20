@@ -645,3 +645,63 @@ fn a_map_measures_the_side_the_camera_sees_unless_told_the_normals() {
     let along = m.map(None, MapSide::AlongNormals, &mut |_| true).unwrap();
     assert_eq!(along.range(), Some((0.0, 0.0)));
 }
+
+/// The lattice a GPU map packs, read back as the GPU would measure it.
+fn gpu_read(g: &GpuLightMap, figure: impl Fn([f64; 3]) -> f64) -> Vec<f32> {
+    let mut read = vec![0.0f32; 4 * (g.target_width * g.target_height) as usize];
+    for (i, p) in g
+        .points
+        .texels
+        .chunks(4)
+        .take(g.point_count as usize)
+        .enumerate()
+    {
+        let at = [0, 1, 2].map(|k| f64::from(p[k]) + g.origin[k]);
+        read[4 * i] = figure(at) as f32;
+    }
+    read
+}
+
+#[test]
+fn a_gpu_map_packs_the_lattice_the_cpu_maps() {
+    let model = floor(vec![lamp([0.0, 0.0, 2.0], Some(100.0))]);
+    let m = meter(&model, &direct(), &MeterSettings::default());
+    let g = m
+        .gpu_map(Some(1.0), MapSide::FacingCamera)
+        .unwrap()
+        .unwrap();
+    assert_eq!(
+        (g.point_count, g.target_width, g.target_height),
+        (49, 2048, 1)
+    );
+    assert_eq!((g.lamp_count, g.bounce_count, g.direction_count), (1, 0, 0));
+    assert_eq!((g.glow_count, g.bounce.is_none()), (0, true));
+    let read = gpu_read(&g, |p| under_lamp(p[0], p[1]));
+    let cpu = m
+        .map(Some(1.0), MapSide::FacingCamera, &mut |_| true)
+        .unwrap();
+    let map = g.clone().finish(&read).unwrap();
+    assert_eq!((map.unit, &map.notes), (cpu.unit, &cpu.notes));
+    for t in 0..2 {
+        let (got, want) = (map.patch(0, t).unwrap(), cpu.patch(0, t).unwrap());
+        assert_eq!((got.corners, got.divisions), (want.corners, want.divisions));
+        for (a, b) in got.figures.iter().zip(&want.figures) {
+            assert!((a - b).abs() < 1e-5 * b, "{a} {b}");
+        }
+    }
+    assert_eq!(
+        g.finish(&read[..8]),
+        Err(IlluminanceError::BadQuery("read"))
+    );
+}
+
+#[test]
+fn a_gpu_map_gathers_a_glow_in_every_direction() {
+    let (model, dark) = glow_room([1.0; 3]);
+    let m = meter(&model, &dark, &MeterSettings::default());
+    let g = m.gpu_map(None, MapSide::FacingCamera).unwrap().unwrap();
+    let rays = MeterSettings::default().gather_rays as u32;
+    assert_eq!((g.glow_count, g.direction_count), (2, 2 * rays));
+    assert_eq!(&g.glow.texels[4..7], &[1.0; 3]);
+    assert!(g.bounce.is_none() && g.eps > 0.0 && g.far >= g.eps);
+}

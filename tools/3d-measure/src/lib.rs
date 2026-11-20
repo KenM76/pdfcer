@@ -4,6 +4,8 @@
 
 use pdfcer_3d::{AssembledModel, PickIndex, Ray};
 
+pub mod webgl;
+
 /// Deterministic uniform numbers in [0, 1).
 struct Lcg(u64);
 impl Lcg {

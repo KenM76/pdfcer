@@ -236,11 +236,16 @@ vec3 scene_lamp(int l, vec3 p, vec3 n) {
     return colour * (c * scene_transmittance(p + n * u_eps, to_light, u_eps, dist));
 }
 
+// Lamps first .. first + count's light straight onto p on the side n faces.
+vec3 scene_direct_range(int first, int count, vec3 p, vec3 n) {
+    vec3 sum = vec3(0.0);
+    for (int l = first; l < first + count; l++) sum += scene_lamp(l, p, n);
+    return sum;
+}
+
 // Every lamp's light straight onto p on the side n faces.
 vec3 scene_direct(vec3 p, vec3 n) {
-    vec3 sum = vec3(0.0);
-    for (int l = 0; l < u_lamp_count; l++) sum += scene_lamp(l, p, n);
-    return sum;
+    return scene_direct_range(0, u_lamp_count, p, n);
 }
 
 "
@@ -361,3 +366,72 @@ void main() {
     o_texel = vec4(mean, max(variance, 1e-12 * (1.0 + variance + mean * mean)), 0.0, 0.0);
 }
 ";
+
+/// The light-meter map pass ([`crate::GpuLightMap`]): texel (`x`, `y`)
+/// measures point `2048 y + x`, writing the luminance of the light
+/// arriving straight from the lamps (R), bounced (G, strength applied)
+/// and straight from glowing surfaces (B).
+pub const GLSL_ES_300_LIGHT_METER_MAP_FRAGMENT: &str = concat!(
+    "#version 300 es\n",
+    scene_glsl!(),
+    bounce_glsl!(),
+    r"uniform highp sampler2D u_points;
+uniform highp sampler2D u_normals;
+uniform highp sampler2D u_directions;
+uniform highp sampler2D u_glow;
+uniform int u_point_count;
+uniform int u_direction_count;
+uniform int u_glow_count;
+uniform int u_bounce_first;
+uniform int u_bounce_count;
+uniform float u_gather_far;
+uniform vec3 u_sky;
+out vec4 o_figure;
+
+float meter_luminance(vec3 c) {
+    return dot(c, vec3(0.2126, 0.7152, 0.0722));
+}
+
+void main() {
+    ivec2 f = ivec2(gl_FragCoord.xy);
+    int i = f.y * 2048 + f.x;
+    if (i >= u_point_count) { o_figure = vec4(0.0); return; }
+    vec3 p = flat_fetch(u_points, i).xyz;
+    vec3 n = flat_fetch(u_normals, i).xyz;
+    vec3 direct = scene_direct(p, n);
+    vec3 reflected = vec3(0.0);
+    vec3 emitted = vec3(0.0);
+    float weight = 0.0;
+    if (u_bounce || u_glow_count > 0) {
+        float far = u_bounce ? u_gather_far : u_far;
+        vec3 o = p + n * u_eps;
+        for (int k = 0; k < u_direction_count; k++) {
+            vec3 d = flat_fetch(u_directions, k).xyz;
+            float c = dot(n, d);
+            if (c <= 0.0) continue;
+            weight += c;
+            float t;
+            vec3 hn, hw;
+            int h = scene_first_hit(o, d, u_eps, far, t, hn, hw);
+            if (h < 0) {
+                if (u_bounce) reflected += u_sky * c;
+                continue;
+            }
+            vec4 a = scene_colour(h, hw);
+            float kept = clamp(a.a, 0.0, 1.0);
+            int mesh = int(flat_fetch(u_tris, 4 * h).w);
+            if (mesh < u_glow_count) emitted += flat_fetch(u_glow, mesh).rgb * (kept * c);
+            if (!u_bounce) continue;
+            vec3 hit = o + d * t;
+            if (dot(hn, d) > 0.0) hn = -hn;
+            vec3 light = scene_direct_range(u_bounce_first, u_bounce_count, hit, hn) + bounce(hit, hn);
+            reflected += a.rgb * kept * light * c;
+        }
+    }
+    float k = weight > 0.0 ? 1.0 / weight : 0.0;
+    o_figure = vec4(meter_luminance(direct),
+        u_bounce_strength * meter_luminance(reflected * k),
+        meter_luminance(emitted * k), 1.0);
+}
+"
+);

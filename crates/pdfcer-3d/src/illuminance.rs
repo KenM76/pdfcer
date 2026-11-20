@@ -19,7 +19,8 @@ mod tests;
 
 pub use exposure::{ExposedLighting, Exposure, ExposureError};
 pub use map::{
-    IlluminanceMap, MAP_VERTEX_FLOATS, MAX_MAP_POINTS, MAX_MAP_RAYS, MapPatch, MapProgress, MapSide,
+    GpuLightMap, IlluminanceMap, MAP_VERTEX_FLOATS, MAX_MAP_POINTS, MAX_MAP_RAYS, MapPatch,
+    MapProgress, MapSide,
 };
 pub use types::{
     GlowLight, Illuminance, IlluminanceError, IlluminanceNote, IlluminanceQuery, IlluminanceUnit,

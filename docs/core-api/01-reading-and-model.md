@@ -3605,6 +3605,39 @@ let image = render_coloured(&meshes, &colours, &camera, &RenderOptions { width: 
   `MapPatch { corners, divisions, figures }`: lattice point `(i, j)`,
   `i + j <= d`, at `c0 + (i/d)(c1 - c0) + (j/d)(c2 - c0)`, its figure
   `figures[patch.index(i, j)]` (row by row, row `j` holding `d + 1 - j`).
+  **On the GPU:** `meter.gpu_map(spacing, side) ->
+  Result<Option<GpuLightMap>, IlluminanceError>` lays out the same lattice
+  (same caps and errors, less `Cancelled`) and packs the scene, every lamp
+  then the bouncing lamps, each mesh's glow, the points, their normals,
+  the gather directions and the meter's bounce atlas (`bounce:
+  Option<FrameBounce>`, origin made local) as `FloatTexture`s plus the
+  `ByteTexture` of pictures, positions less `origin`. The host draws
+  `GLSL_ES_300_LIGHT_METER_MAP_FRAGMENT` over
+  `GLSL_ES_300_BOUNCE_BUILD_VERTEX` once into an RGBA32F target of
+  `target_width` (2,048) × `target_height`, one fragment per point (point
+  `i` at texel `i`), optionally in scissored row bands; reads it back and
+  calls `finish(self, &read) -> Result<IlluminanceMap, IlluminanceError>`
+  (`BadQuery("read")` when short), which adds red + green + blue (direct,
+  bounced, emitted luminance) and the ambient. The rustdoc on
+  `GpuLightMap` lists every sampler and uniform. `None` past a 4,096
+  texture side: map on the CPU. Rays leave a surface `eps` (1e-5 × `far`)
+  off it against the CPU's 1e-9. Measured (WebGL 2, headless Edge) against
+  `map`, over every point: lit test room (2,700 points), direct only max
+  |d| 1.2e-7, with bounce max 7.3e-4, glowing wall max 1.5e-7, none off by
+  more than 5%. Bancroft white-ceiling file without textures (430,592
+  triangles, 733,044 points, 84 lamps, 1,494 glowing meshes) on an Intel
+  Arc Pro B50 (D3D11): direct only mean bias +3.6e-5 of the CPU mean,
+  relative L1 7.9e-5, 0.89% of points off by more than 5% (shadow edges),
+  1.4 s against 23.7 s on 20 CPU threads; with glow mean bias -0.15%,
+  relative L1 2.3%, 6.1% of points off by more than 5%, 11.9 s against
+  130 s; with bounce (8 gather rays) mean bias +0.21%, relative L1 1.9%,
+  10% of points off by more than 5%, 15.0 s against 139 s. The glow and
+  bounce misses are hemisphere rays leaving vertices of curved meshes at
+  grazing angles, where f32 and f64 disagree on which neighbouring face is
+  hit; matching the CPU's offset to the GPU's leaves 4.6%. At the default
+  128 gather rays the CPU refuses that file's bounce map (`TooMuchWork`,
+  8e9 rays); the GPU path has the same cap. `map` stays the oracle and the
+  path for exports and the CLI.
   **Bands.** `LuxBands::new(Vec<LuxBand { from, colour: [u8;3] }>,
   BandBlend::{Stepped (default), Graded})` (1 to `MAX_LUX_BANDS` = 16,
   bounds finite and strictly rising, else `LuxBandsError::{Empty,

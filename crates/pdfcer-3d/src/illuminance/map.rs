@@ -9,6 +9,10 @@ use crate::vec3::{add, dot, length, normalize, scale, span, sub, unit_cross};
 use crate::{Camera, Projection, TriangleMesh};
 use std::collections::HashMap;
 
+mod gpu;
+
+pub use gpu::GpuLightMap;
+
 /// The most distinct points [`LightMeter::map`] measures.
 pub const MAX_MAP_POINTS: usize = 4_000_000;
 /// The most rays [`LightMeter::map`] casts.
@@ -225,6 +229,21 @@ fn key(mesh: usize, p: [f64; 3], n: [f64; 3]) -> Key {
 /// point's figure is among the measured points.
 type Laid = (MapPatch, Vec<usize>);
 
+/// Every mesh's triangles, each laid out or left out.
+type Layout = Vec<Vec<Option<Laid>>>;
+
+/// Each laid patch with its figures taken from the measured `figures`.
+fn fill_patches(laid: Layout, figures: &[f64]) -> Vec<Vec<Option<MapPatch>>> {
+    let fill = |(mut patch, slots): Laid| {
+        let at = |i: &usize| figures.get(*i).copied().unwrap_or(0.0);
+        patch.figures = slots.iter().map(at).collect();
+        patch
+    };
+    laid.into_iter()
+        .map(|tris| tris.into_iter().map(|t| t.map(fill)).collect())
+        .collect()
+}
+
 /// The points to measure.
 #[derive(Default)]
 struct Plan {
@@ -299,8 +318,20 @@ impl LightMeter<'_> {
         side: MapSide,
         progress: &mut dyn FnMut(MapProgress) -> bool,
     ) -> Result<IlluminanceMap, IlluminanceError> {
+        let (plan, laid) = self.lay_out(spacing, side)?;
+        let figures = self.measure_all(&plan.points, progress)?;
+        Ok(self.filled(laid, &figures))
+    }
+
+    /// The points [`Self::map`] measures and every triangle's patch,
+    /// refusing past the caps.
+    fn lay_out(
+        &self,
+        spacing: Option<f64>,
+        side: MapSide,
+    ) -> Result<(Plan, Layout), IlluminanceError> {
         let mut plan = Plan::default();
-        let mut laid: Vec<Vec<Option<Laid>>> = Vec::with_capacity(self.meshes.len());
+        let mut laid: Layout = Vec::with_capacity(self.meshes.len());
         for (m, mesh) in self.meshes.iter().enumerate() {
             let hidden = self.hidden.get(m).copied().unwrap_or(false);
             let mut tris = Vec::with_capacity(mesh.triangles.len());
@@ -326,22 +357,17 @@ impl LightMeter<'_> {
                 limit: MAX_MAP_RAYS,
             });
         }
-        let figures = self.measure_all(&plan.points, progress)?;
-        let fill = |(mut patch, slots): Laid| {
-            let at = |i: &usize| figures.get(*i).copied().unwrap_or(0.0);
-            patch.figures = slots.iter().map(at).collect();
-            patch
-        };
-        let meshes = laid
-            .into_iter()
-            .map(|tris| tris.into_iter().map(|t| t.map(fill)).collect())
-            .collect();
-        Ok(IlluminanceMap {
+        Ok((plan, laid))
+    }
+
+    /// The map with each patch's figures taken from the measured `figures`.
+    fn filled(&self, laid: Layout, figures: &[f64]) -> IlluminanceMap {
+        IlluminanceMap {
             unit: self.unit,
             reasons: self.reasons.clone(),
             notes: self.notes.clone(),
-            meshes,
-        })
+            meshes: fill_patches(laid, figures),
+        }
     }
 
     /// Each point's total, chunk by chunk, reporting between chunks.

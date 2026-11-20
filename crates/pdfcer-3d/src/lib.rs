@@ -89,7 +89,7 @@ pub use gpu::ao::{
 pub use gpu::bounce::FrameBounce;
 pub use gpu::bounce_build::{
     ByteTexture, FloatTexture, GLSL_ES_300_BOUNCE_BUILD_VERTEX, GLSL_ES_300_BOUNCE_REDUCE_FRAGMENT,
-    GLSL_ES_300_BOUNCE_TRACE_FRAGMENT, GpuBounceBuild,
+    GLSL_ES_300_BOUNCE_TRACE_FRAGMENT, GLSL_ES_300_LIGHT_METER_MAP_FRAGMENT, GpuBounceBuild,
 };
 #[cfg(feature = "render")]
 pub use gpu::finish::DrawFinish;
@@ -125,10 +125,11 @@ pub use gpu::wide_lines::GLSL_ES_300_WIDE_LINE_VERTEX;
 pub use gpu::{Draw, DrawData, VERTEX_FLOATS};
 #[cfg(feature = "render")]
 pub use illuminance::{
-    ExposedLighting, Exposure, ExposureError, GlowLight, Illuminance, IlluminanceError,
-    IlluminanceMap, IlluminanceNote, IlluminanceQuery, IlluminanceUnit, LightMeter, LightShare,
-    LightTint, MAP_VERTEX_FLOATS, MAX_ILLUMINANCE_RAYS, MAX_ILLUMINANCE_SAMPLES, MAX_MAP_POINTS,
-    MAX_MAP_RAYS, MapPatch, MapProgress, MapSide, MeterBasis, MeterSettings, RelativeReason,
+    ExposedLighting, Exposure, ExposureError, GlowLight, GpuLightMap, Illuminance,
+    IlluminanceError, IlluminanceMap, IlluminanceNote, IlluminanceQuery, IlluminanceUnit,
+    LightMeter, LightShare, LightTint, MAP_VERTEX_FLOATS, MAX_ILLUMINANCE_RAYS,
+    MAX_ILLUMINANCE_SAMPLES, MAX_MAP_POINTS, MAX_MAP_RAYS, MapPatch, MapProgress, MapSide,
+    MeterBasis, MeterSettings, RelativeReason,
 };
 pub use length_unit::{LengthUnit, UnknownLengthUnit};
 #[cfg(feature = "render")]

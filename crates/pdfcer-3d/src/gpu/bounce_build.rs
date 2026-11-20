@@ -9,7 +9,7 @@ mod pictures;
 
 pub use glsl::{
     GLSL_ES_300_BOUNCE_BUILD_VERTEX, GLSL_ES_300_BOUNCE_REDUCE_FRAGMENT,
-    GLSL_ES_300_BOUNCE_TRACE_FRAGMENT,
+    GLSL_ES_300_BOUNCE_TRACE_FRAGMENT, GLSL_ES_300_LIGHT_METER_MAP_FRAGMENT,
 };
 
 use crate::camera::Camera;
@@ -22,9 +22,9 @@ use crate::render::{RenderError, RenderOptions, triangle_uvs};
 use crate::{AssembledModel, Bounce, BounceStats, FrameBounce, PreparedModel};
 
 /// The width of the node, triangle and lamp textures, in texels.
-const FLAT_WIDTH: usize = 2048;
+pub(crate) const FLAT_WIDTH: usize = 2048;
 /// The largest texture side a host is asked for.
-const MAX_SIDE: usize = 4096;
+pub(crate) const MAX_SIDE: usize = 4096;
 /// Probes per row of the trace target, each 64 rays wide.
 const TRACE_PROBES_PER_ROW: usize = 8;
 
@@ -54,7 +54,8 @@ pub struct ByteTexture {
 }
 
 impl FloatTexture {
-    fn from_rows(width: usize, texels: Vec<[f32; 4]>) -> FloatTexture {
+    /// `texels` laid `width` to a row, the last row padded with zeros.
+    pub(crate) fn from_rows(width: usize, texels: Vec<[f32; 4]>) -> FloatTexture {
         let height = texels.len().div_ceil(width).max(1);
         let mut flat: Vec<f32> = texels.into_iter().flatten().collect();
         flat.resize(width * height * 4, 0.0);
@@ -247,6 +248,55 @@ impl PreparedModel {
     }
 }
 
+/// The scene's triangles, textures and hierarchy, positions less
+/// `origin`, as [`GpuBounceBuild`] lays them out.
+#[derive(Debug, Clone, PartialEq)]
+pub(crate) struct SceneTextures {
+    pub(crate) nodes: FloatTexture,
+    pub(crate) triangles: FloatTexture,
+    pub(crate) uvs: FloatTexture,
+    pub(crate) materials: FloatTexture,
+    pub(crate) pictures: ByteTexture,
+}
+
+/// Position `p` less `origin`, in f32.
+pub(crate) fn local_to(origin: [f64; 3], p: [f64; 3]) -> [f32; 3] {
+    let ([x, y, z], [a, b, c]) = (p, origin);
+    [(x - a) as f32, (y - b) as f32, (z - c) as f32]
+}
+
+/// The triangles in `index`, painted as `surfaces`, as textures; `None`
+/// past [`MAX_SIDE`].
+pub(crate) fn pack_scene(
+    index: &crate::camera::pick_index::PickIndex,
+    surfaces: &Painted,
+    origin: [f64; 3],
+) -> Option<SceneTextures> {
+    let (flat_nodes, flat_prims) = index.flatten(origin);
+    let nodes = flat_nodes.into_iter().flatten().collect();
+    let (pictures, materials, slots) = pictures::pack_pictures(surfaces.paints);
+    let (triangles, uvs) = triangle_texels(&flat_prims, surfaces, &slots);
+    let [nodes, triangles, uvs] =
+        [nodes, triangles, uvs].map(|t| FloatTexture::from_rows(FLAT_WIDTH, t));
+    let scene = SceneTextures {
+        nodes,
+        triangles,
+        uvs,
+        materials,
+        pictures,
+    };
+    let tall = [&scene.nodes, &scene.triangles, &scene.uvs, &scene.materials]
+        .iter()
+        .any(|t| t.height as usize > MAX_SIDE);
+    (!tall).then_some(scene)
+}
+
+/// `lamps` as 4 texels each, positions less `origin`.
+pub(crate) fn lamp_rows(lamps: &[Lamp], origin: [f64; 3]) -> Vec<[f32; 4]> {
+    let local = |p| local_to(origin, p);
+    lamps.iter().flat_map(|l| lamp_texels(l, &local)).collect()
+}
+
 /// The scene and classified `volume` as textures; `None` past [`MAX_SIDE`].
 fn pack(
     (scene, surfaces): (&Scene, &Painted),
@@ -255,34 +305,25 @@ fn pack(
 ) -> Option<GpuBounceBuild> {
     let grid = volume.grid();
     let origin = grid.origin;
-    let [ox, oy, oz] = origin;
-    let local = |[x, y, z]: [f64; 3]| [(x - ox) as f32, (y - oy) as f32, (z - oz) as f32];
-    let (flat_nodes, flat_prims) = scene.index.flatten(origin);
-    let nodes = flat_nodes.into_iter().flatten().collect();
-    let (pictures, materials, slots) = pictures::pack_pictures(surfaces.paints);
-    let (triangles, uvs) = triangle_texels(&flat_prims, surfaces, &slots);
-    let lamps = scene
-        .lamps
-        .iter()
-        .flat_map(|l| lamp_texels(l, &local))
-        .collect();
+    let SceneTextures {
+        nodes,
+        triangles,
+        uvs,
+        materials,
+        pictures,
+    } = pack_scene(scene.index, surfaces, origin)?;
     let probes = (0..grid.len())
         .map(|i| {
-            let [x, y, z] = local(grid.position(i));
+            let [x, y, z] = local_to(origin, grid.position(i));
             let used = volume.active().get(i).copied().unwrap_or(false);
             [x, y, z, if used { 1.0 } else { 0.0 }]
         })
         .collect();
-    let textures =
-        [nodes, triangles, uvs, lamps, probes].map(|t| FloatTexture::from_rows(FLAT_WIDTH, t));
-    if textures
-        .iter()
-        .chain([&materials])
-        .any(|t| t.height as usize > MAX_SIDE)
-    {
+    let [lamps, probes] =
+        [lamp_rows(scene.lamps, origin), probes].map(|t| FloatTexture::from_rows(FLAT_WIDTH, t));
+    if lamps.height.max(probes.height) as usize > MAX_SIDE {
         return None;
     }
-    let [nodes, triangles, uvs, lamps, probes] = textures;
     let atlas = volume.atlas_size();
     bounce.atlas_width = atlas.0 as u32;
     bounce.atlas_height = atlas.1 as u32;
@@ -352,7 +393,7 @@ fn triangle_texels(
 
 /// How far, as a share of `far`, a GPU ray starts off a surface: about 100
 /// f32 steps at the lattice's edge.
-const EPS_SHARE: f64 = 1e-5;
+pub(crate) const EPS_SHARE: f64 = 1e-5;
 
 /// A lamp's four texels.
 fn lamp_texels(lamp: &Lamp, local: &dyn Fn([f64; 3]) -> [f32; 3]) -> [[f32; 4]; 4] {

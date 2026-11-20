@@ -1,0 +1,86 @@
+<!doctype html><html><head><title>pdfcer GPU light-meter map</title></head>
+<body><pre id="out">running…</pre><script src="data.js"></script><script>
+// Pass 724.1: runs GpuLightMap's pass and compares each point with the CPU map.
+const out = document.getElementById("out"), lines = [];
+const log = s => { lines.push(s); out.textContent = lines.join("\n"); };
+try {
+  const c = document.createElement("canvas");
+  const gl = c.getContext("webgl2");
+  if (!gl) throw new Error("no WebGL 2");
+  if (!gl.getExtension("EXT_color_buffer_float")) throw new Error("no EXT_color_buffer_float");
+  const dbg = gl.getExtension("WEBGL_debug_renderer_info");
+  log("renderer: " + (dbg ? gl.getParameter(dbg.UNMASKED_RENDERER_WEBGL) : gl.getParameter(gl.RENDERER)));
+  const bytes = b => { const s = atob(b), u = new Uint8Array(s.length); for (let i = 0; i < s.length; i++) u[i] = s.charCodeAt(i); return u; };
+  const f32 = b => new Float32Array(bytes(b).buffer);
+  function tex(w, h, data) {
+    const t = gl.createTexture(); gl.activeTexture(gl.TEXTURE15); gl.bindTexture(gl.TEXTURE_2D, t);
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA32F, w, h, 0, gl.RGBA, gl.FLOAT, data);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
+    return t;
+  }
+  const ft = d => tex(d.w, d.h, f32(d.b));
+  const p = gl.createProgram();
+  for (const [type, src] of [[gl.VERTEX_SHADER, D.vs], [gl.FRAGMENT_SHADER, D.fs]]) {
+    const s = gl.createShader(type); gl.shaderSource(s, src); gl.compileShader(s);
+    if (!gl.getShaderParameter(s, gl.COMPILE_STATUS)) throw new Error(gl.getShaderInfoLog(s)); gl.attachShader(p, s);
+  }
+  gl.linkProgram(p); if (!gl.getProgramParameter(p, gl.LINK_STATUS)) throw new Error(gl.getProgramInfoLog(p));
+  gl.useProgram(p);
+  const u = n => gl.getUniformLocation(p, n);
+  let unit = 0;
+  const bind = (name, t, target) => { gl.activeTexture(gl.TEXTURE0 + unit); gl.bindTexture(target || gl.TEXTURE_2D, t); gl.uniform1i(u(name), unit); unit++; };
+  for (const [name, key] of [["u_nodes", "nodes"], ["u_tris", "tris"], ["u_uvs", "uvs"], ["u_materials", "materials"], ["u_lamps", "lamps"],
+                             ["u_glow", "glow"], ["u_points", "points"], ["u_normals", "normals"], ["u_directions", "directions"]]) bind(name, ft(D[key]));
+  const pictures = gl.createTexture(); gl.activeTexture(gl.TEXTURE15); gl.bindTexture(gl.TEXTURE_2D_ARRAY, pictures);
+  gl.texImage3D(gl.TEXTURE_2D_ARRAY, 0, gl.RGBA8UI, D.pictures.w, D.pictures.h, D.pictures.l, 0, gl.RGBA_INTEGER, gl.UNSIGNED_BYTE, bytes(D.pictures.b));
+  gl.texParameteri(gl.TEXTURE_2D_ARRAY, gl.TEXTURE_MIN_FILTER, gl.NEAREST); gl.texParameteri(gl.TEXTURE_2D_ARRAY, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
+  bind("u_pictures", pictures, gl.TEXTURE_2D_ARRAY);
+  bind("u_bounce_atlas", D.bounce ? ft(D.bounce) : tex(1, 1, new Float32Array(4)));
+  gl.uniform1i(u("u_bounce"), D.bounce ? 1 : 0);
+  if (D.bounce) {
+    gl.uniform3fv(u("u_bounce_origin"), D.bounce.origin); gl.uniform3fv(u("u_bounce_spacing"), D.bounce.spacing);
+    gl.uniform3iv(u("u_bounce_dims"), D.bounce.dims); gl.uniform1f(u("u_bounce_strength"), D.bounce.strength);
+  }
+  for (const k of ["lamp_count", "bounce_first", "bounce_count", "glow_count", "point_count", "direction_count"]) gl.uniform1i(u("u_" + k), D[k]);
+  gl.uniform1f(u("u_far"), D.far); gl.uniform1f(u("u_gather_far"), D.gather_far); gl.uniform1f(u("u_eps"), D.eps); gl.uniform3fv(u("u_sky"), D.sky);
+  const target = tex(D.tw, D.th, null), fb = gl.createFramebuffer();
+  gl.bindFramebuffer(gl.FRAMEBUFFER, fb); gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, target, 0);
+  gl.viewport(0, 0, D.tw, D.th); gl.bindVertexArray(gl.createVertexArray());
+  const t0 = performance.now();
+  const band = 8;
+  gl.enable(gl.SCISSOR_TEST);
+  const got = new Float32Array(D.tw * D.th * 4), row = new Float32Array(D.tw * band * 4);
+  for (let y = 0; y < D.th; y += band) {
+    const h = Math.min(band, D.th - y);
+    gl.scissor(0, y, D.tw, h); gl.drawArrays(gl.TRIANGLES, 0, 3);
+    gl.readPixels(0, y, D.tw, h, gl.RGBA, gl.FLOAT, row);
+    got.set(row.subarray(0, D.tw * h * 4), D.tw * y * 4);
+  }
+  const gpu_ms = performance.now() - t0;
+  const err = gl.getError(); if (err) log("gl error " + err);
+  const cpu = f32(D.cpu);
+  let n = 0, sum = 0, sumAbs = 0, max = 0, cpuSum = 0, big = 0, lost = 0;
+  for (let i = 0; i < D.point_count; i++) {
+    const want = cpu[i]; if (Number.isNaN(want)) { lost++; continue; }
+    const have = got[4 * i] + got[4 * i + 1] + got[4 * i + 2];
+    const d = have - want; sum += d; sumAbs += Math.abs(d); max = Math.max(max, Math.abs(d)); cpuSum += want; n++;
+    if (Math.abs(d) > 0.05 * Math.max(Math.abs(want), 0.02)) big++;
+  }
+  let bright = 0, brightBig = 0;
+  for (let i = 0; i < D.point_count; i++) {
+    const want = cpu[i]; if (Number.isNaN(want) || want < cpuSum / n) continue;
+    const d = got[4 * i] + got[4 * i + 1] + got[4 * i + 2] - want; bright++;
+    if (Math.abs(d) > 0.05 * want) brightBig++;
+  }
+  log(`triangles ${D.triangles}, points ${D.point_count}, lamps ${D.lamp_count} (${D.bounce_count} bounce), glow meshes ${D.glow_count}, gather directions ${D.direction_count}, bounce ${!!D.bounce}`);
+  log(`meter new ${D.new_ms.toFixed(0)} ms, cpu map ${D.cpu_ms.toFixed(0)} ms (all cores), pack ${D.pack_ms.toFixed(0)} ms, gpu pass ${gpu_ms.toFixed(0)} ms`);
+  log(`figure less ambient: cpu mean ${(cpuSum / n).toFixed(5)}, gpu-cpu mean ${(sum / n).toExponential(3)}, mean |d| ${(sumAbs / n).toExponential(3)}, max |d| ${max.toExponential(3)}, >5% ${(100 * big / n).toFixed(3)}%, unmatched ${lost}`);
+  log(`relative L1 ${(sumAbs / Math.abs(cpuSum)).toExponential(3)}; points at or over the mean: ${bright}, >5% ${(100 * brightBig / Math.max(bright, 1)).toFixed(3)}%`);
+  if (D.dump) {
+    const pts = f32(D.points.b), nrm = f32(D.normals.b), order = [];
+    for (let i = 0; i < D.point_count; i++) if (!Number.isNaN(cpu[i])) order.push(i);
+    order.sort((x, y) => Math.abs(got[4*y]+got[4*y+1]+got[4*y+2]-cpu[y]) - Math.abs(got[4*x]+got[4*x+1]+got[4*x+2]-cpu[x]));
+    for (const i of order.slice(0, 12)) log(`worst ${i}: cpu ${cpu[i].toFixed(4)} gpu d/b/e ${got[4*i].toFixed(4)}/${got[4*i+1].toFixed(4)}/${got[4*i+2].toFixed(4)} p ${[0,1,2].map(k=>pts[4*i+k].toFixed(4))} n ${[0,1,2].map(k=>nrm[4*i+k].toFixed(3))}`);
+  }
+} catch (e) { log("ERROR " + e.message); }
+</script></body></html>
