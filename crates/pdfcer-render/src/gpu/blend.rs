@@ -43,6 +43,7 @@ fn sub(a: i32, b: i32) -> i32 {
 fn mul(a: i32, b: i32) -> i32 {
     w(a * b)
 }
+/// tiny-skia's low-precision `v / 255`: `(v + 255) >> 8`.
 pub(crate) fn div255(v: i32) -> i32 {
     add(v, 255) >> 8
 }

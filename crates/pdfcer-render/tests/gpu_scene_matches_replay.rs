@@ -1,5 +1,6 @@
 //! A [`GpuScene`] evaluated the way the shader evaluates it is the CPU
 //! replay's raster, byte for byte (decision 223, fills and strokes part).
+#![cfg(feature = "gpu")]
 
 use pdfcer_core::document::Document;
 use pdfcer_core::page_tree;
@@ -169,8 +170,7 @@ fn text_glyph_outlines() {
 #[test]
 fn aliased_fills_strokes_and_clips() {
     let doc = page_with(
-        "1 0 0 rg 10.3 10.6 50.2 49.9 re f 0 0 1 rg 40 40 m 95 52 l 60 90 l h f          q 20 20 60 60 re W n 0 1 0 RG 3.3 w 0 0 m 100 100 l S Q /A gs 0 0 0 rg 5 70 80 20 re f
-",
+        "1 0 0 rg 10.3 10.6 50.2 49.9 re f 0 0 1 rg 40 40 m 95 52 l 60 90 l h f q 20 20 60 60 re W n 0 1 0 RG 3.3 w 0 0 m 100 100 l S Q /A gs 0 0 0 rg 5 70 80 20 re f\n",
         "<< /ExtGState << /A << /ca 0.45 >> >> >>",
     );
     let options = RenderOptions::default().with_edge_antialiasing(EdgeAntialiasing::Off);

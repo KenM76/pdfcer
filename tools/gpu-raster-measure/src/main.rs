@@ -32,7 +32,9 @@ fn main() {
     let scale: f32 = a[3].parse().expect("scale");
     let out = &a[4];
     let bands: u32 = a.get(5).map_or(8, |b| b.parse().expect("bands"));
-    let tile: u32 = std::env::var("TILE").ok().map_or(4096, |t| t.parse().expect("TILE"));
+    let tile: u32 = std::env::var("TILE")
+        .ok()
+        .map_or(4096, |t| t.parse().expect("TILE"));
     let doc = Document::from_bytes(std::fs::read(pdf).expect("pdf")).expect("loads");
     let page = page_tree::pages(&doc).expect("pages").remove(page_no);
     let t = Instant::now();
@@ -40,7 +42,9 @@ fn main() {
         record_page(&doc.view(), &page, scale, 1, &RenderOptions::default()).expect("records");
     println!("record {:.1} ms", ms(t));
     let t = Instant::now();
-    let cpu = list.replay_region(list.key(), page.crop_box).expect("replays");
+    let cpu = list
+        .replay_region(list.key(), page.crop_box)
+        .expect("replays");
     let whole = ms(t);
     let (w, h) = (cpu.pixmap.width(), cpu.pixmap.height());
     println!("{w}x{h}: CPU replay {whole:.1} ms");
@@ -50,7 +54,11 @@ fn main() {
         std::thread::scope(|s| {
             for i in 0..bands {
                 let r0 = (i * per).min(h);
-                let r1 = if i + 1 == bands { h } else { ((i + 1) * per).min(h) };
+                let r1 = if i + 1 == bands {
+                    h
+                } else {
+                    ((i + 1) * per).min(h)
+                };
                 if r1 > r0 {
                     let list = &list;
                     s.spawn(move || list.replay_rows(list.key(), r0..r1).ok());
@@ -84,7 +92,12 @@ fn main() {
         .chunks(w as usize * 4)
         .map(|r| fnv(r).to_string())
         .collect();
-    let texels: Vec<u8> = scene.data.texels.iter().flat_map(|v| v.to_le_bytes()).collect();
+    let texels: Vec<u8> = scene
+        .data
+        .texels
+        .iter()
+        .flat_map(|v| v.to_le_bytes())
+        .collect();
     let js = format!(
         "const D = {{w:{w}, h:{h}, tw:{}, th:{}, tl:{}, tile:{tile}, cpu_ms:{whole:.1}}};\nD.vs = {:?};\nD.fs = {:?};\nD.rows = [{}];\n",
         scene.data.width,
