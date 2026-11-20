@@ -4,6 +4,17 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-11-20 (1660th filing) — `Pass 724.4` part 5d (`f293cd05`) SHIPPED: mesh and function-based shadings on the graphics card; `Pass 724.4` CLOSED
+
+**Filed (engineer-reported; no shell here, git, push and gates not checked from here):**
+- `f293cd05` `feat(render)`, unpushed, unreleased (latest release `v0.165.0`). Mesh (types 4-7) and function-based (type 1) shadings evaluated by the shader; CPU arithmetic made repeatable (unfused barycentric blends, reciprocal lattice lookup). Closes the whole GPU snapshot raster arc. Decision 223. Details in `ROADMAP.md` *Shipped*.
+- **Measured (headless Edge, 300 DPI):** 22 mesh fixtures 0 rows differ on Intel Arc; mixed page 0 rows on Arc and SwiftShader; pack 25.9 -> 6.0 ms; end to end about 31-55 ms GPU (noisy) vs CPU replay about 59 ms; mesh-only roughly break even. A/B vs `v0.165.0`, scale 2: 3 of 22 mesh files differ by 1-2 pixels at 1 level.
+- Tests: `pdfcer-render` 597 + 712 + 40 doctests pass (engineer-reported).
+
+**FEATURES:** GPU Implemented row says shadings of every kind; Planned function-based/mesh row removed. Core only; no box rounded up.
+
+**Next:** release `v0.166.0` to OneDrive `pdfcer1`.
+
 ## 2026-11-20 (1659th filing) — `Pass 724.4` part 5c (`8d81616e`, `7f2cd542`) SHIPPED: axial and radial shadings evaluated on the graphics card
 
 **Filed (engineer-reported; no shell here, git, push and gates not checked from here):**
