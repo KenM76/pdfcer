@@ -4,6 +4,16 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-11-20 (1658th filing) — `Pass 724.4` part 5b (`74500d34`) SHIPPED: shadings drawn on the graphics card, byte for byte
+
+**Filed (engineer-reported; no shell here, git, push and gates not checked from here):**
+- `74500d34` `feat(render)`, unpushed, unreleased. `gpu_scene` accepts shadings (all types, clips, constant alpha); CPU painters feed a shared `ShadeTarget`, the GPU composites the recorded terms with identical non-fused arithmetic. 4 new tests; 0 rows differ on SwiftShader and Intel Arc at 8x and 300 DPI. Details in `ROADMAP.md` *Shipped*.
+- **Measured caveat:** at 300 DPI a shading page is slower end to end on the GPU (about 87 ms vs 66 ms CPU), because the CPU still paints at pack time. Decision 223 §6's speed gate is not met for shading pages.
+
+**FEATURES:** GPU Implemented row names shadings; Planned row narrowed to GPU-side axial/radial evaluation plus per-part switches. Core only; no box rounded up.
+
+**Next:** engineer is evaluating axial and radial shadings on the GPU (`Pass 724.4` stays IN PROGRESS); then a release.
+
 ## 2026-11-20 (1657th filing) — `Pass 724.4` part `704.3` first half (`f27666d0`) SHIPPED: cache recorder records shadings
 
 **Filed (engineer-reported; no shell here, git, push and gates not checked from here):**
