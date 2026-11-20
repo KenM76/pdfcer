@@ -1,4 +1,4 @@
-//! A pixel's anti-aliased fill coverage from [`FillEdges`], evaluated per
+//! A pixel's fill coverage from [`FillEdges`], evaluated per
 //! pixel as the fragment shader does, equal to what `tiny-skia` 0.11's
 //! scanline walk accumulates for it.
 //!
@@ -21,6 +21,15 @@ pub(crate) fn pixel(edges: &FillEdges, px: i32, py: i32) -> u8 {
     let a = &edges.area;
     if px < a.x() || px >= a.right() || py < a.y() || py >= a.bottom() {
         return 0;
+    }
+    if edges.shift == 0 {
+        let filled = |w: i32| if edges.even_odd { w & 1 != 0 } else { w != 0 };
+        let w: i32 = active(edges, py)
+            .filter(|(_, e)| round(e.x_at(py)) <= px)
+            .map(|(_, e)| e.winding)
+            .sum();
+        let walked = py >= edges.start_y && py < edges.stop_y;
+        return if walked && filled(w) { 255 } else { 0 };
     }
     let mut sum = 0u32;
     for k in 0..4 {

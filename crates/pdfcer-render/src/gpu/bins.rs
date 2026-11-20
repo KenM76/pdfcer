@@ -14,10 +14,9 @@ use super::fill_edges::{FillEdges, SHIFT};
 pub(crate) const TILE_W: i32 = 16;
 /// Tile height, pixels.
 pub(crate) const TILE_H: i32 = 4;
-/// Supersampled rows a tile spans.
+/// Supersampled rows a tile spans; an aliased fill uses the first
+/// `TILE_H` of a backdrop.
 pub(crate) const SUB_ROWS: usize = (TILE_H << SHIFT) as usize;
-/// Supersampled columns a tile spans.
-const SUB_COLS: i32 = TILE_W << SHIFT;
 
 /// One tile's share of a fill.
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
@@ -54,10 +53,11 @@ pub(crate) fn build(fill: &FillEdges) -> FillTiles {
     let row0 = a.y().div_euclid(TILE_H);
     let cols = (a.right() - 1).div_euclid(TILE_W) - col0 + 1;
     let rows = (a.bottom() - 1).div_euclid(TILE_H) - row0 + 1;
+    let sub_rows = TILE_H << fill.shift;
     let mut buckets: Vec<Vec<u32>> = vec![Vec::new(); rows as usize];
     for (i, e) in fill.edges.iter().enumerate() {
-        let lo = e.first_y.max(fill.start_y).div_euclid(SUB_ROWS as i32) - row0;
-        let hi = e.last_y.min(fill.stop_y - 1).div_euclid(SUB_ROWS as i32) - row0;
+        let lo = e.first_y.max(fill.start_y).div_euclid(sub_rows) - row0;
+        let hi = e.last_y.min(fill.stop_y - 1).div_euclid(sub_rows) - row0;
         for r in lo.max(0)..=hi.min(rows - 1) {
             if let Some(b) = buckets.get_mut(r as usize) {
                 b.push(i as u32);
@@ -87,7 +87,8 @@ fn tile_row(
     out: &mut Vec<Option<TileEntry>>,
 ) {
     let filled = |w: i32| if fill.even_odd { w & 1 != 0 } else { w != 0 };
-    let y0 = row * SUB_ROWS as i32;
+    let (sub_rows, sub_cols) = (TILE_H << fill.shift, TILE_W << fill.shift);
+    let y0 = row * sub_rows;
     let mut listed: Vec<Vec<u32>> = vec![Vec::new(); cols as usize];
     // Per row: winding steps by tile column, then per-tile corrections.
     let width = cols as usize + 1;
@@ -95,7 +96,7 @@ fn tile_row(
     let mut fix = vec![0i32; SUB_ROWS * cols as usize];
     let rows_of = |e: &super::fill_edges::LineEdge| {
         let lo = e.first_y.max(fill.start_y).max(y0);
-        let hi = e.last_y.min(fill.stop_y - 1).min(y0 + SUB_ROWS as i32 - 1);
+        let hi = e.last_y.min(fill.stop_y - 1).min(y0 + sub_rows - 1);
         lo..=hi
     };
     let mut tiles: Vec<i32> = Vec::new();
@@ -106,8 +107,8 @@ fn tile_row(
         tiles.clear();
         for y in rows_of(e) {
             let rx = round(e.x_at(y));
-            let t = rx.div_euclid(SUB_COLS) - col0;
-            if rx.rem_euclid(SUB_COLS) != 0 && (0..cols).contains(&t) && !tiles.contains(&t) {
+            let t = rx.div_euclid(sub_cols) - col0;
+            if rx.rem_euclid(sub_cols) != 0 && (0..cols).contains(&t) && !tiles.contains(&t) {
                 tiles.push(t);
             }
         }
@@ -119,7 +120,7 @@ fn tile_row(
         for y in rows_of(e) {
             let s = (y - y0) as usize;
             let rx = round(e.x_at(y));
-            let first = (rx + SUB_COLS - 1).div_euclid(SUB_COLS) - col0;
+            let first = (rx + sub_cols - 1).div_euclid(sub_cols) - col0;
             if first >= cols {
                 continue;
             }

@@ -78,6 +78,15 @@ int coverage(int h, int px, int py) {
   entry.x += h;
   if (entry.z >= 0) entry.z += h;
   bool eo = rows.z != 0;
+  if (o.z == 0) {
+    if (py < rows.x || py >= rows.y) return 0;
+    int w = entry.z < 0 ? 0 : lane((entry.z << 2) + (py & 3));
+    for (int i = entry.x; i < entry.x + entry.y; i++) {
+      Edge e = edge(i);
+      if (live(e, py) && round16(x_at(e, py)) <= px) w += e.winding;
+    }
+    return filled(w, eo) ? 255 : 0;
+  }
   int sum = 0;
   for (int k = 0; k < 4; k++) {
     int y = (py << 2) + k;

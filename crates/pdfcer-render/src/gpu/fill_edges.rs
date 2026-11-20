@@ -1,4 +1,4 @@
-//! The integer edges `tiny-skia` 0.11 scans an anti-aliased fill from,
+//! The integer edges `tiny-skia` 0.11 scans a fill from,
 //! built as it builds them, for a per-pixel coverage evaluation
 //! ([`super::fill_coverage`]) to reproduce its coverage exactly.
 //!
@@ -79,12 +79,14 @@ fn fdot6_div(a: i32, b: i32) -> i32 {
     }
 }
 
-/// An anti-aliased fill's edges in the scan's starting order, the rows it
+/// A fill's edges in the scan's starting order, the rows it
 /// walks and the pixels it writes.
 #[derive(Debug, Clone, PartialEq)]
 pub(crate) struct FillEdges {
     pub edges: Vec<LineEdge>,
     pub even_odd: bool,
+    /// [`SHIFT`] anti-aliased, 0 aliased: rows and columns are then pixels.
+    pub shift: i32,
     /// Supersampled rows walked, `start_y..stop_y`.
     pub start_y: i32,
     pub stop_y: i32,
@@ -93,14 +95,19 @@ pub(crate) struct FillEdges {
 }
 
 /// The edges `Pixmap::fill_path` / `Mask::fill_path` scan for `path`
-/// filled anti-aliased under the identity into a `width` × `height`
-/// target; `None` when it draws nothing or takes a branch not reproduced
-/// (curves, a target over 8,191 pixels).
-pub(crate) fn build(path: &Path, rule: FillRule, width: u32, height: u32) -> Option<FillEdges> {
+/// filled under the identity into a `width` × `height` target; `None`
+/// when it draws nothing or takes a branch not reproduced (curves, a
+/// target over 8,191 pixels).
+pub(crate) fn build(
+    path: &Path,
+    rule: FillRule,
+    size: (u32, u32),
+    anti_alias: bool,
+) -> Option<FillEdges> {
     if skips(path) {
         return None;
     }
-    scan(path, rule, width, height)
+    scan(path, rule, size, anti_alias)
 }
 
 /// Whether `fill_path` returns before scanning: an empty or hairline
@@ -112,19 +119,29 @@ pub(crate) fn skips(path: &Path) -> bool {
 }
 
 /// The scan of one `width` × `height` target, past [`skips`]: what
-/// `scan::path_aa::fill_path` walks for one `DrawTiler` tile.
-pub(crate) fn scan(path: &Path, rule: FillRule, width: u32, height: u32) -> Option<FillEdges> {
+/// `scan::path_aa::fill_path` (`scan::path::fill_path` aliased) walks for
+/// one `DrawTiler` tile.
+pub(crate) fn scan(
+    path: &Path,
+    rule: FillRule,
+    (width, height): (u32, u32),
+    anti_alias: bool,
+) -> Option<FillEdges> {
     if width > DRAW_TILE || height > DRAW_TILE || width == 0 || height == 0 {
         return None;
     }
     let b = path.bounds();
-    let ir = Rect::from_ltrb(
-        b.left().floor(),
-        b.top().floor(),
-        b.right().ceil(),
-        b.bottom().ceil(),
-    )?
-    .round_out()?;
+    let (ir, shift) = if anti_alias {
+        let r = Rect::from_ltrb(
+            b.left().floor(),
+            b.top().floor(),
+            b.right().ceil(),
+            b.bottom().ceil(),
+        )?;
+        (r.round_out()?, SHIFT)
+    } else {
+        (conservative_round(&b)?, 0)
+    };
     let clip = IntRect::from_xywh(0, 0, width, height)?;
     let area = ir.intersect(&clip)?;
     let contained =
@@ -133,13 +150,13 @@ pub(crate) fn scan(path: &Path, rule: FillRule, width: u32, height: u32) -> Opti
     let mut edges = Vec::new();
     for (p0, p1) in lines(path)? {
         if contained {
-            push_line(&mut edges, p0, p1);
+            push_line(&mut edges, p0, p1, shift);
         } else {
             let mut pts = [Point::zero(); 4];
             let n = clip_line([p0, p1], &clip_rect, &mut pts);
             for w in pts.get(..n).unwrap_or(&[]).windows(2) {
                 if let [a, b] = w {
-                    push_line(&mut edges, *a, *b);
+                    push_line(&mut edges, *a, *b, shift);
                 }
             }
         }
@@ -148,10 +165,10 @@ pub(crate) fn scan(path: &Path, rule: FillRule, width: u32, height: u32) -> Opti
         return None;
     }
     edges.sort_by_key(|e| (e.first_y, e.x));
-    let (mut start_y, mut stop_y) = (shl(ir.y(), SHIFT), shl(ir.bottom(), SHIFT));
+    let (mut start_y, mut stop_y) = (shl(ir.y(), shift), shl(ir.bottom(), shift));
     if !contained {
         start_y = start_y.max(0);
-        stop_y = stop_y.min(shl(height as i32, SHIFT));
+        stop_y = stop_y.min(shl(height as i32, shift));
     }
     if start_y < 0 || stop_y < 0 {
         return None;
@@ -159,10 +176,21 @@ pub(crate) fn scan(path: &Path, rule: FillRule, width: u32, height: u32) -> Opti
     Some(FillEdges {
         edges,
         even_odd: rule == FillRule::EvenOdd,
+        shift,
         start_y,
         stop_y,
         area,
     })
+}
+
+/// `scan::path::conservative_round_to_int`: each side moved out by
+/// `0.5 + 1.5 / 64` in `f64`, then rounded inward.
+fn conservative_round(b: &Rect) -> Option<IntRect> {
+    const BIAS: f64 = 0.5 + 1.5 / 64.0;
+    // Saturating casts, as `i32::saturate_from`.
+    let down = |v: f32| (f64::from(v) - BIAS).ceil() as i32;
+    let up = |v: f32| (f64::from(v) + BIAS).floor() as i32;
+    IntRect::from_ltrb(down(b.left()), down(b.top()), up(b.right()), up(b.bottom()))
 }
 
 fn too_big(b: &Rect) -> bool {
@@ -207,8 +235,8 @@ fn lines(path: &Path) -> Option<Vec<(Point, Point)>> {
     Some(out)
 }
 
-fn push_line(edges: &mut Vec<LineEdge>, p0: Point, p1: Point) {
-    let Some(edge) = LineEdge::new(p0, p1, SHIFT) else {
+fn push_line(edges: &mut Vec<LineEdge>, p0: Point, p1: Point, shift: i32) {
+    let Some(edge) = LineEdge::new(p0, p1, shift) else {
         return;
     };
     let combine = match edges.last_mut() {

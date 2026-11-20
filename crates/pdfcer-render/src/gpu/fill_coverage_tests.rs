@@ -34,9 +34,18 @@ impl Lcg {
 /// Every pixel of `path` filled with `rule` into `w` × `h`, as the model
 /// gives it and as tiny-skia writes it: the mismatches.
 fn mismatches(path: &Path, rule: FillRule, w: u32, h: u32) -> Vec<(i32, i32, u8, u8)> {
+    mismatches_aa(path, rule, (w, h), true)
+}
+
+fn mismatches_aa(
+    path: &Path,
+    rule: FillRule,
+    (w, h): (u32, u32),
+    aa: bool,
+) -> Vec<(i32, i32, u8, u8)> {
     let mut mask = Mask::new(w, h).unwrap();
-    mask.fill_path(path, rule, true, Transform::identity());
-    let edges = build(path, rule, w, h);
+    mask.fill_path(path, rule, aa, Transform::identity());
+    let edges = build(path, rule, (w, h), aa);
     let mut out = Vec::new();
     COVERED.with(|c| c.set(c.get() + mask.data().iter().filter(|v| **v != 0).count()));
     if let Some(e) = &edges {
@@ -84,6 +93,10 @@ fn random_path(rng: &mut Lcg, w: f32, h: f32, grid: f32) -> Option<Path> {
 }
 
 fn check(seed: u64, grid: f32, count: usize) {
+    check_aa(seed, grid, count, true);
+}
+
+fn check_aa(seed: u64, grid: f32, count: usize, aa: bool) {
     let (w, h) = (61, 47);
     let mut rng = Lcg(seed);
     let mut bad = 0;
@@ -92,7 +105,7 @@ fn check(seed: u64, grid: f32, count: usize) {
             continue;
         };
         for rule in [FillRule::Winding, FillRule::EvenOdd] {
-            let m = mismatches(&path, rule, w, h);
+            let m = mismatches_aa(&path, rule, (w, h), aa);
             if !m.is_empty() {
                 if bad < 5 {
                     eprintln!(
@@ -122,6 +135,13 @@ fn polygons_on_a_quarter_pixel_grid_match_tiny_skia() {
 #[test]
 fn polygons_on_a_whole_pixel_grid_match_tiny_skia() {
     check(3, 1.0, 400);
+}
+
+#[test]
+fn aliased_polygons_match_tiny_skia() {
+    check_aa(5, 0.0, 400, false);
+    check_aa(6, 0.5, 400, false);
+    check_aa(7, 1.0, 400, false);
 }
 
 #[test]

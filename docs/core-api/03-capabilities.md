@@ -5004,11 +5004,11 @@ shaders; the shell (WebGL2, or any GL ES 3.0 / wgpu-GLSL host) draws them.
 - **Refusals** (`GpuRefusal`, `#[non_exhaustive]`; replay on the CPU and
   show the reason off-canvas): `Render(RenderError)` (anything
   `replay_region` refuses), `Image`, `Shading`, `Transparency` (groups,
-  soft masks, blend modes), `Curves`, `Aliased`, `TooMuchData { texels }`.
+  soft masks, blend modes), `Curves`, `TooMuchData { texels }`.
   A refusal is for the whole page: never mix GPU and CPU paints on one
   raster.
-- What is drawn today: solid fills and strokes (any opacity), clips
-  (nested, any depth up to 64), glyph outlines.
+- What is drawn today: solid fills and strokes (any opacity, anti-aliased
+  or not), clips (nested, any depth up to 64), glyph outlines.
 
 ### 7.3 Cancellation — the off-thread contract
 

@@ -79,9 +79,6 @@ pub enum GpuRefusal {
     /// flatten.
     #[error("a path keeps curves after fitting")]
     Curves,
-    /// A paint is drawn without anti-aliasing.
-    #[error("a paint is drawn without anti-aliasing")]
-    Aliased,
     /// The packed page would not fit 16 layers of 2,048 × 2,048 texels.
     #[error("the page needs {texels} texels, more than the scene texture holds")]
     TooMuchData {
@@ -168,6 +165,7 @@ impl Frame<'_> {
         path: &Path,
         rule: FillRule,
         ts: Transform,
+        anti_alias: bool,
     ) -> Result<Vec<Option<FillEdges>>, GpuRefusal> {
         let tiles = self.draw_tiles();
         let none = || (0..tiles.len()).map(|_| None).collect();
@@ -180,7 +178,8 @@ impl Frame<'_> {
             return Err(GpuRefusal::Curves);
         }
         if let [_] = tiles.as_slice() {
-            return Ok(vec![fill_edges::build(&p, rule, self.width, self.height)]);
+            let size = (self.width, self.height);
+            return Ok(vec![fill_edges::build(&p, rule, size, anti_alias)]);
         }
         if fill_edges::skips(&p) {
             return Ok(none());
@@ -195,7 +194,7 @@ impl Frame<'_> {
             else {
                 break;
             };
-            out.push(fill_edges::scan(&local, rule, w, h));
+            out.push(fill_edges::scan(&local, rule, (w, h), anti_alias));
             path = local.transform(Transform::from_translate(dx, dy));
         }
         out.resize_with(tiles.len(), || None);
@@ -234,9 +233,6 @@ pub(crate) fn colors(brush: &BrushSpec) -> Result<(i32, i32), GpuRefusal> {
     };
     if brush.blend != BlendMode::SourceOver {
         return Err(GpuRefusal::Transparency);
-    }
-    if !brush.anti_alias {
-        return Err(GpuRefusal::Aliased);
     }
     let p = Color::from_rgba8(rgba[0], rgba[1], rgba[2], rgba[3]).premultiply();
     // `push_uniform_color`'s rounding.

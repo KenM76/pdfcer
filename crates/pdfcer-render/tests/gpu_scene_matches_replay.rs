@@ -3,7 +3,7 @@
 
 use pdfcer_core::document::Document;
 use pdfcer_core::page_tree;
-use pdfcer_render::{GpuRefusal, RenderOptions, record_page};
+use pdfcer_render::{EdgeAntialiasing, GpuRefusal, RenderOptions, record_page};
 
 /// A 100 x 100 pt page painting `content` with `resources`.
 fn page_with(content: &str, resources: &str) -> Document {
@@ -52,9 +52,13 @@ fn assert_matches(content: &str, resources: &str, what: &str) {
 }
 
 fn assert_matches_at(doc: &Document, scales: &[f32], what: &str) {
+    assert_matches_with(doc, scales, what, &RenderOptions::default());
+}
+
+fn assert_matches_with(doc: &Document, scales: &[f32], what: &str, options: &RenderOptions) {
     let page = page_tree::pages(doc).expect("page tree walks").remove(0);
     for &scale in scales {
-        let list = record_page(&doc.view(), &page, scale, 1, &RenderOptions::default())
+        let list = record_page(&doc.view(), &page, scale, 1, options)
             .unwrap_or_else(|e| panic!("{what}: recording: {e}"));
         let cpu = list
             .replay_region(list.key(), page.crop_box)
@@ -153,6 +157,17 @@ fn text_glyph_outlines() {
         "<< /Font << /F1 << /Type /Font /Subtype /Type1 /BaseFont /Helvetica >> >> >>",
         "text",
     );
+}
+
+#[test]
+fn aliased_fills_strokes_and_clips() {
+    let doc = page_with(
+        "1 0 0 rg 10.3 10.6 50.2 49.9 re f 0 0 1 rg 40 40 m 95 52 l 60 90 l h f          q 20 20 60 60 re W n 0 1 0 RG 3.3 w 0 0 m 100 100 l S Q /A gs 0 0 0 rg 5 70 80 20 re f
+",
+        "<< /ExtGState << /A << /ca 0.45 >> >> >>",
+    );
+    let options = RenderOptions::default().with_edge_antialiasing(EdgeAntialiasing::Off);
+    assert_matches_with(&doc, &[1.0, 2.37, 300.0 / 72.0], "aliased", &options);
 }
 
 #[test]

@@ -3,10 +3,11 @@
 //!
 //! Texel 0 is the header `h`; every offset inside is relative to it:
 //! `[x0, y0, x1, y1]`, `[start_y, stop_y, even_odd, table]`,
-//! `[tc0, tr0, tcols, trows]`, `[ox, oy, 0, 0]` (the `DrawTiler` tile's
+//! `[tc0, tr0, tcols, trows]`, `[ox, oy, shift, 0]` (the `DrawTiler` tile's
 //! origin: the edges, area and tiles are in that tile's pixels, raster
-//! pixel `p` is tile pixel `p - o`), then the tile table (per tile `[first_edge,
-//! count, backdrop or -1, 0]`, `[0, 0, -1, 0]` where empty), then the edges
+//! pixel `p` is tile pixel `p - o`; `shift` 0 is an aliased fill), then
+//! the tile table (per tile `[first_edge, count, backdrop or -1, 0]`,
+//! `[0, 0, -1, 0]` where empty), then the edges
 //! (`[x, dx, first_y, last_y << 1 | rising]`) and backdrops (4 texels).
 
 use std::collections::HashMap;
@@ -134,7 +135,7 @@ pub(crate) fn build(edges: &FillEdges, tiles: FillTiles, origin: (i32, i32)) -> 
         HEAD as i32,
     ]);
     t.push([tiles.col0, tiles.row0, tiles.cols, tiles.rows]);
-    t.push([origin.0, origin.1, 0, 0]);
+    t.push([origin.0, origin.1, edges.shift, 0]);
     t.resize(HEAD + tiles.entries.len(), [0, 0, -1, 0]);
     let mut backdrops: HashMap<[i32; SUB_ROWS], i32, BuildFnv> = HashMap::default();
     // Neighbouring tiles mostly share a backdrop; this skips the hash.

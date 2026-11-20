@@ -60,7 +60,12 @@ fn prepare(frame: &Frame<'_>, op: &Op, out: &mut Vec<Prepared>) -> Result<(), Gp
             bounds,
         } => {
             let ts = frame.to_region(*ctm);
-            (brush, clip, bounds, frame.edges(path, *rule, ts))
+            (
+                brush,
+                clip,
+                bounds,
+                frame.edges(path, *rule, ts, brush.anti_alias),
+            )
         }
         Op::Stroke {
             path,
@@ -72,7 +77,7 @@ fn prepare(frame: &Frame<'_>, op: &Op, out: &mut Vec<Prepared>) -> Result<(), Gp
         } => {
             let ts = frame.to_region(*ctm);
             let e = match device_clip::stroke_outline(path, stroke, ts) {
-                Some(o) => frame.edges(&o, FillRule::Winding, ts),
+                Some(o) => frame.edges(&o, FillRule::Winding, ts, brush.anti_alias),
                 None => Ok(Vec::new()),
             };
             (brush, clip, bounds, e)
@@ -99,7 +104,7 @@ fn prepare_clip(frame: &Frame<'_>, def: &ClipDef) -> Result<PreparedClip, GpuRef
     let Some(path) = def.path.as_deref() else {
         return Ok(((0..frame.draw_tiles().len()).map(|_| None).collect(), None));
     };
-    let edges = frame.edges(path, def.rule, frame.to_region(def.ctm))?;
+    let edges = frame.edges(path, def.rule, frame.to_region(def.ctm), true)?;
     Ok((fill_blocks(frame, edges), def.parent.map(|p| p.index())))
 }
 

@@ -71,10 +71,10 @@ impl Edge {
     }
 }
 
-/// The fill whose header texel is `h` at (`px`, `py`): its anti-aliased
-/// coverage, as [`super::fill_coverage::pixel`] computes from its edges.
+/// The fill whose header texel is `h` at (`px`, `py`): its coverage, as
+/// [`super::fill_coverage::pixel`] computes from its edges.
 fn coverage(t: &Tex<'_>, h: i32, px: i32, py: i32) -> i32 {
-    let [ox, oy, _, _] = t.at(h + 3);
+    let [ox, oy, shift, _] = t.at(h + 3);
     let (px, py) = (px - ox, py - oy);
     let [x0, y0, x1, y1] = t.at(h);
     if px < x0 || px >= x1 || py < y0 || py >= y1 {
@@ -89,6 +89,12 @@ fn coverage(t: &Tex<'_>, h: i32, px: i32, py: i32) -> i32 {
     let [first, count, back, _] = t.at(h + table + r * tcols + c);
     let (base, back) = (h + first, if back < 0 { back } else { h + back });
     let filled = |w: i32| if even_odd != 0 { w & 1 != 0 } else { w != 0 };
+    if shift == 0 {
+        if py < start_y || py >= stop_y {
+            return 0;
+        }
+        return aliased(t, (base, count, back), py & 3, (px, py), filled);
+    }
     let mut sum = 0;
     for k in 0..4 {
         let y = (py << 2) + k;
@@ -121,6 +127,26 @@ fn coverage(t: &Tex<'_>, h: i32, px: i32, py: i32) -> i32 {
         };
     }
     sum.min(255)
+}
+
+/// An aliased fill at (`px`, `py`), tile pixels, its tile's edges at `base`
+/// and backdrop at `back`, `s` its row in the tile: 255 where the edges at
+/// or left of the pixel satisfy the rule.
+fn aliased(
+    t: &Tex<'_>,
+    (base, count, back): (i32, i32, i32),
+    s: i32,
+    (px, py): (i32, i32),
+    filled: impl Fn(i32) -> bool,
+) -> i32 {
+    let mut w = if back < 0 { 0 } else { t.lane((back << 2) + s) };
+    for i in base..base + count {
+        let e = Edge::read(t, i);
+        if e.active(py) && round(e.x_at(py)) <= px {
+            w += e.winding;
+        }
+    }
+    if filled(w) { 255 } else { 0 }
 }
 
 /// Whether the walk ends a span inside the pixel whose first sample column
