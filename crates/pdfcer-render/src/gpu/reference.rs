@@ -4,6 +4,7 @@
 
 use super::bins::round;
 use super::fill_edges::DRAW_TILE;
+use super::image::{self, IMAGE_PAINT};
 use super::scene::{GpuScene, IntTexture};
 
 /// Clip nesting the shader follows before treating a clip as empty.
@@ -219,10 +220,28 @@ fn channels(v: i32) -> [i32; 4] {
     v.to_le_bytes().map(i32::from)
 }
 
+/// The image paint whose fill header is `h` and record `rec` drawn over
+/// `d` at raster pixel (`px`, `py`) with clip `mask` and coverage `c`.
+fn image_pixel(
+    t: &Tex<'_>,
+    (h, rec): (i32, i32),
+    (px, py): (i32, i32),
+    d: [i32; 4],
+    (mask, c): (Option<f32>, i32),
+) -> [i32; 4] {
+    let [ox, oy, _, _] = t.at(h + 3);
+    let [at, w, ih, bilinear] = t.at(rec);
+    let ([a, b, cc, dd], [e, f, _, _]) = (t.at(rec + 1), t.at(rec + 2));
+    let inverse = [a, b, cc, dd, e, f].map(|v| f32::from_bits(v as u32));
+    let fetch = |i: i32| t.lane(at * 4 + i);
+    let s = image::sample(fetch, (w, ih), bilinear != 0, inverse, (px - ox, py - oy));
+    image::over(d, s, mask, c)
+}
+
 /// One pixel of `scene`, premultiplied, before the flatten over white.
 fn paint(t: &Tex<'_>, px: i32, py: i32) -> [i32; 4] {
     let [w, h, cols, _] = t.at(0);
-    let [tile_base, op_base, clip_base, _] = t.at(1);
+    let [tile_base, op_base, clip_base, div_base] = t.at(1);
     let tile = DRAW_TILE as i32;
     let dcols = (w + tile - 1) / tile;
     let (k, stride) = (
@@ -235,6 +254,17 @@ fn paint(t: &Tex<'_>, px: i32, py: i32) -> [i32; 4] {
         let [h, clip, color, memset] = t.at(op_base + t.lane(e));
         let c = coverage(t, h, px, py);
         if c == 0 {
+            continue;
+        }
+        if color == IMAGE_PAINT {
+            let mask = match clip {
+                ..0 => None,
+                _ => match mask(t, clip_base, (clip, k, stride), px, py) {
+                    0 => continue,
+                    m => Some(f32::from_bits(t.lane(div_base * 4 + m) as u32)),
+                },
+            };
+            d = image_pixel(t, (h, memset), (px, py), d, (mask, c));
             continue;
         }
         let u = channels(color);

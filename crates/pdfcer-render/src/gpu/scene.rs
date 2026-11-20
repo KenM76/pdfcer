@@ -9,6 +9,7 @@ use tiny_skia::{BlendMode, Color, FillRule, Path, PathSegment, Transform};
 use super::bins::{TILE_H, TILE_W};
 use super::block::FillBlock;
 use super::fill_edges::{self, FillEdges};
+use super::image::{self, IMAGE_PAINT, ImagePaint};
 use crate::RenderError;
 use crate::canvas::{Brush, BrushSpec};
 use crate::device_clip::{self, Fit};
@@ -64,8 +65,10 @@ pub enum GpuRefusal {
     /// The list cannot be replayed for this region at all.
     #[error(transparent)]
     Render(#[from] RenderError),
-    /// The page paints an image, which the graphics card does not draw yet.
-    #[error("the page paints an image")]
+    /// The page paints an image the graphics card cannot sample exactly:
+    /// bicubic, a non-finite inverse, or bilinear samples beyond 2^24
+    /// image pixels.
+    #[error("the page paints an image the graphics card cannot sample exactly")]
     Image,
     /// The page paints a smooth shading, which the graphics card does not
     /// draw yet.
@@ -91,8 +94,8 @@ impl DisplayList {
     /// This list packed to draw `region` on the graphics card, byte for
     /// byte the raster [`Self::replay_region`] returns (decision 223).
     ///
-    /// Only solid fills and strokes, clips and glyph outlines are drawn
-    /// there; a page needing anything else is refused with the reason, for
+    /// Only solid and image fills and strokes, clips and glyph outlines
+    /// are drawn there; a page needing anything else is refused with the reason, for
     /// the host to replay on the CPU.
     ///
     /// # Errors
@@ -210,6 +213,7 @@ struct Paint {
     color: i32,
     /// The colour an opaque unclipped paint writes at full coverage.
     memset: i32,
+    image: Option<ImagePaint>,
 }
 
 /// The texture's sections, gathered before they are laid out.
@@ -224,16 +228,17 @@ fn pack_rgba(c: [u8; 4]) -> i32 {
     i32::from_le_bytes(c)
 }
 
-/// The pipeline colours of a solid paint, or why the scene cannot draw it.
+/// The pipeline colours of a solid paint ([`IMAGE_PAINT`] and 0 for an
+/// image), or why the scene cannot draw it.
 pub(crate) fn colors(brush: &BrushSpec) -> Result<(i32, i32), GpuRefusal> {
-    let rgba = match &brush.brush {
-        Brush::Solid { rgba } => *rgba,
-        Brush::Gradient(_) => return Err(GpuRefusal::Shading),
-        _ => return Err(GpuRefusal::Image),
-    };
     if brush.blend != BlendMode::SourceOver {
         return Err(GpuRefusal::Transparency);
     }
+    let rgba = match &brush.brush {
+        Brush::Solid { rgba } => *rgba,
+        Brush::Gradient(_) => return Err(GpuRefusal::Shading),
+        Brush::Image { .. } => return Ok((IMAGE_PAINT, 0)),
+    };
     let p = Color::from_rgba8(rgba[0], rgba[1], rgba[2], rgba[3]).premultiply();
     // `push_uniform_color`'s rounding.
     #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)] // in 0..=255.5
@@ -273,6 +278,7 @@ fn builder(frame: &Frame<'_>) -> Result<Builder, GpuRefusal> {
             clip: p.clip,
             color: p.color,
             memset: p.memset,
+            image: p.image,
         });
     }
     Ok(b)
@@ -290,7 +296,10 @@ fn pack(frame: &Frame<'_>) -> Result<IntTexture, GpuRefusal> {
     let op_base = clip_base + b.clips.len() * stride;
     let tile_base = op_base + b.paints.len();
     let entry_base = tile_base + lists.len();
-    let total = entry_base + lists.iter().map(Vec::len).sum::<usize>().div_ceil(4);
+    let image_base = entry_base + lists.iter().map(Vec::len).sum::<usize>().div_ceil(4);
+    let samplers: Vec<_> = b.paints.iter().map(|p| p.image.as_ref()).collect();
+    let (rec_of, images, div_base) = image::sections(&samplers, image_base);
+    let total = image_base + images.len();
     let (width, per) = (SCENE_TEXTURE_WIDTH as usize, SCENE_TEXTURE_ROWS as usize);
     if total > width * per * MAX_LAYERS {
         return Err(GpuRefusal::TooMuchData { texels: total });
@@ -301,7 +310,7 @@ fn pack(frame: &Frame<'_>) -> Result<IntTexture, GpuRefusal> {
     out.truncate(clip_base);
     if let Some([a, b]) = out.get_mut(..2) {
         *a = [frame.width as i32, frame.height as i32, cols, rows];
-        *b = [tile_base as i32, op_base as i32, clip_base as i32, 0];
+        *b = [tile_base as i32, op_base as i32, clip_base as i32, div_base];
     }
     let mut headers = Vec::with_capacity(b.fills.len());
     let mut at = 2;
@@ -312,10 +321,11 @@ fn pack(frame: &Frame<'_>) -> Result<IntTexture, GpuRefusal> {
     super::prepare::copy_fills(out.get_mut(2..).unwrap_or_default(), b.fills);
     records(
         &mut out,
-        (&b.clips, &b.paints),
+        (&b.clips, &b.paints, &rec_of),
         &headers,
         (&lists, entry_base),
     );
+    out.extend(images);
     out.resize(width * height * layers, [0; 4]);
     Ok(IntTexture {
         texels: out.into_flattened(),
@@ -326,10 +336,11 @@ fn pack(frame: &Frame<'_>) -> Result<IntTexture, GpuRefusal> {
 }
 
 /// The clip, op and tile-list records and the packed tile entries, after
-/// the fills whose headers are `headers`.
+/// the fills whose headers are `headers`; an image paint's op carries its
+/// record texel `rec_of` in place of a memset colour.
 fn records(
     out: &mut Vec<[i32; 4]>,
-    (clips, paints): (&[ClipFills], &[Paint]),
+    (clips, paints, rec_of): (&[ClipFills], &[Paint], &[i32]),
     headers: &[i32],
     (lists, entry_base): (&[Vec<i32>], usize),
 ) {
@@ -339,9 +350,10 @@ fn records(
             out.push([h, parent.map_or(-1, |p| p as i32), 0, 0]);
         }
     }
-    for p in paints {
+    for (p, rec) in paints.iter().zip(rec_of) {
         let h = headers.get(p.fill).copied().unwrap_or(-1);
-        out.push([h, p.clip.map_or(-1, |c| c as i32), p.color, p.memset]);
+        let memset = if *rec >= 0 { *rec } else { p.memset };
+        out.push([h, p.clip.map_or(-1, |c| c as i32), p.color, memset]);
     }
     let mut entry = (entry_base * 4) as i32;
     for l in lists {

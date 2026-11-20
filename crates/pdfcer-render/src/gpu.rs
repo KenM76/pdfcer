@@ -12,6 +12,7 @@ pub(crate) mod block;
 pub(crate) mod fill_coverage;
 pub(crate) mod fill_edges;
 pub(crate) mod glsl;
+pub(crate) mod image;
 pub(crate) mod prepare;
 pub(crate) mod reference;
 pub(crate) mod scene;

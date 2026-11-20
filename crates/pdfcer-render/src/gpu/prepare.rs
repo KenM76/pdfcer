@@ -9,7 +9,9 @@ use tiny_skia::FillRule;
 use super::bins;
 use super::block::{self, FillBlock};
 use super::fill_edges::FillEdges;
+use super::image::{self, ImagePaint};
 use super::scene::{Frame, GpuRefusal, colors};
+use crate::canvas::Brush;
 use crate::device_clip;
 use crate::display_list::{ClipDef, Op};
 
@@ -22,6 +24,7 @@ pub(crate) struct Prepared {
     pub clip: Option<usize>,
     pub color: i32,
     pub memset: i32,
+    pub image: Option<ImagePaint>,
 }
 
 /// One clip ready to lay out: its fill in each `DrawTiler` tile, where it
@@ -48,9 +51,40 @@ fn fill_blocks(frame: &Frame<'_>, edges: Vec<Option<FillEdges>>) -> Vec<Option<F
         .collect()
 }
 
+/// Each tile's image sampler for `brush`, `None` throughout for a solid.
+///
+/// # Errors
+///
+/// [`GpuRefusal::Image`] where a sampler cannot be reproduced exactly over
+/// its tile's fill.
+fn samplers(
+    frame: &Frame<'_>,
+    brush: &Brush,
+    ts: tiny_skia::Transform,
+    edges: &[Option<FillEdges>],
+) -> Result<Option<Vec<Option<ImagePaint>>>, GpuRefusal> {
+    let Brush::Image {
+        texels,
+        quality,
+        transform,
+    } = brush
+    else {
+        return Ok(None);
+    };
+    let v = image::per_tile(frame, texels, *quality, *transform, ts)?;
+    for (e, i) in edges.iter().zip(&v) {
+        if let (Some(e), Some(i)) = (e, i)
+            && !i.in_range(e.area)
+        {
+            return Err(GpuRefusal::Image);
+        }
+    }
+    Ok(Some(v))
+}
+
 /// `op` packed into `out`, one paint per `DrawTiler` tile it draws in.
 fn prepare(frame: &Frame<'_>, op: &Op, out: &mut Vec<Prepared>) -> Result<(), GpuRefusal> {
-    let (brush, clip, bounds, edges) = match op {
+    let (brush, clip, bounds, ts, edges) = match op {
         Op::Fill {
             path,
             brush,
@@ -60,12 +94,8 @@ fn prepare(frame: &Frame<'_>, op: &Op, out: &mut Vec<Prepared>) -> Result<(), Gp
             bounds,
         } => {
             let ts = frame.to_region(*ctm);
-            (
-                brush,
-                clip,
-                bounds,
-                frame.edges(path, *rule, ts, brush.anti_alias),
-            )
+            let e = frame.edges(path, *rule, ts, brush.anti_alias);
+            (brush, clip, bounds, ts, e)
         }
         Op::Stroke {
             path,
@@ -80,7 +110,7 @@ fn prepare(frame: &Frame<'_>, op: &Op, out: &mut Vec<Prepared>) -> Result<(), Gp
                 Some(o) => frame.edges(&o, FillRule::Winding, ts, brush.anti_alias),
                 None => Ok(Vec::new()),
             };
-            (brush, clip, bounds, e)
+            (brush, clip, bounds, ts, e)
         }
         Op::Text { .. } => return Ok(()),
         Op::Layer { .. } => return Err(GpuRefusal::Transparency),
@@ -89,12 +119,22 @@ fn prepare(frame: &Frame<'_>, op: &Op, out: &mut Vec<Prepared>) -> Result<(), Gp
         return Ok(());
     }
     let (color, memset) = colors(brush)?;
-    for block in fill_blocks(frame, edges?).into_iter().flatten() {
+    let edges = edges?;
+    let images = samplers(frame, &brush.brush, ts, &edges)?;
+    for (k, block) in fill_blocks(frame, edges).into_iter().enumerate() {
+        let image = match images.as_ref().map(|v| v.get(k).cloned().flatten()) {
+            // An uninvertible pattern draws nothing in its tile.
+            Some(None) => continue,
+            Some(i) => i,
+            None => None,
+        };
+        let Some(block) = block else { continue };
         out.push(Prepared {
             block,
             clip: clip.map(|c| c.index()),
             color,
             memset,
+            image,
         });
     }
     Ok(())

@@ -181,3 +181,43 @@ fn a_transparency_group_is_refused() {
     let r = list.gpu_scene(list.key(), page.crop_box);
     assert!(matches!(r, Err(GpuRefusal::Transparency)), "{r:?}");
 }
+
+/// A 5 x 3 RGB inline image, `/I` `interpolate`, as hexadecimal content.
+fn inline_image(interpolate: bool) -> String {
+    let px: String = (0..15)
+        .map(|k| {
+            format!(
+                "{:02x}{:02x}{:02x}",
+                (k * 53) % 256,
+                (k * 97 + 40) % 256,
+                (k * 31 + 200) % 256
+            )
+        })
+        .collect();
+    format!("BI /W 5 /H 3 /CS /RGB /BPC 8 /I {interpolate} /F /AHx ID {px}> EI")
+}
+
+#[test]
+fn images_nearest_and_bilinear() {
+    for interpolate in [false, true] {
+        let img = inline_image(interpolate);
+        let content = format!(
+            "q 60 0 0 40 10.3 20.6 cm {img} Q q 30 20 -25 35 70 10 cm {img} Q \
+             q 0.5 0.5 m 90 40 l 40 95 l h W n 80 0 0 80 10 10 cm {img} Q \
+             q 0 0 1 rg 20 20 30 30 re f /A gs 50 0 0 50 25 25 cm {img} Q\n"
+        );
+        let what = if interpolate { "bilinear" } else { "nearest" };
+        assert_matches(&content, "<< /ExtGState << /A << /ca 0.5 >> >> >>", what);
+    }
+}
+
+#[test]
+fn an_image_across_fill_tiles() {
+    let img = inline_image(true);
+    let content = format!("q 1990 0 0 9 10 0.5 cm {img} Q q 0 0 1 rg 1930 2 40 5 re f Q\n");
+    assert_matches_at(
+        &page_sized(&content, "<< >>", (2010, 10)),
+        &[4.2],
+        "wide image",
+    );
+}

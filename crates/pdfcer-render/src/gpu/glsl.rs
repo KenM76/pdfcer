@@ -16,13 +16,17 @@ void main() {
 /// `(x, y)` is raster pixel `u_origin + (x, y)` (`ivec2`, default zero), so
 /// a raster larger than the largest framebuffer is drawn as tiles, and
 /// `readPixels` over a tile returns [`crate::DisplayList::replay_region`]'s
-/// bytes for those rows and columns, in order.
+/// bytes for those rows and columns, in order. `u_zero` (`uint`) must be
+/// left at its default zero: image sampling passes every product through
+/// it, which keeps the compiler from fusing a multiply into the add after
+/// it and so matches the CPU's separately rounded `f32` arithmetic.
 pub const GLSL_ES_300_FRAGMENT: &str = r"#version 300 es
 precision highp float;
 precision highp int;
 precision highp isampler2DArray;
 uniform isampler2DArray u_scene;
 uniform ivec2 u_origin;
+uniform uint u_zero;
 out vec4 o_colour;
 
 ivec4 at(int i) { return texelFetch(u_scene, ivec3(i & 2047, (i >> 11) & 2047, i >> 22), 0); }
@@ -128,6 +132,52 @@ int mask(int clip_base, int clip, int k, int stride, int px, int py) {
 }
 
 int div255(int v) { return (v + 255) >> 8; }
+
+float mul(float a, float b) { return uintBitsToFloat(floatBitsToUint(a * b) ^ u_zero); }
+vec4 mul(vec4 a, float b) { return uintBitsToFloat(floatBitsToUint(a * b) ^ u_zero); }
+float factor() { return uintBitsToFloat(0x3b808081u); }
+vec4 load(int p) {
+  return mul(vec4(p & 255, (p >> 8) & 255, (p >> 16) & 255, (p >> 24) & 255), factor());
+}
+float below(int n) { return intBitsToFloat(floatBitsToInt(float(n)) - 1); }
+float clamp_to(float v, float l) { v = v > 0.0 ? v : 0.0; return v < l ? v : l; }
+int gather(float x, float y, ivec2 size) {
+  return int(clamp_to(y, below(size.y))) * size.x + int(clamp_to(x, below(size.x)));
+}
+
+vec4 sample_image(int base, ivec2 size, bool bilinear, float t[6], ivec2 l) {
+  float r = float(l.x) + 0.5, g = float(l.y) + 0.5;
+  float x = mul(r, t[0]) + (mul(g, t[2]) + t[4]);
+  float y = mul(r, t[1]) + (mul(g, t[3]) + t[5]);
+  if (!bilinear) return load(lane((base << 2) + gather(x, y, size)));
+  float vx = x + 0.5, vy = y + 0.5;
+  float fx = vx - floor(vx), fy = vy - floor(vy);
+  vec4 acc = vec4(0.0);
+  float yy = y + -0.5;
+  for (int j = 0; j < 2; j++) {
+    float wy = j == 0 ? 1.0 - fy : fy;
+    float xx = x + -0.5;
+    for (int i = 0; i < 2; i++) {
+      float wx = i == 0 ? 1.0 - fx : fx;
+      vec4 s = load(lane((base << 2) + gather(xx, yy, size)));
+      acc = mul(s, mul(wx, wy)) + acc;
+      xx += 1.0;
+    }
+    yy += 1.0;
+  }
+  return acc;
+}
+
+ivec4 image_pixel(int h, int rec, int px, int py, ivec4 d, float q, int c) {
+  ivec4 o = at(h + 3), r0 = at(rec), r1 = at(rec + 1), r2 = at(rec + 2);
+  float t[6] = float[6](intBitsToFloat(r1.x), intBitsToFloat(r1.y), intBitsToFloat(r1.z),
+                        intBitsToFloat(r1.w), intBitsToFloat(r2.x), intBitsToFloat(r2.y));
+  vec4 s = sample_image(r0.x, r0.yz, r0.w != 0, t, ivec2(px - o.x, py - o.y));
+  if (q >= 0.0) s = mul(s, q);
+  if (c < 255) s = mul(s, mul(float(c), factor()));
+  vec4 v = mul(mul(vec4(d), factor()), 1.0 - s.a) + s;
+  return ivec4(roundEven(mul(min(max(v, 0.0), 1.0), 255.0)));
+}
 ivec4 channels(int v) { return ivec4(v & 255, (v >> 8) & 255, (v >> 16) & 255, (v >> 24) & 255); }
 
 void main() {
@@ -141,6 +191,16 @@ void main() {
     ivec4 op = at(sections.y + lane(e));
     int c = coverage(op.x, px, py);
     if (c == 0) continue;
+    if (op.z == 0x00FFFFFF) {
+      float q = -1.0;
+      if (op.y >= 0) {
+        int m = mask(sections.z, op.y, k, stride, px, py);
+        if (m == 0) continue;
+        q = intBitsToFloat(lane((sections.w << 2) + m));
+      }
+      d = image_pixel(op.x, op.w, px, py, d, q, c);
+      continue;
+    }
     ivec4 u = channels(op.z);
     if (op.y < 0 && u.a == 255) {
       if (c == 255) d = channels(op.w);

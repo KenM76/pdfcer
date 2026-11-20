@@ -4988,7 +4988,9 @@ shaders; the shell (WebGL2, or any GL ES 3.0 / wgpu-GLSL host) draws them.
   `width` is `SCENE_TEXTURE_WIDTH` (2048); `height` is at most
   `SCENE_TEXTURE_ROWS` (2048), and exactly that whenever `layers > 1`;
   at most 16 layers.
-- Draw: bind `u_scene` (unit of your choice), set `ivec2 u_origin`, draw 3
+- Draw: bind `u_scene` (unit of your choice), set `ivec2 u_origin`, leave
+  `uint u_zero` at its default 0 (it keeps image sampling from fusing
+  multiplies into adds), draw 3
   vertices with no attributes (`GLSL_ES_300_VERTEX`, `GLSL_ES_300_FRAGMENT`)
   into an `RGBA8` colour attachment, `readPixels(RGBA, UNSIGNED_BYTE)`.
   Rows come back top row first, exactly `replay_region`'s RGBA8 bytes.
@@ -5003,12 +5005,18 @@ shaders; the shell (WebGL2, or any GL ES 3.0 / wgpu-GLSL host) draws them.
   draw+read ~105-135 ms, against ~600-650 ms for the 8-band CPU replay.
 - **Refusals** (`GpuRefusal`, `#[non_exhaustive]`; replay on the CPU and
   show the reason off-canvas): `Render(RenderError)` (anything
-  `replay_region` refuses), `Image`, `Shading`, `Transparency` (groups,
+  `replay_region` refuses), `Image` (bicubic sampling, an inverse image
+  transform that is not finite or has a coefficient below `1e-30`, or
+  bilinear samples beyond 2^24 image pixels), `Shading`, `Transparency` (groups,
   soft masks, blend modes), `Curves`, `TooMuchData { texels }`.
   A refusal is for the whole page: never mix GPU and CPU paints on one
   raster.
 - What is drawn today: solid fills and strokes (any opacity, anti-aliased
-  or not), clips (nested, any depth up to 64), glyph outlines.
+  or not), clips (nested, any depth up to 64), glyph outlines, and images
+  (nearest or bilinear, any transform, clipped, under constant opacity),
+  each distinct image's pixels packed into the texture once. An image page
+  (several 64 x 48 images, rotated, clipped, translucent) measured 0 rows
+  different on both GPUs at scale 1 and 300 DPI.
 
 ### 7.3 Cancellation — the off-thread contract
 

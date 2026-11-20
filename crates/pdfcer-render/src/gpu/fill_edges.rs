@@ -303,18 +303,25 @@ fn combine_vertical(edge: &LineEdge, last: &mut LineEdge) -> Combine {
 /// `line_clipper::clip` with right-culling off: the pieces of `src` inside
 /// `clip`, its parts left or right of it moved onto that side; the points
 /// written to `out`, their count returned (0 or 2..=4).
-#[allow(clippy::indexing_slicing)] // Indices are 0 or 1 into [_; 2], and k, count ≤ 3 into [_; 4].
 fn clip_line(src: [Point; 2], clip: &Rect, out: &mut [Point; 4]) -> usize {
     let (i0, i1) = if src[0].y < src[1].y { (0, 1) } else { (1, 0) };
-    if src[i1].y <= clip.top() || src[i0].y >= clip.bottom() {
+    if at(&src, i1).y <= clip.top() || at(&src, i0).y >= clip.bottom() {
         return 0;
     }
     let mut tmp = src;
-    if src[i0].y < clip.top() {
-        tmp[i0] = Point::from_xy(sect_h(&src, clip.top()), clip.top());
+    if at(&src, i0).y < clip.top() {
+        put(
+            &mut tmp,
+            i0,
+            Point::from_xy(sect_h(&src, clip.top()), clip.top()),
+        );
     }
-    if tmp[i1].y > clip.bottom() {
-        tmp[i1] = Point::from_xy(sect_h(&src, clip.bottom()), clip.bottom());
+    if at(&tmp, i1).y > clip.bottom() {
+        put(
+            &mut tmp,
+            i1,
+            Point::from_xy(sect_h(&src, clip.bottom()), clip.bottom()),
+        );
     }
     let (i0, i1, mut reverse) = if src[0].x < src[1].x {
         (0, 1, false)
@@ -323,8 +330,8 @@ fn clip_line(src: [Point; 2], clip: &Rect, out: &mut [Point; 4]) -> usize {
     };
     let mut res = [Point::zero(); 4];
     let count;
-    if tmp[i1].x <= clip.left() || tmp[i0].x >= clip.right() {
-        let x = if tmp[i1].x <= clip.left() {
+    if at(&tmp, i1).x <= clip.left() || at(&tmp, i0).x >= clip.right() {
+        let x = if at(&tmp, i1).x <= clip.left() {
             clip.left()
         } else {
             clip.right()
@@ -335,27 +342,43 @@ fn clip_line(src: [Point; 2], clip: &Rect, out: &mut [Point; 4]) -> usize {
         count = 1;
     } else {
         let mut k = 0;
-        if tmp[i0].x < clip.left() {
-            res[0] = Point::from_xy(clip.left(), tmp[i0].y);
+        if at(&tmp, i0).x < clip.left() {
+            res[0] = Point::from_xy(clip.left(), at(&tmp, i0).y);
             res[1] = Point::from_xy(clip.left(), sect_v_pinned(&tmp, clip.left()));
             k = 1;
         } else {
-            res[0] = tmp[i0];
+            res[0] = at(&tmp, i0);
         }
         k += 1;
-        if tmp[i1].x > clip.right() {
-            res[k] = Point::from_xy(clip.right(), sect_v_pinned(&tmp, clip.right()));
+        if at(&tmp, i1).x > clip.right() {
+            put(
+                &mut res,
+                k,
+                Point::from_xy(clip.right(), sect_v_pinned(&tmp, clip.right())),
+            );
             k += 1;
-            res[k] = Point::from_xy(clip.right(), tmp[i1].y);
+            put(&mut res, k, Point::from_xy(clip.right(), at(&tmp, i1).y));
         } else {
-            res[k] = tmp[i1];
+            put(&mut res, k, at(&tmp, i1));
         }
         count = k;
     }
     for i in 0..=count {
-        out[if reverse { count - i } else { i }] = res[i];
+        put(out, if reverse { count - i } else { i }, at(&res, i));
     }
     count + 1
+}
+
+/// `a[i]`, or the origin past the end.
+fn at<const N: usize>(a: &[Point; N], i: usize) -> Point {
+    a.get(i).copied().unwrap_or(Point::zero())
+}
+
+/// `a[i] = p`, ignored past the end.
+fn put<const N: usize>(a: &mut [Point; N], i: usize, p: Point) {
+    if let Some(slot) = a.get_mut(i) {
+        *slot = p;
+    }
 }
 
 /// `value` held between two limits given in either order; NaN passes.
