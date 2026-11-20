@@ -4,6 +4,26 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-11-20 (1665th filing) — `Pass 726.0`, `727.0`, `728.0`, `730.0` SHIPPED (`G313`-`G316`); `Pass 729.x` PDF/A arc filed
+
+**Shipped (engineer-reported; no shell here, git, push, CI and the gates not checked from here; all on `main`, unreleased, ship in `v0.167.0`):**
+- `Pass 726.0` (`G313`, `659059ab`): 3D `entity_distance` measures the triangles `face_figures` describes; `a_source`/`b_source` on the result and in the CLI.
+- `Pass 727.0` (`G314`, `a78244f3` + `5de3afe2`): `move_widget_to_field` creates a radio group when the target names no field; `target_created`.
+- `Pass 728.0` (`G315`, `61d55dcf`): `paste_fields` names (`names`, `FieldCopyNaming`); default rename is now `Qty2`, not `Qty_2` (behaviour change; `--underscore-names` keeps the old).
+- `Pass 730.0` (`G316`, `62e05907`): `Widget::free_size`. (ID `729` was reserved for the PDF/A arc below, hence `730`.)
+
+**Decisions made this session:**
+- `FieldCopyNaming`: both rules shipped, `ContinueNumber` the default (spec-silent choice; operator rule: ship both, pick the default).
+- PDF/A (`pdfcer-gui` `request_pdfa_conversion.md`, the only GUI-blocking item) is deferred to its own arc, `Pass 729.0`-`729.2`, so the GUI release goes out naming it as the one gap; reply `reply_pdfa_conversion_NOT_THIS_CYCLE.md`.
+
+**Gates reported by the engineer:** clippy `-D warnings`, fmt, `check-core-api-verbs`, `check-string-gaps`, `check-code-structure`, `check-public-fns-documented` all PASS; `cargo tree` not affected (no manifest changes).
+
+**Still in flight:** `Pass 729.0`-`729.2` filed in *Next up*, none started. `v0.167.0` release to follow in a separate filing.
+
+**FEATURES:** 3 new rows (name pasted fields; move a radio button into a new group; turned widget's unturned size), 1 clause on the 3D distance row; PDF/A rows unchanged and unticked. **Sweep owed to the engineer:** the default paste rename changed meaning (`_2` to `2`); check doc comments, CLI help and `docs/core-api` for the old form.
+
+**Next:** release `v0.167.0`; then `Pass 729.0`.
+
 ## 2026-11-20 (1664th filing) — `v0.166.0` PUBLISHED, tag on `46ce16c9`
 
 **Filed (engineer-reported; no shell here, tag, CI, release, crates.io and OneDrive state not checked from here):**

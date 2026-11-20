@@ -112,6 +112,45 @@ wherever it appears.*
 
 ## Shipped
 
+### `62e05907` `Pass 730.0` (`G316`): a turned widget's unturned size reads back, 2026-11-20 (1665th filing)
+
+Engineer-reported; no shell here, git, push, CI and the gates not run or checked from here. `62e05907a1d42668152aaacae815820712871817`. On `main`; **unreleased**, ships in `v0.167.0`. Request `request_G316_a_turned_widgets_unturned_size.md`. Reasoning is in the commit message.
+- **API:** `forms::Widget` gains `free_size: Option<(f64, f64)>`, read by the same reader as `free_angle` (FreeTurn w/h): the unturned size in the `/Rect` frame before the `/MK /R` width/height swap. `Some` exactly when `free_angle` is.
+- **Test:** +1 core (`tests/widget_turn.rs`, `the_unturned_size_reads_back_beside_the_free_angle`).
+- **Delivered:** core yes; cli no (no CLI reader prints it); gui no.
+- **FEATURES:** new row "Read a turned widget's unturned size" (core `[x]`, cli `[ ]`, gui `[ ]`).
+
+### `61d55dcf` `Pass 728.0` (`G315`): pasted form fields take chosen names, or continue their numbers, 2026-11-20 (1665th filing)
+
+Engineer-reported; no shell here, git, push, CI and the gates not run or checked from here. `61d55dcf48a1d167b0bce15b3dbc6fbdc73887c7`. On `main`; **unreleased**, ships in `v0.167.0`. Request `request_G315_paste_fields_names_cannot_follow_the_single_paste.md`. Reasoning is in the commit message.
+- **API:** `FieldSetPastePolicy::NewFields` gains `names: Option<Vec<String>>` (one per member in copy order; a miscount refuses the new `EditError::PasteNamesCount { fields, names }`; a taken or repeated name refuses `FieldNameTaken`; nothing written) and `naming: FieldCopyNaming` (new `#[non_exhaustive]` enum, `Default` = `ContinueNumber`: Text1 to Text2, Rev2000 to Rev2001, Item09 to Item10, Drawn By to Drawn By2; `Underscore` keeps `_2`/`_3`). `FieldCopyNaming::free_name` is `pub`. `EditError` now has 200 variants.
+- **BEHAVIOUR CHANGE:** the default multi-field paste rename is now `Qty2`, not `Qty_2`. Page-insert (`insert_fields`) renaming is unchanged.
+- **Decision (spec-silent naming choice):** both rules shipped, `ContinueNumber` the default (operator rule: ship both, pick the default).
+- **CLI:** `paste-fields --name NAME` (repeatable), `--underscore-names`.
+- **Tests:** +4 core (`tests/field_set_clipboard.rs`, now 11), +1 CLI (`tests/field_set_clip.rs`, now 4).
+- **Delivered:** core yes; cli yes; gui no.
+- **FEATURES:** new row "Name pasted form fields yourself, or continue their numbers" (core `[x]`, cli `[x]`, gui `[ ]`).
+- **Sweep owed (rule 11, not run from here):** the default rename changed meaning (`_2` to `2`); descriptions of `Qty_2`-style naming in doc comments, CLI help and `docs/core-api` should be checked by the engineer (the `docs/core-api` hits for these IDs are already engineer-written).
+
+### `a78244f3` + `5de3afe2` `Pass 727.0` (`G314`): a radio button moves into a group that does not exist yet, 2026-11-20 (1665th filing)
+
+Engineer-reported; no shell here, git, push, CI and the gates not run or checked from here. `a78244f3ae3a0b832a2afc0d88ca8a6df1c46292` (feature) and `5de3afe2488f06f23f41285dfd2828d607a4aa23` (the missing doc comment on the `pub(super)` split). On `main`; **unreleased**, ships in `v0.167.0`. Request `request_G314_a_radio_button_cannot_move_into_a_new_group.md`. Reasoning is in the commit messages.
+- **Behaviour:** `EditSession::move_widget_to_field` accepts a target name that names no field and creates a new radio group there (`/Kids []`, the source's `/Ff`, `/V` the button's on-state when the source was selected on it, else `/Off`; grouping nodes created as `add_radio_button` does) and moves the button in, ONE undo entry (`CommandKind::MoveWidgetToField`). `WidgetRegroup` gains `target_created: bool` and a disclosure.
+- **Refused, nothing written:** a name under an existing terminal field; a name that is a grouping node.
+- **CLI:** `move-widget-to-field` prints `target_created=`.
+- **Tests:** +4 core (`tests/radio_regroup.rs`, now 11), +1 CLI (`tests/move_widget_to_field.rs`, now 4).
+- **Delivered:** core yes; cli yes; gui no.
+- **FEATURES:** new row "Move a radio button into a group that does not exist yet" (core `[x]`, cli `[x]`, gui `[ ]`); the `Pass 582.0` row is unchanged.
+
+### `659059ab` `Pass 726.0` (`G313`): a face's distance is measured from the triangles its figures describe, 2026-11-20 (1665th filing)
+
+Engineer-reported; no shell here, git, push, CI and the gates not run or checked from here. `659059abbd24fd3f82e7fc3694af044366b7a9df`. On `main`; **unreleased**, ships in `v0.167.0`. Request `request_G313_distance_from_a_grown_face.md`. Reasoning is in the commit message.
+- **Behaviour:** `pdfcer_3d::entity_distance` resolves a Face side through the same code as `face_figures` (shared `resolve_face`), so it measures the triangles the figures describe: the file's face, the whole mesh, or the grown flat patch round the pick. `EntityDistance` gains `a_source`/`b_source: Option<FaceSource>`.
+- **CLI:** `measure-distance` prints `a_source=`/`b_source=` and a note for a grown face.
+- **Tests:** +1 `pdfcer-3d` unit test (one-face box top vs a point at z=3: min 2, max sqrt(4.5), `a_source` Grown); the CLI `three_d_gltf` test gains a `b_source=file` assertion.
+- **Delivered:** core (`pdfcer-3d`) yes; cli yes; gui no.
+- **FEATURES:** the 3D distance row (`Pass 721.8`) gains a one-clause pointer; boxes unchanged.
+
 ### `v0.166.0` PUBLISHED, tag on `46ce16c9` (bump `8279cc03`, the 1663rd filing), 2026-11-20 (1664th filing)
 
 Engineer-reported; no shell here, tag, CI, release and crates.io state not checked from here.
@@ -28321,6 +28360,14 @@ closes out the *prior* filing's business rather than opening this one's.
 ---
 
 ## Next up
+
+> **`Pass 729.0`-`729.2` FILED 2026-11-20 (1665th filing): PDF/A validation and conversion (ARC OPEN, none started; no shell here, engineer assigns final IDs and runs the gates).** Source: `pdfcer-gui` `request_pdfa_conversion.md`, the only GUI-blocking item; answered "not in v0.167.0, next arc" in `reply_pdfa_conversion_NOT_THIS_CYCLE.md`, so `v0.167.0` goes out naming it as the one gap. IDs `729.0`-`729.2` grep-checked unused across `docs/` before filing.
+>
+> - **`Pass 729.0` `validate_pdfa(bytes, PdfaLevel) -> PdfaReport`** for levels 1b, 2b, 3b. Built from the spec inventory hub `D:\Dev\Rag-Specialized\PDF_Spec\pdfa\pdfa__req__inventory_index.md` (its F rows are the failable requirements). Every finding names its clause and the object. The report states which rules it checks, so partial coverage never reads as conformance. Oracle: veraPDF, out-of-tree, against `fixtures/external/veraPDF-corpus`. Must report `/JXLDecode` as non-conforming (no ISO 32000 clause, any version).
+> - **`Pass 729.1` `convert_to_pdfa(bytes, PdfaLevel) -> (Vec<u8>, PdfaReport)`.** Embeds fonts; writes XMP `pdfaid`; adds an output intent (sRGB only, as a named, disclosed choice); strips the forbidden actions, listed. Attachments are removed only as an explicit option, naming 3b. Output is always re-validated. No silent rasterise fallback. A signed input is refused by default. Rule 4 applies: every change is disclosed, never silent.
+> - **`Pass 729.2` CLI `validate-pdfa` and `to-pdfa`** (both `unimplemented_stub` today).
+> - **Design input:** Acrobat brief `D:\Dev\Rag-Specialized\Acrobat_Features\pdfa_conform__conversion_fix_categories_and_refusals.md`.
+> - *FEATURES:* rows "Validate an existing document against a named conformance standard" and "PDF/A conformance and validation" already exist in *Planned*, all engine boxes `[ ]`; they stay unticked until `729.2`.
 
 > **`Pass 724.0`-`724.4` FILED 2026-11-19: "Everything that can go on the GPU" (ARC IN PROGRESS: `724.0` SHIPPED `6284ec33` 2026-11-19, `724.1` SHIPPED `66d61890`, `724.5` SHIPPED `2f9a3ab3` and `724.2` SHIPPED `2c9d3a2a`+`10141128` and `724.3` SHIPPED `b37560b3` 2026-11-20, `724.4` parts 1-4 SHIPPED 2026-11-20 (fills/strokes/clips `0d9b9761`, aliased fills, images, blend modes and groups `ed5884aa`), Shadings `704.3` open; filed by the librarian, no shell; engineer assigns the final IDs and runs the gates).** Operator ask (Ken, 2026-11-19, verbatim): *"You should put everything on the GPU that you can and put all of it in the next release."* It followed his question whether bounce light runs on the GPU: drawing does, but the probe-volume ray trace is CPU-only. `724` was grep-checked unused across `docs/` before filing (the highest shipped is `723.10`; the one `724.` hit, in `docs/ocr-engine-survey.md`, is unrelated text).
 >
