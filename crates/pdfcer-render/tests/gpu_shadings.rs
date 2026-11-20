@@ -134,9 +134,15 @@ fn axial_and_radial() {
 /// sheared matrix, a cone whose circles nest, a degenerate domain.
 #[test]
 fn evaluated_branches() {
-    let fill = "/ColorSpace /DeviceRGB /Function << /FunctionType 2 /Domain [0 1]         /C0 [0.2 0.9 0.1] /C1 [0.8 0.1 0.6] /N 2.2 >>";
+    let fill = "/ColorSpace /DeviceRGB /Function << /FunctionType 2 /Domain [0 1] \
+        /C0 [0.2 0.9 0.1] /C1 [0.8 0.1 0.6] /N 2.2 >>";
     let res = format!(
-        "<< /Shading << /B0 << /ShadingType 2 {fill} /Coords [0 0 90 70] /BBox [10 20 80 100] >>          /N0 << /ShadingType 2 {fill} /Coords [30 30 90 60] >>          /C0 << /ShadingType 3 {fill} /Coords [60 60 40 55 58 8] /Extend [true true] >>          /C1 << /ShadingType 3 {fill} /Coords [30 40 0 80 70 30] >>          /D0 << /ShadingType 2 {fill} /Coords [0 0 100 100] /Domain [0.4 0.4]          /Extend [true true] >> >> /ExtGState << /G0 << /ca 0.61 >> >> >>"
+        "<< /Shading << /B0 << /ShadingType 2 {fill} /Coords [0 0 90 70] /BBox [10 20 80 100] >> \
+         /N0 << /ShadingType 2 {fill} /Coords [30 30 90 60] >> \
+         /C0 << /ShadingType 3 {fill} /Coords [60 60 40 55 58 8] /Extend [true true] >> \
+         /C1 << /ShadingType 3 {fill} /Coords [30 40 0 80 70 30] >> \
+         /D0 << /ShadingType 2 {fill} /Coords [0 0 100 100] /Domain [0.4 0.4] \
+         /Extend [true true] >> >> /ExtGState << /G0 << /ca 0.61 >> >> >>"
     );
     for (content, what) in [
         ("/B0 sh", "bbox"),
