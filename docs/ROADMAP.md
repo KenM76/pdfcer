@@ -112,6 +112,21 @@ wherever it appears.*
 
 ## Shipped
 
+### `ed5884aa` `Pass 724.4` PART 4 (= `Pass 704.5` Transparency): blend modes and transparency groups drawn on the GPU, 2026-11-20 (1653rd filing)
+
+Engineer-reported; no shell here, git, push, CI and the gates not run or checked from here. `ed5884aa` `feat(render): draw blend modes and transparency groups on the GPU`. Not pushed at filing time. **Unreleased.** **`Pass 724.4` stays IN PROGRESS**: only Shadings (`704.3`, `GpuRefusal::Shading`) remains. Decision 223. Reasoning is in the commit message. No dependency added; `cargo tree` unchanged (profile change only).
+- **What:** the GPU scene draws the eight separable blend modes (Multiply, Screen, Overlay, Darken, Lighten, HardLight, Difference, Exclusion) on solid paint, and transparency groups (group opacity, those modes, nesting up to 8 deep), byte-identical to the CPU replay.
+- **Still refused as `GpuRefusal::Transparency`** (page falls back to the CPU with the reason): soft masks, non-separable modes, colour dodge/burn and soft-light, an image under any blend mode but Normal, groups nested past 8.
+- **Fixed on discovery:** debug-build crash (tiny-skia overflow-check panic) on any Overlay/HardLight page in the CPU renderer itself. Workspace `Cargo.toml` turns tiny-skia's overflow checks off in the dev and test profiles. Release builds were unaffected.
+- **Agreement:** synthetic page of every mode on paint and on groups, 0 rows differ on SwiftShader and Intel Arc Pro B50 (D3D11) at scale 1, 300 DPI and 50 MP (6243x8079).
+- **Speed:** 50 MP Arc draw+read 224 ms vs 611 ms 8-band CPU (2.7x); 300 DPI 40 ms vs 116 ms (2.9x).
+- **Tests:** `gpu_scene_matches_replay` 14/14 (new: `separable_blend_modes`, `a_high_precision_blend_mode_is_refused`, `transparency_groups`, `nested_transparency_groups`); 6/6 lib gpu tests.
+- **Gates (engineer-reported):** fmt; clippy `-D warnings`; check-panic-allows; check-code-structure; check-core-api-verbs clean; `cargo check` of the gpu feature for wasm32 clean.
+- **Docs:** `docs/core-api/03-capabilities.md` section 7.3d (refusal list, what is drawn) and `index.md` line count (engineer-owned).
+- **Delivered:** core yes; cli no (CPU by design); gui no (`pdfcer-gui` must wire it).
+- **FEATURES:** Implemented GPU row widened to blend modes and groups (`[x] core / — cli / [ ] gui`); Planned GPU row narrowed to Shadings and switches.
+- **Next:** `Pass 724.4` part `704.3` Shadings; then a release.
+
 ### `7ba1c19c` `Pass 724.4` PART 3 (= `Pass 704.2` Images): images drawn on the GPU, byte for byte, 2026-11-20 (1652nd filing)
 
 Engineer-reported; no shell here, git, push, CI and the gates not run or checked from here. `7ba1c19c` `feat(render): draw images on the GPU, byte for byte`. **Unreleased.** **`Pass 724.4` stays IN PROGRESS**: Shadings (`704.3`) and Transparency (`704.5`) remain, refused as `GpuRefusal::Shading` / `Transparency`. Decision 223. Reasoning is in the commit message. No manifest change, no new dependency (`cargo tree` unchanged).
@@ -39610,7 +39625,7 @@ Request `D:\Dev\FeatureRequests\pdfce_FeatureRequests\open\request_X067_renderer
 - *FEATURES:* no new row; these refine the GPU Planned row and the banded-replay row.
 
 ### `Pass 704.1`+ — GPU snapshot rasterising arc (BACKLOG, NOT STARTED; filed 1496th filing; decision 223; follows `704.0`'s numbers going to Ken)
-> **2026-11-19: pulled into *Next up* as `Pass 724.4` (arc `724.0`-`724.4`, "Everything that can go on the GPU"); IDs `704.1`-`704.5` kept. Full text stays here. 2026-11-20 (1651st filing): `704.1` and `704.4` SHIPPED `0d9b9761`; aliased fills `99b742b5`; `704.2` SHIPPED `7ba1c19c` (see *Shipped*); `704.3`, `704.5` remain NOT STARTED.**
+> **2026-11-19: pulled into *Next up* as `Pass 724.4` (arc `724.0`-`724.4`, "Everything that can go on the GPU"); IDs `704.1`-`704.5` kept. Full text stays here. 2026-11-20 (1651st filing): `704.1` and `704.4` SHIPPED `0d9b9761`; aliased fills `99b742b5`; `704.2` SHIPPED `7ba1c19c` (see *Shipped*); `704.5` SHIPPED `ed5884aa` (1653rd filing); `704.3` remains NOT STARTED.**
 
 - **`704.1`:** `gpu` module in `pdfcer-render` behind a NON-default `gpu` feature. Reads the `DisplayList`, emits GLSL ES 3.00 shader text plus plain buffers; no GL, windowing or thread dependency, no new crate dependency, builds for wasm32. The GUI hosts it on its glow context, as model3d does. CI: feature-on steps added; lean-graph and `--no-default-features` steps stay green.
 - **Parts, one switch each plus a whole-picture "Graphics card draws snapshots", in this build order:** `704.2` Images (sampling, `/Interpolate`, masks, tiling cells; decode stays CPU); `704.3` Shadings (types 1-7; functions in a CPU-built lookup texture, meshes tessellated on the CPU); `704.4` Fills & strokes (paths, stroke outlines, clips, glyph outlines; stroker stays CPU); `704.5` Transparency (alpha, blend modes, soft masks, groups). Part-to-ID mapping is the librarian's reading of the decision's order; the engineer may renumber before work starts. Colour conversion, CMYK, overprint, separations: always CPU.

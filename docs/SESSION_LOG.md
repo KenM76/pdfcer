@@ -4,6 +4,16 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-11-20 (1653rd filing) — `Pass 724.4` part 4 (= `704.5` Transparency, `ed5884aa`) SHIPPED: blend modes and transparency groups on the GPU
+
+**Filed (engineer-reported; no shell here, git, push, CI and the gates not run or checked from here; not pushed at filing time):**
+- `ed5884aa` the GPU scene draws the eight separable blend modes on solid paint and transparency groups (opacity, blend, nesting to 8), byte-identical to the CPU replay. Still refused as `GpuRefusal::Transparency`: soft masks, non-separable, colour dodge/burn, soft-light, an image under a non-Normal blend, groups nested past 8. 0 rows differ on SwiftShader and Intel Arc Pro B50 at scale 1, 300 DPI and 50 MP; 50 MP draw+read 224 ms vs 611 ms 8-band CPU. Details in `ROADMAP.md` *Shipped*.
+- Fixed on discovery: debug-build tiny-skia overflow-check panic on Overlay/HardLight pages in the CPU renderer; workspace `Cargo.toml` disables those checks in dev and test profiles (release unaffected).
+
+**FEATURES:** Implemented GPU row widened to blend modes and groups (core `[x]`, cli `—`, gui `[ ]` unchanged); Planned GPU row narrowed to Shadings and switches.
+
+**Open:** `Pass 724.4`: `704.3` Shadings only. GUI wiring owed. Release waits for the arc.
+
 ## 2026-11-20 (1652nd filing) — `Pass 724.4` parts 2-3 SHIPPED: aliased fills (`99b742b5`) and images (`7ba1c19c`) on the GPU
 
 **Filed (engineer-reported; no shell here, git, push, CI and the gates not run or checked from here):**
