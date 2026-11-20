@@ -50,14 +50,19 @@ try {
   const band = 8;
   gl.enable(gl.SCISSOR_TEST);
   const got = new Float32Array(D.tw * D.th * 4), row = new Float32Array(D.tw * band * 4);
+  const step = D.direction_step || Math.max(D.direction_count, 1);
   for (let y = 0; y < D.th; y += band) {
     const h = Math.min(band, D.th - y);
-    gl.scissor(0, y, D.tw, h); gl.drawArrays(gl.TRIANGLES, 0, 3);
-    gl.readPixels(0, y, D.tw, h, gl.RGBA, gl.FLOAT, row);
-    got.set(row.subarray(0, D.tw * h * 4), D.tw * y * 4);
+    for (let first = 0; first < Math.max(D.direction_count, 1); first += step) {
+      gl.uniform1i(u("u_direction_first"), first); gl.uniform1i(u("u_direction_stop"), first + step);
+      gl.scissor(0, y, D.tw, h); gl.drawArrays(gl.TRIANGLES, 0, 3);
+      gl.readPixels(0, y, D.tw, h, gl.RGBA, gl.FLOAT, row);
+      for (let k = 0; k < D.tw * h * 4; k++) got[D.tw * y * 4 + k] += row[k];
+    }
   }
   const gpu_ms = performance.now() - t0;
   const err = gl.getError(); if (err) log("gl error " + err);
+  if (gl.isContextLost()) log("context lost");
   const cpu = f32(D.cpu);
   let n = 0, sum = 0, sumAbs = 0, max = 0, cpuSum = 0, big = 0, lost = 0;
   for (let i = 0; i < D.point_count; i++) {

@@ -11,6 +11,9 @@ use crate::indirect::sphere_directions;
 use crate::lighting::bounce::Painted;
 use crate::{Bounds, ByteTexture, FloatTexture, FrameBounce};
 
+mod read;
+pub use read::GpuLightRead;
+
 /// Everything a host needs to measure a [`LightMeter::map`] on its GPU,
 /// from [`LightMeter::gpu_map`]; [`Self::finish`] turns what it reads back
 /// into the map.
@@ -39,7 +42,10 @@ use crate::{Bounds, ByteTexture, FloatTexture, FrameBounce};
 /// `u_bounce` whether [`Self::bounce`] is `Some`, and `u_bounce_origin`,
 /// `u_bounce_spacing`, `u_bounce_dims`, `u_bounce_strength` from it. A
 /// host bounded by a GPU watchdog draws it in row bands with the scissor
-/// test. Read the target back (`readPixels`, `RGBA`, `FLOAT`) and pass it
+/// test, and may split each point's gather: draw once per run of
+/// directions with `u_direction_first` and `u_direction_stop` (exclusive)
+/// set, and add the read-backs. Left 0, they draw every direction. Read
+/// the target back (`readPixels`, `RGBA`, `FLOAT`) and pass it
 /// to [`Self::finish`].
 ///
 /// # How it differs from [`LightMeter::map`]
@@ -146,20 +152,36 @@ impl LightMeter<'_> {
         side: MapSide,
     ) -> Result<Option<GpuLightMap>, IlluminanceError> {
         let (plan, laid) = self.lay_out(spacing, side)?;
-        let origin = match &self.volume {
+        Ok(self.gpu_pack(&plan, laid))
+    }
+
+    /// [`Self::gpu_map`] with no lattice: the scene, lights and bounce that
+    /// every [`Self::gpu_read`] pass draws against, packed once. `None`
+    /// past a 4,096 texture side, where the host reads on the CPU.
+    #[must_use]
+    pub fn gpu_scene(&self) -> Option<GpuLightMap> {
+        self.gpu_pack(&Plan::default(), Vec::new())
+    }
+
+    /// What every GPU position is less: the bounce grid's origin, else the
+    /// model's lowest corner.
+    fn gpu_origin(&self) -> [f64; 3] {
+        match &self.volume {
             Some(v) => v.grid().origin,
             None => Bounds::of(self.meshes).map_or([0.0; 3], |b| b.min),
-        };
+        }
+    }
+
+    /// `plan`'s points packed as a [`GpuLightMap`] that finishes into
+    /// `laid`; `None` past [`MAX_SIDE`].
+    fn gpu_pack(&self, plan: &Plan, laid: Layout) -> Option<GpuLightMap> {
+        let origin = self.gpu_origin();
         let surfaces = Painted {
             meshes: self.meshes,
             paints: &self.paints,
         };
-        let Some(scene) = pack_scene(&self.index, &surfaces, origin) else {
-            return Ok(None);
-        };
-        let Some((textures, direction_count)) = self.gpu_lattice(&plan, origin) else {
-            return Ok(None);
-        };
+        let scene = pack_scene(&self.index, &surfaces, origin)?;
+        let (textures, direction_count) = self.gpu_lattice(plan, origin)?;
         let [lamps, glow, points, normals, directions] = textures;
         let gather_far = self
             .volume
@@ -172,7 +194,7 @@ impl LightMeter<'_> {
             materials,
             pictures,
         } = scene;
-        Ok(Some(GpuLightMap {
+        Some(GpuLightMap {
             origin,
             nodes,
             triangles,
@@ -200,7 +222,7 @@ impl LightMeter<'_> {
             laid,
             ambient: luminance(self.ambient),
             base: self.filled(Vec::new(), &[]),
-        }))
+        })
     }
 
     /// The lamp, glow, point, normal and gather-direction textures and the

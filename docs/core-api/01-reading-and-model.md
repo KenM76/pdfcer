@@ -3656,6 +3656,31 @@ let image = render_coloured(&meshes, &colours, &camera, &RenderOptions { width: 
   1,494 glowing meshes) setup 0.70 s packing + 0.83 s passes against
   9.9 s on 20 CPU threads, 400 sampled reads mean |d| 1.4e-4 of the CPU
   mean, max 0.4%, none off by more than 5%.
+  **Meter readings gathered on the GPU:** `meter.gpu_scene() ->
+  Option<GpuLightMap>` packs the scene, lights, glow and bounce once with
+  no lattice (`point_count` 0; `None` past a 4,096 texture side: read on
+  the CPU). Per reading, `meter.gpu_read(&query) -> Result<GpuLightRead,
+  IlluminanceError>` (same checks and errors as `read`) measures the
+  direct light per lamp on the CPU and packs the disc's samples as
+  `points`/`normals` (`point_count`, `target_width` 2,048 ×
+  `target_height`; `needs_pass` false when the meter has no bounce and no
+  glow). Draw the map pass against the scene's textures with these
+  points and `u_lamp_count` 0, read back, and `finish(self, &read) ->
+  Result<Illuminance, IlluminanceError>` (`BadQuery("read")` when short)
+  takes bounced and emitted as the mean of each sample's green and blue;
+  `direct`, `lights`, `ambient`, `on_surface` and `off_edge` are the CPU's
+  exactly. Many readings can share one draw (concatenate their points).
+  The map fragment takes `u_direction_first`/`u_direction_stop`
+  (exclusive; 0 = every direction) so a host under a GPU watchdog splits
+  each point's gather into runs and adds the read-backs; a single
+  256-direction gather on the Bancroft file outlives the Windows watchdog
+  in one draw and reads back zeros. Measured (Intel Arc Pro B50, D3D11,
+  16-direction runs): glowing test room, max |d| 6e-7; Bancroft real file,
+  2,002 point readings in one batch 6.8 s against 74.7 s on 20 CPU
+  threads, bounced + emitted mean bias +4e-5 of the CPU mean, relative L1
+  1.8%, 7.1% of readings off by more than 5% in that part — the map's
+  grazing-ray band. `read` stays the oracle and the path for exports and
+  the CLI.
   **Bands.** `LuxBands::new(Vec<LuxBand { from, colour: [u8;3] }>,
   BandBlend::{Stepped (default), Graded})` (1 to `MAX_LUX_BANDS` = 16,
   bounds finite and strictly rising, else `LuxBandsError::{Empty,

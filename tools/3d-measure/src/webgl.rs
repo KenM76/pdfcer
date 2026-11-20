@@ -89,3 +89,42 @@ pub fn texture_line(name: &str, t: &pdfcer_3d::FloatTexture) -> String {
         b64(&t.texels)
     )
 }
+
+/// About `count` queries at triangle centres spread over every mesh.
+pub fn surface_queries(
+    model: &pdfcer_3d::AssembledModel,
+    count: usize,
+) -> Vec<pdfcer_3d::IlluminanceQuery> {
+    let total: usize = model.meshes.iter().map(|m| m.triangles.len()).sum();
+    let step = (total / count).max(1);
+    let mut out = Vec::new();
+    let mut k = 0usize;
+    for (i, m) in model.meshes.iter().enumerate() {
+        for t in &m.triangles {
+            k += 1;
+            if !k.is_multiple_of(step) {
+                continue;
+            }
+            let [a, b, c] = t.map(|v| m.positions[v as usize]);
+            let centre = std::array::from_fn(|j| (a[j] + b[j] + c[j]) / 3.0);
+            let (u, v) = (
+                std::array::from_fn::<f64, 3, _>(|j| b[j] - a[j]),
+                std::array::from_fn::<f64, 3, _>(|j| c[j] - a[j]),
+            );
+            let n = [
+                u[1] * v[2] - u[2] * v[1],
+                u[2] * v[0] - u[0] * v[2],
+                u[0] * v[1] - u[1] * v[0],
+            ];
+            let l = (n[0] * n[0] + n[1] * n[1] + n[2] * n[2]).sqrt();
+            if l > 0.0 {
+                out.push(pdfcer_3d::IlluminanceQuery::new(
+                    i,
+                    centre,
+                    n.map(|x| x / l),
+                ));
+            }
+        }
+    }
+    out
+}

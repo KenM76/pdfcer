@@ -10,6 +10,7 @@ use crate::{Camera, Projection, TriangleMesh};
 use std::collections::HashMap;
 
 mod gpu;
+pub use gpu::GpuLightRead;
 
 pub use gpu::GpuLightMap;
 

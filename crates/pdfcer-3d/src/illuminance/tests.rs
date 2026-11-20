@@ -41,7 +41,8 @@ fn floor(lights: Vec<ModelLight>) -> AssembledModel {
     }
 }
 
-fn camera() -> Camera {
+/// The camera every meter here is made with.
+pub(super) fn camera() -> Camera {
     Camera {
         eye: [0.0, -6.0, 6.0],
         target: [0.0; 3],
@@ -61,7 +62,8 @@ fn direct() -> RenderOptions {
     }
 }
 
-fn meter<'m>(
+/// A meter over `model` with `options` and `settings`.
+pub(super) fn meter<'m>(
     model: &'m AssembledModel,
     options: &RenderOptions,
     settings: &MeterSettings,
@@ -87,7 +89,8 @@ fn sun() -> crate::SunLight {
     }
 }
 
-fn at(p: [f64; 3]) -> IlluminanceQuery {
+/// A point query on the floor (mesh 0), facing up.
+pub(super) fn at(p: [f64; 3]) -> IlluminanceQuery {
     IlluminanceQuery::new(0, p, UP)
 }
 
@@ -356,7 +359,7 @@ fn a_model_with_every_lamp_left_out_reads_nothing() {
 
 /// A dark floor under a 4 by 4 ceiling one unit up that glows `emissive`,
 /// with every lamp left out.
-fn glow_room(emissive: [f64; 3]) -> (AssembledModel, RenderOptions) {
+pub(super) fn glow_room(emissive: [f64; 3]) -> (AssembledModel, RenderOptions) {
     let mut model = floor(Vec::new());
     model.meshes.push(quad([
         [-2.0, -2.0, 1.0],
@@ -704,45 +707,4 @@ fn a_gpu_map_gathers_a_glow_in_every_direction() {
     assert_eq!((g.glow_count, g.direction_count), (2, 2 * rays));
     assert_eq!(&g.glow.texels[4..7], &[1.0; 3]);
     assert!(g.bounce.is_none() && g.eps > 0.0 && g.far >= g.eps);
-}
-
-#[test]
-fn a_gpu_meter_built_from_the_cpu_atlas_reads_as_the_cpu_meter() {
-    let (mut model, dark) = glow_room([1.0; 3]);
-    model.meshes.push(quad([
-        [-0.5, -0.5, 0.5],
-        [0.5, -0.5, 0.5],
-        [0.5, 0.5, 0.5],
-        [-0.5, 0.5, 0.5],
-    ]));
-    model.colours.push(Some([255, 255, 255, 255]));
-    model.finishes.push(None);
-    let options = RenderOptions {
-        indirect: IndirectOptions::default(),
-        ..dark
-    };
-    let settings = MeterSettings::default();
-    let cpu = meter(&model, &options, &settings);
-    let prepared = PreparedModel::new(&model);
-    let make = || LightMeter::gpu_new(&model, &prepared, &camera(), &options, &settings).unwrap();
-    let gpu = make();
-    let build = gpu.build.as_ref().unwrap();
-    // The probes trace the glow: the ceiling's row is white.
-    assert_eq!(build.glow_count, 3);
-    assert_eq!(&build.glow.texels[4..7], &[1.0; 3]);
-    let atlas = cpu.volume.as_ref().unwrap().atlas().texels;
-    assert!(matches!(
-        make().finish(&atlas[1..]),
-        Err(IlluminanceError::BadQuery("atlas"))
-    ));
-    let gpu = gpu.finish(&atlas).unwrap();
-    for q in [
-        IlluminanceQuery::new(2, [0.0, 0.0, 0.5], [0.0, 0.0, -1.0]),
-        at([1.5, 1.5, 0.0]),
-        at([0.2, -0.3, 0.0]),
-    ] {
-        let (a, b) = (cpu.read(&q).unwrap(), gpu.read(&q).unwrap());
-        assert!(a.bounced > 0.0, "{a:?}");
-        assert!((a.total - b.total).abs() <= 1e-6 * a.total, "{a:?} {b:?}");
-    }
 }

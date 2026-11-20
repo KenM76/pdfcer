@@ -387,6 +387,8 @@ uniform highp sampler2D u_directions;
 uniform highp sampler2D u_glow;
 uniform int u_point_count;
 uniform int u_direction_count;
+uniform int u_direction_first;
+uniform int u_direction_stop;
 uniform int u_glow_count;
 uniform int u_bounce_first;
 uniform int u_bounce_count;
@@ -404,7 +406,8 @@ void main() {
     if (i >= u_point_count) { o_figure = vec4(0.0); return; }
     vec3 p = flat_fetch(u_points, i).xyz;
     vec3 n = flat_fetch(u_normals, i).xyz;
-    vec3 direct = scene_direct(p, n);
+    vec3 direct = u_direction_first == 0 ? scene_direct(p, n) : vec3(0.0);
+    int stop = u_direction_stop > 0 ? min(u_direction_stop, u_direction_count) : u_direction_count;
     vec3 reflected = vec3(0.0);
     vec3 emitted = vec3(0.0);
     float weight = 0.0;
@@ -416,6 +419,7 @@ void main() {
             float c = dot(n, d);
             if (c <= 0.0) continue;
             weight += c;
+            if (k < u_direction_first || k >= stop) continue;
             float t;
             vec3 hn, hw;
             int h = scene_first_hit(o, d, u_eps, far, t, hn, hw);

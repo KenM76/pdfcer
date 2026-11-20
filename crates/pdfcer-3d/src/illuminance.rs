@@ -16,10 +16,13 @@ mod types;
 #[cfg(test)]
 mod exposure_tests;
 #[cfg(test)]
+mod gpu_tests;
+#[cfg(test)]
 mod tests;
 
 pub use exposure::{ExposedLighting, Exposure, ExposureError};
 pub use gpu_meter::GpuLightMeter;
+pub use map::GpuLightRead;
 pub use map::{
     GpuLightMap, IlluminanceMap, MAP_VERTEX_FLOATS, MAX_MAP_POINTS, MAX_MAP_RAYS, MapPatch,
     MapProgress, MapSide,
@@ -267,6 +270,22 @@ impl<'m> LightMeter<'m> {
     /// the mesh; [`IlluminanceError::TooManySamples`] and
     /// [`IlluminanceError::TooMuchWork`] past the caps.
     pub fn read(&self, query: &IlluminanceQuery) -> Result<Illuminance, IlluminanceError> {
+        let (spots, asked) = self.spots(query)?;
+        let mut samples: Vec<Sample> = vec![Sample::default(); spots.len()];
+        for_chunks(&mut samples, 0, self.threads, &|i, slot: &mut Sample| {
+            if let Some(spot) = spots.get(i) {
+                *slot = self.measure(spot.point, spot.normal);
+            }
+        });
+        Ok(self.mean(&samples, asked - spots.len()))
+    }
+
+    /// The spots `query` measures and how many it asked for, after
+    /// [`Self::read`]'s checks.
+    fn spots(
+        &self,
+        query: &IlluminanceQuery,
+    ) -> Result<(Vec<disc::Spot>, usize), IlluminanceError> {
         let normal = unit(query.normal).ok_or(IlluminanceError::BadQuery("normal"))?;
         if !query.point.iter().all(|c| c.is_finite()) {
             return Err(IlluminanceError::BadQuery("point"));
@@ -294,13 +313,32 @@ impl<'m> LightMeter<'m> {
         }
         let spots = disc::spots(&self.index, self.far, query, normal, asked)
             .ok_or(IlluminanceError::OffSurface)?;
-        let mut samples: Vec<Sample> = vec![Sample::default(); spots.len()];
-        for_chunks(&mut samples, 0, self.threads, &|i, slot: &mut Sample| {
-            if let Some(spot) = spots.get(i) {
-                *slot = self.measure(spot.point, spot.normal);
-            }
-        });
-        Ok(self.mean(&samples, asked - spots.len()))
+        Ok((spots, asked))
+    }
+
+    /// [`Self::measure`]'s direct light alone.
+    fn measure_direct(&self, p: [f64; 3], n: [f64; 3]) -> Sample {
+        let surfaces = Painted {
+            meshes: self.meshes,
+            paints: &self.paints,
+        };
+        let all = Scene {
+            meshes: self.meshes,
+            index: &self.index,
+            surfaces: &surfaces,
+            lamps: &self.lamps,
+            sky: self.sky,
+            glow: &self.glow,
+        };
+        let direct = self
+            .lamps
+            .iter()
+            .map(|lamp| crate::indirect::lamp_direct(&all, lamp, p, n, self.far))
+            .collect();
+        Sample {
+            direct,
+            ..Sample::default()
+        }
     }
 
     /// The light at `p` on the side its unit normal `n` faces.
@@ -317,12 +355,7 @@ impl<'m> LightMeter<'m> {
             sky: self.sky,
             glow: &self.glow,
         };
-        let all = scene(&self.lamps);
-        let direct = self
-            .lamps
-            .iter()
-            .map(|lamp| crate::indirect::lamp_direct(&all, lamp, p, n, self.far))
-            .collect();
+        let direct = self.measure_direct(p, n).direct;
         let rays = self.gather_rays;
         let (bounced, emitted) = match &self.volume {
             Some(v) => {

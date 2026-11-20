@@ -6,10 +6,10 @@
 //! `meter_build <model> --compare <atlas.txt>` finishes the meter with it
 //! and compares every lattice point's figure with the CPU's.
 
-use measure_3d::webgl::{b64, b64_bytes, js_str, load, texture_line};
+use measure_3d::webgl::{b64, b64_bytes, js_str, load, surface_queries, texture_line};
 use pdfcer_3d::{
-    Bounds, Camera, IlluminanceMap, IlluminanceQuery, LightMeter, MapSide, MeterSettings,
-    PreparedModel, RenderOptions,
+    Bounds, Camera, IlluminanceMap, LightMeter, MapSide, MeterSettings, PreparedModel,
+    RenderOptions,
 };
 use std::fmt::Write as _;
 use std::time::Instant;
@@ -21,38 +21,6 @@ fn figures(m: &IlluminanceMap) -> Vec<f64> {
         .flatten()
         .flat_map(|p| p.figures.clone())
         .collect()
-}
-
-/// About `count` queries at triangle centres spread over every mesh.
-fn samples(model: &pdfcer_3d::AssembledModel, count: usize) -> Vec<IlluminanceQuery> {
-    let total: usize = model.meshes.iter().map(|m| m.triangles.len()).sum();
-    let step = (total / count).max(1);
-    let mut out = Vec::new();
-    let mut k = 0usize;
-    for (i, m) in model.meshes.iter().enumerate() {
-        for t in &m.triangles {
-            k += 1;
-            if !k.is_multiple_of(step) {
-                continue;
-            }
-            let [a, b, c] = t.map(|v| m.positions[v as usize]);
-            let centre = std::array::from_fn(|j| (a[j] + b[j] + c[j]) / 3.0);
-            let (u, v) = (
-                std::array::from_fn::<f64, 3, _>(|j| b[j] - a[j]),
-                std::array::from_fn::<f64, 3, _>(|j| c[j] - a[j]),
-            );
-            let n = [
-                u[1] * v[2] - u[2] * v[1],
-                u[2] * v[0] - u[0] * v[2],
-                u[0] * v[1] - u[1] * v[0],
-            ];
-            let l = (n[0] * n[0] + n[1] * n[1] + n[2] * n[2]).sqrt();
-            if l > 0.0 {
-                out.push(IlluminanceQuery::new(i, centre, n.map(|x| x / l)));
-            }
-        }
-    }
-    out
 }
 
 fn unb64(s: &str) -> Vec<f32> {
@@ -114,7 +82,7 @@ fn main() {
             };
             (map(&cpu), map(&gpu))
         } else {
-            let queries = samples(&model, 400);
+            let queries = surface_queries(&model, 400);
             let read = |m: &LightMeter| -> Vec<f64> {
                 queries
                     .iter()

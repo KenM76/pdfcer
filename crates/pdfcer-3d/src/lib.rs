@@ -125,9 +125,9 @@ pub use gpu::wide_lines::GLSL_ES_300_WIDE_LINE_VERTEX;
 pub use gpu::{Draw, DrawData, VERTEX_FLOATS};
 #[cfg(feature = "render")]
 pub use illuminance::{
-    ExposedLighting, Exposure, ExposureError, GlowLight, GpuLightMap, GpuLightMeter, Illuminance,
-    IlluminanceError, IlluminanceMap, IlluminanceNote, IlluminanceQuery, IlluminanceUnit,
-    LightMeter, LightShare, LightTint, MAP_VERTEX_FLOATS, MAX_ILLUMINANCE_RAYS,
+    ExposedLighting, Exposure, ExposureError, GlowLight, GpuLightMap, GpuLightMeter, GpuLightRead,
+    Illuminance, IlluminanceError, IlluminanceMap, IlluminanceNote, IlluminanceQuery,
+    IlluminanceUnit, LightMeter, LightShare, LightTint, MAP_VERTEX_FLOATS, MAX_ILLUMINANCE_RAYS,
     MAX_ILLUMINANCE_SAMPLES, MAX_MAP_POINTS, MAX_MAP_RAYS, MapPatch, MapProgress, MapSide,
     MeterBasis, MeterSettings, RelativeReason,
 };
