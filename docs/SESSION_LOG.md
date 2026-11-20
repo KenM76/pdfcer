@@ -4,6 +4,18 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-11-20 (1648th filing) — `Pass 724.1` (`66d61890`) and `Pass 724.5` (`2f9a3ab3`) SHIPPED: GPU meter map, GPU bounce under an exposure
+
+**Filed (engineer-reported; no shell here, git, push, CI and the gates not run or checked from here; nothing committed by this filing):**
+- `66d61890` `Pass 724.1`: `LightMeter::gpu_map` / `GpuLightMap::finish`. Bancroft file (733,044 points): direct 0.89% of points off by over 5%, 1.4 s against 23.7 s on 20 threads; glow 6.1%, 11.9 s against 130 s; bounce 10%, 15.0 s against 139 s. Band cause: grazing rays at smoothed-normal vertices, f32 against f64.
+- `2f9a3ab3` `Pass 724.5` (new, in the 724.x arc): `ExposedLighting::gpu_bounce_build`, answers `G311`. Both unpushed, unreleased. Details in `ROADMAP.md` *Shipped*.
+
+**Findings:** matching the CPU ray offset to the GPU's leaves 4.6% off, so the band is not an offset artefact. The CPU refuses Bancroft's default-128-ray bounce map (`TooMuchWork`, 8e9 rays against the 2e9 cap); the GPU path keeps the same cap.
+
+**FEATURES:** two new Implemented rows (core `[x]`, cli `[ ]`, gui `[ ]`); Planned meter row narrowed to `724.2`. **Sweep (hard rule 11):** the 724 Next up banner header and the `724.1` bullet updated; `724.5` noted there. No counter changed meaning.
+
+**Open:** GUI wiring of both (notice and reply written by the engineer). Arc still open: `724.2`, `724.3` (= `669.1`), `724.4` (= `704.1`-`704.5`); release waits for all.
+
 ## 2026-11-19 (1647th filing) — `Pass 724.0` (`6284ec33`) SHIPPED: bounce light built on the GPU
 
 **Filed (engineer-reported; no shell here, git, push, CI and the gates not run or checked from here; nothing committed by this filing):**

@@ -112,6 +112,29 @@ wherever it appears.*
 
 ## Shipped
 
+### `2f9a3ab3` `Pass 724.5`: an exposure's bounce light built on the GPU, 2026-11-20 (1648th filing)
+
+Engineer-reported; no shell here, git, push, CI and the gates not run or checked from here. `2f9a3ab38a12db79ad6deb946ec79c23e0d54f51` `feat(3d): build an exposure's bounce on the GPU`, `main`, not pushed at filing time. New member of the arc (`724.5`, grep-checked unused; the arc was `724.0`-`724.4`). Answers `pdfcer-gui` request `G311` (`reply_G311_SHIPPED.md` written). **Unreleased**: the release waits for the arc. Reasoning is in the commit message. No manifest change, so `cargo tree` is unaffected.
+- **What:** `ExposedLighting::gpu_bounce_build(&self, &prepared, &model, &camera) -> Result<Option<GpuBounceBuild>, RenderError>`, the GPU twin of `ExposedLighting::frame_bounce`, packing the exposure's lights and options. `PreparedModel::gpu_bounce_build` is unchanged for callers (routes through a `pub(crate)` `gpu_bounce_build_lit`).
+- **Test:** `the_gpu_bounce_build_traces_the_exposed_lights`: equals a build of the model relit with the exposed lights; lamps differ from the unexposed build; uniforms equal the exposed CPU `frame_bounce`'s. Sabotage (model lights passed) fails it. `pdfcer-3d` 601 lib tests green.
+- **Gates (engineer-reported):** `docs/core-api/01-reading-and-model.md` updated, `check-core-api-verbs` PASS; fmt, clippy `-D warnings`, code-structure, public-fns clean.
+- **Delivered:** core only; CLI keeps the CPU build; `pdfcer-gui` has not wired it.
+- **FEATURES:** new Implemented row `[x] core / [ ] cli / [ ] gui`.
+
+### `66d61890` `Pass 724.1`: a light meter's lattice mapped on the GPU, 2026-11-20 (1648th filing)
+
+Engineer-reported; same caveats as above. `66d61890a07fca42ab2030dc826a3139b1196c4d` `feat(3d): map a light meter's lattice on the GPU`, `main`, not pushed, unreleased. Reasoning is in the commit message.
+- **What:** `LightMeter::gpu_map(spacing, side) -> Result<Option<GpuLightMap>, IlluminanceError>`, `GpuLightMap::finish(self, &read) -> Result<IlluminanceMap, _>`, shader `GLSL_ES_300_LIGHT_METER_MAP_FRAGMENT` (over `GLSL_ES_300_BOUNCE_BUILD_VERTEX`). One fragment per lattice point into RGBA32F (direct, bounced, emitted luminance); `finish` adds the ambient. `None` past a 4,096 texture side. GPU ray offset `1e-5`·far against the CPU's `1e-9`. No cancel on the GPU path. `map` stays the oracle and the path for exports and the CLI.
+- **Tests:** `a_gpu_map_packs_the_lattice_the_cpu_maps`, `a_gpu_map_gathers_a_glow_in_every_direction`. `pdfcer-3d` 600 lib tests green at that commit (plus 6 and 41 in other targets).
+- **Agreement vs `map`, every lattice point (WebGL 2, headless Edge):** test room, 2,700 points (SwiftShader): direct max |d| 1.2e-7, bounce 7.3e-4, glowing wall 1.5e-7, 0% over 5%. Bancroft white-ceiling file without textures (430,592 triangles, 733,044 points, 84 lamps, 1,494 glowing meshes), Intel Arc Pro B50 (D3D11): direct L1 7.9e-5, 0.89% over 5% (shadow edges), 1.4 s against 23.7 s on 20 threads; glow bias -0.15%, L1 2.3%, 6.1% over 5%, 11.9 s against 130 s; bounce (8 gather rays) bias +0.21%, L1 1.9%, 10% over 5%, 15.0 s against 139 s.
+- **Cause of the band:** grazing hemisphere rays at smoothed-normal vertices of curved meshes, where f32 and f64 disagree on the hit; matching the CPU offset to the GPU's still leaves 4.6%. Disclosed as a band per decision 223.
+- **Limit found:** at the default 128 gather rays the CPU refuses Bancroft's bounce map (`TooMuchWork`: 8e9 rays against `MAX_MAP_RAYS` 2e9); the GPU path has the same cap.
+- **Harness:** `tools/3d-measure` `meter_map` bin and `webgl/meter_map.html`; the `scenes/data.js` encoding moved to `measure_3d::webgl` (adds a `roomglow` scene).
+- **Docs and channel:** `docs/core-api/01-reading-and-model.md` updated, `check-core-api-verbs` PASS. GUI notice `D:\Dev\FeatureRequests\pdfce_FeatureRequests\open\notice_2026-11-20_gui_light_meter_map_on_the_gpu.md`.
+- **Delivered:** core only; the CLI stays CPU by design; the GUI does not consume it yet.
+- **FEATURES:** new Implemented row `[x] core / [ ] cli / [ ] gui`; the Planned meter row narrowed to `724.2`.
+- **Next:** `Pass 724.2` (GPU `LightMeter::new` volume and `read`).
+
 ### `6284ec33` `Pass 724.0`: a frame's bounce light built on the GPU, 2026-11-19 (1647th filing)
 
 Engineer-reported; no shell here, git, push, CI and the gates not run or checked from here. `6284ec33` `feat(3d): build a frame's bounce light on the GPU`, on `main`, not pushed at filing time (full hash not supplied; short form used). First member of the arc `724.0`-`724.4` (*Next up*; the arc stays open). **Unreleased**: the next release waits for the whole arc (operator, 2026-11-19). Reasoning is in the commit message. `pdfcer-3d`, feature `render`; no manifest change, so `cargo tree` is unaffected; no new dependency.
@@ -28089,12 +28112,13 @@ closes out the *prior* filing's business rather than opening this one's.
 
 ## Next up
 
-> **`Pass 724.0`-`724.4` FILED 2026-11-19: "Everything that can go on the GPU" (ARC IN PROGRESS: `724.0` SHIPPED `6284ec33` 2026-11-19, `724.1`-`724.4` not started; filed by the librarian, no shell; engineer assigns the final IDs and runs the gates).** Operator ask (Ken, 2026-11-19, verbatim): *"You should put everything on the GPU that you can and put all of it in the next release."* It followed his question whether bounce light runs on the GPU: drawing does, but the probe-volume ray trace is CPU-only. `724` was grep-checked unused across `docs/` before filing (the highest shipped is `723.10`; the one `724.` hit, in `docs/ocr-engine-survey.md`, is unrelated text).
+> **`Pass 724.0`-`724.4` FILED 2026-11-19: "Everything that can go on the GPU" (ARC IN PROGRESS: `724.0` SHIPPED `6284ec33` 2026-11-19, `724.1` SHIPPED `66d61890` and `724.5` SHIPPED `2f9a3ab3` 2026-11-20, `724.2`-`724.4` not started; filed by the librarian, no shell; engineer assigns the final IDs and runs the gates).** Operator ask (Ken, 2026-11-19, verbatim): *"You should put everything on the GPU that you can and put all of it in the next release."* It followed his question whether bounce light runs on the GPU: drawing does, but the probe-volume ray trace is CPU-only. `724` was grep-checked unused across `docs/` before filing (the highest shipped is `723.10`; the one `724.` hit, in `docs/ocr-engine-survey.md`, is unrelated text).
 >
 > **Ruling and shape (all members).** Decision 223 governs: a GPU result matches the CPU "pixel for pixel if possible", otherwise a measured, disclosed tolerance band; per-part switches; exports, CLI and Print stay CPU. The engine emits GLSL ES 3.00 text plus plain buffers and has no GL dependency (rule 2, `cargo tree` checked on any manifest change); `pdfcer-gui` runs the passes. WebGL 2 has no compute stage, so every pass is a fragment pass into RGBA32F targets. Validation is headless Edge + SwiftShader (compile, link and agreement only; real-GPU timing is the GUI's). The CPU path stays the oracle for every member.
 >
 > - **`Pass 724.0` GPU bounce probe build: SHIPPED `6284ec33` (2026-11-19, unreleased; entry in *Shipped*).** Text of the original acceptance is in that entry's deviations list. The release still waits for the whole arc.
-> - **`Pass 724.1` GPU light-meter map.** `LightMeter::map`'s per-point measurement (shadow rays per lamp plus the final gather) as fragment passes reusing `724.0`'s traversal. The lattice layout stays CPU (serial dedup). Depends on `724.0`.
+> - **`Pass 724.1` GPU light-meter map: SHIPPED `66d61890` (2026-11-20, unreleased; entry in *Shipped*).**
+> - **`Pass 724.5` GPU bounce build under an exposure: SHIPPED `2f9a3ab3` (2026-11-20, unreleased; entry in *Shipped*).** Added to the arc 2026-11-20 for `G311`; not a prerequisite of `724.4`.
 > - **`Pass 724.2` GPU `LightMeter::new` volume and `LightMeter::read` disc samples.** Reuses `724.0`'s build for the volume; the disc samples as a small pass. Depends on `724.0`.
 > - **`Pass 724.3` = `Pass 669.1`, absorbed (ID kept).** Tiled or clustered per-tile light lists; the picture stays byte-identical to `669.0`, plus the GPU pixel-agreement measurement for the cull. Full text stays in *Backlog* under `Pass 669.1` (pointer added there); it is a member of this arc, and `724.3` is not a second Pass.
 > - **`Pass 724.4` = `Pass 704.1`-`704.5`, pulled in (IDs not renumbered).** The `pdfcer-render` `gpu` feature: module and feature (`704.1`), Images (`704.2`), Shadings (`704.3`), Fills & strokes (`704.4`), Transparency (`704.5`). Full text stays in *Backlog* under `Pass 704.1`+ (pointer added there); decision 223's gate and risks apply unchanged.
