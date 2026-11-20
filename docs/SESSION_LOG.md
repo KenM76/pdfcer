@@ -4,6 +4,24 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-11-20 (1664th filing) — `v0.166.0` PUBLISHED, tag on `46ce16c9`
+
+**Filed (engineer-reported; no shell here, tag, CI, release, crates.io and OneDrive state not checked from here):**
+- **Tag:** `v0.166.0` (annotated) on `46ce16c9bb5ecd17ccc6a5695d1f691f8d830ea1`. **CI:** run 44775038065 green at that commit (32m29s). Earlier run 44751821679 on `a53d4695` failed clippy dead-code (`GridTerms`, `gpu_terms` with feature `gpu` off); fixed by `33d09cc7`, which is in the tag.
+- **Code commits v0.165.0..v0.166.0:** `5fa49f54` (G312 3D `face_figures` source), `f27666d0` (shadings on the cache recorder), `74500d34` (GPU shadings byte-for-byte), `7f2cd542` (test fixture line continuations), `8d81616e` (axial/radial on GPU), `f293cd05` (mesh + function-based on GPU), `a53d4695` (doc), `33d09cc7` (gpu-off clippy fix), `c7b77357` (X101 deskew keeps codec), `a1f09354` (X102 skew bias fix), `8279cc03` (version).
+- **GitHub release:** 8 assets (`pdfcer-v0.166.0-windows-x64.zip` 32,794,896 bytes, sha256 `a037e4f20f9e7ed321e926170a83c04d0a9cec50f058d2591a05bd25808f54b4`; ocrcer/ocrs/tesseract add-on zips + `.sha256` each); `gh-release.py` PASS.
+- **Portable build:** `D:\builds\pdfcer-20261120-1135-46ce16c` (68,524,036 bytes); `--version` 0.166.0, revision `v0.165.0-22-g46ce16c9`.
+- **Fresh-folder smoke (`D:\builds\smoke166`):** `deskew` on a synthetic 1.5-degree-tilted JPEG scan measured skew=+1.50; SameFamily output 148,695 bytes vs 165,351 source (stream 164,460 to 147,824); dct q60 stream 121,908; flate stream 297,282; re-measured output skew=+0.00; `render-page` OK (480x624). The PIL-made input had a broken xref so `--mode full` was needed (expected refusal, correct).
+- **OneDrive:** slot `pdfcer1` (6 items, 88,145,388 bytes); `pdfcer2` keeps 0.165.0 (the next release writes `pdfcer2`).
+- **`verify-release.py v0.166.0`:** only "working tree clean" fails; the 35 dirty paths are agent-memory, `docs/research/request-*` drafts, a stray `-` file and a line-ending-only `THIRD_PARTY_LICENSES.md` diff; no code.
+- **crates.io:** all 16 engine crates at 0.166.0 in one round (leaf-first, detached worktree at the tag, `CARGO_TARGET_DIR=target/pub`).
+- **GUI notified:** `open/notice_2026-11-20_release_v0.166.0.md`.
+- **The GPU support arc (loop goal "keep working the GPU support until everything for it is done then release new engine") is closed with this release.**
+
+**FEATURES:** no row changes (checked: the X101 deskew-codec row is present in `FEATURES.md`; capability rows were filed in the 1660th-1662nd filings).
+
+**Next:** engineer's choice; no named head.
+
 ## 2026-11-20 (1663rd filing) — v0.166.0 version bump (`8279cc03`)
 
 **Filed (engineer-reported; no shell here, git, push, CI and the gates not checked from here):**

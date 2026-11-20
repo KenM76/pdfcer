@@ -112,6 +112,18 @@ wherever it appears.*
 
 ## Shipped
 
+### `v0.166.0` PUBLISHED, tag on `46ce16c9` (bump `8279cc03`, the 1663rd filing), 2026-11-20 (1664th filing)
+
+Engineer-reported; no shell here, tag, CI, release and crates.io state not checked from here.
+- **CI:** green at the tag (run 44775038065, 32m29s). Run 44751821679 on `a53d4695` was red (clippy dead-code, `GridTerms`/`gpu_terms` with `gpu` off), fixed by `33d09cc7`, in the tag. **GitHub release:** 8 assets: `pdfcer-v0.166.0-windows-x64.zip` (32,794,896 bytes), three OCR add-ons, four `.sha256`; `gh-release.py` PASS.
+- **Fresh-folder smoke:** `--version` 0.166.0 (revision `v0.165.0-22-g46ce16c9`); `deskew` on a synthetic 1.5-degree JPEG scan: skew +1.50, SameFamily 148,695 bytes vs 165,351 source, re-measured skew +0.00; `render-page` OK.
+- **OneDrive:** slot `pdfcer1` (88,145,388 bytes); `pdfcer2` keeps 0.165.0 (the next release writes `pdfcer2`).
+- **crates.io:** 16 crates at 0.166.0 in one round, leaf-first, detached worktree at the tag.
+- **`verify-release.py v0.166.0`:** all ok except "working tree clean" (agent-memory, research drafts, a stray `-` file, a line-ending-only `THIRD_PARTY_LICENSES.md` diff; no code).
+- **GUI notified:** `open/notice_2026-11-20_release_v0.166.0.md`.
+- **Contents:** `Pass 724.4` parts 5a-5d (GPU arc closed), `33d09cc7`, `Pass 725.0` (`X101`), `Pass 725.1` (`X102`), `5fa49f54` (G312 `face_figures`). Commit list in `SESSION_LOG.md`, 1664th filing.
+- **FEATURES:** no row changes. **Next:** none named.
+
 ### `8279cc03` `chore`: v0.166.0 version bump, 2026-11-20 (1663rd filing)
 
 Engineer-reported; no shell here, git, push, CI and the gates not run or checked from here. **Unreleased until v0.166.0 is tagged.** Tag, package, publish and crates.io are NOT done.
