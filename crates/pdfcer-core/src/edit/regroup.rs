@@ -89,6 +89,7 @@ impl EditSession {
         self.move_widget_to_existing_field(fqn, index, target_fqn)
     }
 
+    /// [`Self::move_widget_to_field`] when `target_fqn` names a field.
     pub(super) fn move_widget_to_existing_field(
         &mut self,
         fqn: &str,
