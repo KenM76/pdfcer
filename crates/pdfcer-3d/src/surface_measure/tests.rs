@@ -719,3 +719,26 @@ fn a_projected_area_is_the_faces_shadow_on_each_side() {
     let e = face_projected_area(&plate, &pick(0, 9, [0.0; 3]), [0.0, 0.0, 1.0]);
     assert!(matches!(e, Err(SurfaceMeasureError::NoSuchTriangle { .. })));
 }
+
+#[test]
+fn a_part_given_as_one_face_measures_distance_from_the_flat_face_at_the_pick() {
+    // The box top (z = 1) against a point above it: the whole box would put
+    // the farthest corner at the bottom, z = 0.
+    let mut meshes = vec![one_face_box()];
+    meshes.push(TriangleMesh {
+        positions: vec![[0.5, 0.5, 3.0]; 3],
+        triangles: vec![[0, 1, 2]],
+        ..TriangleMesh::default()
+    });
+    let top = select(0, 2, [0.5, 0.5, 1.0], MeasureEntity::Face);
+    let above = select(1, 0, [0.5, 0.5, 3.0], MeasureEntity::Vertex);
+    let d = entity_distance(&meshes, &top, &above, 10.0, 45.0).unwrap();
+    assert_eq!((d.a_source, d.b_source), (Some(FaceSource::Grown), None));
+    assert!((d.minimum.length - 2.0).abs() < 1e-12, "{:?}", d.minimum);
+    assert!(
+        (d.maximum.length - 4.5_f64.sqrt()).abs() < 1e-12,
+        "{:?}",
+        d.maximum
+    );
+    assert!(d.maximum.from[2] == 1.0, "{:?}", d.maximum);
+}

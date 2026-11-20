@@ -57,7 +57,7 @@ impl SurfaceArgs {
         options: &pdfcer_3d::RenderOptions,
     ) {
         use pdfcer_3d::{MeasureEntity, Selection};
-        let mut measured = false;
+        let (mut measured, mut grown) = (false, false);
         for [a, b] in self.measure_distance.as_chunks::<2>().0 {
             let head = format!("measure-distance a={a} b={b}");
             let select = |t: &super::target::Target| {
@@ -83,6 +83,7 @@ impl SurfaceArgs {
                 Err(err) => println!("{head} refused: {err}"),
                 Ok(d) => {
                     measured = true;
+                    grown |= [d.a_source, d.b_source].contains(&Some(pdfcer_3d::FaceSource::Grown));
                     let normal = self.projection_normal(camera);
                     let frame = self.frame();
                     println!(
@@ -97,6 +98,11 @@ impl SurfaceArgs {
                 "note: measure-distance: maximum is between the entities' corners, so a \
                  curved entity's can fall short of the true curve's; a circular edge's \
                  centre is fitted, not read from the file"
+            );
+        }
+        if grown {
+            println!(
+                "note: measure-distance: a_source/b_source=grown: that face is the flat patch round the pick, as measure-face reports it, not the file's whole face"
             );
         }
     }
@@ -136,8 +142,12 @@ fn distance_line(
     let centres = d
         .centres
         .map_or("centres=none".to_owned(), |c| span("centres", &c));
+    let sources: String = [("a_source", d.a_source), ("b_source", d.b_source)]
+        .into_iter()
+        .filter_map(|(k, s)| Some(format!(" {k}={}", super::source_name(s?))))
+        .collect();
     format!(
-        "{} {} {centres}",
+        "{} {} {centres}{sources}",
         span("minimum", &d.minimum),
         span("maximum", &d.maximum)
     )

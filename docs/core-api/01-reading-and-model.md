@@ -3925,9 +3925,12 @@ let image = render_coloured(&meshes, &colours, &camera, &RenderOptions { width: 
   Result<EntityDistance, SurfaceMeasureError>`, where each side is a
   `Selection { pick: SurfacePick, entity: MeasureEntity }` and
   `MeasureEntity` (`#[non_exhaustive]`) is `Vertex` (as `vertex_at`),
-  `Edge` (as `edge_at`, tolerances passed through) or `Face` (every
-  triangle of the picked face). `EntityDistance { minimum, maximum,
-  centres: Option<Span> }` (`#[non_exhaustive]`); `Span { length, from (on
+  `Edge` (as `edge_at`, tolerances passed through) or `Face` (the
+  triangles `face_figures` measures for the same pick: the file's face, or
+  the grown flat patch). `EntityDistance { minimum, maximum,
+  centres: Option<Span>, a_source, b_source: Option<FaceSource> }`
+  (`#[non_exhaustive]`; a source is `Some` for a `Face` side and equals
+  that pick's `FaceFigures::source`); `Span { length, from (on
   a), to (on b) }` with `delta() = to - from`, `projected(normal) ->
   Option<Span>` (the span in the plane with that normal: `to` moves along
   it) and `along(direction) -> Option<f64>` (the signed part removed);
@@ -3936,13 +3939,13 @@ let image = render_coloured(&meshes, &colours, &camera, &RenderOptions { width: 
   corners, so a curved entity's can fall short of the true curve's;
   `centres` is present when both sides have a centre: a vertex, or a
   `Circle` edge's fitted centre (rule 4). Refusals: those of `vertex_at` /
-  `edge_at`, `NoSuchTriangle`, and `Degenerate` for a face with no
-  triangles. CLI: `3d-render ... --measure-distance A B` (repeatable; each
+  `edge_at` / `face_figures`. CLI: `3d-render ... --measure-distance A B` (repeatable; each
   operand `vertex:X,Y`, `edge:X,Y` or `face:X,Y`) prints
   `measure-distance a= b= minimum= minimum_from= minimum_to=
-  minimum_delta= maximum= ... centres=none|centres= ...` (lengths also in
+  minimum_delta= maximum= ... centres=none|centres= ... [a_source=] [b_source=]`
+  (`file|whole-mesh|grown`, face sides only; lengths also in
   mm when the unit is known), a refusal or miss on the same head, then one
-  `note: measure-distance:` line. `--measure-project-onto screen|NX,NY,NZ`
+  `note: measure-distance:` line, plus a second when a source is `grown`. `--measure-project-onto screen|NX,NY,NZ`
   adds `NAME_projected=` and `NAME_normal=` after each figure (`screen` is
   the view direction, target minus eye).
 - **Length units for a readout** (`pdfcer-3d`, no feature): `LengthUnit`

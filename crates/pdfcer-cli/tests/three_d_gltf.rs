@@ -839,6 +839,9 @@ fn measure_face_reports_a_faces_area_perimeter_and_plane() {
         "{far}"
     );
     assert!(far.contains("centres=none"), "{far}");
+    let face_line = far.lines().find(|l| l.contains("b=face:60,40")).unwrap();
+    assert!(face_line.ends_with(" b_source=file"), "{face_line}");
+    assert!(!face_line.contains("a_source="), "{face_line}");
     assert!(
         far.contains("b=vertex:60,40 minimum=0.000000") && far.contains("centres=0.000000"),
         "{far}"

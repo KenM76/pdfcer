@@ -2,8 +2,8 @@
 //! nearest, the farthest and centre to centre.
 
 use super::edge::{edge_at, vertex_at};
-use super::face::face_triangles;
-use super::{EdgeShape, Face, SurfaceMeasureError, SurfacePick};
+use super::face::resolve_face;
+use super::{EdgeShape, FaceSource, SurfaceMeasureError, SurfacePick};
 use crate::TriangleMesh;
 use crate::vec3::{add, cross, dot, length, normalize, scale, sub};
 
@@ -15,7 +15,9 @@ pub enum MeasureEntity {
     Vertex,
     /// The model edge nearest the pick ([`edge_at`]).
     Edge,
-    /// The whole face the pick is on.
+    /// The face the pick is on, as [`super::face_figures`] resolves it:
+    /// the file's face, or the flat patch round the pick when that face is
+    /// not one surface.
     Face,
 }
 
@@ -89,12 +91,18 @@ pub struct EntityDistance {
     /// Between the entities' centres when both have one: a vertex is its
     /// own centre, a circular edge has its fitted centre (rule 4).
     pub centres: Option<Span>,
+    /// Which triangles the first entity was measured from, when it is a
+    /// face: the same set [`super::face_figures`] reports for its pick.
+    pub a_source: Option<FaceSource>,
+    /// The same for the second entity.
+    pub b_source: Option<FaceSource>,
 }
 
 /// One entity as the points, segments and triangles it is made of.
 struct Shape {
     pieces: Vec<Vec<[f64; 3]>>,
     centre: Option<[f64; 3]>,
+    source: Option<FaceSource>,
 }
 
 fn shape_of(
@@ -109,6 +117,7 @@ fn shape_of(
             Ok(Shape {
                 pieces: vec![vec![p]],
                 centre: Some(p),
+                source: None,
             })
         }
         MeasureEntity::Edge => {
@@ -121,24 +130,18 @@ fn shape_of(
                 EdgeShape::Circle { centre, .. } => Some(centre),
                 _ => None,
             };
-            Ok(Shape { pieces, centre })
+            Ok(Shape {
+                pieces,
+                centre,
+                source: None,
+            })
         }
         _ => {
-            let missing = SurfaceMeasureError::NoSuchTriangle {
-                mesh: s.pick.mesh,
-                triangle: s.pick.triangle,
-            };
-            let mesh = meshes.get(s.pick.mesh).ok_or(missing.clone())?;
-            if s.pick.triangle >= mesh.triangles.len() {
-                return Err(missing);
-            }
-            let tris = face_triangles(mesh, &Face::of(mesh, s.pick.triangle));
-            if tris.is_empty() {
-                return Err(SurfaceMeasureError::Degenerate);
-            }
+            let (tris, figures) = resolve_face(meshes, &s.pick, flat_degrees)?;
             Ok(Shape {
                 pieces: tris.into_iter().map(|t| t.to_vec()).collect(),
                 centre: None,
+                source: Some(figures.source),
             })
         }
     }
@@ -150,9 +153,8 @@ fn shape_of(
 ///
 /// # Errors
 ///
-/// Those of [`vertex_at`], [`edge_at`] and, for a face,
-/// [`SurfaceMeasureError::NoSuchTriangle`] and
-/// [`SurfaceMeasureError::Degenerate`] (the face has no area).
+/// Those of [`vertex_at`], [`edge_at`] and, for a face, those of
+/// [`super::face_figures`].
 pub fn entity_distance(
     meshes: &[TriangleMesh],
     a: &Selection,
@@ -172,6 +174,8 @@ pub fn entity_distance(
         minimum,
         maximum,
         centres,
+        a_source: a.source,
+        b_source: b.source,
     })
 }
 

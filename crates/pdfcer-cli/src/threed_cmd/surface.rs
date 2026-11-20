@@ -244,6 +244,16 @@ impl SurfaceArgs {
     }
 }
 
+/// The `source=` word for a face's triangles.
+#[cfg(feature = "3d")]
+pub(super) fn source_name(source: pdfcer_3d::FaceSource) -> &'static str {
+    match source {
+        pdfcer_3d::FaceSource::File => "file",
+        pdfcer_3d::FaceSource::WholeMesh => "whole-mesh",
+        _ => "grown",
+    }
+}
+
 /// The figures of one face.
 #[cfg(feature = "3d")]
 fn face_line(f: &pdfcer_3d::FaceFigures, r: &readout::Readout) -> String {
@@ -281,11 +291,7 @@ fn face_line(f: &pdfcer_3d::FaceFigures, r: &readout::Readout) -> String {
         "mesh={} face={} source={} triangles={} area={:.6}{} perimeter={:.6}{} {shape}",
         f.mesh,
         f.face.map_or("none".to_owned(), |i| i.to_string()),
-        match f.source {
-            pdfcer_3d::FaceSource::File => "file",
-            pdfcer_3d::FaceSource::WholeMesh => "whole-mesh",
-            _ => "grown",
-        },
+        source_name(f.source),
         f.triangles,
         f.area,
         r.area(f.area),

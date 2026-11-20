@@ -107,6 +107,18 @@ pub fn face_figures(
     pick: &SurfacePick,
     flat_degrees: f64,
 ) -> Result<FaceFigures, SurfaceMeasureError> {
+    resolve_face(meshes, pick, flat_degrees).map(|(_, figures)| figures)
+}
+
+/// One triangle's three corners.
+type Triangle = [[f64; 3]; 3];
+
+/// The triangles [`face_figures`] measures for `pick`, and its figures.
+pub(super) fn resolve_face(
+    meshes: &[TriangleMesh],
+    pick: &SurfacePick,
+    flat_degrees: f64,
+) -> Result<(Vec<Triangle>, FaceFigures), SurfaceMeasureError> {
     if !(0.0..=90.0).contains(&flat_degrees) {
         return Err(SurfaceMeasureError::BadTolerance("flat tolerance"));
     }
@@ -128,7 +140,7 @@ pub fn face_figures(
         FaceSource::WholeMesh
     };
     if !matches!(figures.shape, FaceShape::Unfitted) && figures.perimeter > 0.0 {
-        return Ok(figures);
+        return Ok((tris, figures));
     }
     let seed = mesh
         .triangles
@@ -138,7 +150,7 @@ pub fn face_figures(
     let flat = flat_patch(&tris, &seed, flat_degrees, PLANE_SLACK * diagonal(mesh));
     let mut grown = measure(pick.mesh, &flat, flat_degrees)?;
     grown.source = FaceSource::Grown;
-    Ok(grown)
+    Ok((flat, grown))
 }
 
 /// The figures of `tris`, with no face named.
