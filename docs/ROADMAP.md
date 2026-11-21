@@ -112,6 +112,22 @@ wherever it appears.*
 
 ## Shipped
 
+### `v0.168.0` PUBLISHED, tag on `4983c241` (bump `fe468a0f`, the 1669th filing), 2026-11-21 (1671st filing)
+
+Engineer-reported; no shell here, tag, CI, release, crates.io and OneDrive state not checked from here.
+- **Tag:** annotated `v0.168.0` on `4983c24150c9d3f96846bee4ecd6e75aaa77c31d` (the 1670th filing commit), pushed. **CI:** run 44867163157 green at the tag.
+- **GitHub release "pdfcer v0.168.0":** 8 assets at local sizes: `pdfcer-v0.168.0-windows-x64.zip` 32,842,910 bytes plus its `.sha256`, and the three OCR add-on zips (ocrcer, ocrs, tesseract) each with a `.sha256`. Notes built from the commit bodies of `Pass 731.0`-`733.0`.
+- **Build:** `D:\builds\pdfcer-20261120-2337-4983c24`, `--version` revision `v0.167.0-9-g4983c241`; rebuilt after the gate-fix commit, so packaged from the final commit.
+- **Fresh-folder smoke:** `--version`, `extract-text` and `render-page` on `fixtures/synthetic/outline/basic-tree.pdf` passed.
+- **CI-parity audits:** 52 of 52 ran; the one failure (outcome-disclosed) was fixed in `c7be2e1e`, filed 1670th.
+- **OneDrive:** `pdfcer1` now 0.168.0 (6 items, 88,284,160 bytes); `pdfcer2` keeps 0.167.0 (the next release writes `pdfcer2`).
+- **crates.io:** all 16 crates at 0.168.0, one round, leaf-first, from a detached worktree at the tag (removed afterwards).
+- **`verify-release.py`:** every check passed except "working tree clean" (36 uncommitted paths: agent-memory files, untracked `docs/research/request-*.md` drafts, the stray root file `-`, the line-ending-only `THIRD_PARTY_LICENSES.md` diff).
+- **Process note:** the tag push used `--no-verify`. The commit had already passed the pre-push hook on the `main` push, so nothing unhooked reached the remote, but the hook was skipped on the tag push.
+- **GUI notified:** `open/notice_2026-11-21_release_v0.168.0.md` in the `pdfce_FeatureRequests` channel; INDEX rows for `G317`-`G319` now say "released v0.168.0".
+- **Contents:** `Pass 731.0` (`G317`), `732.0` (`G318`), `733.0` (`G319`). Details in the 1668th filing.
+- **FEATURES:** no row changes. **Next:** `Pass 729.0` (`validate_pdfa`).
+
 ### `c7be2e1e` `fix(gates)`: exempt the two new `InsertOutcome` destination counters, 2026-11-20 (1670th filing)
 
 Engineer-reported; no shell here, git, push, CI and the gates not run or checked from here.

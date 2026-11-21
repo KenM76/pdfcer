@@ -4,6 +4,22 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-11-21 (1671st filing) — `v0.168.0` PUBLISHED, tag on `4983c241`
+
+**Filed (engineer-reported; no shell here, tag, CI, release, crates.io and OneDrive state not checked from here):**
+- **Tag:** annotated `v0.168.0` on `4983c24150c9d3f96846bee4ecd6e75aaa77c31d`, pushed; CI run 44867163157 green at the tag.
+- **Release:** 8 assets; portable zip 32,842,910 bytes plus `.sha256`; three OCR add-on zips (ocrcer, ocrs, tesseract) each with a `.sha256`. Notes from the commit bodies of `Pass 731.0`-`733.0`.
+- **Build / smoke:** `D:\builds\pdfcer-20261120-2337-4983c24`, revision `v0.167.0-9-g4983c241`, rebuilt after the gate fix. Fresh-folder `--version`, `extract-text`, `render-page` on `fixtures/synthetic/outline/basic-tree.pdf` passed.
+- **OneDrive:** `pdfcer1` 0.168.0 (6 items, 88,284,160 bytes); `pdfcer2` keeps 0.167.0. **crates.io:** 16 crates at 0.168.0, one round, from a detached worktree at the tag (removed).
+- **`verify-release.py`:** only "working tree clean" fails (36 uncommitted paths, known). **Audits:** 52 of 52 ran; the one failure was `c7be2e1e` (1670th).
+- **Process note:** the tag push used `--no-verify`; the pushed commit had passed the pre-push hook on the `main` push, so nothing unhooked reached the remote, but the hook was skipped on the tag push.
+- **GUI told:** `open/notice_2026-11-21_release_v0.168.0.md`; INDEX rows `G317`-`G319` say "released v0.168.0".
+- Carries `Pass 731.0`, `732.0`, `733.0`.
+
+**FEATURES:** no row changes.
+
+**Next:** `Pass 729.0` (`validate_pdfa`).
+
 ## 2026-11-20 (1670th filing) — outcome-disclosed gate fix (`c7be2e1e`)
 
 **Filed (engineer-reported; no shell here, git, push, CI and the gates not checked from here):**
