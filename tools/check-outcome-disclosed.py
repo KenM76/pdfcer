@@ -251,6 +251,8 @@ EXEMPT: dict[str, str] = {
         "see InsertOutcome::pages_inserted"
     ),
     "InsertOutcome::source_outline_dropped": "see InsertOutcome::pages_inserted",
+    "InsertOutcome::dests_carried": "see InsertOutcome::pages_inserted",
+    "InsertOutcome::dests_renamed": "see InsertOutcome::pages_inserted",
     "InsertOutcome::source_page_labels_dropped": (
         "see InsertOutcome::pages_inserted"
     ),
