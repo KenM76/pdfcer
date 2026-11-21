@@ -112,6 +112,14 @@ wherever it appears.*
 
 ## Shipped
 
+### `f8ba345c` `chore`: v0.167.0 version bump, 2026-11-20 (1666th filing)
+
+Engineer-reported; no shell here, git, push, CI and the gates not run or checked from here. **Unreleased until v0.167.0 is tagged.** Tag, package and publication are a separate filing.
+- **`f8ba345c4f69b4efedf7af0f23e99083e5937789` `chore: version 0.167.0`:** workspace version and all 16 path-dependency pins 0.166.0 to 0.167.0 in `Cargo.toml`, plus `Cargo.lock` and `fuzz/Cargo.lock`. No code change.
+- **v0.167.0 carries, since v0.166.0:** `Pass 726.0` (`G313`), `727.0` (`G314`), `728.0` (`G315`), `730.0` (`G316`), filed in the 1665th filing (`01e59233`). Behaviour change to sweep: default paste rename is `Qty2`, not `Qty_2`.
+- **Pre-bump evidence (engineer-reported):** CI was running on `01e59233`; the change-scoped run (`pdfcer-core`, `pdfcer-cli`, `pdfcer-3d`, `--no-fail-fast`) passed, 7,961 tests, 0 failures.
+- **FEATURES:** no row changes. **Next:** tag v0.167.0, package, publish.
+
 ### `62e05907` `Pass 730.0` (`G316`): a turned widget's unturned size reads back, 2026-11-20 (1665th filing)
 
 Engineer-reported; no shell here, git, push, CI and the gates not run or checked from here. `62e05907a1d42668152aaacae815820712871817`. On `main`; **unreleased**, ships in `v0.167.0`. Request `request_G316_a_turned_widgets_unturned_size.md`. Reasoning is in the commit message.

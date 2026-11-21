@@ -4,6 +4,17 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-11-20 (1666th filing) — v0.167.0 version bump (`f8ba345c`)
+
+**Filed (engineer-reported; no shell here, git, push, CI and the gates not checked from here):**
+- `f8ba345c4f69b4efedf7af0f23e99083e5937789` `chore: version 0.167.0`: workspace version and all 16 path-dependency pins 0.166.0 to 0.167.0 in `Cargo.toml`, `Cargo.lock`, `fuzz/Cargo.lock`. No code change. Details in `ROADMAP.md` *Shipped*.
+- Carries `Pass 726.0` (`G313`), `727.0` (`G314`), `728.0` (`G315`), `730.0` (`G316`), filed in the 1665th filing (`01e59233`).
+- Pre-bump: CI was running on `01e59233`; the 7,961-test change-scoped run (`pdfcer-core`, `pdfcer-cli`, `pdfcer-3d`, `--no-fail-fast`) passed, 0 failures. Tag, package and publication not done.
+
+**FEATURES:** no row changes.
+
+**Next:** tag v0.167.0, package, publish.
+
 ## 2026-11-20 (1665th filing) — `Pass 726.0`, `727.0`, `728.0`, `730.0` SHIPPED (`G313`-`G316`); `Pass 729.x` PDF/A arc filed
 
 **Shipped (engineer-reported; no shell here, git, push, CI and the gates not checked from here; all on `main`, unreleased, ship in `v0.167.0`):**
