@@ -159,6 +159,7 @@ mod form_transform;
 mod free_text_preview;
 mod group_unit;
 mod insert_fields;
+mod insert_outline;
 mod markup_snap;
 mod node_shape;
 mod ocr_layer_write;
@@ -253,6 +254,7 @@ pub use info_entries::{
     AltLanguages, AuthorItems, InfoEditOutcome, InfoEntry, InfoKeyProblem, InfoValue,
     ReservedInfoKey, SignedPacket, XmpMirror, XmpSkip, XmpSync, XmpSyncOptions,
 };
+use insert_outline::catalog_has;
 pub use page_artwork::PlacedPageContent;
 #[cfg(feature = "svg-import")]
 pub use svg::PlacedSvg;
@@ -4539,11 +4541,20 @@ pub struct InsertOutcome {
     /// `/Outlines` is a catalog entry, so it is not reachable from any page
     /// and the copy never sees it. The bookmarks are not lost in transit;
     /// they were never in the set of objects being copied. That is why this
-    /// is a disclosure rather than a bug, and why carrying them needs a
-    /// shell that reads the source outline and replays it through
-    /// `Self::add_outline_item` — which is exactly what `Pass 103.0` was
-    /// built for.
+    /// is a disclosure rather than a bug. `Self::insert_pages_with_options`
+    /// carries the bookmarks aimed at the inserted pages; this is `true`
+    /// only when the source has an outline and none of it arrived.
     pub source_outline_dropped: bool,
+    /// Bookmarks written by [`crate::pageops::InsertedOutline::Append`] or
+    /// [`crate::pageops::InsertedOutline::UnderParent`] (the heading
+    /// included); `0` under the default `Drop`.
+    pub outline_items_carried: usize,
+    /// Named destinations carried by
+    /// [`crate::pageops::InsertOptions::named_destinations`].
+    pub dests_carried: usize,
+    /// How many of [`Self::dests_carried`] were suffixed because the key was
+    /// already defined here (`chap1` -> `chap1_2`).
+    pub dests_renamed: usize,
     /// Whether the SOURCE carried a `/PageLabels` number tree (§12.4.2)
     /// whose labels did **not** come across: set only under
     /// [`crate::pageops::InsertedPageLabels::ContinueRange`]. The default
@@ -50774,7 +50785,8 @@ impl EditSession {
     /// | saves | **incrementally**, into an open session | a **new document** |
     /// | undo | one entry, session history intact | n/a |
     /// | `/AcroForm` | **NOT merged** — widgets arrive orphaned | **merged** |
-    /// | outlines, named dests, page labels, `/OCProperties` | not merged | merged |
+    /// | outlines, named dests | not merged, unless [`Self::insert_pages_with_options`] asks | merged |
+    /// | page labels, `/OCProperties` | not merged | merged |
     /// | `pdfcer insert-pages` | — | **this is the one the CLI calls** |
     ///
     /// Measured 2026-08-19, inserting the same 12-field form page:
@@ -50839,11 +50851,11 @@ impl EditSession {
         if crate::encryption_gate::forbids(&self.base, &[PermissionBit::Assemble]) {
             return Err(EditError::DocumentEncrypted);
         }
-        self.insert_pages_with(
+        self.insert_pages_with_options(
             source,
             source_pages,
             position,
-            crate::pageops::InsertedPageLabels::default(),
+            &crate::pageops::InsertOptions::default(),
         )
     }
 
@@ -50861,23 +50873,64 @@ impl EditSession {
         position: crate::pageops::InsertPosition,
         labels: crate::pageops::InsertedPageLabels,
     ) -> Result<InsertOutcome, EditError> {
+        let opts = crate::pageops::InsertOptions::default().with_labels(labels);
+        self.insert_pages_with_options(source, source_pages, position, &opts)
+    }
+
+    /// [`Self::insert_pages`] with every carry policy
+    /// ([`crate::pageops::InsertOptions`]): page labels, the source's
+    /// bookmarks aimed at the inserted pages
+    /// ([`crate::pageops::InsertedOutline`]) and its named destinations
+    /// naming them. Everything is written in the same command, so one undo
+    /// reverts the pages, the labels, the bookmarks and the destinations.
+    ///
+    /// # Errors
+    ///
+    /// As [`Self::insert_pages`].
+    ///
+    /// # Examples
+    ///
+    /// ```no_run
+    /// # use pdfcer_core::{document::Document, edit::EditSession};
+    /// use pdfcer_core::pageops::{InsertOptions, InsertPosition, InsertedOutline};
+    ///
+    /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
+    /// let src = Document::load(std::path::Path::new("appendix.pdf"))?;
+    /// let mut session = EditSession::new(Document::load(std::path::Path::new("report.pdf"))?);
+    /// let opts = InsertOptions::default()
+    ///     .with_outline(InsertedOutline::UnderParent("Appendix".into()))
+    ///     .with_named_destinations(true);
+    /// let out = session.insert_pages_with_options(&src.view(), &[0, 1], InsertPosition::End, &opts)?;
+    /// println!("{} bookmarks, {} destinations", out.outline_items_carried, out.dests_carried);
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub fn insert_pages_with_options(
+        &mut self,
+        source: &DocumentView<'_>,
+        source_pages: &[usize],
+        position: crate::pageops::InsertPosition,
+        opts: &crate::pageops::InsertOptions,
+    ) -> Result<InsertOutcome, EditError> {
         if crate::encryption_gate::forbids(&self.base, &[PermissionBit::Assemble]) {
             return Err(EditError::DocumentEncrypted);
         }
         self.check_certification()?;
-        let out = self.insert_pages_guarded(source, source_pages, position, labels);
+        let out = self.insert_pages_guarded(source, source_pages, position, opts);
         self.page_import = None;
         out
     }
 
-    /// [`Self::insert_pages_with`]'s body; the caller ends the page import.
+    /// [`Self::insert_pages_with_options`]'s body; the caller ends the page
+    /// import.
     fn insert_pages_guarded(
         &mut self,
         source: &DocumentView<'_>,
         source_pages: &[usize],
         position: crate::pageops::InsertPosition,
-        labels: crate::pageops::InsertedPageLabels,
+        opts: &crate::pageops::InsertOptions,
     ) -> Result<InsertOutcome, EditError> {
+        let labels = opts.labels;
         let target_count = self.page_slots()?.len();
         let at = position.slot(target_count);
         let Some(PageSplice {
@@ -50897,16 +50950,12 @@ impl EditSession {
         let (orphaned_widgets, orphaned_widgets_unrecoverable) =
             insert_fields::count_orphans(&new_page_ids, &carry.claimed, &scratch);
 
-        let source_outline_dropped = source
-            .graph()
-            .catalog_dict()
-            .is_some_and(|c| c.contains_key(b"Outlines"));
+        let outline =
+            self.carry_inserted_outline(source, opts, &new_page_ids, &mut mapping, &mut scratch)?;
+        let source_outline_dropped = outline.from_source == 0 && catalog_has(source, b"Outlines");
         let source_page_labels_dropped = labels
             == crate::pageops::InsertedPageLabels::ContinueRange
-            && source
-                .graph()
-                .catalog_dict()
-                .is_some_and(|c| c.contains_key(b"PageLabels"));
+            && catalog_has(source, b"PageLabels");
         let page_label_ranges = self.insert_page_labels(
             source,
             source_pages,
@@ -50935,6 +50984,9 @@ impl EditSession {
             fields_split: carry.split,
             acroform_created: carry.created,
             source_outline_dropped,
+            outline_items_carried: outline.items,
+            dests_carried: outline.dests,
+            dests_renamed: outline.dests_renamed,
             source_page_labels_dropped,
             page_labels_stale: false,
             page_label_ranges,

@@ -108,6 +108,7 @@
 
 pub mod assemble;
 pub(crate) mod dimension_carry;
+mod insert_carry;
 pub mod outline;
 pub mod references;
 pub mod region;
@@ -118,6 +119,7 @@ pub mod split;
 pub use assemble::{
     AssembleOptions, AssembleReport, DocumentView, OutlinePolicy, PageRef, assemble,
 };
+pub use insert_carry::{InsertOptions, InsertedOutline};
 pub use references::{DanglingReport, DestinationResolver, census_dangling};
 pub use region::{RegionError, RegionExport, RegionReport, extract_region};
 pub use scale::{

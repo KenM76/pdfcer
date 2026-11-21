@@ -141,6 +141,7 @@ mod indirect_entry_edits;
 mod info_entries;
 mod ink_reshape;
 mod insert_pages_carries_fields;
+mod insert_pages_carry_outline;
 mod insert_pages_preserves_undo;
 mod insert_pages_repeated;
 mod insert_pages_struct_dest;

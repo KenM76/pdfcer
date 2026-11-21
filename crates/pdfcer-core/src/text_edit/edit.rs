@@ -2575,11 +2575,7 @@ pub(crate) fn plan_exact(
     opts: &EditOptions,
     mode: PlanMode,
 ) -> Result<EditPlan, EditError> {
-    // Form refusals come before any surgery, so a refused edit costs nothing.
-    if let Some(form) = target.form.as_ref() {
-        refuse_unsuitable_form(form)?;
-    }
-    let span = find_anchor_span(recs, req)?;
+    let span = checked_anchor_span(target, recs, req)?;
     // A span edit touches only the part of the match that actually changes,
     // so the producer's own positioning of the unchanged glyphs survives.
     let narrow = narrow_span(recs, span, req);
@@ -2598,7 +2594,7 @@ pub(crate) fn plan_exact(
     // Inside one text object the replacement lands in the anchor alone,
     // however many operators the match spans, so a font switch fits there.
     let in_object = !at.crossed;
-    let enc = encode_with_sibling(
+    let mut enc = encode_with_sibling(
         doc, target, recs, font, &class, font_dict, anchor, req, opts, in_object,
     )?;
     let font_dict = enc.extension.as_ref().map_or(enc.dict, FontExtension::view);
@@ -2627,7 +2623,11 @@ pub(crate) fn plan_exact(
     let mut laid = lay(&laying, &at);
     let new_content = mode.content(&stream.buf, &mut laid.edits);
     // The report only; the caller performs its own write step.
-    let mut disclosures = laid_notes(enc.encoded.disclosures, &mut laid, rewritten.is_some());
+    let mut disclosures = laid_notes(
+        std::mem::take(&mut enc.encoded.disclosures),
+        &mut laid,
+        rewritten.is_some(),
+    );
     disclosures.extend(general_disclosures(
         req, opts, anchor, find, &enc.font, &class,
     ));
@@ -2635,18 +2635,42 @@ pub(crate) fn plan_exact(
     // Show operators only; the `Td` steps between them were not written across.
     let moved = (laid.delta, laid.followers, leading_matches.len() as u64 + 1);
     let base = enc.font.base_font.as_str();
-    let mut report = edit_report(target, base, &class, opts, moved, anchor, disclosures);
+    let report = edit_report(target, base, &class, opts, moved, anchor, disclosures);
+    Ok(plan_from(new_content, report, laid.layout, enc, rewritten))
+}
+
+/// Form refusals before any surgery, so a refused edit costs nothing; then
+/// the span the anchor is found in.
+fn checked_anchor_span(
+    target: &EditPlanTarget,
+    recs: &[OpRec],
+    req: &EditRequest,
+) -> Result<Anchor, EditError> {
+    if let Some(form) = target.form.as_ref() {
+        refuse_unsuitable_form(form)?;
+    }
+    find_anchor_span(recs, req)
+}
+
+/// The plan, with the font writes and fallback the encoding produced.
+fn plan_from(
+    new_content: Vec<u8>,
+    mut report: EditReport,
+    layout: EditLayout,
+    enc: Encoding<'_>,
+    rewritten: Option<(std::ops::Range<usize>, String)>,
+) -> EditPlan {
     report.fallback = enc.fallback.as_ref().map(|f| f.used.clone());
-    Ok(EditPlan {
+    EditPlan {
         new_content,
         report,
-        layout: laid.layout,
+        layout,
         font_program: FontExtension::program_of(enc.extension.as_ref()),
         cid_to_gid: FontExtension::map_of(enc.extension.as_ref()),
         font_writes: FontWrites::of(enc.extension),
         rewritten,
         created_font: enc.fallback.and_then(Fallback::into_created),
-    })
+    }
 }
 
 /// The encoder's disclosures, then the layout's and the narrowing note.

@@ -18,7 +18,7 @@ answers *"I want to do X — what do I call, in what order, and what will bite m
 | **Date** | 2026-08-29 |
 | **Verified against** | `5c37c7c` (`git rev-parse --short HEAD`) — *"he gave no reason" was a claim, and it has been corrected* |
 | **Primary subject** | `crates/pdfcer-core/src/edit.rs` (35655) |
-| **Covers** | `EditSession` end to end: construction, the command/undo/redo model, **all 430 public methods**, the `EditError` taxonomy, the save path (incremental vs full rewrite), the guard/refusal model (encryption, certification, sidecar version, `/Size` suppression), object allocation and byte staging |
+| **Covers** | `EditSession` end to end: construction, the command/undo/redo model, **all 431 public methods**, the `EditError` taxonomy, the save path (incremental vs full rewrite), the guard/refusal model (encryption, certification, sidecar version, `/Size` suppression), object allocation and byte staging |
 | **Does NOT cover** | Document loading and the read-only object model → **`01-reading-and-model.md`**. Per-feature capability guides (ce dimensions, forms, annotations, redaction, OCR, printing) → **`03-capabilities.md`**. This document covers the *session mechanics* those features flow through; part 3 covers the features. |
 | **Terminology** | Project rule 15. **ce dimensions** = the dimension objects pdfcer authors (`/Line` + `/IT /LineDimension` + baked `/AP` + `/PieceInfo` sidecar). **pdf dimensions** = dimensions already present in the page content, exported by CAD. Never bare "dimension". This document only concerns ce dimensions. |
 
@@ -69,9 +69,9 @@ Five consequences a GUI author must internalise before writing any code:
 
 ---
 
-## 1. Verb index — all 430 public `EditSession` methods
+## 1. Verb index — all 431 public `EditSession` methods
 
-**Count: 430.** Established by brace-matched extraction of the
+**Count: 431.** Established by brace-matched extraction of the
 `impl EditSession` blocks in `edit.rs` and its `edit/` child modules, matching `pub fn` / `pub const fn`, and checked
 on every run by `tools/check-core-api-verbs.py` — which is what caught this
 figure at 120 when `add_outline_item` landed, and caught it again at 227 when
@@ -96,7 +96,7 @@ added `add_file_attachment_annotation`, and at 274 when `Pass 261.1` added
 `add_caret_annotation` and `add_replace_text`, and at 275 when `Pass 261.2`
 added `add_sound_annotation`, and at 276 when `Pass 261.3` added
 `add_screen_annotation`, and at 277 when `Pass 142.3` added
-`preview_style_ladder_with_donors`, and at 279 when `Pass 375.0` added `set_crop_boxes` and `resize_pages`, at 283 when Bates numbering added `stamp_bates`, and at 284 when `remove_bates` followed, and at 348 when `G154` added `insert_node`, `convert_node`, `convert_segment` and their three `_in_form` twins, and at 349 when `G160` added `turn_widget`, and at 350 when `G168` added `set_3d_views`, and at 352 when `G164` added `metadata_inventory` and `remove_metadata`, and at 355 when `G165` added `page_scan_image`, `detect_image_skew` and `deskew_image`, and at 356 when `G171` added `coalesce_last_same`, and at 371 when `G198` added `upscale_image`, and at 385 when `Pass 55.10` added `stamp_running_text`, and at 386 when `Pass 55.11` added `add_printer_marks`, and at 387 when `G238` added `decorate_for_print`, and at 388 when `G247` added `set_3d_opening_view`, and at 391 when `G243` added `fork_for_print` and `decorated_for_print`, and at 401 when `Pass 694.2` added `set_page_boxes`, and at 402 when `Pass 700.9` added `fill_rich_text_field`, and at 404 when its follow-up added `set_rich_style_precedence` and `rich_style_precedence`, and at 423 when `Pass 722.0` added `extend_path`, `open_subpath` and their two `_in_form` twins, and at 427 when `G295` added `can_extend_path`, `can_open_subpath` and their two `_in_form` twins, and at 428 when `G301` added `materialize_merged_xfa`, and at 429 when `X101` added `deskew_image_with`, and at 430 when `G317` added `edit_capability_for`.
+`preview_style_ladder_with_donors`, and at 279 when `Pass 375.0` added `set_crop_boxes` and `resize_pages`, at 283 when Bates numbering added `stamp_bates`, and at 284 when `remove_bates` followed, and at 348 when `G154` added `insert_node`, `convert_node`, `convert_segment` and their three `_in_form` twins, and at 349 when `G160` added `turn_widget`, and at 350 when `G168` added `set_3d_views`, and at 352 when `G164` added `metadata_inventory` and `remove_metadata`, and at 355 when `G165` added `page_scan_image`, `detect_image_skew` and `deskew_image`, and at 356 when `G171` added `coalesce_last_same`, and at 371 when `G198` added `upscale_image`, and at 385 when `Pass 55.10` added `stamp_running_text`, and at 386 when `Pass 55.11` added `add_printer_marks`, and at 387 when `G238` added `decorate_for_print`, and at 388 when `G247` added `set_3d_opening_view`, and at 391 when `G243` added `fork_for_print` and `decorated_for_print`, and at 401 when `Pass 694.2` added `set_page_boxes`, and at 402 when `Pass 700.9` added `fill_rich_text_field`, and at 404 when its follow-up added `set_rich_style_precedence` and `rich_style_precedence`, and at 423 when `Pass 722.0` added `extend_path`, `open_subpath` and their two `_in_form` twins, and at 427 when `G295` added `can_extend_path`, `can_open_subpath` and their two `_in_form` twins, and at 428 when `G301` added `materialize_merged_xfa`, and at 429 when `X101` added `deskew_image_with`, and at 430 when `G317` added `edit_capability_for`, and at 431 when `G319` added `insert_pages_with_options`.
 There are no `EditSession` methods in any other file
 (`grep -rn "impl EditSession" crates/pdfcer-core/src/` returns those lines only).
 
@@ -265,6 +265,7 @@ the old value / `Keep` / `Drop`), `authors: AuthorItems` (`Whole`* one item /
 | **Scale pages' content onto a new sheet** | `scale_pages(&mut self, indices: &[usize], request: &pageops::ScaleRequest) -> Result<pageops::ScaleReport, EditError>` | `ScaleRequest::new(w, h)` in points, displayed orientation; `.with_mode(ScaleMode::Fit / Fill)`, `.with_orientation(OrientationPolicy::Match / Exact)`. Content streams are wrapped (`q cm clip` … `Q`), never rewritten; every page box becomes the sheet; annotations, `/Measure` factors, viewports, beads and destinations naming the page move with it. `ScaleReport { pages: Vec<PageScaled { page_index, source, placement: PagePlacement { target, scale, offset_x, offset_y, orientation_flipped }, mode, annotations, measures }>, destinations, geo_measures_unchanged }` — show the per-page scale, offset and mode (rule 4). Refuses `ScaleRefusedCeDimensions { page_index, count }` on a page with ce dimensions; `MediaBoxDegenerate` for a bad size. ONE undo entry, `CommandKind::ScalePages { count }`. |
 | **Insert pages from another document** | `insert_pages(&mut self, source: &DocumentView<'_>, source_pages: &[usize], position: pageops::InsertPosition) -> Result<InsertOutcome, EditError>` | `InsertOutcome { pages_inserted, fields_carried, fields_renamed, fields_split, acroform_created, orphaned_widgets, orphaned_widgets_unrecoverable, .. }`. **Read the warning below before writing a disclosure about it.** |
 | **Insert pages, choosing their labels** | `insert_pages_with(&mut self, source: &DocumentView<'_>, source_pages: &[usize], position: pageops::InsertPosition, labels: pageops::InsertedPageLabels) -> Result<InsertOutcome, EditError>` | As `insert_pages`, which uses `InsertedPageLabels::Source`. See *Page labels on insert*. |
+| **Insert pages with the source's bookmarks and named destinations** | `insert_pages_with_options(&mut self, source: &DocumentView<'_>, source_pages: &[usize], position: pageops::InsertPosition, opts: &pageops::InsertOptions) -> Result<InsertOutcome, EditError>` | G319. `InsertOptions { labels, outline: InsertedOutline, named_destinations: bool }` (builders `with_labels`, `with_outline`, `with_named_destinations`; default = `insert_pages`). `InsertedOutline::Drop` (default) / `Append` (top level, after the target's last item) / `UnderParent(title)` (one new heading aimed at the first inserted page `/Fit`, written even when nothing arrives). Only items whose destination (explicit, named, or a `/GoTo` action) reaches an inserted page arrive, rebound to the copy with their view; an ancestor of one arrives without a destination; every arriving item is closed; `/C` and `/F` kept. `named_destinations`: each `/Dests` or `/Names /Dests` entry naming an inserted page is written into the target's `/Names /Dests` tree, renamed `key_2`, `key_3`… on collision, and carried bookmarks and the inserted pages' links (`/Dest`, `/A /D`) are re-keyed to the final name. One command, one undo. Outcome: `outline_items_carried` (heading included), `dests_carried`, `dests_renamed`; `source_outline_dropped` is true only when none of an existing source outline arrived. |
 
 > #### ★★ `insert_pages`: which form fields arrive fillable, and which arrive inert
 >
@@ -298,8 +299,8 @@ the old value / `Keep` / `Drop`), `authors: AuthorItems` (`Whole`* one item /
 >
 > One undo entry reverts the pages and the fields together.
 >
-> Not merged, and these ARE plain absences: outlines, named destinations,
-> page labels (unless `insert_pages_with` asks), optional-content
+> Not merged, and these ARE plain absences: outlines and named destinations
+> (unless `insert_pages_with_options` asks), page labels (unless `insert_pages_with` asks), optional-content
 > configuration. [`pageops::insert`] merges all of it and returns a new
 > document; it drops a split root field whole rather than pruning it.
 
