@@ -179,3 +179,97 @@ fn a_page_with_no_contents_is_no_contents() {
         "{err:?}"
     );
 }
+
+/// `edit_capability_for` with a form target agrees with `edit_text` for the
+/// same form-targeted request, for every form run of the text corpus.
+#[test]
+fn form_capability_agrees_with_edit_text_across_the_text_corpus() {
+    use pdfcer_core::text_edit::EditTarget;
+    use pdfcer_core::text_extract::{ContentStreamRef, ExtractOptions, extract_page};
+
+    let dir =
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../fixtures/synthetic/text");
+    let mut checked = 0;
+    for entry in std::fs::read_dir(&dir).unwrap() {
+        let path = entry.unwrap().path();
+        if path.extension().and_then(|e| e.to_str()) != Some("pdf") {
+            continue;
+        }
+        let Ok(doc) = Document::load(&path) else {
+            continue;
+        };
+        let Ok(pages) = pdfcer_core::page_tree::pages(&doc) else {
+            continue;
+        };
+        let Some(first) = pages.first() else { continue };
+        let opts = ExtractOptions::default().with_provenance(true);
+        let Ok(text) = extract_page(&doc, first, 0, &opts) else {
+            continue;
+        };
+        let forms: Vec<_> = text
+            .runs
+            .iter()
+            .filter_map(|r| {
+                let p = r.glyphs.first()?.provenance.as_ref()?;
+                match p.content_stream {
+                    ContentStreamRef::Form { object } => {
+                        Some((p.operator_span, object, r.text.clone()))
+                    }
+                    ContentStreamRef::Page => None,
+                }
+            })
+            .collect();
+        for (span, object, run_text) in forms {
+            let target = EditTarget::Form { object };
+            let mut s = EditSession::new(doc.clone());
+            let capability = s.edit_capability_for(0, span, target);
+            let mut req = EditRequest::whole_operator(0, span, &run_text);
+            req.target = target;
+            let edit = s.edit_text(&req, &EditOptions::default());
+            match (&capability, &edit) {
+                (Err(a), Err(b)) => {
+                    assert_eq!(format!("{a:?}"), format!("{b:?}"), "{}", path.display())
+                }
+                (Err(a), Ok(_)) => panic!(
+                    "{}: capability refused {a:?}, the edit worked",
+                    path.display()
+                ),
+                (Ok(()), Err(EditError::Refused(_)) | Ok(_)) => {}
+                (Ok(()), Err(b)) => panic!(
+                    "{}: capability said yes, edit refused {b:?}",
+                    path.display()
+                ),
+            }
+            checked += 1;
+        }
+    }
+    eprintln!("form runs checked {checked}");
+    assert!(
+        checked >= 2,
+        "only {checked} form runs reached the comparison"
+    );
+}
+
+/// A form target the page does not paint, and a span naming no operator.
+#[test]
+fn form_capability_refuses_an_absent_form_and_a_stray_span() {
+    use pdfcer_core::span::ByteSpan;
+    use pdfcer_core::text_edit::EditTarget;
+
+    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../../fixtures/synthetic/text/fallback-font-form.pdf");
+    let s = EditSession::new(Document::load(&path).unwrap());
+    // The form's content: `(Qu5) Tj` starts at byte 23.
+    let run = ByteSpan { start: 23, len: 8 };
+    s.edit_capability_for(0, run, EditTarget::Form { object: 9 })
+        .unwrap();
+    assert!(matches!(
+        s.edit_capability_for(0, run, EditTarget::Form { object: 4 }),
+        Err(EditError::NoMatch { .. })
+    ));
+    let stray = ByteSpan { start: 0, len: 2 };
+    assert!(matches!(
+        s.edit_capability_for(0, stray, EditTarget::Form { object: 9 }),
+        Err(EditError::PinnedSpanNotFound { .. })
+    ));
+}

@@ -125,6 +125,7 @@
 mod annot_burn;
 mod annot_restyle;
 mod bake_appearances;
+mod text_capability;
 pub use bake_appearances::{BakeAppearancesOutcome, BakedAppearance, SkippedAppearance};
 mod batch;
 mod field_da;
@@ -13474,7 +13475,8 @@ impl EditSession {
     /// refusal [`Self::edit_text`] would give (vertical writing, an
     /// unreadable font map, a rotated run, an encrypted file, …) arrives here
     /// first, with the same value. Per-character refusals are not run-level
-    /// and are answered by [`Self::run_repertoire`].
+    /// and are answered by [`Self::run_repertoire`]. Page content only; a
+    /// run inside a form XObject is asked with [`Self::edit_capability_for`].
     ///
     /// # Errors
     ///
