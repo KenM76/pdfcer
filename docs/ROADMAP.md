@@ -112,6 +112,18 @@ wherever it appears.*
 
 ## Shipped
 
+### `a137eead` `Pass 734.0` (`G320`): two lines far apart are two paragraphs, 2026-11-21 (1672nd filing)
+
+Engineer-reported; no shell here, git, push, CI and the gates not run or checked from here. `a137eead83e0ab731663dbf309aa8027b3d59408` `fix(text-edit): two lines far apart are two paragraphs (Pass 734.0, G320)`. On `main`; **unreleased**, ships in `v0.169.0`. Request (pdfcer-gui) `request_two_line_column_paragraph_gap.md`; reply `open/reply_G320_SHIPPED.md`. Reasoning is in the commit message.
+- **Case:** two `ABC` lines, Helvetica 12 pt, x 72, at y 700 and y 600, were recognised as ONE paragraph; a one-letter `edit_text_block` re-wrapped "lines 2 -> 1" and moved text 100 pt.
+- **Cause:** `column_metrics`' typical leading falls back to the median of ALL gaps when no gap lies in the 0.6-1.6 em pitch band; with only wide gaps typical == the gap and nothing exceeds it.
+- **Fix:** new pub `BlockRecognitionOptions::paragraph_max_gap_em: f32`, default `3.0` (struct already `non_exhaustive`, not a source break). A baseline gap over that times the larger line size starts a paragraph regardless of pitch (private `leading_gap_breaks`, `crates/pdfcer-core/src/text_edit/model/stages.rs`), counted under the existing `paragraph_breaks_by_leading`. Double spacing (2-2.4 em) stays joined; `f32::INFINITY` disables; `reflow_recognition_options()` inherits.
+- **Tests:** 4 new in `crates/pdfcer-core/tests/blank_line_paragraphs.rs` (`two_lines_far_apart_are_two_paragraphs` default + reflow options; `double_spaced_lines_stay_one_paragraph`; `an_infinite_max_gap_restores_the_merge`; `a_click_on_the_upper_of_two_distant_lines_hits_only_it`, 1 line). Sabotage: default set to INFINITY fails the first and last.
+- **Gates (engineer-reported):** core 2,386 lib + 3,382 integration + 294 doctests, 0 failed; clippy (core, all targets and features) and fmt clean; 33 of 33 Python CI audits ran. code-structure first flagged `paragraphs_in_column` over 80 lines, fixed by extracting the helper; check-core-api-verbs clean (index.md line count 5,861). No `Cargo.toml` change, so `cargo tree` unaffected.
+- **Docs:** `docs/core-api/01-reading-and-model.md` gains a "wide-gap break (`paragraph_max_gap_em`, default 3.0)" row after the leading-break row.
+- **Delivered:** core yes; cli no flag (default inherited by block-recognising commands); gui no.
+- **FEATURES:** new row "Two lines far apart are two paragraphs" (core `[x]`, cli `[ ]`, gui `[ ]`), after the block-recognition row; that row was not lengthened (size cap).
+
 ### `v0.168.0` PUBLISHED, tag on `4983c241` (bump `fe468a0f`, the 1669th filing), 2026-11-21 (1671st filing)
 
 Engineer-reported; no shell here, tag, CI, release, crates.io and OneDrive state not checked from here.

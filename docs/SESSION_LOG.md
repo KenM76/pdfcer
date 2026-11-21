@@ -4,6 +4,18 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-11-21 (1672nd filing) — `Pass 734.0` SHIPPED (`G320`)
+
+**Shipped (engineer-reported; no shell here, git, push, CI and the gates not checked from here; on `main`, unreleased, ships in `v0.169.0`):**
+- `Pass 734.0` (`G320`, `a137eead83e0ab731663dbf309aa8027b3d59408`): two lines far apart (e.g. y 700 and y 600) are two paragraphs. New pub `BlockRecognitionOptions::paragraph_max_gap_em` (default 3.0, `f32::INFINITY` disables), applied in `leading_gap_breaks` (`text_edit/model/stages.rs`) and counted under `paragraph_breaks_by_leading`. Cause: typical leading fell back to the median of all gaps when none lay in 0.6-1.6 em. Double spacing stays joined.
+- Tests: 4 new in `blank_line_paragraphs.rs`; sabotage (default INFINITY) fails two. Core 2,386 lib + 3,382 integration + 294 doc, 0 failed; clippy, fmt, 33 of 33 audits clean (engineer-reported). Core-api doc row added.
+
+**Decisions:** none new. pdfcer-gui request; reply `open/reply_G320_SHIPPED.md` written by the engineer.
+
+**FEATURES:** one new row (core `[x]`; cli `[ ]`, default inherited, no flag; gui `[ ]`). The older block-recognition row was left unlengthened (size cap).
+
+**Next:** v0.169.0 release when the engineer chooses; `Pass 729.0` (`validate_pdfa`).
+
 ## 2026-11-21 (1671st filing) — `v0.168.0` PUBLISHED, tag on `4983c241`
 
 **Filed (engineer-reported; no shell here, tag, CI, release, crates.io and OneDrive state not checked from here):**
