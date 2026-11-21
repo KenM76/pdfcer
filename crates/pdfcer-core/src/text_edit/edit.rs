@@ -676,8 +676,9 @@ pub struct EditOptions {
     pub cid_font_program: CidFontProgram,
     /// Sets each character the run's font cannot encode in this face, tried
     /// only after every route that keeps the run's font refuses (decision
-    /// 172, 173 and 174 included). The match must lie in one `Tj`/`TJ`.
-    /// `None` keeps such characters refused.
+    /// 172, 173 and 174 included). The match must lie in one text object,
+    /// and the operator holding its end must be a `Tj`/`TJ`. `None` keeps
+    /// such characters refused.
     ///
     /// A reference rather than a value so the options stay `Copy`.
     pub fallback: Option<&'static FallbackFace>,
@@ -2594,9 +2595,11 @@ pub(crate) fn plan_exact(
     // An empty `find` on a PINNED request means the whole operator.
     let find = effective_find(anchor, &req.find, req.pinned_span);
     let (m, leading_matches) = match_anchor(&at, span, find)?;
-    let single = !at.crossed && leading_matches.is_empty();
+    // Inside one text object the replacement lands in the anchor alone,
+    // however many operators the match spans, so a font switch fits there.
+    let in_object = !at.crossed;
     let enc = encode_with_sibling(
-        doc, target, recs, font, &class, font_dict, anchor, req, opts, single,
+        doc, target, recs, font, &class, font_dict, anchor, req, opts, in_object,
     )?;
     let font_dict = enc.extension.as_ref().map_or(enc.dict, FontExtension::view);
     let run_font = enc.sibling.as_ref().map_or(&enc.font, |s| &s.1);
@@ -2936,7 +2939,7 @@ pub(crate) struct Encoding<'a> {
     pub(crate) fallback: Option<Fallback>,
 }
 
-/// [`encode_and_extend`], then — when that refuses and one operator holds
+/// [`encode_and_extend`], then — when that refuses and one text object holds
 /// the match — each same-face sibling resource under `opts.sibling_fonts`
 /// (decision 174), then `opts.fallback`'s face for the characters the run's
 /// font still refuses (Pass 431.0). The run's own refusal stands when none
@@ -2952,7 +2955,7 @@ fn encode_with_sibling<'a>(
     anchor: &ShowData,
     req: &EditRequest,
     opts: &EditOptions,
-    single: bool,
+    in_object: bool,
 ) -> Result<Encoding<'a>, EditError> {
     let base_font = font.base_font.clone();
     let choice = match (opts.fallback, opts.replacement_faces) {
@@ -2975,7 +2978,7 @@ fn encode_with_sibling<'a>(
             }
             Err(e) => e,
         };
-    if !sibling::splittable(anchor, single) {
+    if !sibling::splittable(anchor, in_object) {
         return Err(refused);
     }
     if opts.sibling_fonts

@@ -48,10 +48,12 @@ pub(crate) fn candidates<'a>(
     out
 }
 
-/// Whether the edit can switch fonts mid-operator: one `Tj`/`TJ` holds the
-/// whole match (a quote operator's line move would be split from its text).
-pub(crate) fn splittable(anchor: &ShowData, single_operator: bool) -> bool {
-    single_operator && matches!(anchor.op, ShowOp::Tj | ShowOp::TJ)
+/// Whether the edit can switch fonts inside the anchor: the match lies in one
+/// text object, so the whole replacement is written into the anchor, and the
+/// anchor is a `Tj`/`TJ` (a quote operator's line move would be split from
+/// its text). A match crossing `ET` is laid out per text object and is not.
+pub(crate) fn splittable(anchor: &ShowData, in_object: bool) -> bool {
+    in_object && matches!(anchor.op, ShowOp::Tj | ShowOp::TJ)
 }
 
 /// Append `/<name> <size> Tf`, the name escaped per §7.3.5.

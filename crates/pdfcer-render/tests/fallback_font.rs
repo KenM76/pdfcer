@@ -328,3 +328,45 @@ fn the_edited_page_renders() {
     let pages = page_tree::pages(&doc).unwrap();
     assert!(render_page_with(&doc, &pages[0], 1.0, &RenderOptions::default()).is_ok());
 }
+
+/// `fallback-font.pdf` with "Qu5" written one glyph per show operator, padded
+/// to the original stream's 69 bytes so every xref offset still holds.
+fn glyph_per_operator() -> Document {
+    let mut bytes = fixture("fallback-font.pdf");
+    let old = b"BT\n/F0 24 Tf\n72 600 Td\n(Qu5) Tj\nET\nBT\n/F1 12 Tf\n72 500 Td\n(Hi) Tj\nET\n";
+    let mut new = b"BT\n/F0 24 Tf\n72 600 Td\n(Q) Tj 14 0 Td (u) Tj 14 0 Td (5) Tj\nET\n".to_vec();
+    new.resize(old.len(), b' ');
+    let at = bytes
+        .windows(old.len())
+        .position(|w| w == old)
+        .expect("the fixture's content stream");
+    bytes[at..at + old.len()].copy_from_slice(&new);
+    Document::from_bytes(bytes).unwrap()
+}
+
+#[test]
+fn a_change_across_several_operators_sets_the_refused_characters_in_the_fallback() {
+    // `x` and `z` are not in the subset; the change touches the first and
+    // last operator, so it cannot be narrowed into one.
+    let req = EditRequest::find_replace(0, "Qu5", "xuz");
+    let out = text_edit::edit_text(&glyph_per_operator(), &req, &named("Helvetica")).unwrap();
+    assert_eq!(out.report.operators_spanned, 3, "{:?}", out.report);
+    let used = out.report.fallback.expect("the fallback was used");
+    assert_eq!(used.characters, vec!['x', 'z']);
+    assert!(
+        page_text(&out.bytes).contains("xuz"),
+        "{}",
+        page_text(&out.bytes)
+    );
+}
+
+#[test]
+fn a_spanning_fallback_edit_is_one_undo_entry() {
+    let mut session = EditSession::new(glyph_per_operator());
+    let req = EditRequest::find_replace(0, "u5", "qz");
+    let report = session.edit_text(&req, &named("Helvetica")).unwrap();
+    assert!(report.fallback.is_some());
+    assert_eq!(session.undo_depth(), 1);
+    session.undo();
+    assert!(!session.can_undo());
+}
