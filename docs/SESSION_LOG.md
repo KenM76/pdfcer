@@ -4,6 +4,16 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-11-21 (1673rd filing) — v0.169.0 version bump (`06d379ce`)
+
+**Filed (engineer-reported; no shell here, git, push, CI and the gates not checked from here):**
+- `06d379ce754fbc2b06c6e0c9a4448d436d1c33a3` `chore: version 0.169.0`: every pdfcer crate to 0.169.0 in `Cargo.toml`, `Cargo.lock`, `fuzz/Cargo.lock` (3 files, 53 insertions and 53 deletions, same shape as 0.168.0). No dependency or code change. Details in `ROADMAP.md` *Shipped*.
+- Carries `Pass 734.0` (`G320`, `a137eead`), filed 1672nd in `8675e533`.
+
+**FEATURES:** no row changes.
+
+**Next:** push, CI, tag, release to OneDrive `pdfcer2`, publish the crates.
+
 ## 2026-11-21 (1672nd filing) — `Pass 734.0` SHIPPED (`G320`)
 
 **Shipped (engineer-reported; no shell here, git, push, CI and the gates not checked from here; on `main`, unreleased, ships in `v0.169.0`):**

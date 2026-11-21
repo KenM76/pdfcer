@@ -112,6 +112,13 @@ wherever it appears.*
 
 ## Shipped
 
+### `06d379ce` `chore`: v0.169.0 version bump, 2026-11-21 (1673rd filing)
+
+Engineer-reported; no shell here, git, push, CI and the gates not run or checked from here. **Unreleased until v0.169.0 is tagged.** Tag, package and publication are a separate filing.
+- **`06d379ce754fbc2b06c6e0c9a4448d436d1c33a3` `chore: version 0.169.0`:** every pdfcer crate set to 0.169.0 in `Cargo.toml`, plus `Cargo.lock` and `fuzz/Cargo.lock`: 3 files, 53 insertions and 53 deletions, the same shape as the 0.168.0 bump. No dependency changes, no code change.
+- **v0.169.0 carries, since v0.168.0:** `Pass 734.0` (`G320`, `a137eead`), filed in the 1672nd filing (`8675e533`).
+- **FEATURES:** no row changes. **Next:** push, CI, tag, release to OneDrive slot `pdfcer2`, publish the crates.
+
 ### `a137eead` `Pass 734.0` (`G320`): two lines far apart are two paragraphs, 2026-11-21 (1672nd filing)
 
 Engineer-reported; no shell here, git, push, CI and the gates not run or checked from here. `a137eead83e0ab731663dbf309aa8027b3d59408` `fix(text-edit): two lines far apart are two paragraphs (Pass 734.0, G320)`. On `main`; **unreleased**, ships in `v0.169.0`. Request (pdfcer-gui) `request_two_line_column_paragraph_gap.md`; reply `open/reply_G320_SHIPPED.md`. Reasoning is in the commit message.
