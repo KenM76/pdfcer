@@ -112,6 +112,15 @@ wherever it appears.*
 
 ## Shipped
 
+### `c7be2e1e` `fix(gates)`: exempt the two new `InsertOutcome` destination counters, 2026-11-20 (1670th filing)
+
+Engineer-reported; no shell here, git, push, CI and the gates not run or checked from here.
+- **`c7be2e1e4c826ed3dab0161cafa17012c48b6f4e` `fix(gates): exempt the two new InsertOutcome destination counters`:** adds `InsertOutcome::dests_carried` and `InsertOutcome::dests_renamed` (`Pass 733.0`) to `EXEMPT` in `tools/check-outcome-disclosed.py`, reason "see InsertOutcome::pages_inserted". `EditSession::insert_pages_with_options` has no `pdfcer` verb by decision, the same reason every other `InsertOutcome` field is exempt.
+- **Cause:** CI "repository audits (33 checks)" was red on runs 44861130751 (`c25f51ed`) and 44861546021 (`aec28dfc`); the outcome-disclosed gate flagging those two fields was the only failure, entered with `76fbdd86`.
+- **Lesson:** the change-scoped pre-push gate set did not include `check-outcome-disclosed.py`. A new outcome field needs it run before pushing; the local 52-audit CI-parity loop caught it, after the push.
+- **After the fix (engineer-reported):** `check-outcome-disclosed.py` clean, 277 fields across 30 structs, 12 exempt.
+- **FEATURES:** no row changes. **Next:** v0.168.0 is not tagged yet; tag it on this filing commit once CI is green.
+
 ### `fe468a0f` `chore`: v0.168.0 version bump, 2026-11-20 (1669th filing)
 
 Engineer-reported; no shell here, git, push, CI and the gates not run or checked from here. **Unreleased until v0.168.0 is tagged.** Tag, package and publication are a separate filing.

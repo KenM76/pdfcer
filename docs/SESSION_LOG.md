@@ -4,6 +4,18 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-11-20 (1670th filing) — outcome-disclosed gate fix (`c7be2e1e`)
+
+**Filed (engineer-reported; no shell here, git, push, CI and the gates not checked from here):**
+- `c7be2e1e4c826ed3dab0161cafa17012c48b6f4e` `fix(gates)`: `InsertOutcome::dests_carried` and `dests_renamed` (`Pass 733.0`) added to `EXEMPT` in `tools/check-outcome-disclosed.py` ("see InsertOutcome::pages_inserted"; `insert_pages_with_options` has no `pdfcer` verb by decision). Details in `ROADMAP.md` *Shipped*.
+- Cause: CI "repository audits (33 checks)" red on runs 44861130751 (`c25f51ed`) and 44861546021 (`aec28dfc`); only failure, entered with `76fbdd86`.
+- Lesson: the change-scoped pre-push gate set omitted `check-outcome-disclosed.py`; a new outcome field needs it before pushing. The local 52-audit CI-parity loop caught it after the push.
+- After the fix: gate clean, 277 fields across 30 structs, 12 exempt (engineer-reported).
+
+**FEATURES:** no row changes.
+
+**Next:** tag v0.168.0 on this filing commit once CI is green.
+
 ## 2026-11-20 (1669th filing) — v0.168.0 version bump (`fe468a0f`)
 
 **Filed (engineer-reported; no shell here, git, push, CI and the gates not checked from here):**
