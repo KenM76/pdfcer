@@ -405,6 +405,7 @@ fn paragraphs_in_column(
     let mut item_indent: Option<f64> = None;
     let mut prev_baseline: Option<f32> = None;
     let mut prev_llx = margin;
+    let mut prev_size = 0.0_f32;
     for (k, c) in col_lines.iter().enumerate() {
         let ColLine {
             index: i,
@@ -418,8 +419,8 @@ fn paragraphs_in_column(
             prev_baseline = None;
             continue;
         }
-        let leading_break = prev_baseline.is_some_and(|prev_y| {
-            typical > 0.0 && prev_y - baseline_y > (1.0 + options.paragraph_leading_ratio) * typical
+        let leading_break = prev_baseline.is_some_and(|y| {
+            leading_gap_breaks(y - baseline_y, size.max(prev_size), typical, options)
         });
         // A first-line indent is measured from the line above, not the
         // column margin: a body set in from its headings is not indented
@@ -463,11 +464,26 @@ fn paragraphs_in_column(
         }
         current.push(i);
         prev_baseline = Some(baseline_y);
+        prev_size = size;
     }
     if !current.is_empty() {
         blocks.push((current, kind));
     }
     blocks
+}
+
+/// Whether a baseline `gap` between lines of `size` starts a paragraph.
+///
+/// A gap past `paragraph_max_gap_em` breaks on its own: a column whose
+/// only gaps are wide has no pitch to measure them against (G320).
+fn leading_gap_breaks(
+    gap: f32,
+    size: f32,
+    typical: f32,
+    options: &BlockRecognitionOptions,
+) -> bool {
+    (typical > 0.0 && gap > (1.0 + options.paragraph_leading_ratio) * typical)
+        || gap > options.paragraph_max_gap_em * size
 }
 
 /// A blank line closes the open block and is a paragraph of its own.

@@ -1601,6 +1601,7 @@ for b in model.blocks() {
 | column bands (`column_overlap_ratio`) | Body lines are banded in content order, then bands that came to overlap by `column_overlap_ratio` × the narrower are merged, so one column is never split by the order its pieces were drawn in. Cell lines are banded after the merge. |
 | indent break (`indent_ratio`) | A line set in further than the line above it, by more than `indent_ratio` × size, starts a paragraph. Measured from the line above (or the column margin, whichever is further in), so a body set in from its headings is not split on every line. |
 | leading break (`paragraph_leading_ratio`, default 0.5) | A gap over `(1 + ratio)` × the column's line pitch starts a paragraph. The pitch is the median of the gaps within 0.6–1.6 × the larger line size (G205: so a page of spaced paragraphs is not measured at its blank-line gap); with no gap in that band, the median of all. |
+| wide-gap break (`paragraph_max_gap_em`, default 3.0) | A gap over that many ems of the larger line size starts a paragraph whatever the pitch, so a column whose only gaps are wide (two lines 8 em apart, G320) is not one paragraph with that leading. Double spacing stays joined; `f32::INFINITY` turns it off. |
 
 **Navigation.** Inside a cell, `caret_up`/`caret_down` move to the next line
 in the same cell, else to the nearest line of the cell above/below (the one

@@ -129,3 +129,71 @@ fn a_click_in_a_paragraph_hits_only_that_paragraph() {
     assert_eq!(hit.line_ends.len(), 3, "{:?}", hit.text);
     assert!(hit.text.starts_with("The office"), "{:?}", hit.text);
 }
+
+/// Each block's text for one column of `ABC` lines at the given baselines.
+fn blocks_at(baselines: &[u32], options: &BlockRecognitionOptions) -> Vec<String> {
+    let content: String = baselines
+        .iter()
+        .map(|y| format!("BT /F1 12 Tf 72 {y} Td (ABC) Tj ET\n"))
+        .collect();
+    let doc = doc_from_pages(&[&content], 0);
+    let pages = page_tree::pages(&doc).expect("page tree");
+    let text = text_extract::extract_page(&doc, &pages[0], 0, &ExtractOptions::default())
+        .expect("extracts");
+    let model = EditableTextModel::recognize(&text, options);
+    model
+        .blocks()
+        .iter()
+        .map(|b| {
+            b.line_indices
+                .iter()
+                .map(|&i| model.line_text(&model.lines()[i]).trim().to_owned())
+                .collect::<Vec<_>>()
+                .join(" ")
+        })
+        .collect()
+}
+
+/// Would catch: a column of two lines measuring its leading as their own
+/// 100 pt gap, so nothing can exceed it and they merge.
+#[test]
+fn two_lines_far_apart_are_two_paragraphs() {
+    for options in [
+        BlockRecognitionOptions::default(),
+        reflow_recognition_options(),
+    ] {
+        assert_eq!(blocks_at(&[700, 600], &options), ["ABC", "ABC"]);
+    }
+}
+
+/// Would catch: the wide-gap rule splitting double-spaced text per line.
+#[test]
+fn double_spaced_lines_stay_one_paragraph() {
+    assert_eq!(
+        blocks_at(&[700, 676, 652], &BlockRecognitionOptions::default()),
+        ["ABC ABC ABC"]
+    );
+}
+
+/// Would catch: the knob being ignored.
+#[test]
+fn an_infinite_max_gap_restores_the_merge() {
+    let mut o = BlockRecognitionOptions::default();
+    o.paragraph_max_gap_em = f32::INFINITY;
+    assert_eq!(blocks_at(&[700, 600], &o), ["ABC ABC"]);
+}
+
+/// Would catch: a correction to the first line re-wrapping the line 100 pt
+/// below into it (the shell's `edit_text_block` acts on this block).
+#[test]
+fn a_click_on_the_upper_of_two_distant_lines_hits_only_it() {
+    let doc = doc_from_pages(
+        &["BT /F1 12 Tf 72 700 Td (ABC) Tj ET\nBT /F1 12 Tf 72 600 Td (ABC) Tj ET\n"],
+        0,
+    );
+    let hit = EditSession::new(doc)
+        .block_at_point(0, 80.0, 703.0)
+        .expect("reads")
+        .expect("a block is under the point");
+    assert_eq!(hit.line_ends.len(), 1, "{:?}", hit.text);
+}

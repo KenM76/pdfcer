@@ -78,6 +78,7 @@
 //!    └─ Stage 3  Blocks   within each column (top-to-bottom), start a new
 //!                         paragraph when the baseline gap exceeds the
 //!                         column's typical leading by paragraph_leading_ratio,
+//!                         or exceeds paragraph_max_gap_em·size,
 //!                         when a line is indented from the line above (or
 //!                         the column margin) by more than indent_ratio·size,
 //!                         or at a whitespace-only line, which is its own
@@ -387,6 +388,12 @@ pub struct BlockRecognitionOptions {
     /// typical leading starts a new paragraph. Default `0.5` (a gap half
     /// again the normal leading).
     pub paragraph_leading_ratio: f32,
+    /// A baseline-to-baseline gap larger than this many ems (of the larger
+    /// of the two lines' sizes) starts a new paragraph whatever the
+    /// column's leading. Default `3.0`: past double spacing, so a column of
+    /// two lines 8 em apart is two paragraphs, not one with that leading.
+    /// `f32::INFINITY` disables it.
+    pub paragraph_max_gap_em: f32,
     /// A line whose left edge is set in from the line above it (or from
     /// its column's left margin, whichever is further in) by more than
     /// this fraction of the line's font size starts a new paragraph
@@ -434,6 +441,7 @@ impl Default for BlockRecognitionOptions {
         Self {
             column_overlap_ratio: 0.25,
             paragraph_leading_ratio: 0.5,
+            paragraph_max_gap_em: 3.0,
             indent_ratio: 1.0,
             line_baseline_ratio: 0.30,
             same_direction_cos: crate::text_extract::SAME_DIRECTION_COS,
