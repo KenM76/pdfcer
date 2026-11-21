@@ -112,6 +112,22 @@ wherever it appears.*
 
 ## Shipped
 
+### `v0.167.0` PUBLISHED, tag on `07732db7` (bump `f8ba345c`, the 1666th filing), 2026-11-20 (1667th filing)
+
+Engineer-reported; no shell here, tag, CI, release and crates.io state not checked from here.
+- **Tag:** annotated `v0.167.0` on `07732db7fa76a6b0a37a2e584890f8c1f554e0b5` (the 1666th filing commit), pushed. **CI:** green at the tag.
+- **GitHub release:** 8 assets, `gh-release.py` PASS at local sizes. `pdfcer-v0.167.0-windows-x64.zip` 32,823,111 bytes, sha256 prefix `50220541b3f6`; three OCR add-on zips (3,789,155 / 11,352,262 / 4,483,685 bytes) each with a `.sha256`. Staged `D:\builds\rel167`.
+- **Build:** `D:\builds\pdfcer-20261120-2035-07732db`, `pdfcer.exe` 52,681,216 bytes, 68,624,789 total.
+- **Fresh-folder smoke (`D:\builds\smoke167`):** `--version` 0.167.0 (revision `v0.166.0-9-g07732db7`, binary built before the tag); `paste-fields --help` lists `--name` and `--underscore-names`; `move-widget-to-field --help` runs; `render-page` of `fixtures/synthetic/minimal.pdf` wrote a 612x792 PNG, exit 0.
+- **CI-parity audits:** 54 of 54 green. An audit-loop bug (`cd fuzz && ...` leaked its cd into later evals) first reported 34 false failures; each audit now runs in a subshell.
+- **OneDrive:** `pdfcer2` now 0.167.0; `pdfcer1` keeps 0.166.0 (the next release writes `pdfcer1`).
+- **`verify-release.py`:** all ok except "working tree clean" (agent-memory files and untracked research notes, the known deliberate case).
+- **crates.io:** all 16 engine crates at 0.167.0, leaf-first from a detached worktree at the tag, one round, no failures.
+- **Gotcha:** the pre-push hook runs `check-commits-filed.py` (about 10 minutes), so `git push` looks hung; killing it mid-hook aborts the push. Let it finish.
+- **GUI notified:** `open/notice_2026-11-20_release_v0.167.0.md`; SHIPPED replies `reply_G313_SHIPPED.md` to `reply_G316_SHIPPED.md`; `reply_pdfa_conversion_NOT_THIS_CYCLE.md`.
+- **Contents:** `Pass 726.0` (`G313`), `727.0` (`G314`), `728.0` (`G315`), `730.0` (`G316`). Commit list in `SESSION_LOG.md`, 1665th filing.
+- **FEATURES:** no row changes. **Next:** `Pass 729.0` (PDF/A arc).
+
 ### `f8ba345c` `chore`: v0.167.0 version bump, 2026-11-20 (1666th filing)
 
 Engineer-reported; no shell here, git, push, CI and the gates not run or checked from here. **Unreleased until v0.167.0 is tagged.** Tag, package and publication are a separate filing.

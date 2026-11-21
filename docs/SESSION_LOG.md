@@ -4,6 +4,22 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-11-20 (1667th filing) — `v0.167.0` PUBLISHED, tag on `07732db7`
+
+**Filed (engineer-reported; no shell here, tag, CI, release, crates.io and OneDrive state not checked from here):**
+- **Tag:** annotated `v0.167.0` on `07732db7fa76a6b0a37a2e584890f8c1f554e0b5`, pushed; CI green at the tag.
+- **Release:** 8 assets, `gh-release.py` PASS; portable zip 32,823,111 bytes (sha256 prefix `50220541b3f6`); OCR add-ons 3,789,155 / 11,352,262 / 4,483,685 bytes. Build `D:\builds\pdfcer-20261120-2035-07732db` (68,624,789 bytes total).
+- **Smoke (`D:\builds\smoke167`):** `--version` 0.167.0; `paste-fields --help` lists `--name`/`--underscore-names`; `move-widget-to-field --help` runs; `render-page` 612x792 PNG, exit 0.
+- **Audits:** 54 of 54 CI-parity audits green; the loop's `cd fuzz` leak (34 false failures) fixed by a subshell per audit.
+- **OneDrive:** `pdfcer2` 0.167.0; `pdfcer1` keeps 0.166.0. **crates.io:** 16 crates at 0.167.0, one round. **`verify-release.py`:** only "working tree clean" fails (known).
+- **GUI told:** `open/notice_2026-11-20_release_v0.167.0.md`, four `reply_G3xx_SHIPPED.md`, `reply_pdfa_conversion_NOT_THIS_CYCLE.md`.
+- **Gotcha:** the pre-push hook runs `check-commits-filed.py` (~10 min); `git push` looks hung, killing it aborts the push. Let it finish.
+- Carries `Pass 726.0`, `727.0`, `728.0`, `730.0`.
+
+**FEATURES:** no row changes.
+
+**Next:** `Pass 729.0` (PDF/A arc).
+
 ## 2026-11-20 (1666th filing) — v0.167.0 version bump (`f8ba345c`)
 
 **Filed (engineer-reported; no shell here, git, push, CI and the gates not checked from here):**
