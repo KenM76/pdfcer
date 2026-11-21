@@ -4,6 +4,17 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-11-20 (1669th filing) — v0.168.0 version bump (`fe468a0f`)
+
+**Filed (engineer-reported; no shell here, git, push, CI and the gates not checked from here):**
+- `fe468a0f36b6d192cb7572f36dd00dc9f4a585b3` `chore: version 0.168.0`: workspace version and all 16 path-dependency pins 0.167.0 to 0.168.0 in `Cargo.toml`, `Cargo.lock`, `fuzz/Cargo.lock` (53 lines each way). No code change. Details in `ROADMAP.md` *Shipped*.
+- Carries `Pass 731.0` (`G317`), `732.0` (`G318`), `733.0` (`G319`), filed in the 1668th filing (`c25f51ed`). Behaviour change to sweep: `source_outline_dropped` is true only when the source has an outline and none arrived (the owed sweep is done: FEATURES row in `c25f51ed`, rustdoc in `76fbdd86`, core-api section in this commit).
+- Pre-bump: only `pdfcer-core` changed; its `--no-fail-fast` run passed (2,386 lib + 3,378 integration + 294 doctests + 1), 0 failures. `c25f51ed` pushed; commits-filed hook passed. Tag, package and publication not done.
+
+**FEATURES:** no row changes.
+
+**Next:** tag v0.168.0, package, publish (OneDrive `pdfcer1`).
+
 ## 2026-11-20 (1668th filing) — `Pass 731.0`, `732.0`, `733.0` SHIPPED (`G317`-`G319`)
 
 **Shipped (engineer-reported; no shell here, git, push, CI and the gates not checked from here; all on `main`, unreleased, ship in `v0.168.0`):**

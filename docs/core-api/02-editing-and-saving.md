@@ -3470,17 +3470,17 @@ which becomes optional).
 
 #### `source_outline_dropped` — the fourth insert disclosure
 
-`InsertOutcome` gained one more additive `bool`: the source carried a
-document outline whose bookmarks did not come across. Pure symmetry with
+`InsertOutcome` gained one more additive `bool`: the source has a document
+outline and none of it arrived. Pure symmetry with
 `source_page_labels_dropped`, requested for the same reason — the shell's
 insert sentence named bookmarks and page labels **unconditionally**, and on a
 CAD drawing with neither that is a paragraph about two things that never
 existed, which is how an operator learns to stop reading it.
 
-`/Outlines` is a catalog entry, unreachable from any page, so the copy never
-sees it — the bookmarks are not lost in transit, they were never in the set
-being copied. Carrying them means reading the source outline and replaying it
-through `add_outline_item`, which is what `Pass 103.0` exists for.
+`/Outlines` is a catalog entry, unreachable from any page, so the page copy
+never sees it. `insert_pages_with_options` with `InsertedOutline::Append` or
+`UnderParent` carries the bookmarks aimed at the inserted pages; then the flag
+is false unless none arrived.
 #### Page labels on insert
 
 `insert_pages` uses `pageops::InsertedPageLabels::Source`;

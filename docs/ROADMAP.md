@@ -112,6 +112,14 @@ wherever it appears.*
 
 ## Shipped
 
+### `fe468a0f` `chore`: v0.168.0 version bump, 2026-11-20 (1669th filing)
+
+Engineer-reported; no shell here, git, push, CI and the gates not run or checked from here. **Unreleased until v0.168.0 is tagged.** Tag, package and publication are a separate filing.
+- **`fe468a0f36b6d192cb7572f36dd00dc9f4a585b3` `chore: version 0.168.0`:** workspace version and all 16 path-dependency pins 0.167.0 to 0.168.0 in `Cargo.toml`, plus `Cargo.lock` and `fuzz/Cargo.lock` (53 lines each way). No code change.
+- **v0.168.0 carries, since v0.167.0:** `Pass 731.0` (`G317`, `3aa99ac3`), `732.0` (`G318`, `0309d9e2`), `733.0` (`G319`, `76fbdd86`), filed in the 1668th filing (`c25f51ed`). Behaviour change to sweep: `InsertOutcome::source_outline_dropped` is true only when the source has an outline and none of it arrived.
+- **Pre-bump evidence (engineer-reported):** only `pdfcer-core` changed since v0.167.0; `cargo test -p pdfcer-core --no-fail-fast` passed, 2,386 lib + 3,378 integration + 294 doctests + 1, 0 failures. `c25f51ed` pushed to `main`; the pre-push commits-filed hook passed. fmt, clippy, code-structure, public-fns, string-gaps, tests-harnessed, register-entry-size, ledger-numbers and suite-name-absent all clean.
+- **FEATURES:** no row changes. **Next:** tag v0.168.0, package, publish (OneDrive slot `pdfcer1`).
+
 ### `76fbdd86` `Pass 733.0` (`G319`): session page insert carries bookmarks and named destinations, 2026-11-20 (1668th filing)
 
 Engineer-reported; no shell here, git, push, CI and the gates not run or checked from here. `76fbdd8665acc1fc0dfd5db66af4102be9316184`. On `main`; **unreleased**, ships in `v0.168.0`. Request `request_insert_pages_carry_outline.md`. Reasoning is in the commit message.
