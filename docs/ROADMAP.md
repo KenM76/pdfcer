@@ -112,6 +112,39 @@ wherever it appears.*
 
 ## Shipped
 
+### `76fbdd86` `Pass 733.0` (`G319`): session page insert carries bookmarks and named destinations, 2026-11-20 (1668th filing)
+
+Engineer-reported; no shell here, git, push, CI and the gates not run or checked from here. `76fbdd8665acc1fc0dfd5db66af4102be9316184`. On `main`; **unreleased**, ships in `v0.168.0`. Request `request_insert_pages_carry_outline.md`. Reasoning is in the commit message.
+- **API:** `EditSession::insert_pages_with_options(source, source_pages, position, &pageops::InsertOptions) -> Result<InsertOutcome, EditError>`. New pub `pageops::InsertOptions { labels, outline, named_destinations }` (`non_exhaustive`, builders `with_labels`/`with_outline`/`with_named_destinations`) and `pageops::InsertedOutline { Drop (default), Append, UnderParent(String) }`. `insert_pages`/`insert_pages_with` unchanged (delegate).
+- **Outline:** items whose destination (explicit, named or GoTo action) reaches an inserted page arrive rebound to the copies with their view (ISO 32000-1 §12.3.3); ancestors arrive without a destination; every carried item closed; `/C` `/F` kept. `UnderParent` writes one heading aimed at the first inserted page `/Fit`, even when nothing arrives.
+- **Named destinations:** each source `/Dests` or `/Names /Dests` entry naming an inserted page is written into the target's `/Names /Dests` tree (§12.3.2.3), renamed `key_2`, `key_3`… on collision; carried bookmarks and the inserted pages' link annotations (`/Dest`, `/A /D`) are re-keyed. One command, one undo.
+- **`InsertOutcome`:** gains `outline_items_carried`, `dests_carried`, `dests_renamed`. **Behaviour change:** `source_outline_dropped` is now true only when the source has an outline and none of it arrived.
+- **CLI:** none; `pdfcer insert-pages` uses `pageops::insert` (full rewrite), which already merged outlines.
+- **Tests:** new `crates/pdfcer-core/tests/insert_pages_carry_outline.rs`, 7 (Append subset and views; container without destination; UnderParent; default unchanged; one undo; collision rename then bookmark; link `/Dest` and `/A /D` re-keyed). Same commit split `text_edit` `plan_exact` and `edit.rs` `insert_pages_guarded` under the 80-line limit. core-api verb count 430 to 431.
+- **Delivered:** core yes; cli not applicable (existing path); gui no.
+- **FEATURES:** new row "Insert pages in an open session, carrying bookmarks and named destinations" (core `[x]`, cli `—`, gui `[ ]`).
+
+### `0309d9e2` `Pass 732.0` (`G318`): fallback face across several show operators, 2026-11-20 (1668th filing)
+
+Engineer-reported; no shell here, git, push, CI and the gates not run or checked from here. `0309d9e2c9da57f3166cdb505c2ac2b33d8b337f`. On `main`; **unreleased**, ships in `v0.168.0`. Request `request_fallback_face_across_show_operators.md`.
+- **Behaviour:** a text edit whose match spans several `Tj`/`TJ` operators inside ONE text object now takes the fallback face and the sibling-font switch (decision 174), writing the whole replacement into the operator holding the match's end with `Tf` switches around it (`crates/pdfcer-core/src/text_edit/sibling.rs`, `splittable`). Still refused: a match crossing `ET` (two text objects), and a `'` or `"` anchor.
+- **Tests:** three-operator edit sets refused characters in the fallback face with `operators_spanned = 3`; the session edit is one undo entry.
+- **Delivered:** core yes; cli not checked whether `edit-text` reaches it; gui no.
+- **FEATURES:** new row "Fallback face and sibling-font switch for a match spanning several show operators" (core `[x]`, cli `[ ]`, gui `[ ]`).
+
+### `3aa99ac3` `Pass 731.0` (`G317`): edit capability can take a target, 2026-11-20 (1668th filing)
+
+Engineer-reported; no shell here, git, push, CI and the gates not run or checked from here. `3aa99ac3451ce8c122f0f0f2793eadc0f3ad8b9c`. On `main`; **unreleased**, ships in `v0.168.0`. Request `request_edit_capability_takes_a_target.md`.
+- **API:** new `EditSession::edit_capability_for(page_index, span: ByteSpan, target: EditTarget) -> Result<(), EditError>` in `crates/pdfcer-core/src/edit/text_capability.rs`. For `EditTarget::Form { object }` it plans a preview against the form XObject's own decoded content, so the caret-time answer equals `edit_text`'s for a form-targeted request, form-only refusals included. Form not painted on the page: `NoMatch`; span naming no show operator: `PinnedSpanNotFound`; `Auto`/page content: same as `edit_capability`.
+- **Not in it:** `edit_text_preview` still refuses form targets.
+- **Tests:** agreement with `edit_text` over every form run of the text corpus; absent form; stray span. core-api verb count 429 to 430.
+- **Delivered:** core yes; cli not applicable (interactive query); gui no.
+- **FEATURES:** new row "Ask whether a text edit is possible inside a chosen form XObject" (core `[x]`, cli `—`, gui `[ ]`).
+
+### Gates for `Pass 731.0`-`733.0` (engineer-reported, not rerun here)
+
+core-integration suite 3,378 passed / 0 failed / 2 ignored; `text_edit` lib tests 207 passed; clippy `-D warnings` and fmt clean; `check-code-structure` clean (no new entries); `check-core-api-verbs` PASS (431); `check-public-fns-documented`, `check-string-gaps`, `check-tests-harnessed` clean. No manifest change, so `cargo tree` unchanged; no new dependency.
+
 ### `v0.167.0` PUBLISHED, tag on `07732db7` (bump `f8ba345c`, the 1666th filing), 2026-11-20 (1667th filing)
 
 Engineer-reported; no shell here, tag, CI, release and crates.io state not checked from here.

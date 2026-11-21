@@ -4,6 +4,22 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-11-20 (1668th filing) — `Pass 731.0`, `732.0`, `733.0` SHIPPED (`G317`-`G319`)
+
+**Shipped (engineer-reported; no shell here, git, push, CI and the gates not checked from here; all on `main`, unreleased, ship in `v0.168.0`):**
+- `Pass 731.0` (`G317`, `3aa99ac3451ce8c122f0f0f2793eadc0f3ad8b9c`): `EditSession::edit_capability_for(page, span, target)`; caret-time answer equals `edit_text`'s for a form target. core-api verbs 429 to 430.
+- `Pass 732.0` (`G318`, `0309d9e2c9da57f3166cdb505c2ac2b33d8b337f`): fallback face and sibling-font switch for a match spanning several `Tj`/`TJ` in one text object; `ET`-crossing and `'`/`"` anchors still refused.
+- `Pass 733.0` (`G319`, `76fbdd8665acc1fc0dfd5db66af4102be9316184`): `EditSession::insert_pages_with_options` carries bookmarks and named destinations; `source_outline_dropped` meaning narrowed. core-api verbs 430 to 431. Same commit split two over-length functions.
+- Gates (engineer-reported): core-integration 3,378 passed / 0 failed / 2 ignored; `text_edit` lib 207 passed; clippy, fmt, structure, verbs (431), public-fns-documented, string-gaps, tests-harnessed clean.
+
+**Decisions:** none new. All three are pdfcer-gui requests; replies already written by the engineer.
+
+**FEATURES:** three new rows (core `[x]` each; cli `—`, `[ ]`, `—`; gui `[ ]`).
+
+**Owed sweep (hard rule 11):** `FEATURES.md` row 175 (session `insert_pages`) still says `source_outline_dropped` flags the source outline "was not carried"; after `Pass 733.0` the flag means "has an outline and none arrived". Row left untouched (long row, replace-not-append); engineer to decide. Also `insert_pages` rustdoc and `docs/core-api/` text claiming outlines are never carried were not swept here.
+
+**Next:** v0.168.0 release when the engineer chooses; `Pass 729.0` (PDF/A arc).
+
 ## 2026-11-20 (1667th filing) — `v0.167.0` PUBLISHED, tag on `07732db7`
 
 **Filed (engineer-reported; no shell here, tag, CI, release, crates.io and OneDrive state not checked from here):**
