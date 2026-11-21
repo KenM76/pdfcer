@@ -112,6 +112,21 @@ wherever it appears.*
 
 ## Shipped
 
+### `v0.169.0` PUBLISHED, tag on `e5e8b5b6` (bump `06d379ce`, the 1673rd filing), 2026-11-21 (1674th filing)
+
+Engineer-reported; no shell here, tag, CI, release, crates.io and OneDrive state not checked from here.
+- **Tag:** annotated `v0.169.0` on `e5e8b5b6e6e897150860c9b98185d6ecfd4eab22` (the 1673rd filing commit). CI green at the tag.
+- **GitHub release "pdfcer v0.169.0":** 8 assets at local sizes: `pdfcer-v0.169.0-windows-x64.zip` 32,841,628 bytes plus its `.sha256`, and the three OCR add-on zips each with a `.sha256`.
+- **Build:** `D:\builds\pdfcer-20261121-0040-e5e8b5b`, revision `v0.168.0-5-ge5e8b5b6`; packaged after the last code commit.
+- **Fresh-folder smoke:** `--version`, `render-page` and `extract-text` on `fixtures/synthetic/outline/basic-tree.pdf` passed.
+- **OneDrive:** `pdfcer2` now 0.169.0 (6 items, 88,280,576 bytes); `pdfcer1` keeps 0.168.0 (the next release writes `pdfcer1`).
+- **crates.io:** all 16 crates at 0.169.0, one round, leaf-first, from a detached worktree at the tag (removed afterwards).
+- **`verify-release.py`:** every check passed except "working tree clean" (agent-memory files and untracked research drafts).
+- **Process note:** the tag push used `--no-verify`; the commit had already passed the pre-push hook on the `main` push, as for v0.168.0.
+- **GUI notified:** `open/notice_2026-11-21_release_v0.169.0.md`; the `G320` INDEX row now says "released v0.169.0".
+- **Contents:** `Pass 734.0` (`G320`, `a137eead`).
+- **FEATURES:** no row changes. **Next:** `Pass 729.0` (`validate_pdfa`).
+
 ### `06d379ce` `chore`: v0.169.0 version bump, 2026-11-21 (1673rd filing)
 
 Engineer-reported; no shell here, git, push, CI and the gates not run or checked from here. **Unreleased until v0.169.0 is tagged.** Tag, package and publication are a separate filing.

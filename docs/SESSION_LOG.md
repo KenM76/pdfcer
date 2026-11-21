@@ -4,6 +4,22 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-11-21 (1674th filing) — `v0.169.0` PUBLISHED, tag on `e5e8b5b6`
+
+**Filed (engineer-reported; no shell here, tag, CI, release, crates.io and OneDrive state not checked from here):**
+- **Tag:** annotated `v0.169.0` on `e5e8b5b6e6e897150860c9b98185d6ecfd4eab22`; CI green at the tag.
+- **Release:** 8 assets; portable zip 32,841,628 bytes plus `.sha256`; three OCR add-on zips each with a `.sha256`.
+- **Build / smoke:** `D:\builds\pdfcer-20261121-0040-e5e8b5b`, revision `v0.168.0-5-ge5e8b5b6`, packaged after the last code commit. Fresh-folder `--version`, `render-page`, `extract-text` on `fixtures/synthetic/outline/basic-tree.pdf` passed.
+- **OneDrive:** `pdfcer2` 0.169.0 (6 items, 88,280,576 bytes); `pdfcer1` keeps 0.168.0. **crates.io:** 16 crates at 0.169.0, one round, from a detached worktree at the tag (removed).
+- **`verify-release.py`:** only "working tree clean" fails (agent-memory, untracked research drafts).
+- **Process note:** the tag push used `--no-verify`; the commit had passed the pre-push hook on the `main` push, as in the 1671st filing.
+- **GUI told:** `open/notice_2026-11-21_release_v0.169.0.md`; `G320` INDEX row says "released v0.169.0".
+- Carries `Pass 734.0` (`G320`).
+
+**FEATURES:** no row changes.
+
+**Next:** `Pass 729.0` (`validate_pdfa`).
+
 ## 2026-11-21 (1673rd filing) — v0.169.0 version bump (`06d379ce`)
 
 **Filed (engineer-reported; no shell here, git, push, CI and the gates not checked from here):**
