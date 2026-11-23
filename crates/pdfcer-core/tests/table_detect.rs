@@ -516,3 +516,44 @@ fn a_row_with_two_chunks_in_one_column_is_counted_rejected() {
     assert!(found.tables.is_empty(), "{:?}", found.tables);
     assert_eq!(found.diagnostics.aligned_blocks_rejected, 1);
 }
+
+/// Six evenly spaced rows: the first three in columns at x = 72 and 200,
+/// the last three at x = 330 and 440.
+fn two_groups_in_unrelated_columns() -> String {
+    let mut items = Vec::new();
+    for r in 0..6u8 {
+        let y = 500.0 - 14.0 * f32::from(r);
+        let xs = if r < 3 { (72.0, 200.0) } else { (330.0, 440.0) };
+        items.extend([("F1", xs.0, y, "12"), ("F1", xs.1, y, "4.5")]);
+    }
+    shows(&items)
+}
+
+/// Would catch: rows joining a block on spacing alone, making one 6 x 4
+/// table with two empty cells in every row.
+#[test]
+fn row_groups_in_unrelated_columns_are_two_tables() {
+    let found = detect(&two_groups_in_unrelated_columns(), 0);
+    assert_eq!(found.tables.len(), 2, "{:?}", found.tables);
+    for t in &found.tables {
+        assert_eq!((t.rows.len(), t.columns.len()), (3, 2));
+    }
+}
+
+#[test]
+fn rows_stepping_across_columns_stay_one_table() {
+    let xs = [72.0, 200.0, 330.0, 440.0];
+    let mut items = Vec::new();
+    for (c, x) in xs.iter().enumerate() {
+        items.push(("F2", *x, 500.0, ["Part", "Qty", "Price", "Total"][c]));
+    }
+    for (r, cols) in [(0usize, 1usize), (1, 2), (2, 3)].into_iter().enumerate() {
+        #[allow(clippy::cast_precision_loss)]
+        let y = 486.0 - 14.0 * r as f32;
+        items.extend([("F1", xs[cols.0], y, "12"), ("F1", xs[cols.1], y, "4.5")]);
+    }
+    let found = detect(&shows(&items), 0);
+    assert_eq!(found.tables.len(), 1, "{:?}", found.diagnostics);
+    let t = &found.tables[0];
+    assert_eq!((t.rows.len(), t.columns.len()), (4, 4));
+}

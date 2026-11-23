@@ -1343,9 +1343,9 @@ fn aligned_tables(
     for row in &rows {
         let tabular = row.chunks.len() >= 2;
         let joins = tabular
-            && block
-                .last()
-                .is_none_or(|p| p.y - row.y <= 2.5 * p.size.max(row.size));
+            && block.last().is_none_or(|p| {
+                p.y - row.y <= 2.5 * p.size.max(row.size) && shares_column(&block, row, gutter_em)
+            });
         if !joins {
             flush(&mut block, &mut drafts);
         }
@@ -1355,6 +1355,20 @@ fn aligned_tables(
     }
     flush(&mut block, &mut drafts);
     drafts
+}
+
+/// Whether one of `row`'s chunks overlaps, or comes within a gutter of, a
+/// chunk of some row already in `block`. Rows in unrelated columns are
+/// two tables, not one table with empty cells; a table whose rows step
+/// across its columns still joins, since each row meets the rows above.
+fn shares_column(block: &[&TextRow], row: &TextRow, gutter_em: f64) -> bool {
+    let gutter = gutter_em * row.size;
+    row.chunks.iter().any(|c| {
+        block
+            .iter()
+            .flat_map(|r| &r.chunks)
+            .any(|o| c.x0 < o.x1 + gutter && o.x0 < c.x1 + gutter)
+    })
 }
 
 /// A block's column extents, left to right, or `None` when one row's cell
