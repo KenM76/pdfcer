@@ -7,7 +7,7 @@ use pdfcer_core::edit::EditSession;
 use pdfcer_core::object::ObjId;
 use pdfcer_core::vector::{
     AxisConstraint, Point, SnapCandidate, SnapConfig, SnapKind, SnapSource, VectorObject,
-    snap_candidates_with_markups,
+    hidden_objects, snap_candidates_skipping, snap_candidates_with_markups,
 };
 use std::collections::BTreeSet;
 use std::path::Path;
@@ -21,10 +21,11 @@ const LAYERED_STAMP: ObjId = ObjId::new(12, 0);
 const NOTE: ObjId = ObjId::new(13, 0);
 
 /// A 30-degree rotated image at (300,300), Helvetica "Hello" at (100,600),
-/// an image on layer 7 at (500,500), and annotations 8 to 13.
+/// an image on layer 7 at (500,500), a line on layer 7 from (300,100) to
+/// (360,100) crossed by a visible one at x = 340, and annotations 8 to 13.
 const CONTENT: &str = "q 43.30127 25 -25 43.30127 300 300 cm /Im1 Do Q \
 BT /F1 12 Tf 100 600 Td (Hello) Tj ET \
-/OC /L1 BDC q 10 0 0 10 500 500 cm /Im1 Do Q EMC";
+/OC /L1 BDC q 10 0 0 10 500 500 cm /Im1 Do Q EMC \n/OC /L1 BDC 300 100 m 360 100 l S EMC 340 90 m 340 140 l S";
 
 fn fixture() -> EditSession {
     let objects: Vec<Vec<u8>> = vec![
@@ -341,4 +342,30 @@ fn a_circular_ce_dimension_snaps_to_its_centre() {
         ),
         "{c:?}"
     );
+}
+
+/// Would catch: a path on a hidden layer still giving its ends and its
+/// crossing with a visible path.
+#[test]
+fn a_path_on_a_hidden_layer_gives_no_end_and_no_crossing() {
+    let mut s = fixture();
+    let model = s.page_objects(0).unwrap();
+    let graph = s.view();
+    let cfg = SnapConfig::new(3.0)
+        .with_axes(false)
+        .with_intersections(true);
+    let near = |x: f64, y: f64, hidden: &BTreeSet<ObjId>| {
+        let skip = hidden_objects(&graph, &model, hidden);
+        snap_candidates_skipping(Point::new(x, y), &cfg, Some(&model), &[], &skip)
+    };
+    let shown = BTreeSet::new();
+    let hidden: BTreeSet<ObjId> = [OCG].into();
+    let end = |c: &[SnapCandidate]| c.iter().any(|c| c.kind == SnapKind::Endpoint);
+    let cross = |c: &[SnapCandidate]| c.iter().any(|c| c.kind == SnapKind::Intersection);
+    assert!(end(&near(301.0, 101.0, &shown)));
+    assert!(near(301.0, 101.0, &hidden).is_empty());
+    let on = near(341.0, 101.0, &shown);
+    assert!(cross(&on), "{on:?}");
+    let off = near(341.0, 101.0, &hidden);
+    assert!(!cross(&off) && !off.is_empty(), "{off:?}");
 }

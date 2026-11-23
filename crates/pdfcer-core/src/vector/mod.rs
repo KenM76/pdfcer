@@ -129,10 +129,10 @@ pub use snap::{
 pub(crate) use snap_annot::OutlineKind;
 pub use snap_annot::{
     MAX_MARKUP_SNAP_POINTS, MarkupSnapGeometry, SnapGeometry, markup_snap_geometry,
-    snap_candidates_with_markups,
+    snap_candidates_skipping, snap_candidates_with_markups,
 };
 pub(crate) use snap_page::is_hidden as annotation_is_hidden;
-pub use snap_page::{annotation_snap_geometry, content_snap_geometry};
+pub use snap_page::{annotation_snap_geometry, content_snap_geometry, hidden_objects};
 pub use snap_source::SnapSource;
 pub use stroke_style::{Dash, StrokeStyle, StrokeUnits};
 pub use text_inherited::TextInherited;

@@ -139,7 +139,7 @@ builds `--no-default-features`, so both configurations compile.
 | Drill into which text run / subpath was clicked | `vector::hit_test_text_runs` / `hit_test_text_runs_of(&TextObject, ..)` — `hit.rs`; `vector::hit_test_subpaths` / `hit_test_subpaths_of(&PathObject, ..)` — `hit.rs`. The `_of` forms take the object, so they work on a `FormLeaf::object` | §10.3 |
 | Snap a point to geometry | `vector::snap_candidates(Point, &SnapConfig, &PageObjects)` — `vector/snap.rs` | §10.4 |
 | Snap to markups as well | `EditSession::markup_snap_geometry(page_index, &hidden_layers)` then `vector::snap_candidates_with_markups(Point, &SnapConfig, Option<&PageObjects>, &[SnapGeometry])` — `vector/snap_annot.rs` | §10.4 |
-| Snap to every page object (images, text, widgets, ce dimensions, stamps, links, highlights) | `EditSession::page_snap_geometry(page_index, Some(&model), &hidden_layers)` then the same `snap_candidates_with_markups`; `SnapCandidate::source` names the object kind (`vector::SnapSource`) — `edit/markup_snap.rs`, `vector/snap_page.rs` | §10.4 |
+| Snap to every page object (images, text, widgets, ce dimensions, stamps, links, highlights) | `EditSession::page_snap_geometry(page_index, Some(&model), &hidden_layers)` then `snap_candidates_skipping` with `hidden_objects` as `skip` (so hidden-layer paths give nothing); `SnapCandidate::source` names the object kind (`vector::SnapSource`) — `edit/markup_snap.rs`, `vector/snap_page.rs` | §10.4 |
 | Pick a straight edge (CAD-style measuring) | `vector::linepick::pick_line_in_page` — `vector/linepick.rs` | §10.5 |
 | Classify two picked edges as parallel/angled | `vector::linepick::classify_two_lines` — `vector/linepick.rs` | §10.5 |
 | Decode a stream through its `/Filter` chain | `filters::decode_stream(&Dict, &[u8])` — `filters/mod.rs` | §11.1 |
@@ -2762,13 +2762,14 @@ let cands = snap_candidates_with_markups(query_point, &cfg, Some(&model), &marku
 G324), a superset of `markup_snap_geometry`:
 
 ```rust
-use pdfcer_core::vector::{snap_candidates_with_markups, SnapGeometry, SnapSource};
+use pdfcer_core::vector::{hidden_objects, snap_candidates_skipping, SnapGeometry, SnapSource};
 
-// Once per page, and again after any edit to the page.
+// Once per page, and again after any edit to the page or a layer toggle.
 let model = session.page_objects(page_index)?;
 let all: Vec<SnapGeometry> =
     session.page_snap_geometry(page_index, Some(&model), &hidden_layers)?; // edit/markup_snap.rs
-let cands = snap_candidates_with_markups(query_point, &cfg, Some(&model), &all);
+let skip = hidden_objects(&session.view(), &model, &hidden_layers); // vector/snap_page.rs
+let cands = snap_candidates_skipping(query_point, &cfg, Some(&model), &all, &skip);
 match cands[0].source { SnapSource::Image => { /* "image corner" */ } _ => {} }
 ```
 
@@ -2792,6 +2793,12 @@ public field `source`**; a struct literal must name it.
 - Images and text come from `PageObjects::objects` (`source_object:
   Some(index)`) and from form-XObject leaves (`source_object: None`).
   `model: None` leaves them out. Paths stay `snap_candidates`' own.
+- **Hidden-layer paths:** `page_snap_geometry` cannot drop them (they are
+  `snap_candidates`' own). Pass `vector::hidden_objects(&graph, &model,
+  &hidden_layers)` as the `skip` of `vector::snap_candidates_skipping`
+  (`vector/snap_annot.rs`): a skipped object gives no node, centre,
+  centreline or intersection. `snap_candidates_with_markups` is it with an
+  empty `skip`, so a path on a layer switched off still snaps there.
 - Left out: anything on a layer in `hidden_layers` (content by
   `is_hidden_under`, annotations by `/OC`), annotations `/F` Hidden or
   NoView, popups, a ce dimension whose group is hidden.

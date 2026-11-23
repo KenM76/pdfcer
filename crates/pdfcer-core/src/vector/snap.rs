@@ -107,7 +107,7 @@
 //! answers a point query and does not know whether the point came from a
 //! click, a drag, or a keyboard nudge).
 
-use std::collections::HashSet;
+use std::collections::{BTreeSet, HashSet};
 
 use super::centerline::page_candidates;
 use super::decompose::{PageObjects, PathObject, Segment, Subpath, VectorObject};
@@ -598,15 +598,18 @@ pub fn snap_candidates(
     config: &SnapConfig,
     model: &PageObjects,
 ) -> Vec<SnapCandidate> {
-    collect_candidates(query, config, Some(model)).map_or_else(Vec::new, |c| finalize(c, query))
+    collect_candidates(query, config, Some(model), &BTreeSet::new())
+        .map_or_else(Vec::new, |c| finalize(c, query))
 }
 
 /// Every candidate within tolerance, unsorted; `None` for an unusable query
-/// or tolerance. An absent `model` leaves only the axis and grid targets.
+/// or tolerance. An absent `model` leaves only the axis and grid targets;
+/// the objects at `skip`'s indices give no target, nor any intersection.
 pub(super) fn collect_candidates(
     query: Point,
     config: &SnapConfig,
     model: Option<&PageObjects>,
+    skip: &BTreeSet<usize>,
 ) -> Option<Vec<SnapCandidate>> {
     if !query.is_finite() || !config.tolerance_ok() {
         return None;
@@ -614,7 +617,7 @@ pub(super) fn collect_candidates(
     let tol = config.tolerance;
     let mut out: Vec<SnapCandidate> = Vec::new();
     if let Some(model) = model {
-        collect_model_targets(model, query, config, &mut out);
+        collect_model_targets(model, query, config, skip, &mut out);
     }
     // Page axes / optional grid — the lowest-priority fallback.
     if config.axes {
@@ -631,6 +634,7 @@ fn collect_model_targets(
     model: &PageObjects,
     query: Point,
     config: &SnapConfig,
+    skip: &BTreeSet<usize>,
     out: &mut Vec<SnapCandidate>,
 ) {
     let tol = config.tolerance;
@@ -645,7 +649,7 @@ fn collect_model_targets(
         // Object-level bbox reject: skip an object whose page bbox, widened by
         // the tolerance, does not reach the query. (A path with no finite
         // geometry has an empty bbox and is skipped.)
-        if !obj.page_bbox().inflate(tol).contains(query) {
+        if skip.contains(&i) || !obj.page_bbox().inflate(tol).contains(query) {
             continue;
         }
         let VectorObject::Path(path) = obj else {
@@ -661,7 +665,10 @@ fn collect_model_targets(
     // Derived centerlines (Pass 9a fuzzy inference) — projected onto the
     // midline, kept if within tolerance. A distinct kind so the GUI renders
     // it distinctly and gates it behind the two-click confirm (module docs).
-    for c in &centerlines {
+    for c in centerlines
+        .iter()
+        .filter(|c| !skip.contains(&c.object_index))
+    {
         push_if_near(
             out,
             project_onto_segment(query, c.start, c.end),
@@ -674,7 +681,7 @@ fn collect_model_targets(
 
     // Intersections — OFF by default, neighbourhood-bounded (Z4, module docs).
     if config.intersections {
-        collect_intersections(model, query, tol, out);
+        collect_intersections(model, query, tol, skip, out);
     }
 }
 
@@ -870,13 +877,14 @@ fn collect_intersections(
     model: &PageObjects,
     query: Point,
     tol: f64,
+    skip: &BTreeSet<usize>,
     out: &mut Vec<SnapCandidate>,
 ) {
     // Index-free pairwise scan: peel the head, pair it with every later
     // segment, then advance to the tail (each unordered pair once). Bounded by
     // `near_query_segments`' cap (Z4), so this is not an unbounded all-pairs
     // scan over the page.
-    let segs = near_query_segments(model, query, tol);
+    let segs = near_query_segments(model, query, tol, skip);
     let mut head = segs.as_slice();
     while let Some((&(sa, oa), tail)) = head.split_first() {
         for &(sb, ob) in tail {
@@ -908,13 +916,14 @@ fn near_query_segments(
     model: &PageObjects,
     query: Point,
     tol: f64,
+    skip: &BTreeSet<usize>,
 ) -> Vec<((Point, Point), usize)> {
     let mut segs: Vec<((Point, Point), usize)> = Vec::new();
     'objects: for (i, obj) in model.objects.iter().enumerate() {
         let VectorObject::Path(path) = obj else {
             continue;
         };
-        if !path.page_bbox.inflate(tol).contains(query) {
+        if skip.contains(&i) || !path.page_bbox.inflate(tol).contains(query) {
             continue;
         }
         for sp in &path.page_subpaths() {

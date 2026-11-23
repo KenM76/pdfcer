@@ -371,7 +371,42 @@ pub fn snap_candidates_with_markups(
     model: Option<&PageObjects>,
     markups: &[MarkupSnapGeometry],
 ) -> Vec<SnapCandidate> {
-    let Some(mut out) = snap::collect_candidates(query, config, model) else {
+    snap_candidates_skipping(query, config, model, markups, &BTreeSet::new())
+}
+
+/// [`snap_candidates_with_markups`] with the page objects at `skip`'s
+/// indices giving no target: no node, centre, centreline or intersection.
+/// Pass [`hidden_objects`](super::hidden_objects) so a path on a layer
+/// switched off is not snapped to, as [`page_snap_geometry`] already leaves
+/// out hidden images, text and annotations.
+///
+/// [`page_snap_geometry`]: crate::edit::EditSession::page_snap_geometry
+///
+/// # Examples
+///
+/// ```
+/// use std::collections::BTreeSet;
+/// use pdfcer_core::content::ContentStream;
+/// use pdfcer_core::vector::{
+///     decompose, snap_candidates_skipping, Matrix, NoXObjects, Point, SnapConfig,
+/// };
+/// let cs = ContentStream::parse(b"10 20 m 100 20 l S".to_vec()).unwrap();
+/// let model = decompose(&cs, Matrix::IDENTITY, &NoXObjects);
+/// let cfg = SnapConfig::new(5.0);
+/// let q = Point::new(11.0, 21.0);
+/// assert!(!snap_candidates_skipping(q, &cfg, Some(&model), &[], &BTreeSet::new()).is_empty());
+/// let skip = BTreeSet::from([0]);
+/// assert!(snap_candidates_skipping(q, &cfg, Some(&model), &[], &skip).is_empty());
+/// ```
+#[must_use]
+pub fn snap_candidates_skipping(
+    query: Point,
+    config: &SnapConfig,
+    model: Option<&PageObjects>,
+    markups: &[MarkupSnapGeometry],
+    skip: &BTreeSet<usize>,
+) -> Vec<SnapCandidate> {
+    let Some(mut out) = snap::collect_candidates(query, config, model, skip) else {
         return Vec::new();
     };
     let tol = config.tolerance;

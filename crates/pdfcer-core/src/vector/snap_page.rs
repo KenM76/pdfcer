@@ -170,6 +170,29 @@ pub fn content_snap_geometry<G: ObjectGraph + ?Sized>(
         .collect()
 }
 
+/// The indices into `model.objects` of the objects the renderer leaves
+/// unpainted with `hidden_layers` switched off: the `skip` set for
+/// [`snap_candidates_skipping`](super::snap_candidates_skipping).
+///
+/// Reads only.
+#[must_use]
+pub fn hidden_objects<G: ObjectGraph + ?Sized>(
+    graph: &G,
+    model: &PageObjects,
+    hidden_layers: &BTreeSet<ObjId>,
+) -> BTreeSet<usize> {
+    if hidden_layers.is_empty() {
+        return BTreeSet::new();
+    }
+    model
+        .objects
+        .iter()
+        .enumerate()
+        .filter(|(_, o)| o.is_hidden_under(graph, hidden_layers))
+        .map(|(i, _)| i)
+        .collect()
+}
+
 fn image_geometry(img: &ImageObject, index: Option<usize>) -> SnapGeometry {
     let mut g = SnapGeometry::new(SnapSource::Image, None, index);
     if img.source == ImageSource::Form {
