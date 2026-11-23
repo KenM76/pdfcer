@@ -112,6 +112,13 @@ wherever it appears.*
 
 ## Shipped
 
+### `7ff7914b` `chore`: v0.170.0 version bump, 2026-11-23 (1678th filing)
+
+Engineer-reported; no shell here, git, push, CI and the gates not run or checked from here. **Unreleased until v0.170.0 is tagged.** Tag, package and publication are a separate filing.
+- **`7ff7914bf7f0b285cd0947924f5344e3b9341c4c` `chore: version 0.170.0`:** every pdfcer crate set to 0.170.0 in `Cargo.toml`, plus `Cargo.lock` and `fuzz/Cargo.lock`: 3 files, 53 insertions and 53 deletions, the same shape as the 0.169.0 bump. No dependency changes, no code change.
+- **v0.170.0 carries, since v0.169.0:** `Pass 735.0` (`X105`, `93c36650`), `736.0` (`X103`, `2a962822`), `737.0` (`X104`, `ed31707f`), filed in the 1675th filing (`26c484ca`); `Pass 738.0` (`G321`, `1de69a36`) and `741.0` (`G324`, `85682fc7` + `577cd63a`), filed in the 1676th (`4b0e07aa`); `Pass 739.0` + `740.0` (`G322` + `G323`, `219f418d`), filed in the 1677th (`337561f0`).
+- **FEATURES:** no row changes. **Next:** push, CI, tag, release to OneDrive slot `pdfcer1`, publish the crates.
+
 ### `219f418d` `Pass 739.0` (`G322`) + `Pass 740.0` (`G323`): centre line between two lines, and centre marks, 2026-11-23 (1677th filing)
 
 Engineer-reported; no shell here, git, push, CI and the gates not run or checked from here. One commit `219f418d737afd9057eaafb9cfd83fe4aaf79008` `feat(ce-dimension): centre line between two lines, and centre marks (Passes 739.0 + 740.0, G322 + G323)`; both Passes share `group.rs`/`style.rs`/`sidecar.rs`/`edit.rs`/`centre.rs` and the CLI dispatch, so a split would leave an unbuildable middle commit. On `main`; **unreleased**, next release `v0.170.0`. Requests `request_centre_line_between_two_lines.md` (O453) and `request_centre_mark.md` (O454), `pdfce_FeatureRequests`; replies `open/reply_G322_SHIPPED.md`, `open/reply_G323_SHIPPED.md`, INDEX rows SHIPPED. Reasoning is in the commit message.

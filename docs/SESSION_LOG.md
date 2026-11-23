@@ -4,6 +4,16 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-11-23 (1678th filing) — v0.170.0 version bump (`7ff7914b`)
+
+**Filed (engineer-reported; no shell here, git, push, CI and the gates not checked from here):**
+- `7ff7914bf7f0b285cd0947924f5344e3b9341c4c` `chore: version 0.170.0`: every pdfcer crate to 0.170.0 in `Cargo.toml`, `Cargo.lock`, `fuzz/Cargo.lock` (3 files, 53 insertions and 53 deletions, same shape as 0.169.0). No dependency or code change. Details in `ROADMAP.md` *Shipped*.
+- Carries `Pass 735.0`-`737.0` (`X105`/`X103`/`X104`, `93c36650`, `2a962822`, `ed31707f`), filed 1675th (`26c484ca`); `Pass 738.0` (`G321`, `1de69a36`) and `741.0` (`G324`, `85682fc7` + `577cd63a`), filed 1676th (`4b0e07aa`); `Pass 739.0` + `740.0` (`G322` + `G323`, `219f418d`), filed 1677th (`337561f0`).
+
+**FEATURES:** no row changes.
+
+**Next:** push, CI, tag, release to OneDrive `pdfcer1`, publish the crates.
+
 ## 2026-11-23 (1677th filing) — `Pass 739.0` (`G322`), `Pass 740.0` (`G323`) SHIPPED
 
 **Shipped (engineer-reported; no shell here, git, push, CI and the gates not checked from here; on `main`, unreleased, next release `v0.170.0`; one commit `219f418d` because the two share `group.rs`/`style.rs`/`sidecar.rs`/`edit.rs`/`centre.rs` and the CLI dispatch):**
