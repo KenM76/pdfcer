@@ -112,6 +112,27 @@ wherever it appears.*
 
 ## Shipped
 
+### `85682fc7` + `577cd63a` `Pass 741.0` (`G324`): every page object is a snap target, 2026-11-23 (1676th filing)
+
+Engineer-reported; no shell here, git, push, CI and the gates not run or checked from here. Feature `85682fc7`, fix `577cd63a` `fix(snap): hidden-layer paths are not snap targets (Pass 741.0, G324)`. On `main`; **unreleased**, next release `v0.170.0`. Request `request_snap_to_every_object.md` (O455), `pdfce_FeatureRequests`; reply `open/reply_G324_SHIPPED.md`, INDEX row SHIPPED. Reasoning is in the commit messages.
+- **API:** `EditSession::page_snap_geometry(page_index, model: Option<&PageObjects>, hidden_layers) -> Result<Vec<SnapGeometry>, EditError>`, a superset of `markup_snap_geometry`: images (CTM quad), text runs (baseline start + box centre; axis-aligned runs also corners, edge middles, baseline end), widgets, ce dimensions, stamps/notes/links/attachments (`/Rect`), text-markup `/QuadPoints`. EditSession verbs 432 to 433.
+- **Types (breaking for struct literals):** `vector::SnapSource` (Page, Path, Image, Text, Markup, TextMarkup, FormField, CeDimension, Annotation) on new `SnapCandidate::source`; `SnapGeometry` replaces `MarkupSnapGeometry` (alias kept); `annotation()` now returns `Option<ObjId>`.
+- **Session-less:** `vector::annotation_snap_geometry`, `vector::content_snap_geometry`, `vector::hidden_objects(graph, model, hidden_layers) -> BTreeSet<usize>`, `vector::snap_candidates_skipping(query, cfg, model, geometry, skip)`.
+- **The fix (`577cd63a`):** hidden-layer paths and their intersections are skipped inside the search; an intersection of two objects has no single owner, so it cannot be post-filtered.
+- **Limits:** rotated text run gives start + centre only; em-box-guessed text gives baseline starts only; no intersections with non-path geometry; paths inside form XObjects are not targets.
+- **Tests:** `crates/pdfcer-core/tests/page_snap.rs`, 8 tests (out of crate), each new one sabotage-checked.
+- **Delivered:** core. cli `—` (snapping is interactive). gui `[ ]`: two edits owed by `pdfcer-gui`, listed in the reply.
+- **FEATURES:** new row "Every page object is a snap target"; row "Markup annotations are snap targets" gets a pointer.
+
+### `1de69a36` `Pass 738.0` (`G321`): write styled runs back as `/RV`, 2026-11-23 (1676th filing)
+
+Engineer-reported; no shell here, git, push, CI and the gates not run or checked from here. `1de69a36` `feat(forms): write styled runs back as /RV (Pass 738.0, G321)`. On `main`; **unreleased**, next release `v0.170.0`. Request `request_rich_text_writer.md`, `pdfce_FeatureRequests`; reply written, INDEX row SHIPPED. Reasoning is in the commit message.
+- **API:** `pdfcer_core::richtext::to_xhtml(runs: &[Run]) -> String`, inverse of `richtext::parse`: `parse(&to_xhtml(&runs)) == runs` exactly for runs `parse` produced; other runs are written in a normal form (empty runs dropped, paragraphs renumbered, out-of-range weight / non-finite size omitted, colour clamped to `#rrggbb`, family loses `,` and `;`).
+- **Verb:** `EditSession::fill_rich_text_field_runs(fqn, runs, flat) -> Result<RichFillOutcome, EditError>` = `fill_rich_text_field(fqn, &to_xhtml(runs), flat)`, one undo entry. EditSession verbs 431 to 432.
+- **Tests:** `crates/pdfcer-core/tests/rich_text_writer.rs` (out of crate); `richtext/write_tests.rs` (13, incl. a fixed-point test); a fill-and-undo test in `forms_rich_appearance.rs`.
+- **Delivered:** core. cli `[x]` through the existing `fill-field --rich-text` (takes XHTML); no new flag. gui `[ ]`.
+- **FEATURES:** new row "Write a rich-text field from styled runs".
+
 ### `ed31707f` `Pass 737.0` (`X104`): running text is marked at every height it repeats, 2026-11-23 (1675th filing)
 
 Engineer-reported; no shell here, git, push, CI and the gates not run or checked from here. `ed31707f3e3eafc44ea2b30f0c00be22a75f604e` `fix(layout): running text marks every qualifying height (Pass 737.0, X104)`. On `main`; **unreleased**, next release `v0.170.0`. Request (crates consumer) `X104` in `D:\Dev\FeatureRequests\pdfce_FeatureRequests\open\`. Reasoning is in the commit message.

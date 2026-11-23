@@ -4,6 +4,21 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-11-23 (1676th filing) — `Pass 738.0` (`G321`), `Pass 741.0` (`G324`) SHIPPED
+
+**Shipped (engineer-reported; no shell here, git, push, CI and the gates not checked from here; on `main`, unreleased, next release `v0.170.0`; the 1676th is this librarian's reading of the sequence):**
+- `Pass 738.0` (`G321`, `1de69a36`): `richtext::to_xhtml` (inverse of `parse`, exact round trip for parsed runs, normal form otherwise) and `EditSession::fill_rich_text_field_runs` (one undo entry; verbs 431 to 432). Tests: `tests/rich_text_writer.rs`, `richtext/write_tests.rs` (13), a fill-and-undo test. CLI reached through the existing `fill-field --rich-text`.
+- `Pass 741.0` (`G324`, `85682fc7` + fix `577cd63a`): `EditSession::page_snap_geometry` (images, text, widgets, ce dimensions, annotations, text-markup quads; verbs 432 to 433), `vector::SnapSource` on `SnapCandidate::source` (breaking for struct literals), session-less `content_snap_geometry` / `annotation_snap_geometry` / `hidden_objects` / `snap_candidates_skipping`. The fix skips hidden-layer paths and their intersections inside the search (an intersection has no single owner). `tests/page_snap.rs`, 8 tests, sabotage-checked.
+- Both: requests from the `pdfce_FeatureRequests` channel; replies written, INDEX rows SHIPPED. `pdfcer-gui` owes two edits for `G324` (in `open/reply_G324_SHIPPED.md`).
+
+**Decisions:** none new.
+
+**In flight, NOT filed:** `Pass 739.0` (`G322`, centre line between two lines) and `Pass 740.0` (`G323`, centre mark) are with another worker.
+
+**FEATURES:** two new rows ("Write a rich-text field from styled runs", "Every page object is a snap target"); the markup-snap row gets a pointer.
+
+**Next:** file `739.0`/`740.0` when shipped; `v0.170.0` when the engineer chooses; `Pass 729.0` (`validate_pdfa`).
+
 ## 2026-11-23 (1675th filing) — `Pass 735.0`, `736.0`, `737.0` SHIPPED (`X105`, `X103`, `X104`)
 
 **Shipped (engineer-reported; no shell here, git, push, CI and the gates not checked from here; on `main`, unreleased, next release `v0.170.0`; the engineer numbers the commit, 1675th is this librarian's reading of the sequence):**
