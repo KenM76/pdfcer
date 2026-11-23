@@ -4,6 +4,22 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-11-23 (1675th filing) — `Pass 735.0`, `736.0`, `737.0` SHIPPED (`X105`, `X103`, `X104`)
+
+**Shipped (engineer-reported; no shell here, git, push, CI and the gates not checked from here; on `main`, unreleased, next release `v0.170.0`; the engineer numbers the commit, 1675th is this librarian's reading of the sequence):**
+- `Pass 735.0` (`X105`, `93c3665059ed00d7c1595dc2a8f93c3708407e79`): `prepress/pdfx.rs` `element_text` / `attribute_value` look at most `MAX_LOOKAHEAD = 1024` bytes past a `GTS_PDFXVersion` name; hostile XMP of unterminated names is linear, not quadratic. 512 KiB packet: 0.07 s vs about 9 s sabotaged. Two tests in `pdfx_tests.rs`.
+- `Pass 736.0` (`X103`, `2a9628225aeb5a499445fce9a2efdb5170b71928`): `aligned_tables` joins a row to a block only when it `shares_column` with it, so unrelated column groups are two tables. Two tests in `tests/table_detect.rs` (sabotage gives 1 table); 22 integration + 76 lib green.
+- `Pass 737.0` (`X104`, `ed31707f3e3eafc44ea2b30f0c00be22a75f604e`): `pdfcer-text` `block_layout.rs` running header/footer detection marks every repeat height (`running_clusters`, cap `MAX_RUNNING_CLUSTERS = 8`). `classify_running` split in three and removed from the structure baseline (540 entries left). Two integration tests plus 5 unit tests; pdfcer-text 41 + 83 + 19 green.
+- All three: requests from the crates consumer, `D:\Dev\FeatureRequests\pdfce_FeatureRequests\open\`; core-only fixes, no new pub item, no manifest change. Gates (engineer-reported): fmt, clippy `-D warnings` on touched crates, `check-code-structure.py` clean; core 3,382 + 2,386 + 294 green.
+
+**Decisions:** none new.
+
+**In flight, NOT filed:** `G321`-`G324` (`Pass 738.0`-`741.0`) are in worktrees this round; file them when shipped.
+
+**FEATURES:** no row changes (fixes to existing capabilities).
+
+**Next:** the in-flight Passes; `v0.170.0` when the engineer chooses; `Pass 729.0` (`validate_pdfa`).
+
 ## 2026-11-21 (1674th filing) — `v0.169.0` PUBLISHED, tag on `e5e8b5b6`
 
 **Filed (engineer-reported; no shell here, tag, CI, release, crates.io and OneDrive state not checked from here):**

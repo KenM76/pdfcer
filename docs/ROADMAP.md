@@ -112,6 +112,35 @@ wherever it appears.*
 
 ## Shipped
 
+### `ed31707f` `Pass 737.0` (`X104`): running text is marked at every height it repeats, 2026-11-23 (1675th filing)
+
+Engineer-reported; no shell here, git, push, CI and the gates not run or checked from here. `ed31707f3e3eafc44ea2b30f0c00be22a75f604e` `fix(layout): running text marks every qualifying height (Pass 737.0, X104)`. On `main`; **unreleased**, next release `v0.170.0`. Request (crates consumer) `X104` in `D:\Dev\FeatureRequests\pdfce_FeatureRequests\open\`. Reasoning is in the commit message.
+- **Fix:** `crates/pdfcer-text/src/block_layout.rs` running header/footer detection marked one best window per group; it now marks every height where identical margin text repeats on enough pages (`running_clusters`, sliding pass; windows sharing a member join; cap `MAX_RUNNING_CLUSTERS = 8` per group).
+- **Structure:** `classify_running` split into `running_groups` / `is_heading_sequence` / `mark_running` and removed from `tools/code-structure-baseline.txt` (debt shrinks by 1, 540 entries left).
+- **Tests:** `running_text_at_two_disjoint_heights_is_running_at_both`, `overlapping_running_windows_mark_every_copy` in `crates/pdfcer-text/tests/unit_running_heading.rs`, plus 5 unit tests; each integration test sabotage-verified. pdfcer-text 41 + 83 + 19 green.
+- **Delivered:** core (`pdfcer-text`) fix only; no new pub item; no manifest change.
+- **FEATURES:** no row changes (a fix to an existing capability).
+
+### `2a962822` `Pass 736.0` (`X103`): aligned rows join a table only when they share a column, 2026-11-23 (1675th filing)
+
+Engineer-reported; no shell here, git, push, CI and the gates not run or checked from here. `2a9628225aeb5a499445fce9a2efdb5170b71928` `fix(table-detect): aligned rows join only rows sharing a column (Pass 736.0, X103)`. On `main`; **unreleased**, next release `v0.170.0`. Request `X103` (same folder). Reasoning is in the commit message.
+- **Fix:** `table_detect.rs` `aligned_tables`: a whitespace-aligned row joins a block only when it also shares a column with it (`shares_column`: chunk overlap within `gutter_em` x row size). Two unrelated column groups were merged into one table.
+- **Tests:** `crates/pdfcer-core/tests/table_detect.rs`: `row_groups_in_unrelated_columns_are_two_tables` (two 3x2 tables; sabotage gives 1), `rows_stepping_across_columns_stay_one_table` (one 4x4). 22 integration + 76 lib table tests green.
+- **Delivered:** core fix only; no new pub item.
+- **FEATURES:** no row changes.
+
+### `93c36650` `Pass 735.0` (`X105`): the PDF/X XMP value scan is bounded, 2026-11-23 (1675th filing)
+
+Engineer-reported; no shell here, git, push, CI and the gates not run or checked from here. `93c3665059ed00d7c1595dc2a8f93c3708407e79` `fix(prepress): bound the PDF/X XMP value scan (Pass 735.0, X105)`. On `main`; **unreleased**, next release `v0.170.0`. Request `X105` (same folder). Reasoning is in the commit message.
+- **Fix:** `prepress/pdfx.rs` `element_text` and `attribute_value` look at most `MAX_LOOKAHEAD = 1024` bytes past a `GTS_PDFXVersion` name, so a hostile XMP packet of unterminated names costs linear, not quadratic, time.
+- **Tests:** `prepress/pdfx_tests.rs`: `a_value_past_the_lookahead_bound_is_not_read`; `a_packet_of_unterminated_names_is_linear` (512 KiB packet: 0.07 s vs about 9 s with the bound sabotaged; asserts under 2 s). Sabotage-verified.
+- **Delivered:** core fix only; no new pub item.
+- **FEATURES:** no row changes.
+
+### Gates for `Pass 735.0`-`737.0` (engineer-reported, not rerun here)
+
+`cargo fmt`, clippy `-D warnings` on touched crates, `check-code-structure.py` clean; full pdfcer-core suite green (3,382 integration + 2,386 lib + 294 doc, 0 failed). No `Cargo.toml` change, so `cargo tree` unchanged.
+
 ### `v0.169.0` PUBLISHED, tag on `e5e8b5b6` (bump `06d379ce`, the 1673rd filing), 2026-11-21 (1674th filing)
 
 Engineer-reported; no shell here, tag, CI, release, crates.io and OneDrive state not checked from here.
