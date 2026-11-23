@@ -175,10 +175,10 @@ fn paragraphs_and_gaps_round_trip() {
 }
 
 #[test]
-fn paragraph_indices_are_renumbered_into_normal_form() {
+fn a_decrease_starts_the_next_paragraph() {
     let runs = vec![plain("a", 3), plain("b", 1), plain("c", 1)];
     let paras: Vec<usize> = round_trip(&runs).iter().map(|r| r.paragraph).collect();
-    assert_eq!(paras, [0, 1, 1]);
+    assert_eq!(paras, [3, 4, 4]);
 }
 
 #[test]
@@ -263,7 +263,62 @@ fn the_body_carries_the_table_224_attributes() {
     ] {
         assert!(rv.contains(attr), "{attr} missing: {rv}");
     }
-    assert_eq!(parse(&rv, None).unwrap(), []);
+    assert_eq!(parse(&rv, None).unwrap(), [plain("", 0)]);
+}
+
+/// A line then Enter: the trailing blank paragraph survives, written and
+/// read, and `/V` keeps the line feed the operator typed.
+#[test]
+fn a_trailing_blank_paragraph_round_trips() {
+    let runs = vec![plain("a", 0), plain("", 1)];
+    let rv = to_xhtml(&runs);
+    assert!(rv.ends_with("<p>a</p><p></p></body>"), "{rv}");
+    assert_eq!(round_trip(&runs), runs);
+    let flat = super::super::flat_text(&runs, super::super::FlatText::ParagraphLines);
+    assert_eq!(flat, "a\n");
+
+    let several = vec![plain("a", 0), plain("", 3)];
+    assert_eq!(to_xhtml(&several).matches("<p></p>").count(), 3);
+    assert_eq!(round_trip(&several), several);
+}
+
+/// A cleared field is one empty paragraph, whether given as no runs or as
+/// one empty run.
+#[test]
+fn a_cleared_field_writes_one_empty_paragraph() {
+    for runs in [vec![], vec![plain("", 0)]] {
+        let rv = to_xhtml(&runs);
+        assert!(rv.ends_with("\"><p></p></body>"), "{rv}");
+        assert_eq!(round_trip(&runs), [plain("", 0)]);
+    }
+}
+
+/// Leading blank paragraphs are kept as the first run's index.
+#[test]
+fn leading_blank_paragraphs_round_trip() {
+    let runs = vec![plain("a", 2)];
+    let rv = to_xhtml(&runs);
+    assert!(rv.contains("\"><p></p><p></p><p>a</p>"), "{rv}");
+    assert_eq!(round_trip(&runs), runs);
+    assert_eq!(round_trip(&[plain("", 0), plain("a", 1)]), [plain("a", 1)]);
+    let flat = super::super::flat_text(&runs, super::super::FlatText::ParagraphLines);
+    assert_eq!(flat, "\n\na");
+}
+
+/// The operator's lines, one run each, keep their count through
+/// `parse(to_xhtml(..))` and through `/V`.
+#[test]
+fn typed_lines_keep_their_count() {
+    for typed in ["a\n", "\na", "a\n\nb", "\n", "", "a\nb\n\n"] {
+        let runs: Vec<Run> = typed
+            .split('\n')
+            .enumerate()
+            .map(|(i, line)| plain(line, i))
+            .collect();
+        let back = round_trip(&runs);
+        let flat = super::super::flat_text(&back, super::super::FlatText::ParagraphLines);
+        assert_eq!(flat, typed, "{typed:?} -> {back:?}");
+    }
 }
 
 /// `parse(to_xhtml(parse(x))) == parse(x)` over markup the writer never

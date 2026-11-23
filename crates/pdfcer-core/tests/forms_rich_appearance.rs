@@ -515,3 +515,37 @@ fn filling_from_runs_writes_their_xhtml_and_undoes() {
     assert!(s.undo().is_some());
     assert_eq!(field(&s).rich_value, None);
 }
+
+/// The summed y operands of the `Td`s between `from` and `to`.
+fn td_y_between(content: &str, from: &str, to: &str) -> f64 {
+    let start = content.find(from).unwrap();
+    let end = content.find(to).unwrap();
+    content[start..end]
+        .lines()
+        .filter(|l| l.ends_with(" Td"))
+        .map(|l| l.split_whitespace().nth(1).unwrap().parse::<f64>().unwrap())
+        .sum()
+}
+
+/// An empty paragraph between two lines of a multiline rich field is drawn
+/// as a blank line: `b` sits one line lower than with no blank.
+#[test]
+fn an_empty_paragraph_is_drawn_as_a_blank_line() {
+    use pdfcer_core::richtext::{Run, Style};
+    let plain = |t: &str, p| Run {
+        text: t.to_owned(),
+        style: Style::default(),
+        paragraph: p,
+    };
+    let drop = |b_paragraph| {
+        let mut s = EditSession::new(doc(RICH | (1 << 12), ""));
+        let runs = [plain("a", 0), plain("b", b_paragraph)];
+        s.fill_rich_text_field_runs("t", &runs, FlatText::ParagraphLines)
+            .unwrap();
+        let (content, _) = normal_ap(&s);
+        -td_y_between(&content, "(a) Tj", "(b) Tj")
+    };
+    let line = drop(1);
+    assert!(line > 0.0, "{line}");
+    assert!((drop(2) - 2.0 * line).abs() < 0.01, "{} vs {line}", drop(2));
+}

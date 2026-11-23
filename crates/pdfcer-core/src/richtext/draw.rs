@@ -184,7 +184,7 @@ pub(crate) fn plan(
     }
     Some(RichPlan {
         aligns: paragraph_aligns(&parsed.runs, field.quadding),
-        spans,
+        spans: with_blank_paragraphs(spans),
         fonts: ctx.fonts,
     })
 }
@@ -215,6 +215,33 @@ impl Fill {
             da_size,
         }
     }
+}
+
+/// The most blank lines [`with_blank_paragraphs`] adds to one field.
+const MAX_BLANK_LINES: usize = 4096;
+
+/// `spans` plus a blank span for each paragraph index no span is in, so an
+/// empty `<p></p>` draws as a blank line rather than vanishing. A blank
+/// takes the font and size of the span after it.
+fn with_blank_paragraphs(spans: Vec<RichSpan>) -> Vec<RichSpan> {
+    let mut out = Vec::with_capacity(spans.len());
+    let mut budget = MAX_BLANK_LINES;
+    let mut next = 0;
+    for span in spans {
+        if let Some(missing) = span.paragraph.checked_sub(next) {
+            let blanks = missing.min(budget);
+            budget -= blanks;
+            for paragraph in span.paragraph - blanks..span.paragraph {
+                let mut blank = span.clone();
+                blank.text.clear();
+                blank.paragraph = paragraph;
+                out.push(blank);
+            }
+        }
+        next = span.paragraph.saturating_add(1);
+        out.push(span);
+    }
+    out
 }
 
 /// Each paragraph's quadding: its first run's `text-align`, else `/Q`.
@@ -451,5 +478,24 @@ mod tests {
             ("timesnewroman".into(), true, false)
         );
         assert_eq!(face("Times-Roman"), ("times".into(), false, false));
+    }
+
+    /// A skipped index, a first paragraph past 0 and a huge index each
+    /// get blank lines, bounded; a decrease gets none.
+    #[test]
+    fn missing_paragraphs_become_blank_spans() {
+        let span = |t: &str, p| RichSpan::new(t, b"F1".to_vec(), 9.0, TextColor::Gray(0.0), p);
+        let got =
+            with_blank_paragraphs(vec![span("a", 1), span("b", 1), span("c", 3), span("d", 0)]);
+        let shape: Vec<(&str, usize)> =
+            got.iter().map(|s| (s.text.as_str(), s.paragraph)).collect();
+        assert_eq!(
+            shape,
+            [("", 0), ("a", 1), ("b", 1), ("", 2), ("c", 3), ("d", 0)]
+        );
+        assert_eq!(got[0].font, b"F1");
+
+        let huge = with_blank_paragraphs(vec![span("a", usize::MAX)]);
+        assert_eq!(huge.len(), MAX_BLANK_LINES + 1);
     }
 }

@@ -111,9 +111,11 @@
 use crate::fdf::{XmlElement, XmlNode};
 
 pub(crate) mod draw;
+mod flat;
 mod write;
 
 pub use draw::RichStylePrecedence;
+pub use flat::{FlatText, flat_text};
 pub use write::to_xhtml;
 
 /// The deepest element nesting under `<body>` a rich text value may have
@@ -264,10 +266,10 @@ pub struct Run {
     pub style: Style,
     /// Which `<p>` this run belongs to, counting from zero.
     ///
-    /// Runs in different paragraphs are separated by a line break. Text
-    /// that appears directly under `<body>` outside any `<p>` is legal —
-    /// Table 223 never forbids it (RT-A9) — and is assigned to the
-    /// paragraph in progress.
+    /// Runs in different paragraphs are separated by a line break; a
+    /// skipped index is an empty paragraph, a blank line. Text that appears
+    /// directly under `<body>` outside any `<p>` is legal — Table 223 never
+    /// forbids it (RT-A9) — and is assigned to the paragraph in progress.
     pub paragraph: usize,
 }
 
@@ -314,47 +316,6 @@ pub struct RichText {
     /// unknown element as `<name>`, an unknown style property by name, and
     /// a known property whose value is outside Table 225 as `name: value`.
     pub ignored: Vec<String>,
-}
-
-/// How [`flat_text`] joins paragraphs.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
-#[non_exhaustive]
-pub enum FlatText {
-    /// A line feed between paragraphs, so a reader that shows `/V` keeps
-    /// the line structure. The default.
-    #[default]
-    ParagraphLines,
-    /// The character data concatenated with nothing added — XFA 3.x's
-    /// derivation of the plain value from rich text.
-    Concatenated,
-}
-
-/// The plain text of `runs`: their text in order, paragraphs joined as
-/// `mode` says. Used for the `/V` that accompanies an `/RV` (§12.7.3.4:
-/// `/V` holds the field's text without markup).
-///
-/// # Examples
-///
-/// ```
-/// use pdfcer_core::richtext::{self, FlatText};
-///
-/// let runs = richtext::parse("<body><p>a <b>b</b></p><p>c</p></body>", None)?;
-/// assert_eq!(richtext::flat_text(&runs, FlatText::ParagraphLines), "a b\nc");
-/// assert_eq!(richtext::flat_text(&runs, FlatText::Concatenated), "a bc");
-/// # Ok::<(), richtext::RichTextError>(())
-/// ```
-#[must_use]
-pub fn flat_text(runs: &[Run], mode: FlatText) -> String {
-    let mut out = String::new();
-    let mut last = runs.first().map(|r| r.paragraph);
-    for run in runs {
-        if mode == FlatText::ParagraphLines && Some(run.paragraph) != last {
-            out.push('\n');
-        }
-        last = Some(run.paragraph);
-        out.push_str(&run.text);
-    }
-    out
 }
 
 /// Parse a rich text value and its default style string into styled runs.
@@ -442,14 +403,27 @@ pub fn parse_noting(rv: &str, ds: Option<&str>) -> Result<RichText, RichTextErro
 
     let mut w = Walk {
         paragraph: 0,
+        started: false,
+        last_p_style: base.clone(),
         runs: Vec::new(),
         ignored,
     };
     w.walk(&root, &base, 0)?;
 
-    // Empty runs carry no text and no information; a `<span>` with only
-    // attributes is a style declaration, not content.
+    // Empty runs carry no text; a `<span>` with only attributes is a style
+    // declaration, not content. The one kept marks a last paragraph with no
+    // text, which no later index can: `<p>a</p><p></p>` is two lines, and
+    // `<body><p></p></body>` a cleared field.
+    let last_text = w.runs.iter().rev().find(|r| !r.text.is_empty());
+    let trailing_blank = w.started && last_text.is_none_or(|r| r.paragraph < w.paragraph);
     w.runs.retain(|r| !r.text.is_empty());
+    if trailing_blank {
+        w.runs.push(Run {
+            text: String::new(),
+            style: w.last_p_style,
+            paragraph: w.paragraph,
+        });
+    }
     Ok(RichText {
         runs: w.runs,
         ignored: w.ignored,
@@ -471,6 +445,10 @@ fn note(ignored: &mut Vec<String>, what: String) {
 /// The walk's output and the paragraph counter it threads.
 struct Walk {
     paragraph: usize,
+    /// A `<p>` or text has been seen, so the next `<p>` is a new paragraph.
+    started: bool,
+    /// The style in force inside the most recent `<p>`.
+    last_p_style: Style,
     runs: Vec<Run>,
     ignored: Vec<String>,
 }
@@ -495,11 +473,14 @@ impl Walk {
         }
         for node in &el.nodes {
             match node {
-                XmlNode::Text(t) => self.runs.push(Run {
-                    text: t.clone(),
-                    style: inherited.clone(),
-                    paragraph: self.paragraph,
-                }),
+                XmlNode::Text(t) => {
+                    self.started = true;
+                    self.runs.push(Run {
+                        text: t.clone(),
+                        style: inherited.clone(),
+                        paragraph: self.paragraph,
+                    });
+                }
                 XmlNode::Child(i) => {
                     let Some(child) = el.children.get(*i) else {
                         // Unreachable for a parser-produced tree; skipping
@@ -509,11 +490,11 @@ impl Walk {
                     };
                     let name = local_name(&child.name);
 
-                    // A `<p>` after any content starts a new paragraph. The
-                    // "after any content" guard is what stops the FIRST
-                    // paragraph counting as a break and offsetting every
-                    // index by one.
-                    if name == "p" && !self.runs.is_empty() {
+                    // A `<p>` after any text or `<p>` starts a new paragraph,
+                    // so an empty leading `<p></p>` counts. The guard stops
+                    // the FIRST paragraph counting as a break and offsetting
+                    // every index by one.
+                    if name == "p" && self.started {
                         self.paragraph += 1;
                     }
 
@@ -532,6 +513,10 @@ impl Walk {
                     }
                     if let Some(decl) = child.attr("style") {
                         style.overlay(&parse_declarations(decl, &mut self.ignored));
+                    }
+                    if name == "p" {
+                        self.started = true;
+                        self.last_p_style = style.clone();
                     }
                     self.walk(child, &style, depth + 1)?;
                 }
@@ -860,6 +845,25 @@ mod tests {
         let runs = parse(&body("<p>one</p><p>two</p><p>three</p>"), None).unwrap();
         let paras: Vec<usize> = runs.iter().map(|r| r.paragraph).collect();
         assert_eq!(paras, vec![0, 1, 2]);
+    }
+
+    /// Empty paragraphs count: a leading one shifts the index, a trailing
+    /// one is an empty run carrying the `<p>`'s style.
+    #[test]
+    fn empty_paragraphs_are_counted() {
+        let runs = parse(
+            &body("<p></p><p>a</p><p style='text-align:right'></p>"),
+            None,
+        )
+        .unwrap();
+        let shape: Vec<(&str, usize)> = runs
+            .iter()
+            .map(|r| (r.text.as_str(), r.paragraph))
+            .collect();
+        assert_eq!(shape, [("a", 1), ("", 2)]);
+        assert_eq!(runs[1].style.align, Some(Align::Right));
+        assert_eq!(parse(&body(""), None).unwrap(), []);
+        assert_eq!(parse(&body("loose"), None).unwrap().len(), 1);
     }
 
     /// Unknown markup contributes no style and KEEPS its text.

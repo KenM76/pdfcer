@@ -35,9 +35,14 @@ const MAX_BLANK_PARAGRAPHS: usize = MAX_RICH_BYTES / "<p></p>".len();
 /// `parse(to_xhtml(parse(x)))` equals `parse(x)`. Input outside it is
 /// written as its normal form:
 ///
-/// - **Empty runs** are dropped (`parse` never returns one).
-/// - **Paragraph indices** are renumbered from 0; a gap is kept as blank
-///   `<p></p>`s, and a decrease starts the next paragraph.
+/// - **Paragraphs** are kept by index: a first paragraph past 0 and a gap
+///   are written as blank `<p></p>`s, and a decrease starts the next
+///   paragraph. No runs at all write one blank `<p></p>`, a cleared field.
+/// - **Empty runs** make their paragraph exist, then are dropped — except
+///   that a last paragraph with no text reads back as one empty run, the
+///   only empty run `parse` returns. So `[a p0, "" p1]` (a line, then
+///   Enter) is two paragraphs both ways, `[]` reads back as `["" p0]`, and
+///   an empty run between two texts reads back as a skipped index.
 /// - **`font-weight`** off Table 225's 100..=900 step-100 scale, and a
 ///   non-finite size or baseline shift, are omitted.
 /// - **`color`** is quantised to `#rrggbb`, components clamped to
@@ -83,7 +88,11 @@ pub fn to_xhtml(runs: &[Run]) -> String {
         env!("CARGO_PKG_VERSION")
     );
     let mut blanks_left = MAX_BLANK_PARAGRAPHS;
-    for (gap, para) in paragraphs(runs) {
+    let paras = paragraphs(runs);
+    if paras.is_empty() {
+        out.push_str("<p></p>");
+    }
+    for (gap, para) in paras {
         let blanks = gap.min(blanks_left);
         blanks_left -= blanks;
         for _ in 0..blanks {
@@ -95,19 +104,19 @@ pub fn to_xhtml(runs: &[Run]) -> String {
     out
 }
 
-/// The non-empty runs grouped into paragraphs, each with the number of
-/// blank paragraphs before it.
+/// The runs grouped into paragraphs, each with the number of blank
+/// paragraphs before it. An empty run makes its paragraph exist.
 fn paragraphs(runs: &[Run]) -> Vec<(usize, Vec<&Run>)> {
     let mut out: Vec<(usize, Vec<&Run>)> = Vec::new();
     let mut last = None;
-    for run in runs.iter().filter(|r| !r.text.is_empty()) {
+    for run in runs {
         match (last, out.last_mut()) {
             (Some(p), Some((_, para))) if p == run.paragraph => para.push(run),
             (Some(p), _) => {
                 let gap = run.paragraph.saturating_sub(p).saturating_sub(1);
                 out.push((gap, vec![run]));
             }
-            (None, _) => out.push((0, vec![run])),
+            (None, _) => out.push((run.paragraph, vec![run])),
         }
         last = Some(run.paragraph);
     }
@@ -115,6 +124,11 @@ fn paragraphs(runs: &[Run]) -> Vec<(usize, Vec<&Run>)> {
 }
 
 fn write_paragraph(out: &mut String, runs: &[&Run]) {
+    let runs: Vec<&Run> = runs
+        .iter()
+        .copied()
+        .filter(|r| !r.text.is_empty())
+        .collect();
     let shared = runs
         .first()
         .and_then(|r| r.style.align)
