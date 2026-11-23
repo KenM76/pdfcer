@@ -4,6 +4,17 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-11-23 (1682nd filing) — `Pass 743.0` (`G326`) SHIPPED, `54935c1d`
+
+**Shipped (engineer-reported; no shell here; unpushed at filing):**
+- `Pass 743.0`: empty paragraphs survive `richtext::to_xhtml`, `parse`, `flat_text` and rich appearance drawing. Leading blanks kept (engineer's decision). Two defects fixed on discovery: `flat_text` lost a skipped index's blank line in `/V`; drawing collapsed `<p>a</p><p></p><p>b</p>` to two lines.
+- `flat_text` moved to `richtext/flat.rs` (800-line limit). Core only; GUI retires `rich_value_of` next.
+- Tests green (lib 2407, `all.rs` 3411, cli 134); each of 4 changes sabotage-checked. Detail: `ROADMAP.md` Shipped.
+
+**FEATURES:** known-gap pointer removed from the rich-text-runs row; no box changes.
+
+**Next:** `Pass 744.0`, then `742.0`.
+
 ## 2026-11-23 (1681st filing) — three requests filed to Next up (`Pass 743.0`, `744.0`, `742.0`)
 
 **Filed (engineer-reported; no shell here, nothing started):**

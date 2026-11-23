@@ -112,6 +112,19 @@ wherever it appears.*
 
 ## Shipped
 
+### `Pass 743.0` (`G326`): empty paragraphs survive `to_xhtml`, `parse`, `flat_text` and drawing, `54935c1d`, 2026-11-23 (1682nd filing)
+
+Engineer-reported; no shell here, push, CI and the gates not checked from here. Commit `54935c1d` on `main`, not yet pushed at filing. Core only; no CLI change (`fill-field --rich-text` takes XHTML); GUI consumption pending in `pdfcer-gui` (retires `rich_value_of`).
+- **`richtext::to_xhtml`:** an empty run makes its paragraph exist; a first paragraph past index 0 writes leading blank `<p></p>`s (leading blanks KEPT, engineer's decision); no runs writes one `<p></p>`.
+- **`richtext::parse`:** an empty leading `<p></p>` counts; a last paragraph with no text reads back as ONE empty run carrying that `<p>`'s style, the only empty run `parse` returns. `[a p0, "" p1]` round-trips; `[]` reads back as `["" p0]`.
+- **Fixed on discovery, `flat_text` ParagraphLines:** one line feed per paragraph index advanced (bounded); a skipped index had lost its blank line in `/V`.
+- **Fixed on discovery, rich appearance drawing:** a paragraph index no run is in is drawn as a blank line (bounded 4096); `<p>a</p><p></p><p>b</p>` had drawn as two lines.
+- **Moved:** `flat_text`/`FlatText` to `crates/pdfcer-core/src/richtext/flat.rs` (800-line file limit); public paths unchanged. `docs/core-api/02-editing-and-saving.md` normal-form text updated; `check-core-api-verbs` PASS.
+- **Tests:** `pdfcer-core` + `pdfcer-cli` full run green (lib 2407, integration `all.rs` 3411, doctests 1126+299, cli 134). New: 4 writer unit tests, 1 parser, 1 draw, 1 out-of-crate `an_empty_paragraph_is_drawn_as_a_blank_line` in `tests/forms_rich_appearance.rs`. Sabotage of each of the 4 changes failed its tests. clippy `-D warnings`, fmt, `check-code-structure`, `check-string-gaps` clean. No manifest change, `cargo tree` unaffected.
+- **Reply:** `D:\Dev\FeatureRequests\pdfce_FeatureRequests\open\reply_G326_SHIPPED.md`, INDEX row added.
+- **FEATURES:** "Write a rich-text field from styled runs": known-gap pointer removed; boxes unchanged (core `[x]`, cli as before, gui `[ ]`).
+- **Next:** `Pass 744.0`, then `742.0`.
+
 ### `v0.170.0` PUBLISHED, tag on `5a2d397c` (bump `7ff7914b`, the 1678th filing), 2026-11-23 (1680th filing)
 
 Engineer-reported; no shell here, tag, CI, release, crates.io and OneDrive state not checked from here.
@@ -28578,11 +28591,6 @@ closes out the *prior* filing's business rather than opening this one's.
 ---
 
 ## Next up
-
-> **`Pass 743.0` FILED 2026-11-23 (1681st filing): `richtext::to_xhtml` keeps leading and trailing blank paragraphs (`G326`; OPEN, none started; no shell here, engineer assigns the final ID and runs the gates).** Source: `pdfcer-gui` `request_rich_runs_trailing_blank_paragraph.md`, the follow-up to `G321` (`Pass 738.0`). `to_xhtml` drops empty runs, so `"a\n"` (runs `a`/paragraph 0, empty/paragraph 1) writes `<p>a</p>`, and an all-empty run list writes nothing usable.
->
-> - **Acceptance:** an empty run on a paragraph number marks that paragraph as existing; `parse(to_xhtml(runs))` keeps the paragraph count; `to_xhtml(&[])` and a single empty run write the one-empty-paragraph form (`<body><p></p></body>`); the decision on leading blanks is documented. The GUI then retires its `rich_value_of` workaround.
-> - *FEATURES:* pointer added to the existing "Write a rich-text field from styled runs" row; no new row, no box change.
 
 > **`Pass 744.0` FILED 2026-11-23 (1681st filing): scaling a page also places its fill patterns (`X106`; OPEN, none started; no shell here, engineer assigns the final ID).** Source: operator (crates consumer) `request_X106_scale_pages_leaves_patterns_unscaled.md`, pin `5a2d397c`. `EditSession::scale_pages` wraps content in `q ... cm ... Q`, but a pattern's `/Matrix` maps to the page's default space, not the CTM (ISO 32000-2 §8.7.3.1), so shading and tiling patterns keep their old scale.
 >
