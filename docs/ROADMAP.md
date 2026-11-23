@@ -112,6 +112,20 @@ wherever it appears.*
 
 ## Shipped
 
+### `v0.170.0` PUBLISHED, tag on `5a2d397c` (bump `7ff7914b`, the 1678th filing), 2026-11-23 (1680th filing)
+
+Engineer-reported; no shell here, tag, CI, release, crates.io and OneDrive state not checked from here.
+- **Tag:** annotated `v0.170.0` on `5a2d397c` (the 1679th filing commit). CI run 45278577075 green at the tag (42m). The first push of the bump (`dce7b5fd`) went red on rustdoc only (run 45270619810); fixed by `6487f20d`.
+- **GitHub release "pdfcer v0.170.0":** 8 assets: `pdfcer-v0.170.0-windows-x64.zip` 32,857,389 bytes plus `.sha256`, and the three OCR add-on zips plus `.sha256` carried from v0.169.0.
+- **Build:** `D:\builds\pdfcer-20261123-1719-5a2d397`.
+- **Fresh-folder smoke:** `pdfcer --version` reads 0.170.0; `centre-line --help`; `centre-mark --circle 200,300,40 --measure radius --extension-lines` on `fixtures/synthetic/hello.pdf`, then `dimension-list` prints `kind=radius ... centre_mark=on extension_lines=on`.
+- **OneDrive:** `pdfcer1` written (6 items, 88,358,913 bytes); `pdfcer2` keeps 0.169.0.
+- **crates.io:** all 16 engine crates at 0.170.0, leaf-first, one round.
+- **`verify-release.py v0.170.0`:** every check ok except "working tree clean": 36 uncommitted paths (agent-memory, `docs/research` request drafts, the stray `-` file, line-ending-only `THIRD_PARTY_LICENSES.md`), none in a build input.
+- **GUI notified:** `open/notice_2026-11-23_release_v0.170.0.md`.
+- **Contents:** `Pass 735.0`-`741.0` and the rustdoc fix `6487f20d` (1679th).
+- **FEATURES:** no row changes. **Next:** the three requests filed in the 1681st filing (`Pass 743.0`, `744.0`, `742.0`), then `Pass 729.0` (`validate_pdfa`).
+
 ### `6487f20d` `fix(rustdoc)`: resolve the `DimensionModel` link in `dimension::centre`, 2026-11-23 (1679th filing)
 
 Engineer-reported; no shell here, git, push, CI and the gates not run or checked from here. **Ships in v0.170.0** (the release is tagged after this).
@@ -28564,6 +28578,22 @@ closes out the *prior* filing's business rather than opening this one's.
 ---
 
 ## Next up
+
+> **`Pass 743.0` FILED 2026-11-23 (1681st filing): `richtext::to_xhtml` keeps leading and trailing blank paragraphs (`G326`; OPEN, none started; no shell here, engineer assigns the final ID and runs the gates).** Source: `pdfcer-gui` `request_rich_runs_trailing_blank_paragraph.md`, the follow-up to `G321` (`Pass 738.0`). `to_xhtml` drops empty runs, so `"a\n"` (runs `a`/paragraph 0, empty/paragraph 1) writes `<p>a</p>`, and an all-empty run list writes nothing usable.
+>
+> - **Acceptance:** an empty run on a paragraph number marks that paragraph as existing; `parse(to_xhtml(runs))` keeps the paragraph count; `to_xhtml(&[])` and a single empty run write the one-empty-paragraph form (`<body><p></p></body>`); the decision on leading blanks is documented. The GUI then retires its `rich_value_of` workaround.
+> - *FEATURES:* pointer added to the existing "Write a rich-text field from styled runs" row; no new row, no box change.
+
+> **`Pass 744.0` FILED 2026-11-23 (1681st filing): scaling a page also places its fill patterns (`X106`; OPEN, none started; no shell here, engineer assigns the final ID).** Source: operator (crates consumer) `request_X106_scale_pages_leaves_patterns_unscaled.md`, pin `5a2d397c`. `EditSession::scale_pages` wraps content in `q ... cm ... Q`, but a pattern's `/Matrix` maps to the page's default space, not the CTM (ISO 32000-2 §8.7.3.1), so shading and tiling patterns keep their old scale.
+>
+> - **Fix:** per page, copy each page-level pattern (own or inherited resources) with `/Matrix` = old x placement, and give the page its own `/Resources` naming the copies. A pattern shared with unscaled pages keeps the original object. Patterns inside form XObjects need nothing. An unreadable `/Matrix` is left unchanged, without error. Acceptance: the three cases in the request.
+> - *FEATURES:* known-defect pointer on the existing "Scale page contents to a target size" row; no box change.
+
+> **`Pass 742.0` FILED 2026-11-23 (1681st filing): a scaled length back to page units (`G325`, `O456`; OPEN, none started; no shell here, engineer assigns the final ID).** Source: `pdfcer-gui` `request_page_length_from_scaled_length.md`. New `dimension::user_units_from_measurement_on(page, typed, scale_state, format) -> Result<f64, LengthParseError>`, the exact inverse of `format_measurement_on`.
+>
+> - **Must honour:** `/UserUnit`, `ScaleState::OneToOne`, a typed unit that differs from the group's top unit, and the format's decimal marker. `NeverSet` behaviour is the engineer's to choose and document.
+> - **Acceptance:** round-trip test: `format_measurement_on(page, inverse(t))` re-reads as `t` to the format's precision. CLI: a way to exercise it (engineer picks).
+> - *FEATURES:* new Planned row "Type a length in a ce-dimension group's scale", core/cli/gui all `[ ]`.
 
 > **`Pass 729.0`-`729.2` FILED 2026-11-20 (1665th filing): PDF/A validation and conversion (ARC OPEN, none started; no shell here, engineer assigns final IDs and runs the gates).** Source: `pdfcer-gui` `request_pdfa_conversion.md`, the only GUI-blocking item; answered "not in v0.167.0, next arc" in `reply_pdfa_conversion_NOT_THIS_CYCLE.md`, so `v0.167.0` goes out naming it as the one gap. IDs `729.0`-`729.2` grep-checked unused across `docs/` before filing.
 >

@@ -4,6 +4,32 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-11-23 (1681st filing) — three requests filed to Next up (`Pass 743.0`, `744.0`, `742.0`)
+
+**Filed (engineer-reported; no shell here, nothing started):**
+- `Pass 743.0` (`G326`): `to_xhtml` keeps leading and trailing blank paragraphs; follow-up to `G321`/`Pass 738.0`; GUI then retires `rich_value_of`.
+- `Pass 744.0` (`X106`, pin `5a2d397c`): `scale_pages` also places page-level shading and tiling patterns (`/Matrix` is relative to the default space, ISO 32000-2 §8.7.3.1).
+- `Pass 742.0` (`G325`, `O456`): `dimension::user_units_from_measurement_on`, the inverse of `format_measurement_on`.
+- All three received after the v0.170.0 round began. Order of work: 743.0, 744.0, 742.0. Banners in `ROADMAP.md` *Next up*.
+
+**FEATURES:** new Planned row for `742.0`; known-gap pointers on the rich-text-runs row (`743.0`) and the page-scaling row (`744.0`); no box changes.
+
+**Next:** `Pass 743.0`.
+
+## 2026-11-23 (1680th filing) — `v0.170.0` PUBLISHED, tag on `5a2d397c`
+
+**Filed (engineer-reported; no shell here, tag, CI, release, crates.io and OneDrive state not checked from here):**
+- **Tag:** annotated `v0.170.0` on `5a2d397c`; CI run 45278577075 green at the tag (42m). The bump push `dce7b5fd` had gone red on rustdoc only (run 45270619810), fixed by `6487f20d`.
+- **Release:** 8 assets; portable zip 32,857,389 bytes plus `.sha256`; three OCR add-on zips plus `.sha256` carried from v0.169.0.
+- **Build / smoke:** `D:\builds\pdfcer-20261123-1719-5a2d397`; fresh folder: `--version` 0.170.0, `centre-line --help`, `centre-mark --circle 200,300,40 --measure radius --extension-lines` then `dimension-list` shows `centre_mark=on extension_lines=on`.
+- **OneDrive:** `pdfcer1` 0.170.0 (6 items, 88,358,913 bytes); `pdfcer2` keeps 0.169.0. **crates.io:** 16 crates at 0.170.0, leaf-first, one round.
+- **`verify-release.py`:** only "working tree clean" fails (36 uncommitted paths, none in a build input).
+- **GUI told:** `open/notice_2026-11-23_release_v0.170.0.md`. Carries `Pass 735.0`-`741.0` and `6487f20d`.
+
+**FEATURES:** no row changes.
+
+**Next:** see the 1681st filing above.
+
 ## 2026-11-23 (1679th filing) — rustdoc link fix in `dimension::centre` (`6487f20d`)
 
 **Filed (engineer-reported; no shell here, git, push, CI and the gates not checked from here):**
