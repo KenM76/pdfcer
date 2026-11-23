@@ -112,6 +112,13 @@ wherever it appears.*
 
 ## Shipped
 
+### `6487f20d` `fix(rustdoc)`: resolve the `DimensionModel` link in `dimension::centre`, 2026-11-23 (1679th filing)
+
+Engineer-reported; no shell here, git, push, CI and the gates not run or checked from here. **Ships in v0.170.0** (the release is tagged after this).
+- **`6487f20de740ede2a2c63d75a801dff5889507ce`:** CI run 45270619810 on the bump-filing commit `dce7b5fd` failed only in the job "cargo doc, broken intra-doc links denied". The module doc of `crates/pdfcer-core/src/dimension/centre.rs` linked `` [`super::DimensionModel`] ``, which does not resolve (the type lives in `dimension::group` and is not re-exported at `dimension`'s root); it is now `` [`DimensionModel`](crate::dimension::group::DimensionModel) ``. One line, doc-only, no behaviour change. Came in with `219f418d` (`Pass 739.0` + `740.0`). Engineer reports `RUSTDOCFLAGS="-D rustdoc::broken_intra_doc_links" cargo doc --workspace --no-deps` now passes locally.
+- **Process note (engineer):** the pre-push audit list ran the 33 Python checks, clippy, fmt and string-gaps but not the rustdoc job; it now must.
+- **FEATURES:** no row changes.
+
 ### `7ff7914b` `chore`: v0.170.0 version bump, 2026-11-23 (1678th filing)
 
 Engineer-reported; no shell here, git, push, CI and the gates not run or checked from here. **Unreleased until v0.170.0 is tagged.** Tag, package and publication are a separate filing.

@@ -4,6 +4,12 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-11-23 (1679th filing) — rustdoc link fix in `dimension::centre` (`6487f20d`)
+
+**Filed (engineer-reported; no shell here, git, push, CI and the gates not checked from here):**
+- `6487f20de740ede2a2c63d75a801dff5889507ce` `fix(rustdoc)`: CI run 45270619810 on `dce7b5fd` failed only in "cargo doc, broken intra-doc links denied"; `crates/pdfcer-core/src/dimension/centre.rs` linked `super::DimensionModel` (not re-exported at `dimension`'s root), now `crate::dimension::group::DimensionModel`. Doc-only, one line; came in with `219f418d`. Details in `ROADMAP.md` *Shipped*.
+- **Process:** the pre-push audit did not include the rustdoc job; it now must. **FEATURES:** no row changes. **Next:** push, CI, tag v0.170.0, release, publish.
+
 ## 2026-11-23 (1678th filing) — v0.170.0 version bump (`7ff7914b`)
 
 **Filed (engineer-reported; no shell here, git, push, CI and the gates not checked from here):**
