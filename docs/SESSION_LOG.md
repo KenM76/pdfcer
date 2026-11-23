@@ -4,6 +4,21 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-11-23 (1677th filing) — `Pass 739.0` (`G322`), `Pass 740.0` (`G323`) SHIPPED
+
+**Shipped (engineer-reported; no shell here, git, push, CI and the gates not checked from here; on `main`, unreleased, next release `v0.170.0`; one commit `219f418d` because the two share `group.rs`/`style.rs`/`sidecar.rs`/`edit.rs`/`centre.rs` and the CLI dispatch):**
+- `Pass 739.0` (`G322`): `dimension::author_centre_line` (midline for parallel, bisector for angled, four refusals, CLI exit 9), `DimensionKind::CentreLine`, sidecar v6, `centre_line_dash()`, CLI `centre-line`.
+- `Pass 740.0` (`G323`): `DimensionKind::CentreMark`, `Circular.centre_mark` (breaking for `Circular` struct literals), `CentreMarkSpec`, 14th style property `centre_mark_size`, two new `EditError` variants (202), CLI `centre-mark` and `--centre-mark-size`; README subcommand count 255 to 257.
+- Shared: snap arms in `ce_dimension_geometry` reach `page_snap_geometry`; `DimensionRecord::centre_snap_points`. Tests: 14 core + 5 CLI + 1 in `page_snap.rs`, three sabotage checks each failed as expected. Replies written, INDEX rows SHIPPED.
+
+**Decisions:** none new. Centre mark is a field of `Circular`, not a linked object (so move/undo/delete are one operation).
+
+**Known limits:** `dimension-list` prints `value=` for centre geometry; region-flatten `ce_dimensions` count excludes it. Code-structure baseline: one duplicate-helper entry relabelled (`rect_array`), not debt paid.
+
+**FEATURES:** two new rows (centre line; centre mark), both core/cli `[x]`, gui `[ ]`; snap row gets a pointer. **ROADMAP:** one Shipped entry covers both Passes.
+
+**Next:** `v0.170.0` when the engineer chooses; `Pass 729.0` (`validate_pdfa`).
+
 ## 2026-11-23 (1676th filing) — `Pass 738.0` (`G321`), `Pass 741.0` (`G324`) SHIPPED
 
 **Shipped (engineer-reported; no shell here, git, push, CI and the gates not checked from here; on `main`, unreleased, next release `v0.170.0`; the 1676th is this librarian's reading of the sequence):**
