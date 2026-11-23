@@ -131,6 +131,7 @@ mod batch;
 mod field_da;
 mod field_set;
 mod format_batch;
+mod rich_runs;
 pub use batch::AnnotationBatchMove;
 mod batch_transform;
 pub use batch_transform::AnnotationBatchOutcome;

@@ -5,10 +5,10 @@
 //! declaration list) into a flat list of styled [`Run`]s — one run per
 //! contiguous stretch of text sharing one resolved style.
 //!
-//! This module **reads and models**. It does not render, does not author,
-//! and does not touch a document. Appearance generation from these runs is
-//! a separate concern with a separate and much larger caveat (see
-//! "Appearance generation is NOT specified" below).
+//! [`to_xhtml`] writes runs back as `/RV`, the inverse of [`parse`] (its
+//! normal form is in its docs). Neither touches a document. Appearance
+//! generation from these runs is a separate concern with a separate and much
+//! larger caveat (see "Appearance generation is NOT specified" below).
 //!
 //! ## Why a flat run list and not a tree
 //!
@@ -111,8 +111,10 @@
 use crate::fdf::{XmlElement, XmlNode};
 
 pub(crate) mod draw;
+mod write;
 
 pub use draw::RichStylePrecedence;
+pub use write::to_xhtml;
 
 /// The deepest element nesting under `<body>` a rich text value may have
 /// (ARCHITECTURE §10). Table 223's grammar needs four (`body > p > b > i`

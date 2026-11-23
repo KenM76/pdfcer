@@ -472,3 +472,46 @@ fn a_rich_value_past_the_size_bound_is_refused() {
     );
     assert!(!s.is_modified());
 }
+
+/// `fill_rich_text_field_runs` writes `to_xhtml(runs)` as `/RV`, the runs'
+/// plain text as `/V`, draws the bold run bold, and undoes as one fill.
+#[test]
+fn filling_from_runs_writes_their_xhtml_and_undoes() {
+    use pdfcer_core::richtext::{self, Run, Style};
+    let bold = Style {
+        weight: Some(700),
+        ..Style::default()
+    };
+    let runs = vec![
+        Run {
+            text: "plain ".to_owned(),
+            style: Style::default(),
+            paragraph: 0,
+        },
+        Run {
+            text: "bold".to_owned(),
+            style: bold,
+            paragraph: 0,
+        },
+        Run {
+            text: "next".to_owned(),
+            style: Style::default(),
+            paragraph: 1,
+        },
+    ];
+    let mut s = EditSession::new(doc(RICH, ""));
+    s.fill_rich_text_field_runs("t", &runs, FlatText::ParagraphLines)
+        .unwrap();
+    let rv = String::from_utf8(field(&s).rich_value.unwrap()).unwrap();
+    assert_eq!(rv, richtext::to_xhtml(&runs));
+    assert_eq!(richtext::parse(&rv, None).unwrap(), runs);
+    assert_eq!(field(&s).value.display_text(), "plain bold\nnext");
+    let (content, _) = normal_ap(&s);
+    assert_ne!(
+        font_at(&content, "(plain) Tj"),
+        font_at(&content, "(bold) Tj")
+    );
+
+    assert!(s.undo().is_some());
+    assert_eq!(field(&s).rich_value, None);
+}

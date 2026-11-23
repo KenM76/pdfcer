@@ -1604,6 +1604,7 @@ Guards: `MAX_FORM_FIELDS = 500_000` `forms.rs`,
 | `fill_text_field(fqn, text) -> Result<FillOutcome, EditError>` | `12340` |
 | `fill_text_field_downgrading_rich_text(fqn, text) -> Result<FillOutcome, EditError>` | `12384` |
 | `fill_rich_text_field(fqn, rv, FlatText) -> Result<RichFillOutcome, EditError>` | — |
+| `fill_rich_text_field_runs(fqn, &[Run], FlatText) -> Result<RichFillOutcome, EditError>` | `edit/rich_runs.rs` |
 | `fill_text_field_storing_password(fqn, text) -> Result<FillOutcome, EditError>` | — |
 | `set_button_state(fqn, on_state) -> Result<(), EditError>` | `12570` |
 | `set_choice_value(fqn, &[&str]) -> Result<FillOutcome, EditError>` | `13138` |
@@ -1952,6 +1953,9 @@ count by exactly that many.
   `richtext::{parse_noting, RichText, flat_text, FlatText, MAX_RICH_DEPTH,
   MAX_RICH_BYTES}` and `vartext::{RichSpan, build_rich_text}` are the
   building blocks; `parse_noting` returns the ignored markup with the runs.
+  `richtext::to_xhtml(&[Run]) -> String` writes runs back as `/RV`, the
+  inverse of `parse` (normal form: `02-editing-and-saving.md`,
+  `fill_rich_text_field_runs`).
 - **No font substitution in variable text.** `VarTextError::FontUnresolved`
   refuses rather than substituting, *"because a substituted font changes glyph
   advances, so the operator would see different metrics than every other

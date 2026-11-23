@@ -235,6 +235,7 @@ mod restack;
 mod review_features;
 mod rich_copy;
 mod rich_text_staleness;
+mod rich_text_writer;
 mod richtext_real_field;
 mod rotated_text;
 mod route_enumeration;
