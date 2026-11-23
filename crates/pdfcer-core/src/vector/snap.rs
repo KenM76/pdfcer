@@ -291,6 +291,9 @@ pub struct SnapCandidate {
     /// [`snap_candidates_with_markups`](super::snap_candidates_with_markups)
     /// sets it.
     pub source_annotation: Option<crate::object::ObjId>,
+    /// What kind of object the candidate came from, for the shell to name
+    /// ("an image", "a form field", "a ce dimension").
+    pub source: super::SnapSource,
 }
 
 /// The engine's per-query configuration — everything the fixed target list
@@ -818,6 +821,7 @@ fn project_cubic(
             kind: SnapKind::SegmentCenterline,
             source_object: Some(obj_index),
             source_annotation: None,
+            source: super::SnapSource::Path,
         });
     }
 }
@@ -887,6 +891,7 @@ fn collect_intersections(
                     kind: SnapKind::Intersection,
                     source_object: source,
                     source_annotation: None,
+                    source: super::SnapSource::Path,
                 });
             }
         }
@@ -1009,6 +1014,11 @@ fn push_if_near(
             kind,
             source_object: source,
             source_annotation: None,
+            source: if source.is_some() {
+                super::SnapSource::Path
+            } else {
+                super::SnapSource::Page
+            },
         });
     }
 }
@@ -1065,6 +1075,7 @@ pub(super) fn finalize(mut cands: Vec<SnapCandidate>, query: Point) -> Vec<SnapC
             .then_with(|| a.point.y.total_cmp(&b.point.y))
             .then_with(|| a.source_object.cmp(&b.source_object))
             .then_with(|| a.source_annotation.cmp(&b.source_annotation))
+            .then_with(|| a.source.cmp(&b.source))
     });
     cands.truncate(MAX_CANDIDATES);
 

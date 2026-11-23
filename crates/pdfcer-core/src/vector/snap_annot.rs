@@ -17,6 +17,7 @@ use std::collections::BTreeSet;
 use super::decompose::PageObjects;
 use super::geometry::{Bounds, Point};
 use super::snap::{self, SnapCandidate, SnapConfig, SnapKind};
+use super::snap_source::SnapSource;
 use crate::annot::{Annotation, oc_is_hidden, page_annotations};
 use crate::annot_author::{
     inset_by_rect_differences, read_border_effect, read_border_width, read_numbers,
@@ -34,7 +35,7 @@ const ELLIPSE_CHORDS: usize = 64;
 
 /// How an outline's points become candidates.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum OutlineKind {
+pub(crate) enum OutlineKind {
     /// Every point a node (a free end of an open outline an endpoint), every
     /// edge a midpoint and an on-edge projection.
     Polygonal,
@@ -51,21 +52,46 @@ struct Outline {
     kind: OutlineKind,
 }
 
-/// One markup annotation's snap targets, in page space.
+/// One page object's snap targets, in page space: a markup, any other
+/// annotation, a ce dimension, an image or a text object.
+///
+/// Built by [`markup_snap_geometry`], [`annotation_snap_geometry`](super::annotation_snap_geometry),
+/// [`content_snap_geometry`](super::content_snap_geometry) and
+/// [`EditSession::page_snap_geometry`](crate::edit::EditSession::page_snap_geometry);
+/// answered by [`snap_candidates_with_markups`].
 #[derive(Debug, Clone, PartialEq)]
-pub struct MarkupSnapGeometry {
-    annotation: ObjId,
+pub struct SnapGeometry {
+    source: SnapSource,
+    annotation: Option<ObjId>,
+    object: Option<usize>,
     outlines: Vec<Outline>,
     nodes: Vec<Point>,
     centers: Vec<Point>,
     bounds: Bounds,
 }
 
-impl MarkupSnapGeometry {
-    /// The annotation these targets belong to.
+/// The name this type had when it held markups only.
+pub type MarkupSnapGeometry = SnapGeometry;
+
+impl SnapGeometry {
+    /// What kind of object these targets belong to.
     #[must_use]
-    pub const fn annotation(&self) -> ObjId {
+    pub const fn source(&self) -> SnapSource {
+        self.source
+    }
+
+    /// The annotation these targets belong to; `None` for page content.
+    #[must_use]
+    pub const fn annotation(&self) -> Option<ObjId> {
         self.annotation
+    }
+
+    /// The index into [`PageObjects::objects`] of the content object these
+    /// targets belong to; `None` for an annotation and for an object inside a
+    /// form XObject (a [`FormLeaf`](super::FormLeaf)).
+    #[must_use]
+    pub const fn object(&self) -> Option<usize> {
+        self.object
     }
 
     /// The box around every target, page space.
@@ -74,9 +100,16 @@ impl MarkupSnapGeometry {
         self.bounds
     }
 
-    fn new(annotation: ObjId) -> Self {
+    /// An empty geometry from `source`, naming its annotation or object.
+    pub(crate) fn new(
+        source: SnapSource,
+        annotation: Option<ObjId>,
+        object: Option<usize>,
+    ) -> Self {
         Self {
+            source,
             annotation,
+            object,
             outlines: Vec::new(),
             nodes: Vec::new(),
             centers: Vec::new(),
@@ -89,7 +122,7 @@ impl MarkupSnapGeometry {
     }
 
     /// Add an outline, dropping non-finite points and honouring the cap.
-    fn push_outline(&mut self, points: &[(f64, f64)], closed: bool, kind: OutlineKind) {
+    pub(crate) fn push_outline(&mut self, points: &[(f64, f64)], closed: bool, kind: OutlineKind) {
         let room = MAX_MARKUP_SNAP_POINTS.saturating_sub(self.point_count());
         let points: Vec<Point> = points
             .iter()
@@ -110,7 +143,8 @@ impl MarkupSnapGeometry {
         });
     }
 
-    fn push_rect(&mut self, r: Rect) {
+    /// `r` as a closed outline: corners, edge middles, nearest edge point.
+    pub(crate) fn push_rect(&mut self, r: Rect) {
         let corners = [
             (r.llx, r.lly),
             (r.urx, r.lly),
@@ -120,8 +154,13 @@ impl MarkupSnapGeometry {
         self.push_outline(&corners, true, OutlineKind::Polygonal);
     }
 
-    fn push_center(&mut self, r: Rect) {
-        let c = Point::new((r.llx + r.urx) / 2.0, (r.lly + r.ury) / 2.0);
+    /// The centre of `r` as a [`SnapKind::Center`] target.
+    pub(crate) fn push_center(&mut self, r: Rect) {
+        self.push_center_point(Point::new((r.llx + r.urx) / 2.0, (r.lly + r.ury) / 2.0));
+    }
+
+    /// Add a [`SnapKind::Center`] target.
+    pub(crate) fn push_center_point(&mut self, c: Point) {
         if c.is_finite() {
             self.centers.push(c);
             self.bounds = self.bounds.union_point(c);
@@ -140,13 +179,26 @@ impl MarkupSnapGeometry {
         self.push_outline(&ring, true, OutlineKind::Smooth);
         for (x, y) in [(cx + rx, cy), (cx, cy + ry), (cx - rx, cy), (cx, cy - ry)] {
             let p = Point::new(x, y);
-            if p.is_finite() {
-                self.nodes.push(p);
-            }
+            self.push_node(p);
         }
     }
 
-    fn is_empty(&self) -> bool {
+    /// Add a [`SnapKind::Node`] target.
+    pub(crate) fn push_node(&mut self, p: Point) {
+        if p.is_finite() {
+            self.nodes.push(p);
+            self.bounds = self.bounds.union_point(p);
+        }
+    }
+
+    /// [`Self::push_outline`] over points.
+    pub(crate) fn push_points(&mut self, points: &[Point], closed: bool, kind: OutlineKind) {
+        let pairs: Vec<(f64, f64)> = points.iter().map(|p| (p.x, p.y)).collect();
+        self.push_outline(&pairs, closed, kind);
+    }
+
+    /// Whether no target was pushed, so the geometry can be dropped.
+    pub(crate) fn is_empty(&self) -> bool {
         self.outlines.is_empty() && self.nodes.is_empty() && self.centers.is_empty()
     }
 }
@@ -197,7 +249,7 @@ fn geometry_of<G: ObjectGraph + ?Sized>(
     a: &Annotation,
     dict: &Dict,
 ) -> MarkupSnapGeometry {
-    let mut g = MarkupSnapGeometry::new(id);
+    let mut g = SnapGeometry::new(SnapSource::Markup, Some(id), None);
     match a.subtype.as_slice() {
         b"Square" | b"Circle" | b"FreeText" => {
             let Some(rect) = a.rect else { return g };
@@ -282,11 +334,15 @@ fn pairs(nums: &[f64]) -> Vec<(f64, f64)> {
         .collect()
 }
 
-/// [`snap_candidates`](super::snap_candidates) over the page objects and the
-/// page's markups together.
+/// [`snap_candidates`](super::snap_candidates) over the page objects and any
+/// [`SnapGeometry`] together: the page's markups, or every source
+/// [`EditSession::page_snap_geometry`](crate::edit::EditSession::page_snap_geometry)
+/// reads.
 ///
-/// A candidate from a markup carries its annotation in
-/// [`SnapCandidate::source_annotation`] and `None` in `source_object`. Kinds
+/// A candidate carries its geometry's [`SnapGeometry::source`] in
+/// [`SnapCandidate::source`], its annotation in
+/// [`SnapCandidate::source_annotation`] and its content object in
+/// `source_object`. Kinds
 /// and their order are the ones page paths use: a vertex or box corner is
 /// [`SnapKind::Node`], a free end [`SnapKind::Endpoint`], a box or ellipse
 /// centre [`SnapKind::Center`], an edge's middle [`SnapKind::Midpoint`], the
@@ -328,8 +384,9 @@ pub fn snap_candidates_with_markups(
                 out.push(SnapCandidate {
                     point,
                     kind,
-                    source_object: None,
-                    source_annotation: Some(m.annotation),
+                    source_object: m.object,
+                    source_annotation: m.annotation,
+                    source: m.source,
                 });
             }
         };

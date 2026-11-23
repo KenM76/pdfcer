@@ -138,7 +138,8 @@ builds `--no-default-features`, so both configurations compile.
 | **Marquee-select a region** | **`vector::hit_test_rect_deep(&PageObjects, Bounds, MarqueeMode, FormMarquee)`** — `vector/hit.rs`. `hit_test_rect` still exists and is **shallow**: it cannot see inside a form, so a rubber band and a click disagree about what is selectable | §10.3 |
 | Drill into which text run / subpath was clicked | `vector::hit_test_text_runs` / `hit_test_text_runs_of(&TextObject, ..)` — `hit.rs`; `vector::hit_test_subpaths` / `hit_test_subpaths_of(&PathObject, ..)` — `hit.rs`. The `_of` forms take the object, so they work on a `FormLeaf::object` | §10.3 |
 | Snap a point to geometry | `vector::snap_candidates(Point, &SnapConfig, &PageObjects)` — `vector/snap.rs` | §10.4 |
-| Snap to markups as well | `EditSession::markup_snap_geometry(page_index, &hidden_layers)` then `vector::snap_candidates_with_markups(Point, &SnapConfig, Option<&PageObjects>, &[MarkupSnapGeometry])` — `vector/snap_annot.rs` | §10.4 |
+| Snap to markups as well | `EditSession::markup_snap_geometry(page_index, &hidden_layers)` then `vector::snap_candidates_with_markups(Point, &SnapConfig, Option<&PageObjects>, &[SnapGeometry])` — `vector/snap_annot.rs` | §10.4 |
+| Snap to every page object (images, text, widgets, ce dimensions, stamps, links, highlights) | `EditSession::page_snap_geometry(page_index, Some(&model), &hidden_layers)` then the same `snap_candidates_with_markups`; `SnapCandidate::source` names the object kind (`vector::SnapSource`) — `edit/markup_snap.rs`, `vector/snap_page.rs` | §10.4 |
 | Pick a straight edge (CAD-style measuring) | `vector::linepick::pick_line_in_page` — `vector/linepick.rs` | §10.5 |
 | Classify two picked edges as parallel/angled | `vector::linepick::classify_two_lines` — `vector/linepick.rs` | §10.5 |
 | Decode a stream through its `/Filter` chain | `filters::decode_stream(&Dict, &[u8])` — `filters/mod.rs` | §11.1 |
@@ -2707,7 +2708,7 @@ let cfg = SnapConfig::new(tol_in_page_units)      // snap.rs
     .with_grid(grid)                               // snap.rs
     .with_axes(true);                              // snap.rs
 let cands: Vec<SnapCandidate> = snap_candidates(query_point, &cfg, &model); // snap.rs
-// SnapCandidate: snap.rs — {point (page space), kind, source_object, source_annotation}
+// SnapCandidate: snap.rs — {point (page space), kind, source_object, source_annotation, source}
 // SnapKind: snap.rs variants; priority() (0 = highest);
 //           is_derived() — TRUE only for DerivedCenterline.
 
@@ -2723,10 +2724,10 @@ Guards: `SNAP_FLATTEN_STEPS` 16, `MAX_NEIGHBOURHOOD_SEGMENTS` 256
 To include the page's markups:
 
 ```rust
-use pdfcer_core::vector::{snap_candidates_with_markups, MarkupSnapGeometry};
+use pdfcer_core::vector::{snap_candidates_with_markups, SnapGeometry};
 
 // Once per page, and again after any edit to the page's annotations.
-let markups: Vec<MarkupSnapGeometry> =
+let markups: Vec<SnapGeometry> =
     session.markup_snap_geometry(page_index, &hidden_layers)?;   // edit/markup_snap.rs
 // Per pointer move. `None` for a page with no content of its own.
 let cands = snap_candidates_with_markups(query_point, &cfg, Some(&model), &markups);
@@ -2753,8 +2754,51 @@ let cands = snap_candidates_with_markups(query_point, &cfg, Some(&model), &marku
 - No intersections are found with a markup edge.
 - `vector::markup_snap_geometry(&graph, page_id, &hidden_layers, &exclude)`
   is the same reader without a session; `exclude` is yours to fill.
-- `MarkupSnapGeometry::annotation()` and `bounds()` let you skip a markup
-  far from the pointer. Guard: `MAX_MARKUP_SNAP_POINTS` 4096 per markup.
+- `SnapGeometry::annotation()` (`Option<ObjId>`; `MarkupSnapGeometry` is
+  an alias of `SnapGeometry`) and `bounds()` let you skip a markup far from
+  the pointer. Guard: `MAX_MARKUP_SNAP_POINTS` 4096 per geometry.
+
+**Every page object is a snap target** with `page_snap_geometry` (request
+G324), a superset of `markup_snap_geometry`:
+
+```rust
+use pdfcer_core::vector::{snap_candidates_with_markups, SnapGeometry, SnapSource};
+
+// Once per page, and again after any edit to the page.
+let model = session.page_objects(page_index)?;
+let all: Vec<SnapGeometry> =
+    session.page_snap_geometry(page_index, Some(&model), &hidden_layers)?; // edit/markup_snap.rs
+let cands = snap_candidates_with_markups(query_point, &cfg, Some(&model), &all);
+match cands[0].source { SnapSource::Image => { /* "image corner" */ } _ => {} }
+```
+
+`SnapCandidate::source: SnapSource` (`vector/snap_source.rs`,
+`#[non_exhaustive]`, `Default` = `Page`) names what the candidate came from,
+for the shell's label. It does not affect order. **`SnapCandidate` gained the
+public field `source`**; a struct literal must name it.
+
+| `SnapSource` | From | Targets |
+|---|---|---|
+| `Page` | axes, grid | as before |
+| `Path` | content paths, intersections | as before |
+| `Image` | image XObject / inline image | the quad the CTM maps the unit square to (rotated/skewed = real corners): corners `Node`, edge middles, centre, nearest edge point. A form XObject gives nothing itself |
+| `Text` | each text run | baseline start (`Endpoint`) and box centre; a run along a page axis also gives box corners, edge middles and baseline end. A rotated run gives start + centre only; an em-box-guessed box gives baseline starts only |
+| `Markup` | the seven shape markups | as above |
+| `TextMarkup` | `/Highlight` `/Underline` `/StrikeOut` `/Squiggly` | each `/QuadPoints` quad (any corner order) as a closed outline plus its centroid; no usable quads = `/Rect` |
+| `FormField` | `/Widget` | `/Rect` corners, edge middles, centre, nearest edge point |
+| `CeDimension` | ce dimensions | linear: dimension line ends, middle, nearest point, and each drawn extension line's two ends; circular: centre; angular: apex; perimeter: its points |
+| `Annotation` | any other subtype (stamp, note, link, attachment) | its `/Rect` as for `FormField` |
+
+- Images and text come from `PageObjects::objects` (`source_object:
+  Some(index)`) and from form-XObject leaves (`source_object: None`).
+  `model: None` leaves them out. Paths stay `snap_candidates`' own.
+- Left out: anything on a layer in `hidden_layers` (content by
+  `is_hidden_under`, annotations by `/OC`), annotations `/F` Hidden or
+  NoView, popups, a ce dimension whose group is hidden.
+- Without a session: `vector::annotation_snap_geometry(&graph, page_id,
+  &hidden_layers, &exclude)` (non-shape annotations) and
+  `vector::content_snap_geometry(&graph, &model, &hidden_layers)` (images
+  and text). Combine them with `markup_snap_geometry`.
 
 `SnapKind::is_derived()` is your rule-4 hook: a `DerivedCenterline`
 candidate is something pdfcer **inferred** — there is no such line in the

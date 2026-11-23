@@ -199,6 +199,7 @@ mod page_labels_set;
 mod page_model_resume;
 mod page_objects_cache;
 mod page_ops;
+mod page_snap;
 mod page_tree_nested_count;
 mod page_with_boxes;
 mod paste_annotation_geometry;
