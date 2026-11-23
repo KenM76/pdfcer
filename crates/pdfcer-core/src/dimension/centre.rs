@@ -3,7 +3,7 @@
 //! [`DimensionKind::CentreMark`], and the mark a [`DimensionKind::Circular`]
 //! can carry).
 //!
-//! Stored and read back through the same [`super::DimensionModel`] as every
+//! Stored and read back through the same [`DimensionModel`](crate::dimension::group::DimensionModel) as every
 //! other ce dimension, so grouping, move, rotate, delete, undo and the
 //! `/PieceInfo` sidecar need nothing new.
 //!
