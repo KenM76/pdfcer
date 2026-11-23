@@ -255,6 +255,7 @@ fn xml_property(packet: &[u8], prefix: &[u8], local: &[u8]) -> Option<String> {
 /// up to the next `<`. `None` for an empty-element tag or a name that only
 /// begins `rest`'s real name.
 fn element_text(rest: &[u8]) -> Option<&[u8]> {
+    let rest = lookahead(rest);
     let close = rest.iter().position(|&b| b == b'>')?;
     let tag = rest.get(..close)?;
     let is_name_end = tag.first().is_none_or(u8::is_ascii_whitespace);
@@ -267,7 +268,7 @@ fn element_text(rest: &[u8]) -> Option<&[u8]> {
 
 /// The quoted value after `=` at the start of `rest`, either quote.
 fn attribute_value(rest: &[u8]) -> Option<&[u8]> {
-    let rest = rest
+    let rest = lookahead(rest)
         .trim_ascii_start()
         .strip_prefix(b"=")?
         .trim_ascii_start();
@@ -276,6 +277,15 @@ fn attribute_value(rest: &[u8]) -> Option<&[u8]> {
         return None;
     }
     tail.get(..tail.iter().position(|&b| b == quote)?)
+}
+
+/// How far past a name its value is looked for. A real value is at most
+/// 64 bytes and follows its name directly; the bound keeps a packet of
+/// unterminated names (no `>`, no closing quote) linear, not quadratic.
+const MAX_LOOKAHEAD: usize = 1024;
+
+fn lookahead(rest: &[u8]) -> &[u8] {
+    rest.get(..MAX_LOOKAHEAD).unwrap_or(rest)
 }
 
 fn is_name_byte(b: u8) -> bool {

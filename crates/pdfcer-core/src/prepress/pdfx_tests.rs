@@ -146,3 +146,38 @@ fn junk_values_are_ignored() {
     assert_eq!(claim(&doc("", &long, None)), None);
     assert_eq!(claim(&doc("", "/GTS_PDFXVersion /PDFX4", None)), None);
 }
+
+fn element_claim_with_gap(gap: usize) -> Option<PdfxClaim> {
+    let xmp = packet(&format!(
+        "<rdf:Description rdf:about=\"\" xmlns:pdfxid=\"http://www.npes.org/pdfx/ns/id/\">\
+         <pdfxid:GTS_PDFXVersion{}>PDF/X-4</pdfxid:GTS_PDFXVersion></rdf:Description>",
+        " ".repeat(gap)
+    ));
+    claim(&doc("", "", Some(&xmp)))
+}
+
+/// Would catch: the value scan still reaching any distance past its name.
+#[test]
+fn a_value_past_the_lookahead_bound_is_not_read() {
+    assert_eq!(
+        element_claim_with_gap(1).and_then(|c| c.xmp_version),
+        Some("PDF/X-4".to_owned())
+    );
+    assert!(element_claim_with_gap(MAX_LOOKAHEAD + 1).is_none());
+}
+
+/// Would catch: each unterminated name scanning to the end of the packet
+/// (quadratic: about 9 s in a debug build at this size, against 0.1 s).
+#[test]
+fn a_packet_of_unterminated_names_is_linear() {
+    let ns = "<rdf:Description xmlns:pdfxid=\"http://www.npes.org/pdfx/ns/id/\">";
+    let mut body = String::from(ns);
+    while body.len() < 512 * 1024 {
+        // A tab makes any quoted span unprintable, so no repetition reads as a value.
+        body.push_str("<pdfxid:GTS_PDFXVersion\tpdfxid:GTS_PDFXVersion='");
+    }
+    let d = doc("", "", Some(&packet(&body)));
+    let started = std::time::Instant::now();
+    assert!(claim(&d).is_none());
+    assert!(started.elapsed().as_secs() < 2, "{:?}", started.elapsed());
+}
