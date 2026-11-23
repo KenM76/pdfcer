@@ -519,7 +519,6 @@ fn pdfcer-render/src/shading.rs::load
 fn pdfcer-render/src/svg.rs::write_fill
 fn pdfcer-render/src/text.rs::load_composite
 fn pdfcer-render/src/text.rs::load_simple
-fn pdfcer-text/src/block_layout.rs::classify_running
 fn pdfcer-text/src/block_layout.rs::find_columns
 fn pdfcer-text/src/block_layout.rs::layout_page
 fn pdfcer-text/src/block_layout.rs::page_fragments

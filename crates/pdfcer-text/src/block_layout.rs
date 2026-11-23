@@ -771,44 +771,56 @@ type Member = (usize, f64, usize);
 /// Distances within this many points of each other are one running line.
 const RUNNING_TOLERANCE: f64 = 4.0;
 
-/// The run of `members` (sorted by distance) spanning at most
-/// [`RUNNING_TOLERANCE`] that covers the most distinct pages, and that
-/// count, extended to every member within reach of its first. One sliding
-/// pass; a page with several copies counts once.
-fn best_window(members: &[Member]) -> (&[Member], usize) {
+/// At most this many running clusters per group of identical text; copies
+/// at further heights stay body.
+const MAX_RUNNING_CLUSTERS: usize = 8;
+
+/// Every cluster of `members` (sorted by distance) that is running text,
+/// nearest the edge first, at most `cap`. Each member starts a window of
+/// every member within [`RUNNING_TOLERANCE`] of it; a window covering at
+/// least `needed` distinct pages qualifies, and qualifying windows that
+/// share a member join into one cluster. So text repeating at two heights,
+/// disjoint or overlapping, is running at both. One sliding pass; a page
+/// with several copies counts once.
+fn running_clusters(members: &[Member], needed: usize, cap: usize) -> Vec<&[Member]> {
     let mut on_page: HashMap<usize, usize> = HashMap::new();
-    let (mut low, mut best, mut most) = (0usize, (0usize, 0usize), 0usize);
-    for (high, &(page, distance, _)) in members.iter().enumerate() {
-        let n = on_page.entry(page).or_default();
-        *n = n.saturating_add(1);
-        while let Some(&(first, _, _)) = members
-            .get(low)
-            .filter(|m| distance - m.1 > RUNNING_TOLERANCE)
+    let mut found: Vec<&[Member]> = Vec::new();
+    let mut current: Option<(usize, usize)> = None;
+    let mut end = 0usize;
+    for (start, first) in members.iter().enumerate() {
+        while let Some(next) = members
+            .get(end)
+            .filter(|m| m.1 - first.1 <= RUNNING_TOLERANCE)
         {
-            if let Some(n) = on_page.get_mut(&first) {
-                *n = n.saturating_sub(1);
-                if *n == 0 {
-                    on_page.remove(&first);
-                }
-            }
-            low = low.saturating_add(1);
+            let n = on_page.entry(next.0).or_default();
+            *n = n.saturating_add(1);
+            end = end.saturating_add(1);
         }
-        if on_page.len() > most {
-            (most, best) = (on_page.len(), (low, high.saturating_add(1)));
+        if on_page.len() >= needed {
+            current = match current {
+                Some((from, to)) if start < to => Some((from, to.max(end))),
+                done => {
+                    if let Some(c) = done.and_then(|(f, t)| members.get(f..t)) {
+                        found.push(c);
+                    }
+                    if found.len() >= cap {
+                        return found;
+                    }
+                    Some((start, end))
+                }
+            };
+        }
+        if let Some(n) = on_page.get_mut(&first.0) {
+            *n = n.saturating_sub(1);
+            if *n == 0 {
+                on_page.remove(&first.0);
+            }
         }
     }
-    // Every copy within reach of the window's first member belongs to it.
-    let end = members
-        .iter()
-        .skip(best.1)
-        .take_while(|m| {
-            members
-                .get(best.0)
-                .is_some_and(|f| m.1 - f.1 <= RUNNING_TOLERANCE)
-        })
-        .count()
-        .saturating_add(best.1);
-    (members.get(best.0..end).unwrap_or(&[]), most)
+    if let Some(c) = current.and_then(|(f, t)| members.get(f..t)) {
+        found.push(c);
+    }
+    found
 }
 
 /// Equal ignoring case and spacing but not digits: `ANNUAL REPORT` and
@@ -848,7 +860,30 @@ fn classify_running(
     if page_count < 2 {
         return;
     }
-    // (is_top, normalised text) -> [(page, distance from edge, frag)]
+    let fraction = f64::from(options.running_min_fraction.clamp(0.0, 1.0));
+    #[allow(
+        clippy::cast_precision_loss,
+        clippy::cast_possible_truncation,
+        clippy::cast_sign_loss
+    )]
+    let needed = ((page_count as f64 * fraction).ceil() as usize).max(2);
+    for ((is_top, _), mut members) in running_groups(frags, geos, options) {
+        members.sort_by(|a, b| a.1.total_cmp(&b.1));
+        for cluster in running_clusters(&members, needed, MAX_RUNNING_CLUSTERS) {
+            if !is_heading_sequence(frags, cluster, body) {
+                mark_running(frags, cluster, is_top);
+            }
+        }
+    }
+}
+
+/// Body fragments in the top and bottom margin bands, grouped by
+/// `(is_top, normalised text)` as `(page, distance from edge, fragment)`.
+fn running_groups(
+    frags: &[Vec<Frag>],
+    geos: &[PageGeometry],
+    options: &LayoutOptions,
+) -> HashMap<(bool, String), Vec<Member>> {
     let mut groups: HashMap<(bool, String), Vec<Member>> = HashMap::new();
     for (p, (page, geo)) in frags.iter().zip(geos).enumerate() {
         let (_, _, pb, pt) = rect_to_display(geo.rotate, &geo.crop_box);
@@ -870,44 +905,35 @@ fn classify_running(
             }
         }
     }
-    let fraction = f64::from(options.running_min_fraction.clamp(0.0, 1.0));
-    #[allow(
-        clippy::cast_precision_loss,
-        clippy::cast_possible_truncation,
-        clippy::cast_sign_loss
-    )]
-    let needed = ((page_count as f64 * fraction).ceil() as usize).max(2);
-    for ((is_top, _), mut members) in groups {
-        members.sort_by(|a, b| a.1.total_cmp(&b.1));
-        let (best, best_pages) = best_window(&members);
-        if best_pages < needed {
-            continue;
-        }
-        let texts_differ = best.windows(2).any(|w| {
-            let text = |m: &Member| frags.get(m.0).and_then(|pg| pg.get(m.2)).map(|f| &f.text);
-            matches!(w, [a, b] if !text(a).zip(text(b)).is_some_and(|(x, y)| same_words(x, y)))
-        });
-        let heading_sized = body.is_some_and(|body| {
-            best.iter().all(|m| {
-                frags
-                    .get(m.0)
-                    .and_then(|pg| pg.get(m.2))
-                    .is_some_and(|f| f.size >= HEADING_SIZE_RATIO * body)
-            })
-        });
-        if texts_differ && heading_sized {
-            continue;
-        }
-        for &(p, _, i) in best {
-            if let Some(f) = frags.get_mut(p).and_then(|pg| pg.get_mut(i)) {
-                f.class = if is_page_number(&f.text) {
-                    Class::PageNumber(BlockSource::Inferred)
-                } else if is_top {
-                    Class::Header(BlockSource::Inferred)
-                } else {
-                    Class::Footer(BlockSource::Inferred)
-                };
-            }
+    groups
+}
+
+/// A heading-sized cluster whose text differs page to page (`Chapter 1`,
+/// `Chapter 2`) is a sequence of headings, not running text.
+fn is_heading_sequence(frags: &[Vec<Frag>], cluster: &[Member], body: Option<f64>) -> bool {
+    let frag = |m: &Member| frags.get(m.0).and_then(|pg| pg.get(m.2));
+    let texts_differ = cluster.windows(2).any(|w| {
+        let text = |m: &Member| frag(m).map(|f| &f.text);
+        matches!(w, [a, b] if !text(a).zip(text(b)).is_some_and(|(x, y)| same_words(x, y)))
+    });
+    texts_differ
+        && body.is_some_and(|body| {
+            cluster
+                .iter()
+                .all(|m| frag(m).is_some_and(|f| f.size >= HEADING_SIZE_RATIO * body))
+        })
+}
+
+fn mark_running(frags: &mut [Vec<Frag>], cluster: &[Member], is_top: bool) {
+    for &(p, _, i) in cluster {
+        if let Some(f) = frags.get_mut(p).and_then(|pg| pg.get_mut(i)) {
+            f.class = if is_page_number(&f.text) {
+                Class::PageNumber(BlockSource::Inferred)
+            } else if is_top {
+                Class::Header(BlockSource::Inferred)
+            } else {
+                Class::Footer(BlockSource::Inferred)
+            };
         }
     }
 }
@@ -1529,16 +1555,48 @@ mod tests {
             })
             .collect();
         members.sort_by(|a, b| a.1.total_cmp(&b.1));
-        let (window, pages) = best_window(&members);
-        assert_eq!(pages, 3);
-        assert_eq!(window.len(), 9);
+        let found = running_clusters(&members, 3, MAX_RUNNING_CLUSTERS);
+        assert_eq!(found.iter().map(|c| c.len()).collect::<Vec<_>>(), [9]);
+        assert!(running_clusters(&members, 4, MAX_RUNNING_CLUSTERS).is_empty());
     }
 
     #[test]
     fn a_window_is_bounded_by_the_tolerance() {
         let members: Vec<Member> = vec![(0, 10.0, 0), (1, 12.0, 0), (2, 14.5, 0), (3, 30.0, 0)];
-        let (window, pages) = best_window(&members);
-        assert_eq!((pages, window.len()), (2, 2));
+        let found = running_clusters(&members, 2, MAX_RUNNING_CLUSTERS);
+        assert_eq!(found.iter().map(|c| c.len()).collect::<Vec<_>>(), [3]);
+        assert!(running_clusters(&members, 4, MAX_RUNNING_CLUSTERS).is_empty());
+    }
+
+    /// Would catch: one best window per group.
+    #[test]
+    fn two_disjoint_heights_are_two_clusters() {
+        let members: Vec<Member> = (0..6)
+            .map(|p| (p, if p < 3 { 20.0 } else { 40.0 }, 0))
+            .collect();
+        let found = running_clusters(&members, 3, MAX_RUNNING_CLUSTERS);
+        assert_eq!(found.iter().map(|c| c.len()).collect::<Vec<_>>(), [3, 3]);
+    }
+
+    #[test]
+    fn overlapping_windows_join_into_one_cluster() {
+        let members: Vec<Member> = vec![
+            (0, 20.0, 0),
+            (1, 20.0, 0),
+            (2, 24.0, 0),
+            (3, 28.0, 0),
+            (4, 28.0, 0),
+        ];
+        let found = running_clusters(&members, 3, MAX_RUNNING_CLUSTERS);
+        assert_eq!(found.iter().map(|c| c.len()).collect::<Vec<_>>(), [5]);
+    }
+
+    #[test]
+    fn clusters_stop_at_the_cap() {
+        let members: Vec<Member> = (0..20u8)
+            .map(|k| (usize::from(k % 2), 10.0 * f64::from(k / 2), 0))
+            .collect();
+        assert_eq!(running_clusters(&members, 2, 3).len(), 3);
     }
 
     #[test]

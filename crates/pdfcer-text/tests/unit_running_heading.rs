@@ -109,3 +109,48 @@ fn numbered_chapter_titles_are_still_headings() {
     }
     assert_eq!(layout.diagnostics.running_headers, 0);
 }
+
+/// One US Letter page per entry of `ys`: `Note` at 10 pt with its baseline
+/// at that height, then five 12 pt body lines.
+fn notes_at(ys: &[f32]) -> DocumentLayout {
+    let n = ys.len();
+    let kids: Vec<String> = (0..n).map(|i| format!("{} 0 R", 4 + 2 * i)).collect();
+    let mut bodies = vec![
+        "<< /Type /Catalog /Pages 2 0 R >>".to_owned(),
+        format!("<< /Type /Pages /Kids [{}] /Count {n} >>", kids.join(" ")),
+        "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>".to_owned(),
+    ];
+    for (i, y) in ys.iter().enumerate() {
+        let mut content = format!("BT /F1 10 Tf 72 {y} Td (Note) Tj ET\n");
+        for line in 0..5 {
+            let by = 650 - 20 * line;
+            content.push_str(&format!(
+                "BT /F1 12 Tf 72 {by} Td (Body text line {line} on page {i}.) Tj ET\n"
+            ));
+        }
+        bodies.push(format!(
+            "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents {} 0 R \
+             /Resources << /Font << /F1 3 0 R >> >> >>",
+            5 + 2 * i
+        ));
+        bodies.push(format!("STREAM:{content}"));
+    }
+    let doc = Document::from_bytes(build_pdf(&bodies)).unwrap();
+    let options = LayoutOptions::default().with_running_min_fraction(0.4);
+    analyze_layout(&doc.view(), &ExtractOptions::default(), &options).unwrap()
+}
+
+/// Would catch: one best window per group, leaving the second height body.
+#[test]
+fn running_text_at_two_disjoint_heights_is_running_at_both() {
+    let layout = notes_at(&[772.0, 772.0, 772.0, 752.0, 752.0, 752.0]);
+    assert_eq!(kinds_of(&layout, "note"), vec![BlockKind::RunningHeader; 6]);
+}
+
+/// Windows 20-24 and 24-28 pt below the top share the copy at 24; the
+/// gaps are 3.9 pt, inside the 4 pt tolerance.
+#[test]
+fn overlapping_running_windows_mark_every_copy() {
+    let layout = notes_at(&[772.0, 772.0, 768.1, 764.2, 764.2]);
+    assert_eq!(kinds_of(&layout, "note"), vec![BlockKind::RunningHeader; 5]);
+}
