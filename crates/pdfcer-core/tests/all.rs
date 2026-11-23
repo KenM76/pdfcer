@@ -56,6 +56,7 @@ mod deskew;
 mod differences_ligature_extracts;
 mod digital_id_create;
 mod dimension_area;
+mod dimension_centre;
 mod dimension_circular_placement;
 mod dimension_dash_opacity;
 mod dimension_extension_gap;

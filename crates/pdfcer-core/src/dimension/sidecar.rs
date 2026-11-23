@@ -30,6 +30,7 @@
 use crate::object::{Dict, Name, Object};
 use crate::vector::{AxisConstraint, Point};
 
+use super::centre::{CentreMarkSize, CentreMarkSpec};
 use super::dash::DimDash;
 use super::fit::FitCircle;
 use super::group::{
@@ -99,7 +100,15 @@ use crate::annot_author::Color;
 ///   enclosed area. Same severity class as 4: an older build drops the key and
 ///   re-bakes the label as a perimeter, changing the number the drawing
 ///   asserts. Emitted per document like 4, only when some ce dimension has it.
-pub const SIDECAR_VERSION: i64 = 5;
+/// - **6** — the `centreline` and `centremark` kinds and a circular record's
+///   `/CentreMark` (`Pass 739.0`, `Pass 740.0`). An older build drops an
+///   unknown kind and loses a mark on re-bake. Emitted per document, only when
+///   some ce dimension draws centre geometry.
+pub const SIDECAR_VERSION: i64 = 6;
+
+/// The schema version a document needs when it has an area ce dimension but
+/// no centre geometry.
+const SIDECAR_VERSION_PRE_CENTRE: i64 = 5;
 
 /// The schema version a document needs when it uses a label override but no
 /// area ce dimension.
@@ -126,8 +135,13 @@ const SIDECAR_VERSION_PRE_OVERRIDE: i64 = 3;
 /// [`serialize_model`]'s no-change-is-a-no-op guarantee (R34) true.
 fn model_sidecar_version(model: &DimensionModel) -> i64 {
     let dims = model.dimensions();
-    if dims.iter().any(|d| d.kind.is_area()) {
+    if dims
+        .iter()
+        .any(|d| d.kind.is_centre_geometry() || d.kind.centre_mark_centre().is_some())
+    {
         SIDECAR_VERSION
+    } else if dims.iter().any(|d| d.kind.is_area()) {
+        SIDECAR_VERSION_PRE_CENTRE
     } else if dims.iter().any(|d| d.label_override.is_some()) {
         SIDECAR_VERSION_PRE_AREA
     } else {
@@ -296,6 +310,7 @@ fn serialize_group(g: &Group) -> Object {
             tolerance_places: g.style.tolerance_places,
             dash: g.style.dash,
             opacity: g.style.opacity,
+            centre_mark_size: g.style.centre_mark_size,
         },
     );
     Object::Dict(d)
@@ -362,6 +377,7 @@ fn deserialize_group(obj: &Object) -> Option<Group> {
                 tolerance_places: k.tolerance_places,
                 dash: k.dash,
                 opacity: k.opacity,
+                centre_mark_size: k.centre_mark_size,
             }
         },
     })
@@ -629,8 +645,13 @@ fn serialize_dimension(dim: &DimensionRecord) -> Object {
             show_diameter,
             leader_angle,
             text_distance,
+            centre_mark,
         } => {
             d.insert(Name::from(b"Kind"), Object::Name(Name::from(b"circular")));
+            if let Some(mark) = centre_mark {
+                d.insert(Name::from(b"CentreMark"), Object::Boolean(true));
+                put_mark_keys(&mut d, mark);
+            }
             d.insert(Name::from(b"Center"), point_array(fit.center));
             d.insert(Name::from(b"Radius"), Object::Real(fit.radius));
             d.insert(Name::from(b"Residual"), Object::Real(fit.residual));
@@ -643,6 +664,9 @@ fn serialize_dimension(dim: &DimensionRecord) -> Object {
             if let Some(t) = text_distance {
                 d.insert(Name::from(b"TextDistance"), Object::Real(t));
             }
+        }
+        DimensionKind::CentreLine { .. } | DimensionKind::CentreMark { .. } => {
+            put_centre_kind(&mut d, &dim.kind);
         }
     }
     if let Some(annot) = dim.annot {
@@ -700,6 +724,7 @@ fn serialize_dimension(dim: &DimensionRecord) -> Object {
             tolerance_places: dim.style.tolerance_places,
             dash: dim.style.dash,
             opacity: dim.style.opacity,
+            centre_mark_size: dim.style.centre_mark_size,
         },
     );
     Object::Dict(d)
@@ -760,8 +785,11 @@ fn deserialize_dimension(obj: &Object) -> Option<DimensionRecord> {
                 .get(b"TextDistance")
                 .and_then(Object::as_number)
                 .filter(|v| usable_page_value(*v)),
+            centre_mark: bool_of(d.get(b"CentreMark"))
+                .unwrap_or(false)
+                .then(|| read_mark_keys(d)),
         },
-        _ => return None,
+        token => read_centre_kind(token, d)?,
     };
     let appearance = read_style_keys(d);
     Some(DimensionRecord {
@@ -806,8 +834,72 @@ fn deserialize_dimension(obj: &Object) -> Option<DimensionRecord> {
             tolerance_places: appearance.tolerance_places,
             dash: appearance.dash,
             opacity: appearance.opacity,
+            centre_mark_size: appearance.centre_mark_size,
         },
     })
+}
+
+// ---- centre geometry (Pass 739.0, Pass 740.0) --------------------------------
+
+/// The `centreline` / `centremark` record keys. `/Center` `/Radius`
+/// `/Residual` mean what they mean on a `circular` record.
+fn put_centre_kind(d: &mut Dict, kind: &DimensionKind) {
+    match *kind {
+        DimensionKind::CentreLine { a, b } => {
+            d.insert(Name::from(b"Kind"), Object::Name(Name::from(b"centreline")));
+            d.insert(Name::from(b"A"), point_array(a));
+            d.insert(Name::from(b"B"), point_array(b));
+        }
+        DimensionKind::CentreMark { fit, mark } => {
+            d.insert(Name::from(b"Kind"), Object::Name(Name::from(b"centremark")));
+            d.insert(Name::from(b"Center"), point_array(fit.center));
+            d.insert(Name::from(b"Radius"), Object::Real(fit.radius));
+            d.insert(Name::from(b"Residual"), Object::Real(fit.residual));
+            put_mark_keys(d, mark);
+        }
+        _ => {}
+    }
+}
+
+/// The centre kind spelled `token`, or `None` for an unknown token or a
+/// record missing its geometry.
+fn read_centre_kind(token: &[u8], d: &Dict) -> Option<DimensionKind> {
+    match token {
+        b"centreline" => Some(DimensionKind::CentreLine {
+            a: point_of(d.get(b"A")?)?,
+            b: point_of(d.get(b"B")?)?,
+        }),
+        b"centremark" => Some(DimensionKind::CentreMark {
+            fit: FitCircle {
+                center: point_of(d.get(b"Center")?)?,
+                radius: positive_of(d.get(b"Radius"))?,
+                residual: d
+                    .get(b"Residual")
+                    .and_then(Object::as_number)
+                    .unwrap_or(0.0),
+            },
+            mark: read_mark_keys(d),
+        }),
+        _ => None,
+    }
+}
+
+/// A centre mark's optional keys: absent `/MarkExt` is no extension lines,
+/// absent `/MarkAngle` is 0.
+fn put_mark_keys(d: &mut Dict, mark: CentreMarkSpec) {
+    if mark.extension_lines {
+        d.insert(Name::from(b"MarkExt"), Object::Boolean(true));
+    }
+    if mark.angle != 0.0 {
+        d.insert(Name::from(b"MarkAngle"), Object::Real(mark.angle));
+    }
+}
+
+fn read_mark_keys(d: &Dict) -> CentreMarkSpec {
+    CentreMarkSpec {
+        extension_lines: bool_of(d.get(b"MarkExt")).unwrap_or(false),
+        angle: placement_of(d.get(b"MarkAngle")),
+    }
 }
 
 // ---- style (de)serialization (Pass 69.0) ------------------------------------
@@ -830,6 +922,7 @@ struct StyleKeys {
     tolerance_places: Option<u32>,
     dash: Option<DimDash>,
     opacity: Option<f64>,
+    centre_mark_size: Option<CentreMarkSize>,
 }
 
 /// Write the appearance keys that are actually set. Absent = inherit.
@@ -889,6 +982,14 @@ fn put_style_keys(d: &mut Dict, k: StyleKeys) {
     if let Some(v) = k.opacity {
         d.insert(Name::from(b"Opacity"), Object::Real(v));
     }
+    if let Some(size) = k.centre_mark_size {
+        let (kind, v): (&[u8], f64) = match size {
+            CentreMarkSize::TextHeight(v) => (b"text", v),
+            CentreMarkSize::Fixed(v) => (b"fixed", v),
+        };
+        d.insert(Name::from(b"MarkSizeKind"), Object::Name(Name::from(kind)));
+        d.insert(Name::from(b"MarkSize"), Object::Real(v));
+    }
 }
 
 /// Read the appearance keys back. Anything absent, malformed, or outside a
@@ -928,6 +1029,13 @@ fn read_style_keys(d: &Dict) -> StyleKeys {
             .get(b"Opacity")
             .and_then(Object::as_number)
             .filter(|v| super::dash::opacity_in_range(*v)),
+        centre_mark_size: positive_of(d.get(b"MarkSize")).and_then(|v| {
+            match name_of(d.get(b"MarkSizeKind")).as_deref() {
+                Some(b"text") => Some(CentreMarkSize::TextHeight(v)),
+                Some(b"fixed") => Some(CentreMarkSize::Fixed(v)),
+                _ => None,
+            }
+        }),
     }
 }
 
@@ -1260,6 +1368,7 @@ mod tests {
                 show_diameter: true,
                 leader_angle: 0.0,
                 text_distance: None,
+                centre_mark: None,
             },
         );
         m.group_mut(fp).unwrap().ocg = Some(ObjId::new(30, 0));
@@ -1382,6 +1491,7 @@ mod angular_sidecar_tests {
                 show_diameter: false,
                 leader_angle: 0.0,
                 text_distance: None,
+                centre_mark: None,
             },
         );
         let Object::Dict(mut d) = serialize_model(&model) else {
@@ -1486,6 +1596,7 @@ mod style_sidecar_tests {
             tolerance_places: Some(3),
             dash: DimDash::new(&[3.0, 1.5]),
             opacity: Some(0.5),
+            centre_mark_size: Some(CentreMarkSize::Fixed(4.0)),
         };
         let first = model.dimensions()[0].id;
         model.dimension_mut(first).unwrap().style = StyleOverrides {
@@ -1510,6 +1621,7 @@ mod style_sidecar_tests {
             // itself, not read back as "inherit the dash".
             dash: Some(DimDash::SOLID),
             opacity: None,
+            centre_mark_size: Some(CentreMarkSize::TextHeight(0.75)),
         };
 
         let back = deserialize_model(&serialize_model(&model)).expect("round trip");

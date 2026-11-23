@@ -1090,6 +1090,7 @@ fn circular(show_diameter: bool) -> DimensionKind {
         show_diameter,
         leader_angle: 0.0,
         text_distance: None,
+        centre_mark: None,
     }
 }
 

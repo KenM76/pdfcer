@@ -86,6 +86,7 @@
 use crate::annot_author::Color;
 
 use super::author::DimensionStyle;
+use super::centre::CentreMarkSize;
 use super::dash::DimDash;
 use super::group::{DimStandard, Group};
 use super::tolerance::Tolerance;
@@ -205,6 +206,8 @@ pub struct StyleDefaults {
     pub dash: DimDash,
     /// Constant opacity, written as the annotation's `/CA` (`Pass 541.0`).
     pub opacity: f64,
+    /// Centre-mark arm length (`Pass 740.0`).
+    pub centre_mark_size: CentreMarkSize,
 }
 
 impl StyleDefaults {
@@ -222,6 +225,7 @@ impl StyleDefaults {
         tolerance_places: None,
         dash: DimDash::SOLID,
         opacity: 1.0,
+        centre_mark_size: CentreMarkSize::TextHeight(0.5),
     };
 }
 
@@ -267,6 +271,8 @@ pub struct GroupStyle {
     pub dash: Option<DimDash>,
     /// Opacity in `0..=1`; `None` ⇒ factory (opaque) (`Pass 541.0`).
     pub opacity: Option<f64>,
+    /// Centre-mark arm length; `None` ⇒ factory (half the text height).
+    pub centre_mark_size: Option<CentreMarkSize>,
 }
 
 impl GroupStyle {
@@ -329,6 +335,8 @@ pub struct StyleOverrides {
     /// Opacity in `0..=1`; `None` ⇒ the group's, then factory (opaque)
     /// (`Pass 541.0`).
     pub opacity: Option<f64>,
+    /// Centre-mark arm length; `None` ⇒ the group's, then factory.
+    pub centre_mark_size: Option<CentreMarkSize>,
 }
 
 impl StyleOverrides {
@@ -358,6 +366,7 @@ impl StyleOverrides {
             + usize::from(self.tolerance_places.is_some())
             + usize::from(self.dash.is_some())
             + usize::from(self.opacity.is_some())
+            + usize::from(self.centre_mark_size.is_some())
     }
 }
 
@@ -438,6 +447,8 @@ pub struct StyleProvenance {
     pub dash: StyleSource,
     /// Source of the opacity.
     pub opacity: StyleSource,
+    /// Source of the centre-mark size.
+    pub centre_mark_size: StyleSource,
 }
 
 impl StyleProvenance {
@@ -448,7 +459,7 @@ impl StyleProvenance {
     /// gets a compile error, not a silently shorter listing, when a property
     /// is added and this method is not extended.
     #[must_use]
-    pub const fn each(&self) -> [(&'static str, StyleSource); 13] {
+    pub const fn each(&self) -> [(&'static str, StyleSource); 14] {
         [
             ("unit", self.unit),
             ("fraction", self.fraction),
@@ -463,6 +474,7 @@ impl StyleProvenance {
             ("tolerance-places", self.tolerance_places),
             ("dash", self.dash),
             ("opacity", self.opacity),
+            ("centre-mark-size", self.centre_mark_size),
         ]
     }
 }
@@ -546,6 +558,10 @@ pub fn resolve_style(group: &Group, over: &StyleOverrides) -> DimensionStyle {
             .or(f.tolerance_places),
         dash: over.dash.or(group.style.dash).unwrap_or(f.dash),
         opacity: over.opacity.or(group.style.opacity).unwrap_or(f.opacity),
+        centre_mark_size: over
+            .centre_mark_size
+            .or(group.style.centre_mark_size)
+            .unwrap_or(f.centre_mark_size),
         user_unit: 1.0,
     }
 }
@@ -604,6 +620,10 @@ pub fn style_provenance(group: &Group, over: &StyleOverrides) -> StyleProvenance
         ),
         dash: three(over.dash.is_some(), group.style.dash.is_some()),
         opacity: three(over.opacity.is_some(), group.style.opacity.is_some()),
+        centre_mark_size: three(
+            over.centre_mark_size.is_some(),
+            group.style.centre_mark_size.is_some(),
+        ),
     }
 }
 
@@ -669,7 +689,8 @@ mod tests {
         // A property whose group tier is a concrete field never reports
         // Factory — the group always has an answer for it.
         assert_eq!(p.standard, StyleSource::Group);
-        assert_eq!(p.each().len(), 13);
+        assert_eq!(p.each().len(), 14);
+        assert_eq!(p.centre_mark_size, StyleSource::Factory);
     }
 
     /// `follows_group` is the predicate a UI actually needs, and getting it

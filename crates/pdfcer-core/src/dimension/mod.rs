@@ -64,6 +64,9 @@
 /// scale squared (ISO 32000-1 §12.9 Table 262 `/A`).
 pub mod area;
 pub mod author;
+/// Centre lines and centre marks (`Pass 739.0`, `Pass 740.0`).
+pub mod centre;
+pub(crate) mod centre_author;
 /// Folding one ce-dimension model into another, for merge and insert.
 pub(crate) mod combine;
 /// A ce dimension's stroke dash pattern (`Pass 541.0`).
@@ -92,6 +95,10 @@ pub use area::{area_places, area_unit_label, format_area_measurement};
 pub use author::{
     AUTHORED_ANNOT_KEYS, AUTHORED_MEASURE_KEY, AuthoredDimension, DIM_PLACEHOLDER,
     DimensionPreview, DimensionStyle, author_dimension, author_dimension_with_label,
+};
+pub use centre::{
+    CentreLineAuthoring, CentreLineRefusal, CentreMarkSize, CentreMarkSpec, CentreSnapPoint,
+    CentreSnapRole, DEFAULT_CENTRE_LINE_OVERSHOOT, author_centre_line,
 };
 pub use dash::{DimDash, MAX_DASH_RUNS, opacity_in_range};
 pub use fit::{FitCircle, fit_circle_taubin, fit_circle_taubin_refined};

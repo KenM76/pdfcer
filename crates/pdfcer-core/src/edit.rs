@@ -5268,6 +5268,28 @@ fn check_area_kind(kind: &DimensionKind) -> Result<(), EditError> {
     Ok(())
 }
 
+/// Refuse a degenerate centre line or centre mark before anything is written.
+fn check_centre_kind(kind: &DimensionKind) -> Result<(), EditError> {
+    let reason = match *kind {
+        DimensionKind::CentreLine { a, b } if !(a.is_finite() && b.is_finite()) => {
+            "an end is not a finite point"
+        }
+        DimensionKind::CentreLine { a, b } if (b.x - a.x).hypot(b.y - a.y) <= f64::EPSILON => {
+            "its two ends coincide"
+        }
+        DimensionKind::CentreMark { fit, .. }
+        | DimensionKind::Circular {
+            fit,
+            centre_mark: Some(_),
+            ..
+        } if !(fit.center.is_finite() && fit.radius.is_finite() && fit.radius > 0.0) => {
+            "the circle needs a finite centre and a positive radius"
+        }
+        _ => return Ok(()),
+    };
+    Err(EditError::CentreGeometryDegenerate { reason })
+}
+
 /// Apply a [`VertexEdit`] to a [`DimensionKind`](crate::dimension::DimensionKind),
 /// or say precisely why it cannot be applied (`Pass 107.0`).
 ///
@@ -5425,9 +5447,10 @@ fn vertex_edited_kind(
                 Err(EditError::DimensionVertexCountFixed { id: id.0, count: 2 })
             }
         },
-        DimensionKind::Circular { .. } | DimensionKind::Angular { .. } => {
-            Err(EditError::DimensionHasNoVertices { id: id.0 })
-        }
+        DimensionKind::Circular { .. }
+        | DimensionKind::Angular { .. }
+        | DimensionKind::CentreLine { .. }
+        | DimensionKind::CentreMark { .. } => Err(EditError::DimensionHasNoVertices { id: id.0 }),
     }
 }
 
@@ -8170,6 +8193,24 @@ pub enum EditError {
     DimensionHasNoVertices {
         /// The dimension id.
         id: u32,
+    },
+    /// A label or placement operation named a centre line or centre mark
+    /// (`Pass 739.0`, `Pass 740.0`), which measures nothing and so has no
+    /// label to edit or place.
+    #[error(
+        "ce dimension {id} is a centre line or centre mark; it measures nothing, so it has no label to edit or place"
+    )]
+    CentreGeometryHasNoLabel {
+        /// The dimension id.
+        id: u32,
+    },
+    /// A centre line with coincident or non-finite ends, or a centre mark on
+    /// a circle whose radius is not a positive finite length, was handed to
+    /// [`EditSession::add_dimension`].
+    #[error("that centre line or centre mark is degenerate: {reason}")]
+    CentreGeometryDegenerate {
+        /// What is wrong with it.
+        reason: &'static str,
     },
     /// A vertex was to be inserted into, or removed from, a ce dimension whose
     /// vertex count is structural (`Pass 107.0`).
@@ -51786,6 +51827,7 @@ impl EditSession {
         kind: DimensionKind,
     ) -> Result<(ObjId, DimensionId), EditError> {
         check_area_kind(&kind)?;
+        check_centre_kind(&kind)?;
         if crate::encryption_gate::forbids(&self.base, &[PermissionBit::ModifyContents]) {
             return Err(EditError::DocumentEncrypted);
         }
@@ -56359,7 +56401,13 @@ impl EditSession {
         // PAGE axes rather than in a frame of its own: see
         // `DimensionKind::Perimeter::offset` for why a polyline is anchored on
         // its vertex centroid instead of on its longest segment.
+        if record.kind.is_centre_geometry() {
+            return Err(EditError::CentreGeometryHasNoLabel { id: dimension.0 });
+        }
         let placed = match record.kind {
+            DimensionKind::CentreLine { .. } | DimensionKind::CentreMark { .. } => {
+                record.kind.clone()
+            }
             DimensionKind::Linear {
                 a,
                 b,
@@ -56413,6 +56461,7 @@ impl EditSession {
                 fit,
                 show_diameter,
                 leader_angle,
+                centre_mark,
                 ..
             } => {
                 let floor = if show_diameter {
@@ -56429,6 +56478,7 @@ impl EditSession {
                         leader_angle
                     },
                     text_distance: offset.is_finite().then(|| offset.max(floor)),
+                    centre_mark,
                 }
             }
         };
@@ -56604,6 +56654,7 @@ impl EditSession {
             fit,
             leader_angle,
             text_distance,
+            centre_mark,
             ..
         } = record.kind
         else {
@@ -56618,6 +56669,7 @@ impl EditSession {
                 show_diameter,
                 leader_angle,
                 text_distance,
+                centre_mark,
             };
         }
 
@@ -57076,6 +57128,9 @@ impl EditSession {
         let record = model
             .dimension(dimension)
             .ok_or(EditError::DimensionNotFound { id: dimension.0 })?;
+        if record.kind.is_centre_geometry() {
+            return Err(EditError::CentreGeometryHasNoLabel { id: dimension.0 });
+        }
         let group = model
             .group(record.group)
             .ok_or(EditError::DimensionGroupNotFound { id: record.group.0 })?;

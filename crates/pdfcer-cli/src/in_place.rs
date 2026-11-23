@@ -52,6 +52,8 @@ pub(crate) const IN_PLACE_COMMANDS: &[&str] = &[
     "attach-file-annotation",
     "bake-appearances",
     "bookmark-paste",
+    "centre-line",
+    "centre-mark",
     "delete-annotation",
     "delete-bookmark",
     "delete-field",

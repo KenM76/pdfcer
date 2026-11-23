@@ -169,6 +169,83 @@ designing anything in this area; do not re-derive it.
   `DimensionStyle` gained two public fields; use `..Default::default()`.
 - Author from **two picked lines**: parallel ⇒ linear, angled ⇒ angular,
   collinear ⇒ refused by name (`two_lines.rs`).
+- **Centre geometry** (`centre.rs`, `centre_author.rs`; requests G322,
+  G323). Two `DimensionKind` variants that measure nothing, stored, moved,
+  rotated, deleted and undone exactly like any ce dimension (same sidecar
+  list, same `add_dimension` / `move_dimension` / `rotate_dimension` /
+  `delete_dimension`, one undo entry each):
+  - `DimensionKind::CentreLine { a: Point, b: Point }` — a plain `/Line`
+    with **no `/IT` and no `/Measure`** (ISO 32000-1 §12.5.6.7 Table 175
+    allows only LineArrow/LineDimension for `/IT`), `/Contents` "Centre
+    line", stroked with `DimensionStyle::centre_line_dash()` (§8.4.3.6):
+    the group's own dash when it sets one, else the long-short-long
+    centre-line pattern of the group's standard (ANSI `[54 9 9 9]`, ISO
+    `[24w 3w w 3w]`), stretched so both ends are long dashes; solid when
+    the line is shorter than one long dash. Lists as `kind=centre-line`.
+  - `DimensionKind::CentreMark { fit: FitCircle, mark: CentreMarkSpec }` —
+    a standalone cross, an `/Ink` annotation (§12.5.6.13 Table 182) whose
+    `/InkList` is the drawn strokes, `/Contents` "Centre mark". Lists as
+    `kind=centre-mark`.
+  - `DimensionKind::Circular` gained **`centre_mark: Option<CentreMarkSpec>`**:
+    `Some` draws the cross inside the radius/diameter ce dimension's own
+    `/AP`, so the measurement and its mark are **one object** — one place,
+    one move, one rotate (the cross turns with the leader), one delete, one
+    undo. A field rather than a linked second object because a link would
+    need its own consistency rules (delete one, keep the other?) and two
+    undo entries. With a mark and no stored `text_distance` the label
+    defaults **outside** the rim (`max(radius, 40 pt)`), since inside it
+    would sit on the cross. ⚠️ **Breaking for struct literals:** add
+    `centre_mark: None`.
+  - `CentreMarkSpec { extension_lines: bool, angle: f64 }`, `Default` =
+    no extension lines, 0°; `turned(degrees)`. `#[non_exhaustive]` is NOT
+    set, so a literal works.
+  - **Mark size is a style field**, `centre_mark_size: Option<CentreMarkSize>`
+    on `GroupStyle` / `StyleOverrides` / `StyleDefaults` (factory
+    `TextHeight(0.5)`, the ANSI/ISO convention) and resolved on
+    `DimensionStyle`; `DimensionStyle::centre_mark_arm() -> f64` is the arm
+    length in points. `CentreMarkSize::{TextHeight(f64), Fixed(f64)}`, with
+    `arm(text_height)`, `is_valid()`, `parse("text:F" | "fixed:PT")` and
+    `token()` (the inverse). Extension lines, when on, start `2 × arm` from
+    the centre and end `arm` past the rim. A new public field: struct
+    literals of the four style types need it.
+  - `author_centre_line(&PickedLine, &PickedLine, ParallelPolicy, overshoot: f64) -> Result<CentreLineAuthoring, CentreLineRefusal>`
+    — parallel ⇒ the midline over the overlap of the two lines; angled ⇒
+    the bisector of the wedge the picks select (the same rule as an angular
+    ce dimension), over the overlap of both lines projected onto it. Each
+    end runs `overshoot` past the overlap (`DEFAULT_CENTRE_LINE_OVERSHOOT`
+    = 9 pt), except a bisector never runs back through its apex.
+    `CentreLineAuthoring { kind, relation, measured_angle_degrees,
+    forced_parallel, overlap }` carries what a shell must disclose (rule
+    4), as for two-line ce dimensions. `CentreLineRefusal::{Collinear,
+    Degenerate, NoOverlap, BadOvershoot}` (`thiserror`, each a sentence an
+    operator can read). Nothing is written by this function; pass `kind` to
+    `add_dimension`.
+  - **Snap targets** (for the vector snap engine; the engine itself is not
+    wired here): `DimensionRecord::centre_snap_points(&self, group: &Group)
+    -> Vec<CentreSnapPoint>` resolves the record's style and returns
+    `CentreSnapPoint { point, role: CentreSnapRole }`, role ∈ `LineEnd`,
+    `LineMidpoint` (centre line), `MarkCentre`, `ArmEnd`, `ExtensionEnd`
+    (mark, standalone or on a circular). `DimensionKind::centre_snap_points(style)`
+    and `centre_snap_segments(style) -> Vec<(Point, Point)>` (the drawn
+    strokes, for snap-along) are the style-explicit forms. Empty for every
+    other kind. `DimensionKind::is_centre_geometry()` is true for
+    `CentreLine` / `CentreMark`; `centre_mark_centre() -> Option<Point>` is
+    the cross's centre on a mark or a marked circular.
+  - **Refusals:** `add_dimension` refuses a centre line with non-finite or
+    coincident ends, or a mark (standalone or on a circular) without a
+    finite centre and a positive radius, as
+    `EditError::CentreGeometryDegenerate { reason }`, before writing.
+    `set_dimension_label` and `place_dimension` refuse centre geometry with
+    `EditError::CentreGeometryHasNoLabel { id }`; the vertex verbs refuse
+    it with `DimensionHasNoVertices`.
+  - `AUTHORED_ANNOT_KEYS` gained `/InkList`, so a regenerated mark replaces
+    its strokes. A document holding centre geometry or a mark size writes
+    sidecar version 6.
+  - CLI: `pdfcer centre-line IN --points "x,y x,y  x,y x,y" [--picks "x,y x,y"]
+    [--overshoot PT] [--treat-as-parallel] [--group N] [--page N] -o OUT`;
+    `pdfcer centre-mark IN (--circle cx,cy,r | --points "x,y x,y x,y ...")
+    [--measure none|radius|diameter] [--extension-lines] [--angle DEG] -o OUT`;
+    `group-style` / `dimension-style --centre-mark-size text:F|fixed:PT`.
 - Reposition (drag or numeric), toggle the group's layer, delete
   (annotation + `/AP` + sidecar record together).
 
@@ -246,6 +323,8 @@ document. Every persistent change goes through an `EditSession` verb below.
 - `parse_length(&str, default_unit: Unit) -> Result<ParsedLength, LengthParseError>` — `length_parse.rs`
 - `fit_circle_taubin(&[Point]) -> Option<FitCircle>` / `fit_circle_taubin_refined` — `fit.rs`, `fit.rs`
 - `author_from_two_lines(&PickedLine, &PickedLine, ParallelPolicy, TwoLinePlacement) -> Result<TwoLineAuthoring, TwoLineRefusal>` — `two_lines.rs`
+- `author_centre_line(&PickedLine, &PickedLine, ParallelPolicy, overshoot: f64) -> Result<CentreLineAuthoring, CentreLineRefusal>` — `centre.rs`; see §1.1 "Centre geometry"
+- `DimensionRecord::centre_snap_points(&self, &Group) -> Vec<CentreSnapPoint>` — `centre.rs`; the snap targets of a centre line or mark
 - `author_dimension(&DimensionKind, DimensionStyle) -> AuthoredDimension` — `author.rs`; the `/AP` baker. `AuthoredDimension::label` (`author.rs`) is **the exact string baked into the page** — see trap (b).
 
 Geometry the canvas needs comes from `pdfcer_core::vector`:
@@ -463,7 +542,7 @@ corrected value the operator never saw is exactly the sneaky case"*
 `true` for `Factory`.**
 
 The cascade is factory → group → ce dimension, **independently for each of
-thirteen properties** (`style.rs`). An `Option<T>` per property *is* the
+fourteen properties** (`style.rs`). An `Option<T>` per property *is* the
 operator's override checkbox: `None` = clear = inherit, `Some(v)` = ticked.
 
 `style_provenance()` (`style.rs`) exists so a panel can **render** the
@@ -491,12 +570,12 @@ Four further points a panel gets wrong if it guesses:
   (`style.rs`). Saying "factory" for them "would be a lie an operator
   could act on."
 - **`StyleProvenance::each()` returns a fixed-size `[(&'static str,
-  StyleSource); 13]`** (`style.rs`) so a loop gets a **compile error**,
-  not a silently short list, when a fourteenth property lands.
+  StyleSource); 14]`** (`style.rs`) so a loop gets a **compile error**,
+  not a silently short list, when a fifteenth property lands.
   ⚠️ `docs/ui_specs/…-ce-dimension-properties.md` **Amendment B §B.2 says
   "nine"** — that text predates `Pass 69.1` adding `tolerance` and
-  `tolerance_places`, and `Pass 541.0` adding `dash` and `opacity`. The
-  code at `style.rs` is authoritative: **thirteen**.
+  `tolerance_places`, and `Pass 541.0` adding `dash` and `opacity`, and `Pass 740.0` adding
+  `centre_mark_size`. The code at `style.rs` is authoritative: **fourteen**.
   Same for §B.4's "the same nine properties".
 - **Clearing an override restores inheritance**, live and in both
   directions — deliberately unlike the reference tool, whose `DeleteStyle`

@@ -5,7 +5,7 @@ dup pdfcer-core::put_bytes in pdfcer-core/src/formclip.rs, pdfcer-core/src/vecto
 dup pdfcer-core::put_f64 in pdfcer-core/src/formclip.rs, pdfcer-core/src/vector/clip.rs
 dup pdfcer-core::put_u32 in pdfcer-core/src/formclip.rs, pdfcer-core/src/vector/clip.rs
 dup pdfcer-core::read_rect in pdfcer-core/src/annot.rs, pdfcer-core/src/forms.rs
-dup pdfcer-core::rect_array in pdfcer-core/src/annot_author.rs, pdfcer-core/src/dimension/author.rs, pdfcer-core/src/edit.rs
+dup pdfcer-core::rect_array in pdfcer-core/src/annot_author.rs, pdfcer-core/src/edit.rs
 dup pdfcer-core::rect_object in pdfcer-core/src/annot_author.rs, pdfcer-core/src/pageops/scale.rs
 dup pdfcer-core::stage in pdfcer-core/src/redact.rs, pdfcer-core/src/text_edit/edit.rs
 dup pdfcer-image-codec::geometry_disagrees in pdfcer-image-codec/src/ccitt.rs, pdfcer-image-codec/src/jbig2.rs

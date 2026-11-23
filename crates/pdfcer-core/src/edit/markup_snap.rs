@@ -159,6 +159,19 @@ fn ce_dimension_geometry(d: &DimensionRecord, style: Option<DimensionStyle>) -> 
         DimensionKind::Perimeter { points, .. } => {
             g.push_points(points, false, OutlineKind::EndsOnly);
         }
+        DimensionKind::CentreLine { a, b } => {
+            g.push_points(&[*a, *b], false, OutlineKind::Polygonal);
+        }
+        DimensionKind::CentreMark { fit, .. } => g.push_center_point(fit.center),
+    }
+    // A centre mark's cross arms and extension lines, standalone or on a
+    // radius/diameter; their length depends on the style.
+    if !matches!(d.kind, DimensionKind::CentreLine { .. })
+        && let Some(s) = style
+    {
+        for (start, end) in d.kind.centre_snap_segments(s) {
+            g.push_points(&[start, end], false, OutlineKind::EndsOnly);
+        }
     }
     g
 }

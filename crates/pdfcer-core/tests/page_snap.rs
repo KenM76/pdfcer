@@ -1,7 +1,9 @@
 //! Snap targets on every kind of page object (pdfcer-gui request G324).
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use pdfcer_core::dimension::{DEFAULT_GROUP_ID, DimensionKind, FitCircle, resolve_style};
+use pdfcer_core::dimension::{
+    CentreMarkSpec, DEFAULT_GROUP_ID, DimensionKind, FitCircle, resolve_style,
+};
 use pdfcer_core::document::Document;
 use pdfcer_core::edit::EditSession;
 use pdfcer_core::object::ObjId;
@@ -330,6 +332,7 @@ fn a_circular_ce_dimension_snaps_to_its_centre() {
         show_diameter: true,
         leader_angle: 45.0,
         text_distance: None,
+        centre_mark: None,
     };
     s.add_dimension(0, DEFAULT_GROUP_ID, kind).unwrap();
     let c = at(&mut s, 301.0, 299.0);
@@ -368,4 +371,71 @@ fn a_path_on_a_hidden_layer_gives_no_end_and_no_crossing() {
     assert!(cross(&on), "{on:?}");
     let off = near(341.0, 101.0, &hidden);
     assert!(!cross(&off) && !off.is_empty(), "{off:?}");
+}
+
+/// Would catch: centre lines and centre marks left out of the ce-dimension
+/// snap geometry.
+#[test]
+fn a_centre_line_and_a_centre_mark_are_snap_targets() {
+    let mut s = hello();
+    let line = DimensionKind::CentreLine {
+        a: Point::new(100.0, 400.0),
+        b: Point::new(200.0, 400.0),
+    };
+    s.add_dimension(0, DEFAULT_GROUP_ID, line).unwrap();
+    let c = at(&mut s, 100.5, 400.5);
+    assert!(
+        has(
+            &c,
+            SnapKind::Endpoint,
+            (100.0, 400.0),
+            SnapSource::CeDimension
+        ),
+        "{c:?}"
+    );
+    let c = at(&mut s, 150.5, 400.5);
+    assert!(
+        has(
+            &c,
+            SnapKind::Midpoint,
+            (150.0, 400.0),
+            SnapSource::CeDimension
+        ),
+        "{c:?}"
+    );
+
+    let fit = FitCircle {
+        center: Point::new(400.0, 300.0),
+        radius: 50.0,
+        residual: 0.0,
+    };
+    let mark = DimensionKind::CentreMark {
+        fit,
+        mark: CentreMarkSpec::default(),
+    };
+    s.add_dimension(0, DEFAULT_GROUP_ID, mark.clone()).unwrap();
+    let c = at(&mut s, 401.0, 299.0);
+    assert!(
+        has(
+            &c,
+            SnapKind::Center,
+            (400.0, 300.0),
+            SnapSource::CeDimension
+        ),
+        "{c:?}"
+    );
+    let dims = s.dimension_model();
+    let record = dims.dimensions().last().unwrap();
+    let style = resolve_style(dims.group(record.group).unwrap(), &record.style);
+    let (_, arm_end) = mark.centre_snap_segments(style)[0];
+    let c = at(&mut s, arm_end.x + 0.4, arm_end.y + 0.4);
+    assert!(
+        has(
+            &c,
+            SnapKind::Endpoint,
+            (arm_end.x, arm_end.y),
+            SnapSource::CeDimension
+        ),
+        "{arm_end:?} {c:?}"
+    );
 }

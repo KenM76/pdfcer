@@ -259,6 +259,13 @@ pub enum DimensionKind {
         /// arrow pointing at the centre. Inside, a radius runs centre to rim
         /// and a diameter crosses rim to rim through the centre.
         text_distance: Option<f64>,
+        /// The centre mark drawn with this ce dimension, or `None` for none.
+        ///
+        /// A field rather than a second, linked record: the diameter and its
+        /// mark are one object to the operator, so they place, move, rotate,
+        /// delete and undo as one record with no link to keep in step.
+        /// [`Self::CentreMark`] is the same mark without a measurement.
+        centre_mark: Option<super::centre::CentreMarkSpec>,
     },
     /// An ANGLE between two lines the operator picked (`Pass 68.0`).
     ///
@@ -407,6 +414,31 @@ pub enum DimensionKind {
         /// for why the pair is page-axis-relative here and frame-relative
         /// there.
         text_along: f64,
+    },
+    /// A CENTRE LINE: construction geometry midway between two lines,
+    /// authored by [`super::centre::author_centre_line`]. Measures nothing,
+    /// so it has no label, no `/Measure` and no placement.
+    ///
+    /// The resolved ends are stored, not the two source lines, for the reason
+    /// [`Self::Angular`] stores rays: the overlap and overshoot were decided
+    /// at pick time, and re-deriving them later could draw a different line.
+    /// Drawn with [`super::DimensionStyle::centre_line_dash`].
+    CentreLine {
+        /// First end, page space, points.
+        a: Point,
+        /// Second end, page space, points.
+        b: Point,
+    },
+    /// A CENTRE MARK alone: the drafting cross at a circle's or arc's
+    /// centre, sized by [`super::DimensionStyle::centre_mark_size`]. Measures
+    /// nothing. A mark with a measurement is
+    /// [`Self::Circular`] with `centre_mark` set.
+    CentreMark {
+        /// The circle the mark is for; its centre places the cross and its
+        /// radius bounds the extension lines.
+        fit: FitCircle,
+        /// Orientation and extension lines.
+        mark: super::centre::CentreMarkSpec,
     },
 }
 
@@ -691,26 +723,37 @@ impl DimensionKind {
     }
 
     /// The text distance past the rim a circular ce dimension is drawn with:
-    /// the stored `text_distance` (or `-radius / 2` when `None`), clamped so
-    /// the text never passes the centre of a radius or the opposite rim of a
-    /// diameter. `None` for a non-circular kind.
+    /// the stored `text_distance`, clamped so the text never passes the
+    /// centre of a radius or the opposite rim of a diameter. `None` for a
+    /// non-circular kind.
+    ///
+    /// An unset distance is `-radius / 2` (inside). With a centre mark it is
+    /// outside instead, because inside the text would sit on the cross: one
+    /// radius past the rim, and at least 40 pt (half a 10 pt `DIA 60.00 pt`
+    /// plus a gap), so the text centred there clears the rim.
     #[must_use]
     pub fn circular_text_distance(&self) -> Option<f64> {
         let Self::Circular {
             ref fit,
             show_diameter,
             text_distance,
+            centre_mark,
             ..
         } = *self
         else {
             return None;
+        };
+        let unset = if centre_mark.is_some() {
+            fit.radius.max(40.0)
+        } else {
+            -fit.radius / 2.0
         };
         let floor = if show_diameter {
             -2.0 * fit.radius
         } else {
             -fit.radius
         };
-        Some(text_distance.unwrap_or(-fit.radius / 2.0).max(floor))
+        Some(text_distance.unwrap_or(unset).max(floor))
     }
 
     /// Where each extension line of a linear ce dimension is **drawn**, as
@@ -853,6 +896,7 @@ impl DimensionKind {
                 show_diameter,
                 leader_angle,
                 text_distance,
+                centre_mark,
             } => Self::Circular {
                 fit: FitCircle {
                     center: map(fit.center),
@@ -861,7 +905,9 @@ impl DimensionKind {
                 show_diameter,
                 leader_angle: (leader_angle + radians.to_degrees()).rem_euclid(360.0),
                 text_distance,
+                centre_mark: centre_mark.map(|m| m.turned(radians.to_degrees())),
             },
+            kind @ (Self::CentreLine { .. } | Self::CentreMark { .. }) => kind.centre_mapped(map),
             Self::Angular {
                 apex,
                 dir_a,
@@ -933,6 +979,7 @@ impl DimensionKind {
                 show_diameter,
                 leader_angle,
                 text_distance,
+                centre_mark,
             } => Self::Circular {
                 fit: FitCircle {
                     center: Point::new(fit.center.x + dx, fit.center.y + dy),
@@ -941,7 +988,11 @@ impl DimensionKind {
                 show_diameter,
                 leader_angle,
                 text_distance,
+                centre_mark,
             },
+            kind @ (Self::CentreLine { .. } | Self::CentreMark { .. }) => {
+                kind.centre_mapped(|p| Point::new(p.x + dx, p.y + dy))
+            }
             // Only the apex moves. The arm DIRECTIONS are unit vectors, not
             // points — translating them would rotate the dimension, which is
             // not what a move is. Radius and text position are relative to
@@ -1031,6 +1082,10 @@ impl DimensionKind {
                     polyline_length(points, closed)
                 }
             }
+            // Construction geometry measures nothing; these lengths exist so
+            // a generic caller gets a meaningful size, never a label.
+            DimensionKind::CentreLine { a, b } => (b.x - a.x).hypot(b.y - a.y),
+            DimensionKind::CentreMark { fit, .. } => 2.0 * fit.radius,
         }
     }
 
@@ -1117,6 +1172,7 @@ impl DimensionKind {
             // ASME Y14.2 nor ISO 129-1 defines. The shape drawn beside the
             // number already says what was measured.
             DimensionKind::Perimeter { .. } => "",
+            DimensionKind::CentreLine { .. } | DimensionKind::CentreMark { .. } => "",
             DimensionKind::Circular { show_diameter, .. } => {
                 if *show_diameter {
                     "DIA "
@@ -1561,6 +1617,7 @@ mod tests {
             show_diameter: false,
             leader_angle: 0.0,
             text_distance: None,
+            centre_mark: None,
         };
         assert_eq!(circ.measured_points(), 10.0);
         let dia = DimensionKind::Circular {
@@ -1572,6 +1629,7 @@ mod tests {
             show_diameter: true,
             leader_angle: 0.0,
             text_distance: None,
+            centre_mark: None,
         };
         assert_eq!(dia.measured_points(), 20.0);
         assert_eq!(dia.caption_prefix(), "DIA ");
@@ -1822,6 +1880,7 @@ pub fn transform_kind(kind: &DimensionKind, m: crate::vector::Matrix) -> Dimensi
             show_diameter,
             leader_angle,
             text_distance,
+            centre_mark,
         } => {
             // The leader DIRECTION goes through the matrix's linear part, so a
             // rotated or mirrored drawing keeps its leader pointing at the same
@@ -1845,6 +1904,7 @@ pub fn transform_kind(kind: &DimensionKind, m: crate::vector::Matrix) -> Dimensi
                 show_diameter: *show_diameter,
                 leader_angle: angle,
                 text_distance: *text_distance,
+                centre_mark: centre_mark.map(|mk| mk.turned(angle - *leader_angle)),
             }
         }
         DimensionKind::Angular {
@@ -1873,5 +1933,8 @@ pub fn transform_kind(kind: &DimensionKind, m: crate::vector::Matrix) -> Dimensi
             offset: *offset,
             text_along: *text_along,
         },
+        k @ (DimensionKind::CentreLine { .. } | DimensionKind::CentreMark { .. }) => {
+            k.clone().centre_mapped(|p| m.map_point(p))
+        }
     }
 }

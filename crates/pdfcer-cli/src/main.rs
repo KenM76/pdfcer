@@ -677,6 +677,8 @@ use dimension::*;
 use group_unit::*;
 mod dimension_area;
 use dimension_area::*;
+mod centre_cmd;
+use centre_cmd::*;
 mod field_edit;
 use field_edit::*;
 mod field_style;

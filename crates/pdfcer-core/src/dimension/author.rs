@@ -123,6 +123,9 @@ pub struct DimensionStyle {
     /// dimension sits on; `1.0` when the page states none. Multiplies the
     /// measured value and the `/Measure` `/C`, never the drawn geometry.
     pub user_unit: f64,
+    /// Centre-mark arm length, for a centre mark or a circular ce dimension
+    /// that carries one.
+    pub centre_mark_size: super::centre::CentreMarkSize,
 }
 
 impl DimensionStyle {
@@ -161,6 +164,7 @@ impl DimensionStyle {
             dash: f.dash,
             opacity: f.opacity,
             user_unit: 1.0,
+            centre_mark_size: f.centre_mark_size,
         }
     }
 }
@@ -259,7 +263,9 @@ impl DimensionStyle {
 /// that draws a `/Line` from its keys would otherwise keep the old colour.
 /// `/CA` is here because a ce dimension's opacity is a style property: an
 /// opaque style removes it.
-pub const AUTHORED_ANNOT_KEYS: [&[u8]; 9] = [
+/// `/InkList` is the geometry key of a centre mark's `/Ink` annotation, so a
+/// mark rotated or moved keeps its keys in step with its `/AP`.
+pub const AUTHORED_ANNOT_KEYS: [&[u8]; 10] = [
     b"Type",
     b"Subtype",
     b"IT",
@@ -269,6 +275,7 @@ pub const AUTHORED_ANNOT_KEYS: [&[u8]; 9] = [
     b"C",
     b"Contents",
     b"CA",
+    b"InkList",
 ];
 
 /// The key authoring writes only when the group is calibrated (§12.9 Table
@@ -467,6 +474,9 @@ pub fn author_dimension_with_label(
     style: DimensionStyle,
     label_override: Option<&str>,
 ) -> AuthoredDimension {
+    if kind.is_centre_geometry() {
+        return super::centre_author::author_centre_geometry(kind, style);
+    }
     let DimensionStyle { scale, format, .. } = style;
     let label_size = style.text_height;
     // Through `display_with`, never `format_measurement` directly: an ANGULAR
@@ -515,31 +525,7 @@ pub fn author_dimension_with_label(
     // Accumulate the drawn bbox as we build the appearance content.
     let mut bounds = BoundsAcc::new();
     let mut b = ContentBuilder::new();
-    // Grey stays grey, and that is a compatibility decision rather than a
-    // stylistic one. Before Pass 69.0 this emitted `0 g` / `0 G`
-    // unconditionally; every ce dimension in every existing document was baked
-    // that way. Emitting `0 0 0 rg` for the same black would repaint identical
-    // pixels while changing the stream bytes, so the first unrelated
-    // regeneration (a scale edit on some other property) would rewrite every
-    // appearance stream in the file for no visible reason — a minimal-diff
-    // (R34) violation that is invisible until somebody diffs two saves.
-    //
-    // So: a pure grey is written with the grey operators it always used, and
-    // DeviceRGB appears only once a colour actually needs it.
-    let paint = match style.color {
-        // Exact equality is the intent: only an untouched/explicitly-grey
-        // colour takes the legacy path.
-        #[allow(clippy::float_cmp)]
-        crate::annot_author::Color::Rgb(r, g, bl) if r == g && g == bl => {
-            crate::annot_author::Color::Gray(r)
-        }
-        other => other,
-    };
-    paint.apply_stroke(&mut b);
-    paint.apply_fill(&mut b);
-    b.set_line_width(style.line_width);
-    b.set_line_cap(LineCap::Butt);
-    b.set_line_join(LineJoin::Miter);
+    begin_strokes(&mut b, style);
     // §8.4.3.6. A solid ce dimension emits no `d`, so its bytes are unchanged.
     if !style.dash.is_solid() {
         b.set_dash(style.dash.pattern(), 0.0);
@@ -619,6 +605,13 @@ pub fn author_dimension_with_label(
                 style,
                 text_box,
             );
+            if let DimensionKind::Circular {
+                centre_mark: Some(mark),
+                ..
+            } = *kind
+            {
+                super::centre_author::draw_mark(&mut b, &mut bounds, fit, mark, style);
+            }
         }
         DimensionKind::Angular {
             apex,
@@ -634,6 +627,7 @@ pub fn author_dimension_with_label(
         } => {
             draw_perimeter(&mut b, &mut bounds, points, closed);
         }
+        DimensionKind::CentreLine { .. } | DimensionKind::CentreMark { .. } => {}
     }
 
     // The value label. Anchored where the operator DROPPED it along the
@@ -874,6 +868,35 @@ pub fn author_dimension_with_label(
     }
 }
 
+/// The colour, width, cap and join every ce-dimension appearance opens with.
+pub(super) fn begin_strokes(b: &mut ContentBuilder, style: DimensionStyle) {
+    // Grey stays grey, and that is a compatibility decision rather than a
+    // stylistic one. Before Pass 69.0 this emitted `0 g` / `0 G`
+    // unconditionally; every ce dimension in every existing document was baked
+    // that way. Emitting `0 0 0 rg` for the same black would repaint identical
+    // pixels while changing the stream bytes, so the first unrelated
+    // regeneration (a scale edit on some other property) would rewrite every
+    // appearance stream in the file for no visible reason — a minimal-diff
+    // (R34) violation that is invisible until somebody diffs two saves.
+    //
+    // So: a pure grey is written with the grey operators it always used, and
+    // DeviceRGB appears only once a colour actually needs it.
+    let paint = match style.color {
+        // Exact equality is the intent: only an untouched/explicitly-grey
+        // colour takes the legacy path.
+        #[allow(clippy::float_cmp)]
+        crate::annot_author::Color::Rgb(r, g, bl) if r == g && g == bl => {
+            crate::annot_author::Color::Gray(r)
+        }
+        other => other,
+    };
+    paint.apply_stroke(b);
+    paint.apply_fill(b);
+    b.set_line_width(style.line_width);
+    b.set_line_cap(LineCap::Butt);
+    b.set_line_join(LineJoin::Miter);
+}
+
 /// The nominal's own decimal precision, for a tolerance that follows it.
 ///
 /// The reference expresses "same as nominal" as a −3 sentinel inside the digit
@@ -937,6 +960,8 @@ fn leader_endpoints(kind: &DimensionKind) -> (Point, Point) {
             let last = points.last().copied().unwrap_or(first);
             (first, last)
         }
+        DimensionKind::CentreLine { a, b } => (a, b),
+        DimensionKind::CentreMark { fit, .. } => (fit.center, fit.center),
     }
 }
 
@@ -1474,7 +1499,7 @@ fn estimate_text_width(label: &str, size: f64) -> f64 {
 /// The `/AP` form-XObject dict for a dimension: `/BBox` = the page-space
 /// `/Rect` (geometry drawn in absolute coords), identity matrix, `/Resources`
 /// carrying the Base-14 Helvetica label font.
-fn ap_form_dict(rect: Rect) -> Dict {
+pub(super) fn ap_form_dict(rect: Rect) -> Dict {
     let mut fonts = Dict::new();
     fonts.insert(
         Name(FONT_RESOURCE.to_vec()),
@@ -1492,7 +1517,7 @@ fn ap_form_dict(rect: Rect) -> Dict {
 }
 
 /// A `[llx lly urx ury]` array.
-fn rect_array(r: Rect) -> Object {
+pub(super) fn rect_array(r: Rect) -> Object {
     Object::Array(vec![
         Object::Real(r.llx),
         Object::Real(r.lly),
@@ -1503,7 +1528,7 @@ fn rect_array(r: Rect) -> Object {
 
 /// A running bounds accumulator that yields a strictly-positive `/Rect`
 /// (§12.5.5 WF4: a degenerate `/BBox` is a NEGATIVE RESULT).
-struct BoundsAcc {
+pub(super) struct BoundsAcc {
     llx: f64,
     lly: f64,
     urx: f64,
@@ -1511,7 +1536,8 @@ struct BoundsAcc {
 }
 
 impl BoundsAcc {
-    fn new() -> Self {
+    /// An empty accumulator; `into_rect` of it is a small square at the origin.
+    pub(super) fn new() -> Self {
         Self {
             llx: f64::INFINITY,
             lly: f64::INFINITY,
@@ -1520,7 +1546,8 @@ impl BoundsAcc {
         }
     }
 
-    fn add(&mut self, p: Point) {
+    /// Grow to include `p`; a non-finite point is ignored.
+    pub(super) fn add(&mut self, p: Point) {
         if p.is_finite() {
             self.llx = self.llx.min(p.x);
             self.lly = self.lly.min(p.y);
@@ -1529,7 +1556,8 @@ impl BoundsAcc {
         }
     }
 
-    fn into_rect(self) -> Rect {
+    /// The bounds plus a 2 pt stroke margin, at least 1 pt on each side.
+    pub(super) fn into_rect(self) -> Rect {
         // A small margin so strokes/arrowheads are not clipped by the BBox.
         let margin = 2.0;
         let (mut llx, mut lly, mut urx, mut ury) = if self.llx.is_finite() {
@@ -1711,6 +1739,7 @@ mod tests {
                         show_diameter: false,
                         leader_angle,
                         text_distance: Some(60.0),
+                        centre_mark: None,
                     },
                     DimensionStyle::new(
                         ScaleState::NeverSet,
@@ -1755,6 +1784,7 @@ mod tests {
                 show_diameter: false,
                 leader_angle: 0.0,
                 text_distance: None,
+                centre_mark: None,
             },
             DimensionStyle::new(
                 ScaleState::Calibrated { scale: 0.05 },
@@ -1769,6 +1799,7 @@ mod tests {
                 show_diameter: true,
                 leader_angle: 0.0,
                 text_distance: None,
+                centre_mark: None,
             },
             DimensionStyle::new(
                 ScaleState::Calibrated { scale: 0.05 },

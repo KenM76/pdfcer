@@ -6203,7 +6203,7 @@ borrow it (`tests/image_placement.rs`).
 ### 6.7 The `EditError` taxonomy
 
 `edit.rs`, `#[derive(Debug, Clone, thiserror::Error)]`, `#[non_exhaustive]`.
-**200 variants**, counted at depth 1 inside `pub enum EditError`.
+**202 variants**, counted at depth 1 inside `pub enum EditError`.
 `RunningText(RunningTextError)` wraps `stamp_running_text`'s request errors.
 `PrinterMarks(PrinterMarksError)` wraps `add_printer_marks`'s request errors.
 (`PasteNamesCount { fields, names }`, from `paste_fields`, is the newest; `InfoKeyReserved { key: ReservedInfoKey }` and `InvalidInfoKey { problem: InfoKeyProblem }`, from `set_info_entry`; `XfaNotDynamic` and `XfaSigned`; `SourcePageOutOfRange`: a SOURCE document's page index, kept

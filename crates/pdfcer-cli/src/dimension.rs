@@ -105,6 +105,7 @@ pub(crate) fn cmd_dimension_add(args: &DimensionAddArgs<'_>) -> u8 {
                 show_diameter: matches!(kind, DimKindArg::Diameter),
                 leader_angle: 0.0,
                 text_distance: None,
+                centre_mark: None,
             }
         }
         // `Pass 107.0`. Two tokens for one kind, differing by the closing
@@ -1778,6 +1779,8 @@ pub(crate) enum StylePropArg {
     Dash,
     /// Opacity.
     Opacity,
+    /// Centre-mark arm size.
+    CentreMarkSize,
 }
 
 /// The terminator forms, mirrored from `pdfcer_core::dimension::ArrowForm`.
@@ -1839,6 +1842,7 @@ pub(crate) struct AppearanceArgs {
     pub(crate) tolerance_places: Option<u32>,
     pub(crate) dash: Option<String>,
     pub(crate) opacity: Option<f64>,
+    pub(crate) centre_mark_size: Option<String>,
 }
 
 pub(crate) struct GroupStyleArgs<'a> {
@@ -1979,6 +1983,7 @@ pub(crate) fn cmd_group_style(args: &GroupStyleArgs<'_>) -> u8 {
             StylePropArg::TolerancePlaces => style.tolerance_places = None,
             StylePropArg::Dash => style.dash = None,
             StylePropArg::Opacity => style.opacity = None,
+            StylePropArg::CentreMarkSize => style.centre_mark_size = None,
             // Named so the refusal says WHICH property and WHY, rather than
             // ignoring the flag and leaving the operator to discover from the
             // saved file that nothing happened.
@@ -2021,6 +2026,9 @@ pub(crate) fn cmd_group_style(args: &GroupStyleArgs<'_>) -> u8 {
             }
             if let Some(v) = a.opacity {
                 style.opacity = Some(v);
+            }
+            if let Some(v) = a.centre_mark_size {
+                style.centre_mark_size = Some(v);
             }
         }
         Err(msg) => {
@@ -2072,6 +2080,7 @@ pub(crate) struct ResolvedAppearance {
     pub(crate) tolerance_places: Option<u32>,
     pub(crate) dash: Option<pdfcer_core::dimension::DimDash>,
     pub(crate) opacity: Option<f64>,
+    pub(crate) centre_mark_size: Option<pdfcer_core::dimension::CentreMarkSize>,
 }
 
 /// Validate the appearance flags and convert them to core types.
@@ -2106,6 +2115,23 @@ pub(crate) fn apply_appearance(a: &AppearanceArgs) -> Result<ResolvedAppearance,
         },
         dash: a.dash.as_deref().map(parse_dash).transpose()?,
         opacity: a.opacity,
+        centre_mark_size: a
+            .centre_mark_size
+            .as_deref()
+            .map(parse_centre_mark_size)
+            .transpose()?,
+    })
+}
+
+/// Parse `--centre-mark-size`: `text:<multiple of the text height>` or
+/// `fixed:<points>`.
+pub(crate) fn parse_centre_mark_size(
+    spec: &str,
+) -> Result<pdfcer_core::dimension::CentreMarkSize, String> {
+    pdfcer_core::dimension::CentreMarkSize::parse(spec).ok_or_else(|| {
+        format!(
+            "--centre-mark-size `{spec}` is not a size: use text:<multiple of the text height> (e.g. text:0.5) or fixed:<points> (e.g. fixed:4), positive"
+        )
     })
 }
 
@@ -2236,6 +2262,7 @@ pub(crate) fn cmd_dimension_style(args: &DimensionStyleArgs<'_>) -> u8 {
             StylePropArg::TolerancePlaces => style.tolerance_places = None,
             StylePropArg::Dash => style.dash = None,
             StylePropArg::Opacity => style.opacity = None,
+            StylePropArg::CentreMarkSize => style.centre_mark_size = None,
         }
     }
     if let Some(token) = args.unit {
@@ -2305,6 +2332,9 @@ pub(crate) fn cmd_dimension_style(args: &DimensionStyleArgs<'_>) -> u8 {
             }
             if let Some(v) = a.opacity {
                 style.opacity = Some(v);
+            }
+            if let Some(v) = a.centre_mark_size {
+                style.centre_mark_size = Some(v);
             }
         }
         Err(msg) => {
@@ -2401,9 +2431,11 @@ pub(crate) fn cmd_dimension_list(input: &Path, show_style: bool) -> u8 {
                 opt_places(st.tolerance_places),
             );
             println!(
-                "    group-stroke dash={} opacity={}",
+                "    group-stroke dash={} opacity={} centre_mark_size={}",
                 st.dash.map_or_else(|| "-".to_owned(), format_dash),
                 opt_num(st.opacity),
+                st.centre_mark_size
+                    .map_or_else(|| "-".to_owned(), |m| m.token()),
             );
         }
     }
@@ -2430,6 +2462,8 @@ pub(crate) fn cmd_dimension_list(input: &Path, show_style: bool) -> u8 {
             } => "area",
             DimensionKind::Perimeter { closed: true, .. } => "perimeter",
             DimensionKind::Perimeter { .. } => "path",
+            DimensionKind::CentreLine { .. } => "centre-line",
+            DimensionKind::CentreMark { .. } => "centre-mark",
         };
         // The placement, for a linear dimension. Printed because it is
         // otherwise invisible from the CLI — an operator scripting
@@ -2453,13 +2487,30 @@ pub(crate) fn cmd_dimension_list(input: &Path, show_style: bool) -> u8 {
             }
             // Named for what they are, not `offset=`/`text_along=`: the pair
             // is `dimension-offset`'s, but its meaning here is polar.
-            DimensionKind::Circular { leader_angle, .. } => {
+            DimensionKind::Circular {
+                leader_angle,
+                centre_mark,
+                ..
+            } => {
                 let mut s = format!(" leader_angle={leader_angle}");
                 if let Some(t) = d.kind.circular_text_distance() {
                     s.push_str(&format!(" text_distance={t}"));
                 }
+                if let Some(m) = centre_mark {
+                    s.push_str(&format_mark(m));
+                }
                 s
             }
+            DimensionKind::CentreLine { a, b } => {
+                format!(" from={},{} to={},{}", a.x, a.y, b.x, b.y)
+            }
+            DimensionKind::CentreMark { fit, mark } => format!(
+                " centre={},{} radius={}{}",
+                fit.center.x,
+                fit.center.y,
+                fit.radius,
+                format_mark(mark)
+            ),
             // An angular ce dimension's placement is a radius and a position
             // along the arc — the same one-drag pair as a linear one, in the
             // geometry an arc has. Reported under its own names rather than
@@ -2518,7 +2569,7 @@ pub(crate) fn cmd_dimension_list(input: &Path, show_style: bool) -> u8 {
             };
             let resolved = pdfcer_core::dimension::resolve_style(group, &d.style);
             let prov = pdfcer_core::dimension::style_provenance(group, &d.style);
-            let values: [(&str, String); 13] = [
+            let values: [(&str, String); 14] = [
                 ("unit", resolved.format.unit.token().to_owned()),
                 ("fraction", format_fraction(resolved.format.fraction)),
                 (
@@ -2544,6 +2595,7 @@ pub(crate) fn cmd_dimension_list(input: &Path, show_style: bool) -> u8 {
                 ),
                 ("dash", format_dash(resolved.dash)),
                 ("opacity", fmt_num(resolved.opacity)),
+                ("centre-mark-size", resolved.centre_mark_size.token()),
             ];
             // Paired positionally against `StyleProvenance::each`, whose own
             // doc comment explains why it returns a fixed-size array: a
@@ -2906,4 +2958,13 @@ changed={} objects={} appended={} out_bytes={}",
         r.bytes_written,
     );
     finish_edit(args.input, &outcome)
+}
+
+/// The ` centre_mark=on extension_lines=… angle=…` columns of `dimension-list`.
+fn format_mark(m: pdfcer_core::dimension::CentreMarkSpec) -> String {
+    format!(
+        " centre_mark=on extension_lines={} mark_angle={}",
+        if m.extension_lines { "on" } else { "off" },
+        m.angle
+    )
 }

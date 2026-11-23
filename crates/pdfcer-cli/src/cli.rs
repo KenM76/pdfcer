@@ -11535,6 +11535,105 @@ pub(crate) enum Command {
         #[arg(long)]
         verify_undo: bool,
     },
+    /// Draw a centre line between two lines.
+    ///
+    /// Two parallel lines get their midline; two lines at an angle get the
+    /// bisector of the angle the picks select. Either way the centre line runs
+    /// over the length the two lines share and a little past each end, drawn
+    /// with a long-short-long centre-line dash in the group's style.
+    ///
+    /// It is stored as a ce dimension that measures nothing: it lists as
+    /// kind=centre-line in dimension-list, moves with dimension-rotate and
+    /// group operations, and is removed with dimension-delete.
+    ///
+    /// Refused, with nothing written, for collinear lines, a zero-length
+    /// line, and lines that share no length along the centre line. The
+    /// reading pdfcer made (parallel or angled, the measured angle, whether
+    /// the parallel reading was forced) is printed before the save line.
+    CentreLine {
+        /// Input PDF.
+        input: PathBuf,
+        /// 1-based page number.
+        #[arg(long, default_value_t = 1)]
+        page: u32,
+        /// Target ce dimension group id (0 = the default group). The group's
+        /// colour, line width, opacity and layer apply.
+        #[arg(long, default_value_t = 0)]
+        group: u32,
+        /// The two lines, each by its two ends: `x1,y1 x2,y2  x3,y3 x4,y4`.
+        #[arg(long)]
+        points: String,
+        /// Where each line was picked, `x,y x,y`; for angled lines this
+        /// chooses which of the four angles is bisected. Default: each line's
+        /// midpoint.
+        #[arg(long)]
+        picks: Option<String>,
+        /// How far the centre line runs past each end of the shared length,
+        /// in points.
+        #[arg(long, default_value_t = pdfcer_core::dimension::DEFAULT_CENTRE_LINE_OVERSHOOT)]
+        overshoot: f64,
+        /// Read the two lines as parallel whatever their measured angle. The
+        /// measured angle is still printed.
+        #[arg(long)]
+        treat_as_parallel: bool,
+        /// Output path.
+        #[arg(short, long)]
+        output: PathBuf,
+        /// Save mode.
+        #[arg(long, value_enum, default_value_t = SaveMode::Incremental)]
+        mode: SaveMode,
+        /// Reload and verify the edit undoes byte-identically.
+        #[arg(long)]
+        verify_undo: bool,
+    },
+    /// Put a centre mark on a circle or arc: a cross at its centre, in the
+    /// group's style.
+    ///
+    /// Give the circle as three or more points on its rim (fitted, and the
+    /// fit's centre, radius and residual are printed) or exactly as
+    /// --circle cx,cy,r. With --measure radius or diameter the mark and the
+    /// measurement are one ce dimension that moves, deletes and undoes as
+    /// one; with --measure none (the default) the mark stands alone and
+    /// lists as kind=centre-mark.
+    ///
+    /// The arm length is the group's centre-mark size (group-style
+    /// --centre-mark-size; default half the text height).
+    CentreMark {
+        /// Input PDF.
+        input: PathBuf,
+        /// 1-based page number.
+        #[arg(long, default_value_t = 1)]
+        page: u32,
+        /// Target ce dimension group id (0 = the default group). The group's
+        /// colour, line width, opacity and layer apply.
+        #[arg(long, default_value_t = 0)]
+        group: u32,
+        /// Three or more points on the rim: `x,y x,y x,y ...`.
+        #[arg(long, conflicts_with = "circle")]
+        points: Option<String>,
+        /// The circle exactly: `cx,cy,r`.
+        #[arg(long)]
+        circle: Option<String>,
+        /// Also author the circle's measurement with the mark.
+        #[arg(long, value_enum, default_value_t = CentreMeasureArg::None)]
+        measure: CentreMeasureArg,
+        /// Draw the mark's four extension lines out past the rim. Off by
+        /// default.
+        #[arg(long)]
+        extension_lines: bool,
+        /// Turn the cross by this many degrees, counter-clockwise.
+        #[arg(long, default_value_t = 0.0, allow_hyphen_values = true)]
+        angle: f64,
+        /// Output path.
+        #[arg(short, long)]
+        output: PathBuf,
+        /// Save mode.
+        #[arg(long, value_enum, default_value_t = SaveMode::Incremental)]
+        mode: SaveMode,
+        /// Reload and verify the edit undoes byte-identically.
+        #[arg(long)]
+        verify_undo: bool,
+    },
     /// List the dimension groups and dimensions stored in a document —
     /// reads the authoritative `/PieceInfo` sidecar.
     DimensionList {
@@ -11762,6 +11861,12 @@ pub(crate) enum Command {
         /// Opacity, 0.0-1.0, written as the annotation's `/CA`.
         #[arg(long)]
         opacity: Option<f64>,
+        /// Centre-mark arm length: text:F for F times the text height
+        /// (default text:0.5, the ANSI/ISO convention), or fixed:PT for a
+        /// length in points. Extension lines, when shown, start 2x this from
+        /// the centre and end this far past the rim.
+        #[arg(long, value_name = "text:F|fixed:PT")]
+        centre_mark_size: Option<String>,
         /// Clear a property back to the factory default (repeatable, or
         /// comma-separated). Property names are the ones
         /// `dimension-list --style` prints.
@@ -11847,6 +11952,12 @@ pub(crate) enum Command {
         /// Opacity, 0.0-1.0, written as the annotation's `/CA`.
         #[arg(long)]
         opacity: Option<f64>,
+        /// Centre-mark arm length: text:F for F times the text height
+        /// (default text:0.5, the ANSI/ISO convention), or fixed:PT for a
+        /// length in points. Extension lines, when shown, start 2x this from
+        /// the centre and end this far past the rim.
+        #[arg(long, value_name = "text:F|fixed:PT")]
+        centre_mark_size: Option<String>,
         /// Clear an override, returning that property to inheritance
         /// (repeatable, or comma-separated).
         #[arg(long, value_enum, value_delimiter = ',')]

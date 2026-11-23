@@ -20,6 +20,7 @@ mod audit_space;
 mod bake_appearances;
 mod bates_stamp;
 mod bookmarks;
+mod centre_geometry;
 mod compare_result;
 mod compare_visual;
 mod copy_page;
