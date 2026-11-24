@@ -234,8 +234,12 @@ enum Done {
 fn run(frame: &Frame<'_>, job: &Job<'_>) -> Result<Done, GpuRefusal> {
     device_clip::with_lattice_anchor(frame.anchor, || {
         device_clip::with_row_origin(0, || match job {
-            Job::Clip(def) => prepare_clip(frame, def).map(Done::Clip),
+            Job::Clip(def) => frame
+                .check_cancel()
+                .and_then(|()| prepare_clip(frame, def))
+                .map(Done::Clip),
             Job::Items(items) => {
+                frame.check_cancel()?;
                 let mut v = Vec::with_capacity(items.len());
                 for item in *items {
                     match item {

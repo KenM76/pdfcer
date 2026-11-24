@@ -12,6 +12,7 @@ use super::fill_edges::{self, FillEdges};
 use super::image::{self, IMAGE_PAINT, ImagePaint};
 use super::layer::LAYER_BEGIN;
 use crate::RenderError;
+use crate::cancel::RenderCancel;
 use crate::canvas::{Brush, BrushSpec};
 use crate::device_clip::{self, Fit};
 use crate::display_list::{ClipDef, DeviceBounds, DisplayList, DisplayListKey, Op};
@@ -90,6 +91,10 @@ pub enum GpuRefusal {
         /// Texels needed.
         texels: usize,
     },
+    /// The [`RenderCancel`] passed to [`DisplayList::gpu_scene_cancellable`]
+    /// was cancelled: the page was not judged, only abandoned.
+    #[error("packing was cancelled")]
+    Cancelled,
 }
 
 impl DisplayList {
@@ -109,7 +114,35 @@ impl DisplayList {
         expected: DisplayListKey,
         region: PageRect,
     ) -> Result<GpuScene, GpuRefusal> {
-        let frame = self.region_frame(expected, region)?;
+        self.pack_scene(expected, region, None)
+    }
+
+    /// [`Self::gpu_scene`], abandoned within one block of ops once `cancel`
+    /// is cancelled, checked before and throughout packing.
+    ///
+    /// # Errors
+    ///
+    /// [`GpuRefusal::Cancelled`] once `cancel` is cancelled, distinct from
+    /// every refusal that says the page cannot be drawn; otherwise as
+    /// [`Self::gpu_scene`].
+    pub fn gpu_scene_cancellable(
+        &self,
+        expected: DisplayListKey,
+        region: PageRect,
+        cancel: &RenderCancel,
+    ) -> Result<GpuScene, GpuRefusal> {
+        self.pack_scene(expected, region, Some(cancel))
+    }
+
+    fn pack_scene(
+        &self,
+        expected: DisplayListKey,
+        region: PageRect,
+        cancel: Option<&RenderCancel>,
+    ) -> Result<GpuScene, GpuRefusal> {
+        let mut frame = self.region_frame(expected, region)?;
+        frame.cancel = cancel;
+        frame.check_cancel()?;
         let (width, height) = (frame.width, frame.height);
         if width == 0
             || height == 0
@@ -139,9 +172,18 @@ pub(crate) struct Frame<'a> {
     pub y0: f32,
     pub anchor: (f64, f64),
     pub bounds: DeviceBounds,
+    pub cancel: Option<&'a RenderCancel>,
 }
 
 impl Frame<'_> {
+    /// [`GpuRefusal::Cancelled`] once the frame's token is cancelled.
+    pub(crate) fn check_cancel(&self) -> Result<(), GpuRefusal> {
+        if self.cancel.is_some_and(RenderCancel::is_cancelled) {
+            return Err(GpuRefusal::Cancelled);
+        }
+        Ok(())
+    }
+
     /// `ctm` in the region's pixels, as the replay maps it there.
     pub(crate) fn to_region(&self, ctm: Transform) -> Transform {
         ctm.post_translate(-self.x0, -self.y0)
@@ -304,10 +346,12 @@ fn builder(frame: &Frame<'_>) -> Result<Builder, GpuRefusal> {
 /// `frame`'s scene texture.
 fn pack(frame: &Frame<'_>) -> Result<IntTexture, GpuRefusal> {
     let b = builder(frame)?;
+    frame.check_cancel()?;
     let stride = frame.draw_tiles().len();
     let cols = (frame.width as i32 + TILE_W - 1) / TILE_W;
     let rows = (frame.height as i32 + TILE_H - 1) / TILE_H;
     let lists = tile_lists(&b, (cols, rows));
+    frame.check_cancel()?;
     let fill_texels: usize = b.fills.iter().map(|f| f.texels.len()).sum();
     let clip_base = 2 + fill_texels;
     let op_base = clip_base + b.clips.len() * stride;

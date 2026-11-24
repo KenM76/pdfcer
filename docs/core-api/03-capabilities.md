@@ -5072,6 +5072,11 @@ shaders; the shell (WebGL2, or any GL ES 3.0 / wgpu-GLSL host) draws them.
   Result<GpuScene, GpuRefusal>` — same `key` and `region` contract as
   `replay_region`. `GpuScene { width, height, data: IntTexture }`
   (`#[non_exhaustive]`).
+- `DisplayList::gpu_scene_cancellable(&self, key, region, cancel: &RenderCancel)
+  -> Result<GpuScene, GpuRefusal>` — the same scene, abandoned within one
+  512-op block once `cancel` is cancelled, with `GpuRefusal::Cancelled`: not
+  a judgement on the page, so never report it as one. Pass the token the
+  recording used.
 - `IntTexture { texels: Vec<i32>, width, height, layers }`: upload as an
   `RGBA32I` `TEXTURE_2D_ARRAY` (`texImage3D`, `NEAREST`, no mipmaps).
   `width` is `SCENE_TEXTURE_WIDTH` (2048); `height` is at most
@@ -5098,7 +5103,7 @@ shaders; the shell (WebGL2, or any GL ES 3.0 / wgpu-GLSL host) draws them.
   transform that is not finite or has a coefficient below `1e-30`, or
   bilinear samples beyond 2^24 image pixels), `Shading` (only an export recording's gradient brush; snapshot shadings are drawn), `Transparency` (a soft
   mask, a non-separable or colour-dodge/burn/soft-light blend mode, an
-  image under any blend mode but Normal, groups nested past 8), `Curves`, `TooMuchData { texels }`.
+  image under any blend mode but Normal, groups nested past 8), `Curves`, `TooMuchData { texels }`, and `Cancelled` (from `gpu_scene_cancellable` only).
   A refusal is for the whole page: never mix GPU and CPU paints on one
   raster.
 - What is drawn today: solid fills and strokes (any opacity, anti-aliased

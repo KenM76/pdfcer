@@ -300,3 +300,16 @@ fn nested_transparency_groups() {
     );
     assert_matches_at(&doc, &[1.0, 2.37], "nested");
 }
+
+#[test]
+fn a_cancelled_pack_is_cancelled_not_refused() {
+    let doc = page_with("1 0 0 rg 10 10 50 50 re f\n", "<< >>");
+    let page = page_tree::pages(&doc).expect("page tree walks").remove(0);
+    let list = record_page(&doc.view(), &page, 1.0, 1, &RenderOptions::default()).expect("records");
+    let cancel = pdfcer_render::cancel::RenderCancel::new();
+    let live = list.gpu_scene_cancellable(list.key(), page.crop_box, &cancel);
+    assert_eq!(live.ok(), list.gpu_scene(list.key(), page.crop_box).ok());
+    cancel.cancel();
+    let r = list.gpu_scene_cancellable(list.key(), page.crop_box, &cancel);
+    assert!(matches!(r, Err(GpuRefusal::Cancelled)), "{r:?}");
+}

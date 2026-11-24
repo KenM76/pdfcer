@@ -862,6 +862,7 @@ impl DisplayList {
             y0: g.y0,
             anchor,
             bounds,
+            cancel: None,
         })
     }
 
