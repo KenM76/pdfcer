@@ -864,13 +864,25 @@ pub struct RenderOptions {
     /// Composite in ink and leave the named plates off, or `None` for a
     /// normal render. See [`crate::SeparationPreview`].
     pub separation_preview: Option<crate::SeparationPreview>,
-    /// Set only by [`crate::coverage_warning_masks`]: collapse the colorant
-    /// buffer to up to three rules' masks, one per RGB channel, instead of
-    /// to colour.
-    pub(crate) coverage_warnings: crate::coverage_warning::RuleSlots,
-    /// Set only by [`crate::total_area_coverage`]: collapse the colorant
-    /// buffer to each pixel's total coverage instead of to colour.
-    pub(crate) coverage_readout: bool,
+    /// What the colorant buffer collapses to; colour except for the
+    /// crate's own measuring renders.
+    pub(crate) collapse: Collapse,
+}
+
+/// What a colorant buffer collapses to at the end of a render.
+#[derive(Debug, Clone, Default)]
+pub(crate) enum Collapse {
+    /// The page's colour (§11.4.7).
+    #[default]
+    Colour,
+    /// Up to three rules' masks, one per RGB channel
+    /// ([`crate::coverage_warning_masks`]); colour when every slot is empty.
+    Warnings(crate::coverage_warning::RuleSlots),
+    /// Each pixel's total coverage ([`crate::total_area_coverage`]).
+    Readout,
+    /// Up to four named inks' plates, one per RGBA channel
+    /// ([`crate::plates`]).
+    Plates(Vec<String>),
 }
 
 /// The medium a finished page group is composited onto — §11.4.7's
@@ -1350,8 +1362,7 @@ impl Default for RenderOptions {
             free_text_c: crate::FreeTextC::Fill,
             overprint_preview: crate::OverprintPreview::Simulate,
             separation_preview: None,
-            coverage_warnings: [None; 3],
-            coverage_readout: false,
+            collapse: Collapse::Colour,
         }
     }
 }

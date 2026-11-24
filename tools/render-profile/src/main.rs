@@ -126,6 +126,7 @@ fn main() -> std::process::ExitCode {
     let mut ablate: Option<Ablation> = None;
     let mut ablate_sweep = false;
     let mut bands: Option<Vec<usize>> = None;
+    let mut plates = false;
 
     while let Some(a) = args.next() {
         match a.as_str() {
@@ -149,6 +150,7 @@ fn main() -> std::process::ExitCode {
                 }
             }
             "--ablate-sweep" => ablate_sweep = true,
+            "--plates" => plates = true,
             "--bands" => {
                 let v = args.next().unwrap_or_default();
                 bands = Some(v.split(',').filter_map(|s| s.trim().parse().ok()).collect());
@@ -168,12 +170,14 @@ fn main() -> std::process::ExitCode {
                 eprintln!(
                     "render-profile <file.pdf> [--page N] [--scales 0.25,0.5,1,2] [--repeat N]\n\
                                                [--ablate SET | --ablate-sweep]\n\
-                                               [--bands 1,2,4,8]\n\
+                                               [--bands 1,2,4,8] [--plates]\n\
                      \n\
                      SET is a comma list of: clip-build, clip-sample, paint, all, none\n\
                      --ablate-sweep runs each in turn and reports the FLOOR.\n\
                      --bands records once per scale, then times whole replay, PNG\n\
-                     encode, and N row bands on N threads, checking each stitch."
+                     encode, and N row bands on N threads, checking each stitch.\n\
+                     --plates times the page, render_plates, and the one-render-\n\
+                     per-ink path it replaced."
                 );
                 return std::process::ExitCode::SUCCESS;
             }
@@ -227,6 +231,13 @@ fn main() -> std::process::ExitCode {
         "load      : {:.3} ms  (object graph + xref only)",
         load.as_secs_f64() * 1e3
     );
+
+    if plates {
+        for &scale in &scales {
+            plate_times(&view, page, scale, &opts);
+        }
+        return std::process::ExitCode::SUCCESS;
+    }
 
     // A single --ablate applies to the scale table below. Say so before
     // the numbers, not after: a reader who scrolls to the table must not
@@ -769,5 +780,34 @@ fn report_clip_phases(c: &pdfcer_render::profile::Counters) {
     println!(
         "    (bucket upper edges; a histogram cannot give an exact percentile and\n     \
          interpolating inside a bucket would invent precision the data lacks)"
+    );
+}
+
+/// `--plates`: the page, its plates in one pass per four inks, and the
+/// probe-plus-one-render-per-ink path they replaced.
+fn plate_times(view: &DocumentView<'_>, page: &page_tree::Page, scale: f32, opts: &RenderOptions) {
+    use pdfcer_render::plates;
+    let ms = |t: Instant| t.elapsed().as_secs_f64() * 1e3;
+    let t = Instant::now();
+    let _ = render_page_with_view(view, page, scale, opts);
+    let page_ms = ms(t);
+    let t = Instant::now();
+    let fast = plates::render_plates(view, page, scale, opts);
+    let fast_ms = ms(t);
+    let t = Instant::now();
+    let slow = plates::probe_inks(view, page, scale, opts).map(|(inks, _)| {
+        for ink in &inks {
+            let _ = plates::plate_pixmap(view, page, scale, opts, &inks, ink);
+        }
+        inks.len()
+    });
+    let slow_ms = ms(t);
+    let inks = match &fast {
+        Ok(plates::Plates::Separated(a)) => a.len(),
+        _ => 0,
+    };
+    println!(
+        "scale {scale}: page {page_ms:.0} ms, plates {fast_ms:.0} ms ({inks} inks), per-ink {slow_ms:.0} ms ({} inks)",
+        slow.unwrap_or(0)
     );
 }

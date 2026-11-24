@@ -1331,21 +1331,7 @@ fn collapse_ink(
     diagnostics: &mut Diagnostics,
     (width, height): (u32, u32),
 ) {
-    diagnostics.cmyk_buffer_engaged = true;
-    diagnostics.cmyk_bridged_pixels += buffer.bridged_pixels();
-    diagnostics.cmyk_native_image_pixels += buffer.native_image_pixels();
-    diagnostics.cmyk_groups_approximated += buffer.groups_approximated();
-    diagnostics.cmyk_unbridged_images += buffer.unbridged_images();
-    diagnostics.cmyk_spots_flattened += buffer.spots_flattened();
-    diagnostics.cmyk_spot_planes += buffer.spot_plane_count() as u64;
-    {
-        use cmyk_buffer::SpotRefusal;
-        diagnostics.cmyk_spots_flattened_roster += buffer.spots_flattened_for(SpotRefusal::Roster);
-        diagnostics.cmyk_spots_flattened_ceiling +=
-            buffer.spots_flattened_for(SpotRefusal::Ceiling);
-        diagnostics.cmyk_spots_flattened_allocation +=
-            buffer.spots_flattened_for(SpotRefusal::Allocation);
-    }
+    note_buffer(diagnostics, &buffer);
     // The one failure mode here is an allocation the page has already
     // proven possible, so falling back to the transparent pixmap would
     // be a blank page. Keeping the (empty) pixmap and flattening it is
@@ -1364,16 +1350,20 @@ fn collapse_ink(
         diagnostics.inks = buffer.ink_names();
         (diagnostics.inks_hidden, diagnostics.inks_unmatched) = buffer.hide_inks(&preview.hidden);
     }
-    if options.coverage_readout {
-        if let Some(readout) = tac::readout_pixmap(&buffer) {
-            *pixmap = readout;
+    let measured = match &options.collapse {
+        font::Collapse::Plates(names) => {
+            diagnostics.inks = buffer.ink_names();
+            Some(plates::packed(&buffer, names, options.effective_backdrop()))
         }
-        diagnostics.ink_probe = probe_cmyk;
-        return;
-    }
-    if options.coverage_warnings.iter().any(Option::is_some) {
-        if let Some(mask) = coverage_warning::mask_pixmap(&buffer, &options.coverage_warnings) {
-            *pixmap = mask;
+        font::Collapse::Readout => Some(tac::readout_pixmap(&buffer)),
+        font::Collapse::Warnings(rules) if rules.iter().any(Option::is_some) => {
+            Some(coverage_warning::mask_pixmap(&buffer, rules))
+        }
+        font::Collapse::Warnings(_) | font::Collapse::Colour => None,
+    };
+    if let Some(measured) = measured {
+        if let Some(measured) = measured {
+            *pixmap = measured;
         }
         diagnostics.ink_probe = probe_cmyk;
         return;
@@ -1401,6 +1391,25 @@ fn collapse_ink(
         flatten_page_group_over_white(pixmap);
     }
     diagnostics.ink_probe = probe_cmyk;
+}
+
+/// The colorant buffer's tallies, into the render's diagnostics.
+fn note_buffer(diagnostics: &mut Diagnostics, buffer: &cmyk_buffer::CmykBuffer) {
+    diagnostics.cmyk_buffer_engaged = true;
+    diagnostics.cmyk_bridged_pixels += buffer.bridged_pixels();
+    diagnostics.cmyk_native_image_pixels += buffer.native_image_pixels();
+    diagnostics.cmyk_groups_approximated += buffer.groups_approximated();
+    diagnostics.cmyk_unbridged_images += buffer.unbridged_images();
+    diagnostics.cmyk_spots_flattened += buffer.spots_flattened();
+    diagnostics.cmyk_spot_planes += buffer.spot_plane_count() as u64;
+    {
+        use cmyk_buffer::SpotRefusal;
+        diagnostics.cmyk_spots_flattened_roster += buffer.spots_flattened_for(SpotRefusal::Roster);
+        diagnostics.cmyk_spots_flattened_ceiling +=
+            buffer.spots_flattened_for(SpotRefusal::Ceiling);
+        diagnostics.cmyk_spots_flattened_allocation +=
+            buffer.spots_flattened_for(SpotRefusal::Allocation);
+    }
 }
 
 /// Fill the probe's sRGB half from the finished raster, the number the

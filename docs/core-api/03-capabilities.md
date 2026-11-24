@@ -4529,8 +4529,11 @@ render that simulates overprint; an error means unknown, never "no". CLI:
 **Separation plates** (`pdfcer_render::plates`, request G242) — the page as
 one grey plate per ink, what `pdfcer print --separations` prints.
 `render_plates(&view, &page, scale, &RenderOptions) -> Result<Plates,
-RenderError>`: a probe render lists the inks, then one render per ink with
-the others hidden. `Plates` (`#[non_exhaustive]`) is
+RenderError>`: one render per four inks (a process-only page costs one
+render, about the page's own), each plate read off the ink composite with
+the others left off. Plates are byte-identical to one render per ink with
+the rest hidden, except under supersampled edges, where a plate pixel is the
+mean of its fine pixels' greys. `Plates` (`#[non_exhaustive]`) is
 `Separated(Vec<Plate>)` — `Plate { ink: String, pixmap: Pixmap }`, process
 inks then spots in plane order — or `Composite(Pixmap)` when the colorant
 buffer was refused for memory (the ordinary colour render, unlabelled;

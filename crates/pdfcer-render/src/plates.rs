@@ -33,9 +33,14 @@ pub enum Plates {
     Composite(Pixmap),
 }
 
-/// Render `page` once per ink as a labelled grey plate: a probe render
-/// under the separation preview lists the inks, then one render per ink
-/// with the others hidden.
+/// Render `page` as a labelled grey plate per ink, four plates per render:
+/// the page is composited in ink once per four inks, and each ink's plate is
+/// read off that composite with the others left off. A process-only page
+/// costs one render.
+///
+/// Each plate equals [`plate_pixmap`]'s for its ink (one render per ink)
+/// when edges are not supersampled; supersampled, a plate pixel is the mean
+/// of its fine pixels' greys rather than the grey of their mean colour.
 ///
 /// # Errors
 ///
@@ -46,20 +51,105 @@ pub fn render_plates(
     scale: f32,
     options: &RenderOptions,
 ) -> Result<Plates, RenderError> {
-    let (inks, composite) = probe_inks(view, page, scale, options)?;
+    let first: Vec<String> = crate::PROCESS_INKS
+        .iter()
+        .map(|n| (*n).to_owned())
+        .collect();
+    let (inks, pixmap) = render_packed(view, page, scale, options, first.clone())?;
     if inks.is_empty() {
-        return Ok(Plates::Composite(composite));
+        return Ok(Plates::Composite(pixmap));
     }
     let mut plates = Vec::with_capacity(inks.len());
-    for ink in &inks {
-        let mut pixmap = plate_pixmap(view, page, scale, options, &inks, ink)?;
+    unpack(&mut plates, &pixmap, &first, (scale, page));
+    for group in inks.get(first.len()..).unwrap_or_default().chunks(4) {
+        let (_, pixmap) = render_packed(view, page, scale, options, group.to_vec())?;
+        unpack(&mut plates, &pixmap, group, (scale, page));
+    }
+    Ok(Plates::Separated(plates))
+}
+
+/// One render collapsing to `names`' plates ([`packed`]), and the page's
+/// inks. No inks: the colorant buffer was refused and the pixmap is the
+/// page's composite.
+fn render_packed(
+    view: &DocumentView<'_>,
+    page: &Page,
+    scale: f32,
+    options: &RenderOptions,
+    names: Vec<String>,
+) -> Result<(Vec<String>, Pixmap), RenderError> {
+    let mut options = options
+        .clone()
+        .with_separation_preview(Some(SeparationPreview::new()));
+    options.ink_probe = None;
+    options.collapse = crate::font::Collapse::Plates(names);
+    let rendered = crate::render_page_with_view(view, page, scale, &options)?;
+    Ok((rendered.diagnostics.inks, rendered.pixmap))
+}
+
+/// Split a [`packed`] raster into labelled plates for `names`, in order.
+fn unpack(plates: &mut Vec<Plate>, packed: &Pixmap, names: &[String], (scale, page): (f32, &Page)) {
+    for (channel, ink) in names.iter().enumerate() {
+        let Some(mut pixmap) = Pixmap::new(packed.width(), packed.height()) else {
+            continue;
+        };
+        for (dst, src) in pixmap
+            .data_mut()
+            .as_chunks_mut::<4>()
+            .0
+            .iter_mut()
+            .zip(packed.data().as_chunks::<4>().0)
+        {
+            let grey = src.get(channel).copied().unwrap_or(255);
+            *dst = [grey, grey, grey, 255];
+        }
         label(&mut pixmap, ink, scale, page);
         plates.push(Plate {
             ink: ink.clone(),
             pixmap,
         });
     }
-    Ok(Plates::Separated(plates))
+}
+
+/// The colorant buffer as up to four plates, `names[c]`'s grey
+/// ([`to_plate_grey`] of the page with every other ink left off) in RGBA
+/// channel `c`; a channel with no name, or an ink this buffer does not
+/// hold, is white. The bytes are not a colour: [`unpack`] reads them.
+/// `None` when the raster cannot be allocated.
+pub(crate) fn packed(
+    buffer: &crate::cmyk_buffer::CmykBuffer,
+    names: &[String],
+    backdrop: crate::PageBackdrop,
+) -> Option<Pixmap> {
+    let mut out = Pixmap::new(buffer.width(), buffer.height())?;
+    out.data_mut().fill(255);
+    let roster = buffer.ink_names();
+    for (channel, ink) in names.iter().enumerate().take(4) {
+        if !roster.contains(ink) {
+            continue;
+        }
+        let mut alone = buffer.clone();
+        let others: Vec<String> = roster.iter().filter(|i| *i != ink).cloned().collect();
+        alone.hide_inks(&others);
+        let collapsed = match backdrop {
+            crate::PageBackdrop::White => alone.to_srgb_over_white(),
+            crate::PageBackdrop::Transparent => alone.to_srgb_transparent(),
+        };
+        let Some(mut plate) = collapsed else { continue };
+        to_plate_grey(plate.data_mut());
+        for (dst, src) in out
+            .data_mut()
+            .as_chunks_mut::<4>()
+            .0
+            .iter_mut()
+            .zip(plate.data().as_chunks::<4>().0)
+        {
+            if let (Some(d), Some(g)) = (dst.get_mut(channel), src.first()) {
+                *d = *g;
+            }
+        }
+    }
+    Some(out)
 }
 
 /// The page's inks in plate order, from a render under the separation

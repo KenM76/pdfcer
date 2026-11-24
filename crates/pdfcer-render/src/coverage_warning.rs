@@ -111,9 +111,11 @@ fn render_rules(
         .clone()
         .with_separation_preview(Some(preview))
         .with_edge_antialiasing(crate::EdgeAntialiasing::Off);
-    for (slot, &w) in options.coverage_warnings.iter_mut().zip(rules) {
+    let mut slots: RuleSlots = [None; 3];
+    for (slot, &w) in slots.iter_mut().zip(rules) {
         *slot = Some(w);
     }
+    options.collapse = crate::font::Collapse::Warnings(slots);
     let rendered = match region {
         Some(r) => crate::render_page_region(doc, page, scale, r, &options)?,
         None => crate::render_page_with_view(doc, page, scale, &options)?,

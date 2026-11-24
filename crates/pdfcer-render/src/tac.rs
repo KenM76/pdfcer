@@ -77,8 +77,7 @@ pub fn total_area_coverage(
         .clone()
         .with_separation_preview(Some(SeparationPreview::new()))
         .with_edge_antialiasing(crate::EdgeAntialiasing::Off);
-    options.coverage_warnings = [None; 3];
-    options.coverage_readout = true;
+    options.collapse = crate::font::Collapse::Readout;
     let rendered = crate::render_page_with_view(view, page, scale, &options)?;
     let in_ink = rendered.diagnostics.cmyk_buffer_engaged;
     let tenths = if in_ink {
