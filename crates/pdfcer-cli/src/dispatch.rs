@@ -3399,6 +3399,12 @@ pub(crate) fn run() -> ExitCode {
             mode,
             verify_undo,
         } => cmd_group_set_unit(&input, group, &unit, &output, mode, verify_undo),
+        Command::Preflight {
+            input,
+            profile,
+            max_findings,
+            dump_profile,
+        } => cmd_preflight(input.as_deref(), &profile, max_findings, dump_profile),
         Command::GroupLength {
             input,
             page,

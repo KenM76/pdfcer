@@ -6686,3 +6686,42 @@ Contract:
   stating nothing.
 
 ⚠️ Both structs are `#[non_exhaustive]`.
+
+## 17. Preflight — profiles, findings, a report (`Pass 748.0`)
+
+Read-only; no edit session. `pdfcer_core::preflight` (CLI: `pdfcer preflight`).
+Fixups are separate verbs on the edit session; nothing here writes.
+
+| Call | Returns |
+|---|---|
+| `preflight::run(&DocumentView, &Profile) -> PreflightReport` | every finding, with the default options |
+| `preflight::run_with(&DocumentView, &Profile, &RunOptions) -> PreflightReport` | the same, with `max_findings` (default `RunOptions::DEFAULT_MAX_FINDINGS`, 25 000), a `cancel: Option<&AtomicBool>` checked before each page, and `progress: Option<&dyn Fn(done, total)>` called after each |
+| `Profile::builtin(name) -> Option<Profile>` / `Profile::BUILTIN_NAMES` | built-ins by name; today `digital-printing` (`Profile::digital_printing()`) |
+| `Profile::from_json(&[u8]) -> Result<Profile, ProfileError>` / `Profile::to_json() -> String` | the saved form of an edited profile; check names and parameters are tabled on `from_json` |
+| `Profile { name, description, rules: Vec<ProfileRule> }`, `ProfileRule { id, check: Check, severity: Severity }` | rules run in order; ids are unique |
+| `Check` | `ImageBelowPpi { min_ppi }`, `FontNotEmbedded`, `NoOutputIntent`, `NoTrimBox`, `ColourSpaceUsed { families: Vec<ColourFamily> }`, `SpotNotAllowed { allowed: Vec<String> }`, `OverprintUsed`, `Encrypted`, `VersionAbove { max: PdfVersion }` |
+| `PreflightReport { findings, dropped, pages_checked, page_count, cancelled }` | `fails()` = an `Error` finding or `dropped > 0`; `is_clean()`; `needs_person()` |
+| `Finding { rule_id, severity, kind, page: Option<usize>, target, rect: Option<Rect>, message, measured: Option<Measure> }` | `page` 1-based, `None` for document-level; `Measure { value, limit, unit: MeasureUnit }` for measuring checks |
+| `FindingTarget` | `Document`, `Page`, `PageObject(i)` / `FormLeaf(i)` (indexes into `vector::decompose_page`'s `objects` / `leaves`, the same ones `hit_test` uses), `Annotation`, `Font`, `ColourSpace`, `Image`, `GraphicsState` (each an `ObjId`) |
+
+Contract:
+
+- **`FindingKind::NeedsPerson` and `FindingKind::Incomplete` are never a
+  pass.** Incomplete means the part the rule needed could not be read
+  (unreadable content, a walk past its depth or event guard, an unreadable
+  page tree); show it as "not checked", with `message`.
+- **The cap drops, it does not stop.** `dropped` counts findings past
+  `max_findings`; a run with drops `fails()`, so a capped list never reads
+  as a smaller clean one.
+- **Colour, spot and overprint rules walk what is drawn**: page content,
+  forms, tiling and shading patterns, image `/ColorSpace` (not image masks),
+  inline images, and each annotation's `/AP /N`. `Indexed` reports its base;
+  `ICCBased` is classified by `/N`. Process names, `All` and `None` are not
+  spots. Type 3 glyph procedures and soft-mask groups are not walked yet.
+- **Image resolution** is measured from placement: pixels × 72 / the
+  placed length of each axis; the worst axis is the measured value.
+- **Fonts**: Type 3 always passes; an unreadable embedded program is a
+  finding, naming why.
+
+⚠️ `Check`, `ColourFamily`, `FindingTarget`, `MeasureUnit`, `ProfileError`,
+`Finding` and `PreflightReport` are `#[non_exhaustive]`.

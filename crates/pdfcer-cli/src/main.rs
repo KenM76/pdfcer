@@ -674,9 +674,11 @@ use sign::*;
 mod dimension;
 mod group_length;
 mod group_unit;
+mod preflight;
 use dimension::*;
 use group_length::*;
 use group_unit::*;
+use preflight::cmd_preflight;
 mod dimension_area;
 use dimension_area::*;
 mod centre_cmd;
@@ -891,6 +893,9 @@ mod exit {
     /// `print`: the network printer could not be reached, or CUPS's `lp`
     /// is not installed. Nothing was sent.
     pub const PRINTER_UNREACHABLE: u8 = 17;
+    /// `preflight`: an error-severity rule produced a finding, or findings
+    /// were dropped at the cap. The report was printed.
+    pub const PREFLIGHT_FAILED: u8 = 18;
     /// The subcommand exists in the surface but is not implemented yet
     /// (Pass 0 stub). Distinct code so a script can tell "you asked for a
     /// feature pdfcer doesn't have yet" apart from a real failure.

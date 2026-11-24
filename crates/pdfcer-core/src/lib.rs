@@ -97,6 +97,7 @@ pub mod paper;
 /// Password-field values stored in any of a file's revisions (ISO 32000-1
 /// §12.7.4.3 Table 228 bit 14, §7.5.6).
 pub mod password_history;
+pub mod preflight;
 pub mod prepress;
 /// The print presets a document carries (ISO 32000-1 §12.2 Table 150).
 pub mod print_presets;

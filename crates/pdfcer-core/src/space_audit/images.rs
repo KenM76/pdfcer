@@ -240,15 +240,18 @@ impl Placer<'_, '_> {
         let [a, b, c, d, _, _] = ctm.0;
         let width_pt = a.hypot(b);
         let height_pt = c.hypot(d);
-        if width_pt < 1e-9 || height_pt < 1e-9 {
+        let (Some(ppi_x), Some(ppi_y)) = (
+            super::axis_ppi(image.width, width_pt),
+            super::axis_ppi(image.height, height_pt),
+        ) else {
             return;
-        }
+        };
         image.placements.push(ImagePlacement {
             page: self.page,
             width_pt,
             height_pt,
-            ppi_x: f64::from(image.width) * 72.0 / width_pt,
-            ppi_y: f64::from(image.height) * 72.0 / height_pt,
+            ppi_x,
+            ppi_y,
         });
     }
 }

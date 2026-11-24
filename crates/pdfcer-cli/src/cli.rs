@@ -11810,6 +11810,32 @@ pub(crate) enum Command {
         #[arg(long)]
         verify_undo: bool,
     },
+    /// Check a document against a preflight profile, read-only.
+    ///
+    /// Prints one header line, then one line per finding with its severity,
+    /// kind, rule, page, target and, for measuring rules, the measured value
+    /// against the limit. A finding is `violation`, `needs-person` (a person
+    /// must decide) or `incomplete` (the part it needed could not be read);
+    /// none of them is a pass. Exits 18 when an error-severity rule found
+    /// anything or findings were dropped at the cap.
+    ///
+    /// `--profile` takes a built-in name (`digital-printing`) or a JSON
+    /// profile file; `--dump-profile` prints the chosen profile as JSON, to
+    /// edit and pass back.
+    Preflight {
+        /// Input PDF; not needed with `--dump-profile`.
+        #[arg(required_unless_present = "dump_profile")]
+        input: Option<PathBuf>,
+        /// A built-in profile name or a profile JSON file.
+        #[arg(long, default_value = "digital-printing")]
+        profile: String,
+        /// Keep at most this many findings; the rest are counted.
+        #[arg(long, default_value_t = 25_000)]
+        max_findings: usize,
+        /// Print the profile as JSON and exit without checking.
+        #[arg(long)]
+        dump_profile: bool,
+    },
     /// Convert lengths to and from a ce dimension group's scale on one page.
     ///
     /// `--typed` reads a length as it would be typed into a box showing the

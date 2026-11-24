@@ -728,6 +728,13 @@ doc = false
 bench = false
 
 [[bin]]
+name = "preflight_profile"
+path = "fuzz_targets/preflight_profile.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
 name = "prepress"
 path = "fuzz_targets/prepress.rs"
 test = false

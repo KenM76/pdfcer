@@ -171,6 +171,12 @@ pub struct CategorySpace {
     pub objects: usize,
 }
 
+/// Pixels per inch for `samples` drawn across `points`; `None` when the
+/// axis has no extent. Shared with `preflight`, so both report one number.
+pub(crate) fn axis_ppi(samples: u32, points: f64) -> Option<f64> {
+    (points >= 1e-9).then(|| f64::from(samples) * 72.0 / points)
+}
+
 /// One drawing of an image on a page.
 #[derive(Debug, Clone, Copy, PartialEq)]
 #[non_exhaustive]
