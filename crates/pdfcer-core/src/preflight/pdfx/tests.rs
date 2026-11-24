@@ -3,6 +3,7 @@
 use super::*;
 use crate::document::Document;
 use crate::pageops::tests_support::{build_pdf, build_pdf_bytes, stream};
+use crate::preflight::tests::error_lines;
 
 const XMP: &str = r#"<x:xmpmeta xmlns:x="adobe:ns:meta/"><rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"><rdf:Description xmlns:pdfxid="http://www.npes.org/pdfx/ns/id/" pdfxid:GTS_PDFXVersion="PDF/X-4"/></rdf:RDF></x:xmpmeta>"#;
 
@@ -76,20 +77,10 @@ fn findings<'r>(report: &'r PdfxReport, row: &str) -> Vec<&'r Finding> {
         .collect()
 }
 
-fn errors(report: &PdfxReport) -> Vec<String> {
-    report
-        .preflight
-        .findings
-        .iter()
-        .filter(|f| f.severity == Severity::Error)
-        .map(|f| format!("{}: {}", f.rule_id, f.message))
-        .collect()
-}
-
 #[test]
 fn a_well_formed_x4_file_has_no_error_but_is_not_confirmed() {
     let report = validate_pdfx(&doc(&Parts::default()).view(), PdfxLevel::X4);
-    assert_eq!(errors(&report), Vec::<String>::new());
+    assert_eq!(error_lines(&report.preflight), Vec::<String>::new());
     assert_eq!(report.verdict(), PdfxVerdict::Unconfirmed);
     assert!(report.claim.is_some());
 }

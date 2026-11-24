@@ -847,3 +847,9 @@ name = "pdfua_validate"
 path = "fuzz_targets/pdfua_validate.rs"
 test = false
 doc = false
+
+[[bin]]
+name = "pdfa_validate"
+path = "fuzz_targets/pdfa_validate.rs"
+test = false
+doc = false

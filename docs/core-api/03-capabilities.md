@@ -7071,3 +7071,66 @@ Contract:
 ⚠️ `ArtifactMarkReport`, `DocTitleOutcome`, `FixPdfuaOptions`,
 `FixPdfuaReport` and `PdfuaFixupResult` are `#[non_exhaustive]`;
 `PdfuaFixup` and `PdfuaFixupOutcome` likewise.
+## 25. PDF/A validation — 1b, 2b, 3b (`Pass 729.0`)
+
+Read-only; no edit session. `pdfcer_core::preflight` (CLI: `pdfcer
+validate-pdfa IN --level 1b|2b|3b [--json] [--max-findings N]`, and
+`pdfcer preflight --profile pdfa-2b` etc.). ISO 19005-1:2005, -2:2011,
+-3:2012.
+
+| Call | Returns |
+|---|---|
+| `validate_pdfa(&DocumentView, PdfaLevel) -> PdfaReport` | every requirement of the level, as preflight findings |
+| `validate_pdfa_with(&DocumentView, PdfaLevel, &RunOptions) -> PdfaReport` | the same with §17's options (cap, cancel, progress) |
+| `PdfaLevel` | `A1b`, `A2b`, `A3b`; `ALL`; `as_str()` (`2b`); `from_name()` (case-insensitive, optional `a-`/`pdfa-` prefix); `claim()` (`PDF/A-2b`); `part()` (1/2/3); `based_on()` (1.4 / 1.7 / 1.7); `profile_name()` (`pdfa-2b`) |
+| `PdfaReport { level, claim: PdfaClaim, preflight: PreflightReport }` | `verdict()`; `clause_of(&Finding) -> Option<String>` (`ISO 19005-2:2011 §6.1.7.2`). `PdfaClaim` is `font_unembed::PdfaClaim` (what the XMP says) |
+| `PdfaVerdict` | `Fails` (`preflight.fails()`), `Unconfirmed` (no error, but findings remain), `Conforms` (no finding at all); `as_str()` |
+| `Profile::pdfa(PdfaLevel) -> Profile` | the built-in profile `validate_pdfa` runs; one `Check::PdfaRequirement { level, row }` rule per inventory row that applies to the level |
+
+Contract:
+
+- **Rule ids are inventory row ids** (`PAI-FS-15`), from
+  `D:\Dev\Rag-Specialized\PDF_Spec\pdfa\pdfa__req__inventory_index.md`.
+  Every message ends with its clause in parentheses and names its object
+  (`Object 12 0 R …`, `Font 7 0 R (ABCDEF+Arial) …`); the `target` is the
+  image, font, annotation or page where there is one.
+- **Severity follows the row**: a requirement is `Error`, an advisory row
+  `Warning`, and a row that is NOT SOURCED for the level or not checked
+  yet is one `Info` `Incomplete` finding saying so. A checked row with a
+  known blind spot adds one `Info` note (TG-8: Annex A is not sourced;
+  FS-44: `/UserUnit` is not applied; CS-4/5/6: Separation/DeviceN
+  alternates, Type 3 glyphs and soft masks are not walked). **Because
+  unchecked rows always exist, the verdict is `Fails` or `Unconfirmed` —
+  never `Conforms`.**
+- **Covered**: file structure (header, binary comment, `/ID`, encryption,
+  trailing `%%EOF`, no cross-reference streams, `/Perms`, implementation
+  limits, `/Filter` allowlist —
+  `LZWDecode` and `JXLDecode` fail at every level — `Crypt`, external
+  streams); XMP (present, unfiltered at 1b, xpacket header, `pdfaid`
+  part/conformance/prefix, 1b Info/XMP agreement); output intents (PDF/A
+  intent profile class and version, several intents agree); colour (ICC
+  version, class and channel count, device colour against the intent or a
+  2b/3b `Default*`, DeviceN colorant limits, Separation agreement, 1b
+  annotation colour); transparency and graphics state (1b soft masks,
+  `/CA`/`/ca`, blend modes, `/TR`, `/TR2`, `/HTP`, halftone type, page
+  `/Group /CS` without an intent); images (`/Alternates`, `/OPI`,
+  `/Interpolate`, bit depths, image masks, JPEG 2000 at 1b, reference and
+  PostScript XObjects, rendering intents); fonts (dictionary keys,
+  widths, `FontFile3` subtype, `CIDToGIDMap`, 1b subset `CharSet`/`CIDSet`,
+  TrueType encodings, embedding via §17); annotations (subtype allowlist,
+  `/CA`, flags, appearance streams, button `/N` state dictionaries, widget
+  actions); actions (type allowlist, named actions, page `/AA`); optional
+  content and catalog rows; embedded files (`/EmbeddedFiles` at 1b,
+  embedded PDFs must claim PDF/A at 2b, `/Subtype`/`/AF` association at
+  3b); page boundaries; presentation steps.
+- **Not checked yet**, each an `Info` finding: lexical and xref-syntax
+  rows (xref spacing, hex strings, stream `/Length` and keywords, object
+  headers, UTF-8 names, linearized `/ID`), inline-image filters, `q`/`Q`
+  depth, CID range; XMP well-formedness, predefined properties and
+  extension schemas; OPM for overprinted ICC CMYK, halftone transfer
+  functions, operators beyond the base version, content `/Resources`;
+  CMap rows and glyph-level font rows (glyphs present, widths against the
+  program, `cmap` subtables, `.notdef`); JPEG 2000 codestream rows;
+  signature `/ByteRange` and PKCS#7 rows.
+
+⚠️ `PdfaLevel` and `PdfaReport` are `#[non_exhaustive]`; `PdfaVerdict` is closed.

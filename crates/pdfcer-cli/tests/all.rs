@@ -176,6 +176,7 @@ mod three_d;
 mod three_d_gltf;
 mod two_line_dimension;
 mod unembed_font;
+mod validate_pdfa;
 mod validate_pdfua;
 mod validate_pdfx;
 mod vector_edit;

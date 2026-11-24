@@ -12,7 +12,7 @@
 
 use pdfcer_json::Json;
 
-use super::{Check, ColourFamily, PdfxLevel, Severity};
+use super::{Check, ColourFamily, PdfaLevel, PdfxLevel, Severity};
 use crate::PdfVersion;
 
 /// One rule: a check, the id findings carry, and their severity.
@@ -82,8 +82,11 @@ pub enum ProfileError {
 
 impl Profile {
     /// The names [`Self::builtin`] accepts.
-    pub const BUILTIN_NAMES: [&'static str; 8] = [
+    pub const BUILTIN_NAMES: [&'static str; 11] = [
         "digital-printing",
+        "pdfa-1b",
+        "pdfa-2b",
+        "pdfa-3b",
         "pdfua-1",
         "pdfua-2",
         "pdfx-1a-2001",
@@ -103,7 +106,13 @@ impl Profile {
             other => PdfxLevel::ALL
                 .into_iter()
                 .find(|l| l.profile_name() == other)
-                .map(Self::pdfx),
+                .map(Self::pdfx)
+                .or_else(|| {
+                    PdfaLevel::ALL
+                        .into_iter()
+                        .find(|l| l.profile_name() == other)
+                        .map(Self::pdfa)
+                }),
         }
     }
 
@@ -191,6 +200,7 @@ impl Profile {
     /// | `encrypted` | none |
     /// | `version-above` | `max`: `"1.7"`-style string |
     /// | `pdfx-requirement` | `level`: [`PdfxLevel::as_str`] name; `row`: an inventory row id that applies to it |
+    /// | `pdfa-requirement` | `level`: [`PdfaLevel::as_str`] name (`1b`, `2b`, `3b`); `row`: an inventory row id that applies to it |
     ///
     /// # Errors
     ///
@@ -310,6 +320,7 @@ fn parse_check(name: &str, id: &str, item: &Json) -> Result<Check, ProfileError>
             Check::VersionAbove { max }
         }
         "pdfx-requirement" => pdfx_requirement(item).ok_or_else(|| bad(PDFX_BAD))?,
+        "pdfa-requirement" => pdfa_requirement(item).ok_or_else(|| bad(PDFA_BAD))?,
         other => {
             return Err(ProfileError::UnknownCheck {
                 rule: id.to_owned(),
@@ -326,6 +337,14 @@ fn pdfx_requirement(item: &Json) -> Option<Check> {
     let level = PdfxLevel::from_name(item.get("level")?.as_str()?)?;
     let row = super::pdfx::row_id(item.get("row")?.as_str()?, level)?;
     Some(Check::PdfxRequirement { level, row })
+}
+
+const PDFA_BAD: &str = "level must be 1b, 2b or 3b and row an inventory row that applies to it";
+
+fn pdfa_requirement(item: &Json) -> Option<Check> {
+    let level = PdfaLevel::from_name(item.get("level")?.as_str()?)?;
+    let row = super::pdfa::row_id(item.get("row")?.as_str()?, level)?;
+    Some(Check::PdfaRequirement { level, row })
 }
 
 /// `item[key]` as a finite number that `ok` accepts.
@@ -376,6 +395,14 @@ fn rule_json(rule: &ProfileRule) -> String {
         Check::PdfUa { part } => ("pdfua", format!(", \"part\": {}", part.number())),
         Check::PdfxRequirement { level, row } => (
             "pdfx-requirement",
+            format!(
+                ", \"level\": \"{}\", \"row\": {}",
+                level.as_str(),
+                quote(row)
+            ),
+        ),
+        Check::PdfaRequirement { level, row } => (
+            "pdfa-requirement",
             format!(
                 ", \"level\": \"{}\", \"row\": {}",
                 level.as_str(),

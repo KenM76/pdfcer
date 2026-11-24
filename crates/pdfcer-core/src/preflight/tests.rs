@@ -328,3 +328,13 @@ fn bad_profiles_are_refused_by_name() {
         assert!(Profile::builtin(name).is_some());
     }
 }
+
+/// Every `Error` finding as `rule: message`, for a readable assertion.
+pub(crate) fn error_lines(report: &PreflightReport) -> Vec<String> {
+    report
+        .findings
+        .iter()
+        .filter(|f| f.severity == Severity::Error)
+        .map(|f| format!("{}: {}", f.rule_id, f.message))
+        .collect()
+}

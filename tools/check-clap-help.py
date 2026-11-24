@@ -78,7 +78,7 @@ README = Path(__file__).resolve().parent.parent / "README.md"
 #: line break between the two halves -- the file is hard-wrapped, so the digits
 #: and the stub word are routinely on different lines.
 README_CLAIM = re.compile(
-    r"(\d+)\s+working subcommands\s*\(plus\s+(\w+)\s+that announce themselves",
+    r"(\d+)\s+working subcommands\s*\(plus\s+(\w+)\s+that\s+(?:announce\s+themselves|announces\s+itself)",
     re.S,
 )
 
@@ -220,7 +220,7 @@ def readme_count(lines: list[str], found: list[tuple[str, int, bool]]) -> int:
         print(
             "check-clap-help: README.md no longer states a subcommand count in a\n"
             "form this gate recognises (expected \"<N> working subcommands\" and\n"
-            f"\"{'{'}word{'}'} that announce themselves as not yet implemented\").\n"
+            f"\"{'{'}word{'}'} that announce themselves (or announces itself) as not yet implemented\").\n"
             "The claim was reworded or removed -- either restore the shape or\n"
             "update README_CLAIM here, but do not leave the count unchecked.",
             file=sys.stderr,

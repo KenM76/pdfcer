@@ -16,18 +16,21 @@
 //! writes.
 
 mod checks;
+mod cos;
 pub(crate) mod hairlines;
+mod pdfa;
 mod pdfua;
 mod pdfx;
 mod profile;
 #[cfg(test)]
-mod tests;
+pub(crate) mod tests;
 pub(crate) mod walk;
 
 use std::sync::atomic::{AtomicBool, Ordering};
 
 pub(crate) use hairlines::hairlines_in;
 pub use hairlines::{HAIRLINES_NOT_COVERED, Hairline, hairlines};
+pub use pdfa::{PdfaLevel, PdfaReport, PdfaVerdict, validate_pdfa, validate_pdfa_with};
 pub use pdfua::{
     DecidedBy, PdfuaPart, PdfuaReport, Requirement, requirement, requirements, validate_pdfua,
 };
@@ -215,6 +218,15 @@ pub enum Check {
     PdfxRequirement {
         /// The level whose clause applies.
         level: PdfxLevel,
+        /// The row id.
+        row: &'static str,
+    },
+    /// One requirement of a PDF/A level (ISO 19005), by its inventory row
+    /// id (`PAI-FS-15`). The built-in `pdfa-*` profiles are made of these;
+    /// see [`validate_pdfa`].
+    PdfaRequirement {
+        /// The level whose clause applies.
+        level: PdfaLevel,
         /// The row id.
         row: &'static str,
     },

@@ -2139,13 +2139,6 @@ pub(crate) enum Command {
         output: PathBuf,
     },
 
-    /// Validate a PDF against a PDF/A profile and print a report.
-    /// [not yet implemented]
-    ValidatePdfa {
-        /// Input PDF to validate.
-        input: PathBuf,
-    },
-
     #[cfg(feature = "signing")]
     /// **Sign a PDF** with a PKCS#12 digital ID — PAdES B-B by default
     /// (`Pass 10.9`; ISO 32000-1 §12.8, ETSI EN 319 142-1).
@@ -11848,8 +11841,9 @@ pub(crate) enum Command {
     /// anything or findings were dropped at the cap.
     ///
     /// `--profile` takes a built-in name (`digital-printing`, `pdfua-1`,
-    /// `pdfua-2`, or a PDF/X level: `pdfx-1a-2001`, `pdfx-1a-2003`,
-    /// `pdfx-3-2002`, `pdfx-3-2003`, `pdfx-4`) or a JSON profile file;
+    /// `pdfua-2`, a PDF/X level: `pdfx-1a-2001`, `pdfx-1a-2003`,
+    /// `pdfx-3-2002`, `pdfx-3-2003`, `pdfx-4`, or a PDF/A level: `pdfa-1b`,
+    /// `pdfa-2b`, `pdfa-3b`) or a JSON profile file;
     /// `--dump-profile` prints the chosen profile as JSON, to edit and pass
     /// back.
     Preflight {
@@ -11884,6 +11878,29 @@ pub(crate) enum Command {
         /// `x-1a` (2003), `x-1a:2001`, `x-3` (2003), `x-3:2002` or `x-4`.
         #[arg(long, value_parser = parse_pdfx_level)]
         level: pdfcer_core::preflight::PdfxLevel,
+        /// Print one JSON object instead of report lines.
+        #[arg(long)]
+        json: bool,
+        /// Keep at most this many findings; the rest are counted.
+        #[arg(long, default_value_t = 25_000)]
+        max_findings: usize,
+    },
+    /// Check a document against a PDF/A level (ISO 19005), read-only.
+    ///
+    /// Levels 1b, 2b and 3b. Every finding names its rule, its ISO 19005
+    /// clause and the page, object, font, image or annotation it concerns.
+    /// A requirement pdfcer does not check yet, or whose clause is not
+    /// sourced for the level, is reported as `incomplete` at info level, so
+    /// the verdict is `fails` (an error finding; exit 18) or `unconfirmed`
+    /// (exit 0): a file is never reported as conforming while any
+    /// requirement goes unchecked. The same checks run as `preflight
+    /// --profile pdfa-2b` and so on.
+    ValidatePdfa {
+        /// Input PDF.
+        input: PathBuf,
+        /// `1b`, `2b` or `3b`.
+        #[arg(long, value_parser = parse_pdfa_level)]
+        level: pdfcer_core::preflight::PdfaLevel,
         /// Print one JSON object instead of report lines.
         #[arg(long)]
         json: bool,

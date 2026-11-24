@@ -258,7 +258,6 @@ pub(crate) fn run() -> ExitCode {
             pages,
         } => cmd_bates_remove(&inputs, &out_dir, &pages),
         Command::ToPdfa { .. } => unimplemented_stub("to-pdfa"),
-        Command::ValidatePdfa { .. } => unimplemented_stub("validate-pdfa"),
         #[cfg(feature = "signing")]
         Command::Sign {
             input,
@@ -3438,6 +3437,12 @@ pub(crate) fn run() -> ExitCode {
             json,
             max_findings,
         } => cmd_validate_pdfx(&input, level, json, max_findings),
+        Command::ValidatePdfa {
+            input,
+            level,
+            json,
+            max_findings,
+        } => cmd_validate_pdfa(&input, level, json, max_findings),
         Command::Inks { input } => cmd_inks(&input),
         Command::AliasInk {
             input,

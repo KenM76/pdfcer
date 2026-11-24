@@ -64,6 +64,7 @@ fn is_page_level(check: &Check) -> bool {
             | Check::StrokeBelow { .. }
             | Check::TransparencyUsed
     ) || matches!(check, Check::PdfxRequirement { level, row } if super::pdfx::is_page_row(row, *level))
+        || matches!(check, Check::PdfaRequirement { level, row } if super::pdfa::is_page_row(row, *level))
 }
 
 fn uses_walk(check: &Check) -> bool {
@@ -71,6 +72,7 @@ fn uses_walk(check: &Check) -> bool {
         check,
         Check::ColourSpaceUsed { .. } | Check::SpotNotAllowed { .. } | Check::OverprintUsed
     ) || matches!(check, Check::PdfxRequirement { row, .. } if *row == "PXQ-CS-1")
+        || matches!(check, Check::PdfaRequirement { row, .. } if super::pdfa::uses_walk(row))
 }
 
 fn finding(
@@ -135,6 +137,9 @@ pub(super) fn document(view: &DocumentView<'_>, profile: &Profile, sink: &mut Si
             Check::PdfUa { part } => pdfua(view, rule, *part, sink),
             Check::PdfxRequirement { level, row } => {
                 super::pdfx::document_row(view, rule, *level, row, sink);
+            }
+            Check::PdfaRequirement { level, row } => {
+                super::pdfa::document_row(view, rule, *level, row, sink);
             }
             _ => {}
         }
@@ -241,6 +246,15 @@ pub(super) fn page(
                     events: &events,
                 };
                 super::pdfx::page_row(rule, *level, row, &at, sink);
+            }
+            Check::PdfaRequirement { level, row } => {
+                let at = super::pdfa::PageCtx {
+                    view,
+                    page,
+                    number,
+                    events: &events,
+                };
+                super::pdfa::page_row(rule, *level, row, &at, sink);
             }
             check if uses_walk(check) => colour(rule, &events, number, sink),
             _ => {}

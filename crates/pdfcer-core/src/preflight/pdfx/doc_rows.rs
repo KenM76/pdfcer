@@ -11,6 +11,8 @@ use crate::preflight::checks::{self, Sink};
 use crate::prepress::{InkKind, inks, pdfx_claim};
 use crate::view::DocumentView;
 
+pub(super) use crate::preflight::cos::{catalog, name};
+
 use super::{Ctx, PdfxLevel};
 
 /// Info keys ISO 32000-1 Table 317 defines; any other key is private.
@@ -79,13 +81,6 @@ pub(super) fn check(view: &DocumentView<'_>, ctx: &Ctx<'_>, sink: &mut Sink) {
     }
 }
 
-/// The document catalog, if the trailer's `/Root` resolves to a dictionary.
-pub(super) fn catalog<'v>(view: &'v DocumentView<'_>) -> Option<&'v Dict> {
-    view.trailer_entry(b"Root")
-        .map(|o| view.resolve(o))
-        .and_then(Object::as_dict)
-}
-
 fn info<'v>(view: &'v DocumentView<'_>) -> Option<&'v Dict> {
     view.trailer_entry(b"Info")
         .map(|o| view.resolve(o))
@@ -97,14 +92,6 @@ fn text(view: &DocumentView<'_>, dict: &Dict, key: &[u8]) -> Option<String> {
         Object::String(s) => Some(crate::textstring::decode_text_string(s).text),
         _ => None,
     }
-}
-
-/// `dict[key]` as a name, following one indirect reference.
-pub(super) fn name<'v>(view: &'v DocumentView<'_>, dict: &'v Dict, key: &[u8]) -> Option<&'v [u8]> {
-    dict.get(key)
-        .map(|o| view.resolve(o))
-        .and_then(Object::as_name)
-        .map(|n| n.as_bytes())
 }
 
 /// Every `/OutputIntents` entry.

@@ -11,17 +11,15 @@ use std::collections::BTreeSet;
 
 use crate::PdfVersion;
 use crate::graph::ObjectGraph;
-use crate::object::{Dict, ObjId, Object};
+use crate::object::{Dict, Object};
 use crate::preflight::FindingTarget;
 use crate::preflight::checks::Sink;
+use crate::preflight::cos::each_dict;
 use crate::prepress::{each_array, live_ids};
 use crate::view::DocumentView;
 
 use super::doc_rows::{catalog, gts_intents, name, profile};
 use super::{Ctx, PdfxLevel};
-
-/// Nesting followed inside one object.
-const MAX_DEPTH: usize = 24;
 
 /// One dictionary met in the walk.
 struct Probe<'a, 'v> {
@@ -183,33 +181,6 @@ fn after(view: &DocumentView<'_>, ctx: &Ctx<'_>, sink: &mut Sink) {
         }
         _ => {}
     }
-}
-
-/// Every dictionary inside every live object, with the object's id and
-/// whether the dictionary is a stream's.
-fn each_dict(view: &DocumentView<'_>, f: &mut dyn FnMut(ObjId, &Dict, bool)) {
-    for id in live_ids(view) {
-        if let Some(value) = view.graph().value(id) {
-            walk(id, value, 0, f);
-        }
-    }
-}
-
-fn walk(id: ObjId, obj: &Object, depth: usize, f: &mut dyn FnMut(ObjId, &Dict, bool)) {
-    if depth > MAX_DEPTH {
-        return;
-    }
-    let (dict, stream) = match obj {
-        Object::Dict(d) => (d, false),
-        Object::Stream(s) => (&s.dict, true),
-        Object::Array(a) => {
-            a.iter().for_each(|o| walk(id, o, depth + 1, f));
-            return;
-        }
-        _ => return,
-    };
-    f(id, dict, stream);
-    dict.iter().for_each(|(_, v)| walk(id, v, depth + 1, f));
 }
 
 fn fl5(p: &Probe<'_, '_>) -> Option<Hit> {

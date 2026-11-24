@@ -4,8 +4,7 @@ use super::*;
 
 use pdfcer_core::preflight::{self, PdfxLevel, PdfxReport, RunOptions};
 
-use crate::extract::json_escape;
-use crate::preflight::{finding_line, kind_name, target};
+use crate::validation::{Validation, print_validation, validation_json};
 
 /// The `--level` value: an ISO 15930 level name.
 pub(crate) fn parse_pdfx_level(s: &str) -> Result<PdfxLevel, String> {
@@ -47,69 +46,27 @@ pub(crate) fn cmd_validate_pdfx(
         ..RunOptions::default()
     };
     let report = preflight::validate_pdfx_with(&doc.view(), level, &options);
+    let head = Validation {
+        verb: "validate-pdfx",
+        input,
+        level: report.level.as_str(),
+        claim: report.claim.as_ref().map(|c| c.level.clone()),
+        verdict: report.verdict().as_str(),
+        report: &report.preflight,
+    };
+    let clause_of = |f: &_| report.clause_of(f);
     if json {
-        println!("{}", report_json(input, &report));
+        println!("{}", validation_json(&head, clause_of));
     } else {
-        print_text(input, &report);
+        print_validation(&head, clause_of);
     }
+    finish(&report)
+}
+
+fn finish(report: &PdfxReport) -> u8 {
     if report.preflight.fails() {
         exit::PREFLIGHT_FAILED
     } else {
         exit::SUCCESS
     }
-}
-
-fn print_text(input: &Path, report: &PdfxReport) {
-    let claim = report.claim.as_ref().map_or("-", |c| c.level.as_str());
-    println!(
-        "validate-pdfx {} level={} claim=\"{claim}\" verdict={} findings={} dropped={}",
-        input.display(),
-        report.level.as_str(),
-        report.verdict().as_str(),
-        report.preflight.findings.len(),
-        report.preflight.dropped
-    );
-    for f in &report.preflight.findings {
-        let line = finding_line(f);
-        let clause = report.clause_of(f).unwrap_or_default();
-        match line.find(" \"") {
-            Some(at) => println!("{} clause=\"{clause}\"{}", &line[..at], &line[at..]),
-            None => println!("{line}"),
-        }
-    }
-}
-
-fn report_json(input: &Path, report: &PdfxReport) -> String {
-    let quote = |s: &str| format!("\"{}\"", json_escape(s));
-    let findings: Vec<String> = report
-        .preflight
-        .findings
-        .iter()
-        .map(|f| {
-            let page = f.page.map_or_else(|| "null".to_owned(), |p| p.to_string());
-            format!(
-                "{{\"rule\": {}, \"severity\": \"{}\", \"kind\": \"{}\", \"page\": {page}, \
-                 \"target\": {}, \"clause\": {}, \"message\": {}}}",
-                quote(&f.rule_id),
-                f.severity.as_str(),
-                kind_name(f.kind),
-                quote(&target(f.target)),
-                quote(&report.clause_of(f).unwrap_or_default()),
-                quote(&f.message)
-            )
-        })
-        .collect();
-    let claim = report
-        .claim
-        .as_ref()
-        .map_or_else(|| "null".to_owned(), |c| quote(&c.level));
-    format!(
-        "{{\"input\": {}, \"level\": \"{}\", \"claim\": {claim}, \"verdict\": \"{}\", \
-         \"dropped\": {}, \"findings\": [{}]}}",
-        quote(&input.display().to_string()),
-        report.level.as_str(),
-        report.verdict().as_str(),
-        report.preflight.dropped,
-        findings.join(", ")
-    )
 }
