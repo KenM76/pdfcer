@@ -4,6 +4,17 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-11-24 (1693rd filing) — `Pass 748.10` (total area coverage), `Pass 748.9` (preflight fixups and text report) SHIPPED
+
+**Filed (engineer-reported; no shell here, so git, push, CI, release and backup state are not checked from here; both on `main`, unpushed, unreleased):**
+- **`Pass 748.10` `9e20681a`:** `CoverageMeter`, `TacRequest`, `TacRegion`, `TacMeasurement`, `TacFailure`, `run_with_meter`, `Check::TotalAreaCoverage`; render `TacMeter`/`total_area_coverage`; ink `coverage::total_tenths`; CLI `pdfcer tac` (exit 18). Unmeasurable is Incomplete, never a pass; RGB/Lab gets an Info caveat (no colour maths, decision 064). Tests: core 8, render 7+2+1 doctest, CLI 4. Not delivered: ICC-accurate RGB/Lab ink, a built-in TAC profile, `tac` JSON, spots past `MAX_SPOTS`, GUI.
+- **`Pass 748.9` `12333799`:** `Fixup` (8 variants), `FixupScope`, `FixupTools`, `FixupReport`, `report_text`, `Check::ImageAbovePpi`, `EditSession::apply_fixup` / `apply_profile_fixups` (one `ApplyFixup` undo entry), CLI `preflight --report/--fix/--fix-suggested/--icc/--mode/--verify-undo`. Tests: 12 + 5 + 2 + 1 doctest. Not delivered: PDF/A fixup, forced non-shrinking downsample, fuzz target, GUI.
+- **Counts (engineer-reported):** `EditSession` verbs 450 (at `12333799`). `cargo tree`: no `Cargo.toml` changed by `748.10`. Merged-main sweep results not supplied to this filing.
+
+**Open:** `729.1` (`convert_to_pdfa`), CLI `to-pdfa`. **The O458 round is complete in code** (`748.0`-`748.10`, `729.0`); release `v0.172.0` when the gates, fresh-folder smoke test and `verify-release.py` are green.
+
+**FEATURES:** four new Implemented rows (fixups; text report; image-above-ppi plus downsample; total area coverage); Planned TAC and fixup rows removed; preflight row now fifteen checks; the umbrella "validate against a conformance standard" row set to partial (core `◐`, cli `◐`, gui `[ ]`) naming what is built (PDF/UA-1/2, PDF/X-1a/X-3/X-4, PDF/A-1b/2b/3b) and what is not (WTPDF, PDF/A a/u/-4, gui). **Sweep (rule 11):** the 1687th-1692nd entries saying "no fixups wired" or "not yet a preflight fixup" are kept as filed; `README.md`, rustdoc and `docs/core-api/` may still carry the old verb count (449 or less) or the "no fixups" wording (engineer to sweep).
+
 ## 2026-11-24 (1692nd filing) — `Pass 729.0` (PDF/A validation), `Pass 748.8` (PDF/UA fixups), `Pass 748.6` (convert to PDF/X) SHIPPED
 
 **Filed (engineer-reported; no shell here, so git, push, CI, release and backup state are not checked from here):**

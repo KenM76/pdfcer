@@ -112,6 +112,32 @@ wherever it appears.*
 
 ## Shipped
 
+### `Pass 748.10`: total area coverage (TAC) as a preflight check (`pdfcer tac`), `9e20681a`, 2026-11-24 (1693rd filing)
+
+Engineer-reported; source `O458`; on `main`, unpushed; push, CI and backup not checked from here. **Unreleased** (release `v0.172.0`). Synthetic fixtures only.
+- **Core (`pdfcer_core::preflight`):** trait `CoverageMeter`; `TacRequest` (`DEFAULT_PPI` 150, MIN 9, MAX 600, `DEFAULT_MAX_REGIONS` 8); `TacRegion`; `TacMeasurement`; `TacFailure`; `run_with_meter`; `Check::TotalAreaCoverage { limit_percent, ppi }` (JSON `total-area-coverage`). Per page: max TAC, over-limit pixels, area in square inches, regions with page-space rects (largest first; overflow folds into one region, and the message says so).
+- **Cannot-measure is Incomplete, never a pass:** no meter, a refused render, flattened spots, undrawn content. RGB or Lab paint gets an Info caveat pointing at convert-colours; no colour maths was written (icccer owns it, decision 064).
+- **Render / ink:** `pdfcer_render::{TacMeter, TacRaster, total_area_coverage}`; `pdfcer_ink::coverage::total_tenths`.
+- **CLI:** `pdfcer tac IN --limit P [--ppi N] [--pages S] [--max-regions N]`, exit 18 when a page is over or not measured; `pdfcer preflight` now measures the rule through `TacMeter`.
+- **Tests (engineer-reported):** core 8 unit; render 7 integration, 2 unit, 1 doctest; CLI 4 integration. `cargo tree`: no `Cargo.toml` changed.
+- **NOT delivered (disclosed):** ICC-accurate ink for RGB/Lab; a built-in profile carrying a TAC rule; JSON output from `tac`; spots past `MAX_SPOTS`; the GUI.
+- **Divergence, exceeds Acrobat:** Acrobat has no clustered over-limit regions with page-space rects.
+- **Docs:** `docs/core-api/03` §27 and §17 rule rows.
+- **FEATURES:** the Planned TAC row moved to Implemented as "Preflight: total area coverage" (core `[x]`, cli `[x]`, gui `[ ]`).
+
+### `Pass 748.9`: preflight fixups and the text report (`pdfcer preflight --fix`), `12333799`, 2026-11-24 (1693rd filing)
+
+Engineer-reported; source `O458`; on `main`, unpushed; push, CI and backup not checked from here. **Unreleased** (release `v0.172.0`).
+- **Core (`pdfcer_core::preflight`):** `Fixup` (8 variants: `FlattenTransparency`, `FixHairlines`, `AliasInk`, `SpotToProcess`, `ConvertColours`, `ConvertToPdfx`, `FixPdfua`, `DownsampleImages { above_ppi, to_ppi, method }`); `FixupScope` (`Finding`/`Rule`/`All`); `FixupTools` (injected flattener, converter, ICC profile, time, title); `FixupOutcome`, `FixupStep`, `FixupReport` (`changed()`, `not_fixed()`, `to_text()`); `rule_matches`; `report_text(&PreflightReport, &Profile)`; `Check::ImageAbovePpi { max_ppi }` (JSON `image-above-ppi`); `ProfileRule.fixups` plus `with_fixup`, round-tripping through profile JSON.
+- **EditSession:** `apply_fixup(&Fixup, &FixupScope, &FixupTools) -> FixupReport` and `apply_profile_fixups(&Profile, &PreflightReport, &FixupTools, suggest)`; each makes one `CommandKind::ApplyFixup` undo entry, or none when nothing was written; a refusal becomes a Failed step.
+- **Disclosure:** every report states what changed, what it could not do, and its disclosures. A failing rule with no fixup gets a named `none` step; a missing engine or ICC profile gives an Unavailable step and writes nothing; a downsample that would not shrink the image is kept and listed; a refused PDF/X claim undoes everything (or, with `keep_partial`, states that no claim was written).
+- **CLI:** new flags on `pdfcer preflight`: `--report FILE`, `--fix OUT`, `--fix-suggested`, `--icc FILE`, `--mode incremental|full`, `--verify-undo`. `--fix` checks IN, applies the fixups as one undo step, prints the report, saves and rechecks OUT, and exits 18 if OUT still fails. No new subcommand.
+- **Tests (engineer-reported):** 12 `apply_fixup`, 5 fixup-JSON, 2 CLI, 1 doctest.
+- **NOT delivered:** a PDF/A fixup; forcing a downsample that does not shrink; a fuzz target (fixup JSON goes through the existing profile JSON parser); the GUI.
+- **Docs:** `docs/core-api/02` §1.40 (`EditSession` verbs now 450), `03` §26.
+- **FEATURES:** the Planned "Apply a preflight fixup" row moved to Implemented as three new rows (fixups; text report; image-above-ppi check and downsample); the "not yet a preflight fixup" wording on the spot-to-process and PDF/UA rows replaced.
+- **Closes the O458 preflight-engine round** (`748.0`-`748.10`, `729.0`). Not in it: `729.1` (`convert_to_pdfa`) and CLI `to-pdfa`.
+
 ### `Pass 729.0`: validate PDF/A-1b, -2b and -3b (`pdfcer validate-pdfa`), `c4cd74cc`, 2026-11-24 (1692nd filing)
 
 Engineer-reported; source `O458` (`pdfcer-gui` `request_pdfa_conversion.md`); push, CI and backup not checked from here. **Unreleased.** Built from the spec inventory `pdfa__req__inventory_index.md` (ISO 19005).
@@ -28791,6 +28817,8 @@ closes out the *prior* filing's business rather than opening this one's.
 
 ## Next up
 
+> **`Pass 748.9` and `748.10` SHIPPED (1693rd filing, `12333799`, `9e20681a`); see *Shipped*.** The O458 preflight round is complete in code; release `v0.172.0` is pending. Their bullets below are kept as filed. Still open: `729.1` (`convert_to_pdfa`) and the `to-pdfa` CLI half of `729.2`.
+>
 > **`Pass 729.0`, `748.6` and `748.8` SHIPPED (1692nd filing, `c4cd74cc`, `63d0219b`, `debd0d63`); see *Shipped*.** Preflight round still open: `748.9` and `748.10`, both in flight. Their bullets below are kept as filed. `729.1` (`convert_to_pdfa`) and the `to-pdfa` CLI half of `729.2` remain open; `validate-pdfa` is done. Owed (no ID): `convert-pdfx` font embedding, image downsampling, OPI removal.
 >
 > **`Pass 748.4` and `748.5` SHIPPED (1691st filing, `29888e43`, `a8e4da20`); see *Shipped*.** Preflight round still open: `748.6`, `748.8`, `729.0` (in flight), `748.9` (after `748.8`), `748.10` (queued). Their bullets below are kept as filed. Owed (no ID): convert-colours gaps (Selection scope, spot colours, inline images, mesh and function shadings, Type 3 glyphs, `/DA`).
