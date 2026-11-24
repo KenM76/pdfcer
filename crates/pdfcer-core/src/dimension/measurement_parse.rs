@@ -1,15 +1,15 @@
 //! Typed scaled lengths back to page user space: the inverse of
-//! [`format_measurement_on`](super::format_measurement_on).
+//! [`format_measurement_on`](crate::dimension::format_measurement_on).
 
 use super::length_parse::{LengthParseError, parse_magnitude};
 use super::units::{DecimalMarker, NumberFormat, ScaleState};
 use crate::page_tree::Page;
 
 /// The length in `page`'s user space whose
-/// [`format_measurement_on`](super::format_measurement_on) reading under
+/// [`format_measurement_on`](crate::dimension::format_measurement_on) reading under
 /// `scale_state` and `format` is `typed`.
 ///
-/// `typed` is anything [`parse_length`](super::parse_length) reads, plus
+/// `typed` is anything [`parse_length`](crate::dimension::parse_length) reads, plus
 /// `km`, `yd`, `mi` and `pt`, with `format`'s decimal marker (`2,4` in a
 /// comma group) and an optional leading `-`. Zero is accepted, so a
 /// position box can use it as well as a size box.
