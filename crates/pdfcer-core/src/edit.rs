@@ -9385,7 +9385,8 @@ pub enum EditError {
     /// (`/StructTreeRoot`, ISO 32000-1 §14.7.2) to tell tagged content from
     /// untagged; an untagged document needs tagging, not artifacts.
     #[error(
-        "the document has no structure tree (/StructTreeRoot), so no content is tagged and          none can be told apart as decorative; tag the document first"
+        "the document has no structure tree (/StructTreeRoot), so no content is tagged and \
+         none can be told apart as decorative; tag the document first"
     )]
     DocumentNotTagged,
     /// The catalog's XMP packet could not be read or updated (ISO 32000-1
