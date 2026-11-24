@@ -22,6 +22,8 @@ the affected entry. Maintained by `pdfce-librarian`.
 
 **Follow-up (1689th, gate fix):** `547571c5` (`chore(fuzz): lockfile gains pdfcer-ink`, 2026-11-24) belongs to `Pass 747.0`; it only updates `fuzz/Cargo.lock`. Added to the `747.0` Shipped entry; no FEATURES change.
 
+**Addendum (same entry): `Pass 748.7` (PDF/UA validation) SHIPPED, `a4d41557`** (cherry-picked from worker `1eec1f42`, unpushed; push, CI and backup not checked from here). `validate_pdfua(&DocumentView, PdfuaPart)`, `Check::PdfUa`, `FindingTarget::StructElem`, profiles `pdfua-1`/`pdfua-2`, CLI `validate-pdfua` (exit 18 on failure). Inventory: UA-1 143 rows (61 checked, 48 needs-a-person, 34 not checked); UA-2 139 rows (47 / 42 / 50); not-checked rows reported per run, never passed. Merged-main tests, 0 failed: core lib 2467, core integration 3437, doctests 306, cli 134 + 1144; clippy, fmt and the listed gates clean; no manifest change. FEATURES: validation row Implemented (core `[x]`, cli `[x]`, gui `[ ]`), fixups row stays Planned (`748.8`), preflight row gains the two profiles. **Owed:** checks for the 76 machine-decidable rows without one. **Open in the round:** `748.4`, `748.5` (both in flight), `748.6`, `748.8`, `748.9`, `729.0`, `748.10`.
+
 **Next:** main-branch test counts; then `748.4`, `748.5`, `748.7`, `748.6`, `748.8`, `748.9`, `729.0`; push is gated on `check-commits-filed.py` after the engineer commits these edits.
 
 ## 2026-11-23 (1688th filing) — `Pass 748.0` (preflight framework), `Pass 747.0` (`pdfcer-ink`), `Pass 746.0` (separation-set import) SHIPPED

@@ -112,6 +112,19 @@ wherever it appears.*
 
 ## Shipped
 
+### `Pass 748.7`: validate PDF/UA-1 and PDF/UA-2 with clause-level findings (`pdfcer validate-pdfua`), `a4d41557`, 2026-11-24 (1690th filing)
+
+Engineer-reported; source `O458` (`request_pdfua_validate.md`); cherry-picked from worker `1eec1f42`, unpushed; push, CI and backup not checked from here. **Unreleased** (the preflight round is released only when all of it is done).
+- **Core (`pdfcer_core::preflight`):** `validate_pdfua(&DocumentView, PdfuaPart) -> PdfuaReport` (read-only; `fails()` is true on any violation or incomplete; needs-a-person findings alone do not fail); `PdfuaPart { Ua1, Ua2 }`; `Requirement { id, part, clause, matterhorn, verapdf, decided_by, sourced }`; `DecidedBy { Machine, Person, NoTest }`; `requirement(id)`, `requirements(part)`; `Check::PdfUa { part }` (JSON `"check": "pdfua", "part": N`); `FindingTarget::StructElem(ObjId)`; `Profile::pdfua(part)` and built-ins `pdfua-1`, `pdfua-2`.
+- **CLI:** `pdfcer validate-pdfua IN [--part 1|2] [--json]`; exit 18 on failure, 2 on a bad `--part`. Fuzz target `pdfua_validate` (compiled, not run).
+- **Inventory (spec librarian's `pdfua__req__inventory_index.md`):** UA-1 143 rows = 61 machine-checked + 48 needs-a-person + 34 not checked (32 machine-decidable with no check yet, 2 no-test). UA-2 139 rows = 47 + 42 + 50 not checked (44 machine-decidable without a check, 6 needs-a-person rows unsourced). Not-checked rows are reported per run (`not_checked`), never silently passed.
+- **Tests on merged main, 0 failed (engineer-reported):** core lib 2467, core integration 3437, doctests 306, cli unit 134, cli integration 1144. Clippy workspace `-D warnings` and fmt clean; `check-core-api-verbs`, `check-clap-help` (267 subcommands), code-structure, public-fns-documented pass. No `Cargo.toml` change, so `cargo tree` invariants unaffected.
+- **Docs:** `docs/core-api/03-capabilities.md` §20 (PDF/UA) and §17 Check/FindingTarget rows; `index.md` row; README subcommand count 265.
+- **Divergence, exceeds Acrobat:** Acrobat has no PDF/UA validator.
+- **OWED (no Pass ID):** a check for the 76 machine-decidable PDF/UA rows that have none (UA-1 32 + UA-2 44). The fixups are `Pass 748.8`; their wiring is `Pass 748.9`. **gui `[ ]`.**
+- **FEATURES:** Planned "Validate PDF/UA and fix" row split: validation moved to Implemented (core `[x]`, cli `[x]`, gui `[ ]`), fixups stay Planned (`748.8`); the preflight row lists `pdfua-1`, `pdfua-2`.
+- **Open in the O458 round:** `748.4` (in flight), `748.5` (in flight), `748.6`, `748.8`, `748.9`, `729.0`, `748.10`.
+
 ### `Pass 748.1`: find, preflight and flatten page transparency (`pdfcer flatten-transparency`), `83317911`, 2026-11-24 (1689th filing)
 
 Engineer-reported; source `O458` (`pdfcer-gui` `request_flatten_transparency.md`, now closed); cherry-picked onto `main`, unpushed. No shell here; push, CI and gates not checked from here. **Unreleased** (the preflight round releases when all of it is done). Main-branch test counts pending; worker counts below.
@@ -28726,6 +28739,8 @@ closes out the *prior* filing's business rather than opening this one's.
 
 ## Next up
 
+> **`Pass 748.7` SHIPPED (1690th filing, `a4d41557`); see *Shipped*.** Its bullet below is kept as filed. Owed: checks for 76 machine-decidable PDF/UA rows (no ID).
+>
 > **`Pass 748.1`, `748.2` and `748.3` SHIPPED (1689th filing, `83317911`, `bc0273af`, `b76734ff`); see *Shipped*.** Preflight arc still open: `748.4`-`748.9`, `748.10`, `729.0`. The per-Pass bullets for `748.1`-`748.3` in the 1687th-filing text below are kept as filed; the `748.2` open question (Type 3 and pattern hairlines) is answered: not covered, disclosed.
 
 > **`Pass 746.0` (`X108`) and `Pass 747.0` (`X107`) SHIPPED (1688th filing, `8aa20670`, `d9ad2e6c`); see *Shipped*.** Their owed items: `copy_pages` split disclosure at copy time; a §14.11.4 spec-RAG file; the extract shared-dict edge test; `pdfcer-ink` publish order before `pdfcer-render` in `docs/NEXT_SESSION.md`; a fuzz target for ink; `CmykBuffer` pixel storage; `pdfcer-flatten`'s separate `Blend`.
