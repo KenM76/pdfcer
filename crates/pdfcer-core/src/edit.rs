@@ -11982,7 +11982,7 @@ impl EditSession {
         indices: &[usize],
         request: &crate::pageops::ScaleRequest,
     ) -> Result<crate::pageops::ScaleReport, EditError> {
-        use crate::pageops::scale;
+        use crate::pageops::{scale, scale_patterns};
 
         self.check_certification()?;
         normalize_media_box(page_tree::Rect {
@@ -12014,6 +12014,8 @@ impl EditSession {
         let mut placements: HashMap<ObjId, scale::PagePlacement> = HashMap::new();
         let mut contents: Vec<(ObjId, Vec<u8>, Vec<Object>)> = Vec::new();
         let mut seen: HashSet<ObjId> = HashSet::new();
+        let mut page_patterns: Vec<(ObjId, scale::PagePlacement, scale_patterns::PagePatterns)> =
+            Vec::new();
 
         for &index in &targets {
             let count = pages.len();
@@ -12244,6 +12246,20 @@ impl EditSession {
                 contents.push((id, scale::content_prefix(source, &placement), existing));
             }
 
+            // Page-level patterns (§8.7.3.1), own or inherited.
+            let resources = dict
+                .get(b"Resources")
+                .cloned()
+                .or_else(|| slot.inherited.resources.clone());
+            let planned = resources.and_then(|r| {
+                scale_patterns::plan(&|o: &Object| read(&pending, o), &r, &placement)
+            });
+            let patterns = planned.as_ref().map_or(0, |p| p.copies.len());
+            if let Some(planned) = planned {
+                report.patterns_unchanged += planned.unreadable;
+                page_patterns.push((id, placement, planned));
+            }
+
             pending.insert(id, Object::Dict(dict));
             placements.insert(id, placement);
             report.pages.push(scale::PageScaled {
@@ -12253,6 +12269,7 @@ impl EditSession {
                 mode: request.mode,
                 annotations,
                 measures,
+                patterns,
             });
         }
 
@@ -12286,6 +12303,7 @@ impl EditSession {
                 d.insert(Name::from(b"Contents"), Object::Array(array));
             }
         }
+        self.place_scaled_patterns(page_patterns, &mut pending, &mut objects)?;
         for (id, after) in pending {
             if self.value(id) == Some(&after) {
                 continue;
@@ -12305,6 +12323,55 @@ impl EditSession {
             trailer: None,
         });
         Ok(report)
+    }
+
+    /// Write each scaled page's placed pattern copies and give the page its
+    /// own `/Resources` naming them, so the originals — possibly shared with
+    /// pages not scaled, or scaled differently — keep their `/Matrix`. Pages
+    /// with the same placement share one copy of a shared pattern.
+    fn place_scaled_patterns(
+        &mut self,
+        pages: Vec<(
+            ObjId,
+            crate::pageops::scale::PagePlacement,
+            crate::pageops::scale_patterns::PagePatterns,
+        )>,
+        pending: &mut BTreeMap<ObjId, Object>,
+        objects: &mut Vec<ObjectWrite>,
+    ) -> Result<(), EditError> {
+        let mut made: HashMap<(ObjId, [u64; 3]), ObjId> = HashMap::new();
+        for (page, p, mut planned) in pages {
+            let key = [p.scale, p.offset_x, p.offset_y].map(f64::to_bits);
+            for (name, from, copy) in planned.copies {
+                let held = match from {
+                    None => copy,
+                    Some(orig) => {
+                        let new = match made.get(&(orig, key)) {
+                            Some(new) => *new,
+                            None => {
+                                let new = ObjId::new(self.alloc_number()?, 0);
+                                objects.push(ObjectWrite {
+                                    id: new,
+                                    before: None,
+                                    after: Some(copy),
+                                });
+                                made.insert((orig, key), new);
+                                new
+                            }
+                        };
+                        Object::Reference(new)
+                    }
+                };
+                planned.patterns.insert(name, held);
+            }
+            planned
+                .resources
+                .insert(Name::from(b"Pattern"), Object::Dict(planned.patterns));
+            if let Some(Object::Dict(d)) = pending.get_mut(&page) {
+                d.insert(Name::from(b"Resources"), Object::Dict(planned.resources));
+            }
+        }
+        Ok(())
     }
 
     /// Work out the single object write setting `page_index`'s media box

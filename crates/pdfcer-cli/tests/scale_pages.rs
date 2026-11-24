@@ -155,3 +155,54 @@ fn scale_pages_refuses_an_unknown_size() {
     assert!(!tmp("out3.pdf").exists());
     let _ = std::fs::remove_file(&input);
 }
+
+/// A letter page filled through two patterns: a shading pattern with a
+/// readable `/Matrix` and one whose `/Matrix` is five numbers.
+fn patterned_page() -> Vec<u8> {
+    let content = "/Pattern cs /P0 scn 0 0 612 792 re f";
+    let shading = "/Shading << /ShadingType 2 /ColorSpace /DeviceGray /Coords [0 0 1 0] \
+                   /Function << /FunctionType 2 /Domain [0 1] /N 1 >> >>";
+    build_pdf(&[
+        "<< /Type /Catalog /Pages 2 0 R >>".into(),
+        "<< /Type /Pages /Kids [3 0 R] /Count 1 >>".into(),
+        "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] \
+         /Resources << /Pattern << /P0 5 0 R /Bad 6 0 R >> >> /Contents 4 0 R >>"
+            .into(),
+        format!(
+            "<< /Length {} >>\nstream\n{content}\nendstream",
+            content.len()
+        ),
+        format!("<< /PatternType 2 /Matrix [2 0 0 2 100 100] {shading} >>"),
+        format!("<< /PatternType 2 /Matrix [1 0 0 1 0] {shading} >>"),
+    ])
+}
+
+#[test]
+fn scale_pages_reports_placed_and_unreadable_patterns() {
+    let input = tmp("in-pat.pdf");
+    let output = tmp("out-pat.pdf");
+    std::fs::write(&input, patterned_page()).unwrap();
+    let out = run(&[
+        "scale-pages",
+        input.to_str().unwrap(),
+        "-o",
+        output.to_str().unwrap(),
+        "--size",
+        "a4",
+        "--verify-undo",
+    ]);
+    let stdout = String::from_utf8_lossy(&out.stdout);
+    let stderr = String::from_utf8_lossy(&out.stderr);
+    assert!(out.status.success(), "stdout: {stdout}\nstderr: {stderr}");
+    assert!(
+        stdout.contains("patterns=1 patterns_unchanged=1"),
+        "{stdout}"
+    );
+    assert!(stdout.contains("undo_identical=1"), "{stdout}");
+    assert!(
+        stderr.contains("1 pattern(s) left as they were"),
+        "{stderr}"
+    );
+    let _ = std::fs::remove_file(&input);
+    let _ = std::fs::remove_file(&output);
+}

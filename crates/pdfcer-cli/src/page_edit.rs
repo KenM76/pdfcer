@@ -402,10 +402,12 @@ pub(crate) fn cmd_scale_pages(
     };
 
     let (mut annotations, mut measures, mut flipped) = (0_usize, 0_usize, 0_usize);
+    let mut patterns = 0_usize;
     for page in &report.pages {
         let p = page.placement;
         annotations += page.annotations;
         measures += page.measures;
+        patterns += page.patterns;
         flipped += usize::from(p.orientation_flipped);
         eprintln!(
             "pdfcer: page {}: scale={:.6} offset=({:.4}, {:.4}) mode={} sheet={:.4}x{:.4}{}",
@@ -421,6 +423,13 @@ pub(crate) fn cmd_scale_pages(
             } else {
                 ""
             },
+        );
+    }
+    if report.patterns_unchanged > 0 {
+        eprintln!(
+            "pdfcer: note: {} pattern(s) left as they were; their /Matrix could not be read, \
+             so their fills keep the old scale and offset",
+            report.patterns_unchanged
         );
     }
     if report.geo_measures_unchanged > 0 {
@@ -448,7 +457,7 @@ pub(crate) fn cmd_scale_pages(
         "scale-pages {} pages {pages} mode={} -> {}; \
 size={width:.4}x{height:.4} scale_mode={} pages_scaled={} orientation_turned={flipped} \
 annotations={annotations} measures={measures} destinations={} geo_unchanged={} \
-changed={} objects={} verbatim={} reserialized={} promoted={} appended={} out_bytes={} \
+patterns={patterns} patterns_unchanged={} changed={} objects={} verbatim={} reserialized={} promoted={} appended={} out_bytes={} \
 undo_verified={} undo_identical={} delinearized={}",
         input.display(),
         mode.name(),
@@ -457,6 +466,7 @@ undo_verified={} undo_identical={} delinearized={}",
         report.pages.len(),
         report.destinations,
         report.geo_measures_unchanged,
+        report.patterns_unchanged,
         outcome.changed,
         r.objects_written,
         r.objects_verbatim,

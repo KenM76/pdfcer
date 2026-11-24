@@ -113,6 +113,7 @@ pub mod outline;
 pub mod references;
 pub mod region;
 pub mod scale;
+pub(crate) mod scale_patterns;
 pub mod separation;
 pub mod split;
 

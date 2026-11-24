@@ -243,6 +243,7 @@ mod rotated_text;
 mod route_enumeration;
 mod run_repertoire;
 mod running_text;
+mod scale_patterns;
 mod scattered_text_hit;
 mod screen_annotation;
 mod search_rotated;

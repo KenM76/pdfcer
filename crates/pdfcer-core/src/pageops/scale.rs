@@ -138,6 +138,10 @@ pub struct PageScaled {
     /// `/Measure` dictionaries whose conversion factors were rescaled so
     /// measurements still read true (§12.9, Table 266).
     pub measures: usize,
+    /// Page-level patterns given a copy whose `/Matrix` follows the
+    /// placement (§8.7.3.1: a pattern maps to the page's default space,
+    /// which the content wrapper's `cm` does not move).
+    pub patterns: usize,
 }
 
 /// What [`EditSession::scale_pages`](crate::edit::EditSession::scale_pages)
@@ -154,6 +158,9 @@ pub struct ScaleReport {
     /// their mapping is a point-to-coordinate registration, not a linear
     /// factor, and rescaling it is not attempted.
     pub geo_measures_unchanged: usize,
+    /// Page-level patterns whose `/Matrix` could not be read, left as they
+    /// were; their fills keep the old scale and offset.
+    pub patterns_unchanged: usize,
 }
 
 /// The visible region of a page: its crop box clipped to its media box
