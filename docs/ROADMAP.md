@@ -112,6 +112,18 @@ wherever it appears.*
 
 ## Shipped
 
+### `Pass 744.0` (`X106`): `scale_pages` places page-level fill patterns with the content, `af6104f7`, 2026-11-23 (1683rd filing)
+
+Engineer-reported; no shell here, push, CI and the gates not checked from here. Request from the operator as crates consumer (pin `5a2d397c`).
+- **Defect:** ISO 32000-2 §8.7.2/§8.7.3.1: a pattern's `/Matrix` maps to the default space of the page whose resources name it, not the CTM, so the `cm` wrapper moved shapes but not their fills.
+- **Fix:** each page-level pattern (own or inherited `/Resources`) gets a new object, `/Matrix` = old matrix (absent = identity) followed by the placement `[a·s b·s c·s d·s e·s+dx f·s+dy]`. The page gets its own `/Resources` naming the copies; originals and shared `/Pages` resources untouched, so an unscaled page sharing the pattern keeps it. Patterns inside form XObjects need nothing.
+- **Unreadable `/Matrix`** (not 6 finite numbers): left as it was, no error, counted in new `ScaleReport::patterns_unchanged`. New `PageScaled::patterns` counts placed copies. New module `pageops/scale_patterns.rs` (`pub(crate)`); only new pub fields. `docs/core-api/02-editing-and-saving.md` row updated; `check-core-api-verbs` PASS.
+- **CLI `scale-pages`:** `patterns=` and `patterns_unchanged=` on the summary line; stderr note when `patterns_unchanged > 0`.
+- **Tests:** 3 unit, 3 out-of-crate (`tests/scale_patterns.rs`), 1 CLI (`scale_pages_reports_placed_and_unreadable_patterns`). Full run: core lib 2410, core integration 3414, cli 1127, 0 failed. Sabotage of the matrix, own-resources write and unreadable path each failed tests. Rendered check: a gradient on a half-size page samples 64/128/191 at quarter points like the original. clippy `-D warnings`, fmt, `check-code-structure`, `check-string-gaps`, `check-public-fns-documented` clean. No manifest change, `cargo tree` unaffected.
+- **Reply:** `D:\Dev\FeatureRequests\pdfce_FeatureRequests\open\reply_X106_SHIPPED.md`, INDEX row added.
+- **FEATURES:** "Scale page contents to a target size": known-defect pointer replaced; boxes unchanged (core `[x]`, cli `[x]`).
+- **Next:** `Pass 742.0`; `Pass 729.0` stays deferred.
+
 ### `Pass 743.0` (`G326`): empty paragraphs survive `to_xhtml`, `parse`, `flat_text` and drawing, `54935c1d`, 2026-11-23 (1682nd filing)
 
 Engineer-reported; no shell here, push, CI and the gates not checked from here. Commit `54935c1d` on `main`, not yet pushed at filing. Core only; no CLI change (`fill-field --rich-text` takes XHTML); GUI consumption pending in `pdfcer-gui` (retires `rich_value_of`).
@@ -28591,11 +28603,6 @@ closes out the *prior* filing's business rather than opening this one's.
 ---
 
 ## Next up
-
-> **`Pass 744.0` FILED 2026-11-23 (1681st filing): scaling a page also places its fill patterns (`X106`; OPEN, none started; no shell here, engineer assigns the final ID).** Source: operator (crates consumer) `request_X106_scale_pages_leaves_patterns_unscaled.md`, pin `5a2d397c`. `EditSession::scale_pages` wraps content in `q ... cm ... Q`, but a pattern's `/Matrix` maps to the page's default space, not the CTM (ISO 32000-2 §8.7.3.1), so shading and tiling patterns keep their old scale.
->
-> - **Fix:** per page, copy each page-level pattern (own or inherited resources) with `/Matrix` = old x placement, and give the page its own `/Resources` naming the copies. A pattern shared with unscaled pages keeps the original object. Patterns inside form XObjects need nothing. An unreadable `/Matrix` is left unchanged, without error. Acceptance: the three cases in the request.
-> - *FEATURES:* known-defect pointer on the existing "Scale page contents to a target size" row; no box change.
 
 > **`Pass 742.0` FILED 2026-11-23 (1681st filing): a scaled length back to page units (`G325`, `O456`; OPEN, none started; no shell here, engineer assigns the final ID).** Source: `pdfcer-gui` `request_page_length_from_scaled_length.md`. New `dimension::user_units_from_measurement_on(page, typed, scale_state, format) -> Result<f64, LengthParseError>`, the exact inverse of `format_measurement_on`.
 >

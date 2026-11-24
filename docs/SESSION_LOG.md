@@ -4,6 +4,16 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-11-23 (1683rd filing) — `Pass 744.0` (`X106`) SHIPPED, `af6104f7`
+
+**Shipped (engineer-reported; no shell here; push, CI and gates not checked from here):**
+- `Pass 744.0`: `EditSession::scale_pages` now places page-level fill patterns (new object per pattern, `/Matrix` = old x placement, page gets its own `/Resources`); originals and shared resources untouched. Unreadable `/Matrix` left unchanged and counted (`patterns_unchanged`). CLI summary prints `patterns=` / `patterns_unchanged=`.
+- Tests green (core lib 2410, integration 3414, cli 1127); three sabotage checks failed their tests. Detail: `ROADMAP.md` Shipped.
+
+**FEATURES:** known-defect pointer replaced on the page-scaling row; no box changes.
+
+**Next:** `Pass 742.0`; `Pass 729.0` stays deferred.
+
 ## 2026-11-23 (1682nd filing) — `Pass 743.0` (`G326`) SHIPPED, `54935c1d`
 
 **Shipped (engineer-reported; no shell here; unpushed at filing):**
