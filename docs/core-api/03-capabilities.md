@@ -6700,10 +6700,10 @@ Fixups are separate verbs on the edit session; nothing here writes.
 |---|---|
 | `preflight::run(&DocumentView, &Profile) -> PreflightReport` | every finding, with the default options |
 | `preflight::run_with(&DocumentView, &Profile, &RunOptions) -> PreflightReport` | the same, with `max_findings` (default `RunOptions::DEFAULT_MAX_FINDINGS`, 25 000), a `cancel: Option<&AtomicBool>` checked before each page, and `progress: Option<&dyn Fn(done, total)>` called after each |
-| `Profile::builtin(name) -> Option<Profile>` / `Profile::BUILTIN_NAMES` | built-ins by name: `digital-printing` (`Profile::digital_printing()`), `pdfua-1` and `pdfua-2` (`Profile::pdfua(part)`, §20) |
+| `Profile::builtin(name) -> Option<Profile>` / `Profile::BUILTIN_NAMES` | built-ins by name: `digital-printing` (`Profile::digital_printing()`), `pdfua-1` and `pdfua-2` (`Profile::pdfua(part)`, §20), and the PDF/X levels `pdfx-1a-2001`, `pdfx-1a-2003`, `pdfx-3-2002`, `pdfx-3-2003`, `pdfx-4` (`Profile::pdfx(level)`, §21) | |
 | `Profile::from_json(&[u8]) -> Result<Profile, ProfileError>` / `Profile::to_json() -> String` | the saved form of an edited profile; check names and parameters are tabled on `from_json` |
 | `Profile { name, description, rules: Vec<ProfileRule> }`, `ProfileRule { id, check: Check, severity: Severity }` | rules run in order; ids are unique |
-| `Check` | `ImageBelowPpi { min_ppi }`, `FontNotEmbedded`, `NoOutputIntent`, `NoTrimBox`, `ColourSpaceUsed { families: Vec<ColourFamily> }`, `SpotNotAllowed { allowed: Vec<String> }`, `OverprintUsed`, `StrokeBelow { min_width_pt }` (JSON `stroke-below`, Pass 748.2), `TransparencyUsed` (`Pass 748.1`, §19), `Encrypted`, `VersionAbove { max: PdfVersion }`, `PdfUa { part: PdfuaPart }` (JSON `"check": "pdfua", "part": 1`, §20) |
+| `Check` | `ImageBelowPpi { min_ppi }`, `FontNotEmbedded`, `NoOutputIntent`, `NoTrimBox`, `ColourSpaceUsed { families: Vec<ColourFamily> }`, `SpotNotAllowed { allowed: Vec<String> }`, `OverprintUsed`, `StrokeBelow { min_width_pt }` (JSON `stroke-below`, Pass 748.2), `TransparencyUsed` (`Pass 748.1`, §19), `Encrypted`, `VersionAbove { max: PdfVersion }`, `PdfUa { part: PdfuaPart }` (JSON `"check": "pdfua", "part": 1`, §20), `PdfxRequirement { level: PdfxLevel, row: &'static str }` (JSON `pdfx-requirement` with `level` and `row`; §21) |
 | `PreflightReport { findings, dropped, pages_checked, page_count, cancelled }` | `fails()` = an `Error` finding or `dropped > 0`; `is_clean()`; `needs_person()` |
 | `Finding { rule_id, severity, kind, page: Option<usize>, target, rect: Option<Rect>, message, measured: Option<Measure> }` | `page` 1-based, `None` for document-level; `Measure { value, limit, unit: MeasureUnit }` for measuring checks |
 | `preflight::hairlines(&DocumentView, &Page, min_width_pt) -> Result<Vec<Hairline>, ContentError>` | every stroke printing below `min_width_pt` on its thinnest axis, or of width 0; `Hairline { target, line_width, axis_scale, width_pt, zero_width, rect }`, `width_for(min)` the user-space width that prints `min` |
@@ -6862,3 +6862,54 @@ Contract:
 - **Forms**: an `/MCID` inside a form XObject is taken as tagged.
 
 ⚠️ `PdfuaReport` and `Requirement` are `#[non_exhaustive]`.
+
+## 21. PDF/X validation — X-1a, X-3, X-4 (`Pass 748.5`)
+
+Read-only; no edit session. `pdfcer_core::preflight` (CLI: `pdfcer
+validate-pdfx IN --level x-1a|x-3|x-4 [--json]`, and `pdfcer preflight
+--profile pdfx-4` etc.). ISO 15930-1:2001, -3:2002, -4:2003, -7:2010.
+
+| Call | Returns |
+|---|---|
+| `validate_pdfx(&DocumentView, PdfxLevel) -> PdfxReport` | every requirement of the level checked, as preflight findings |
+| `validate_pdfx_with(&DocumentView, PdfxLevel, &RunOptions) -> PdfxReport` | the same with §17's options (cap, cancel, progress) |
+| `PdfxLevel` | `X1a2001`, `X1a2003`, `X3_2002`, `X3_2003`, `X4`; `ALL`; `as_str()` (`x-1a:2003`); `from_name()` (case-insensitive; also `x-1a` = 2003, `x-3` = 2003); `claim()` (`PDF/X-1a:2003`); `based_on()` (1.3 / 1.4 / 1.3 / 1.4 / 1.6); `profile_name()` (`pdfx-1a-2003`) |
+| `PdfxReport { level, claim: Option<PdfxClaim>, preflight: PreflightReport }` | `verdict()`; `clause_of(&Finding) -> Option<String>` (`ISO 15930-7:2010 §6.17`) |
+| `PdfxVerdict` | `Fails` (`preflight.fails()`), `Unconfirmed` (no error, but findings remain), `Conforms` (no finding at all); `as_str()` |
+| `Profile::pdfx(PdfxLevel) -> Profile` | the built-in profile `validate_pdfx` runs; one `Check::PdfxRequirement` rule per inventory row that applies to the level |
+
+Contract:
+
+- **Rule ids are inventory row ids** (`PXQ-OI-1`), from the PDF/X
+  requirement inventory (`D:\Dev\Rag-Specialized\PDF_Spec\pdfx\pdfx__req__by_axis.md`).
+  Every message ends with its clause in parentheses; `clause_of` gives the
+  clause alone.
+- **Severity follows the row**: a requirement is `Error`; a recommendation,
+  a row graded as needing a person, or an X-4 row whose geometry is not
+  sourced is `Warning`; a row whose clause is NOT SOURCED for the level, or
+  that pdfcer does not check yet, is one `Info` `Incomplete` finding that
+  says so. Nothing unchecked is silent and nothing undecidable passes:
+  `NeedsPerson` findings (is this JPEG continuous-tone? is this JPEG 2000
+  lossy? do these alternate images match?) are capped at `Warning`, so a
+  file left only to a person is `Unconfirmed`, never `Conforms`.
+- **Covered**: identification (Info `GTS_PDFXVersion`/`Conformance`, XMP
+  `pdfxid:GTS_PDFXVersion` for X-4, Info/XMP agreement, Title and dates,
+  private Info values); output intent (present, exactly one, has an
+  `OutputConditionIdentifier`, embeds a `prtr` profile, CIE colour needs
+  one); colour (RGB, Lab, ICC and Cal spaces outside X-1a walked as in §17,
+  spot alternates, transfer functions, `/SeparationInfo`); transparency
+  (§19's scan, X-1a:2003 and both PDF 1.3-based levels); fonts embedded
+  (§17); compression (LZW, JBIG2, JPEG 2000, 16-bit); page boxes (TrimBox
+  or ArtBox, not both on 2003 levels, inside bleed and crop box);
+  encryption; annotations inside the printed area (target the annotation,
+  `rect` set, the message says whether it prints), printer's marks inside
+  the trim, media annotations; JavaScript and forms; external streams,
+  OPI, reference and PostScript XObjects, embedded files, alternate
+  images; features newer than the level's PDF version.
+- **Not checked yet**, each an `Info` finding: registered output conditions
+  against the ICC registry, unregistered conditions' profile tags, XMP
+  property completeness, and several colour-space rows. Object and
+  cross-reference streams are not visible to the version-ceiling check, and
+  the `PS` content operator is not scanned; both are disclosed.
+
+⚠️ `PdfxLevel` and `PdfxReport` are `#[non_exhaustive]`; `PdfxVerdict` is closed.

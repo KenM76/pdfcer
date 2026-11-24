@@ -18,6 +18,7 @@
 mod checks;
 pub(crate) mod hairlines;
 mod pdfua;
+mod pdfx;
 mod profile;
 #[cfg(test)]
 mod tests;
@@ -30,6 +31,7 @@ pub use hairlines::{HAIRLINES_NOT_COVERED, Hairline, hairlines};
 pub use pdfua::{
     DecidedBy, PdfuaPart, PdfuaReport, Requirement, requirement, requirements, validate_pdfua,
 };
+pub use pdfx::{PdfxLevel, PdfxReport, PdfxVerdict, validate_pdfx, validate_pdfx_with};
 pub use profile::{Profile, ProfileError, ProfileRule};
 
 use crate::PdfVersion;
@@ -202,6 +204,15 @@ pub enum Check {
     PdfUa {
         /// The part to validate against.
         part: PdfuaPart,
+    },
+    /// One requirement of a PDF/X level (ISO 15930), by its inventory row
+    /// id (`PXQ-AN-1`). The built-in `pdfx-*` profiles are made of these;
+    /// see [`validate_pdfx`].
+    PdfxRequirement {
+        /// The level whose clause applies.
+        level: PdfxLevel,
+        /// The row id.
+        row: &'static str,
     },
 }
 

@@ -11848,8 +11848,10 @@ pub(crate) enum Command {
     /// anything or findings were dropped at the cap.
     ///
     /// `--profile` takes a built-in name (`digital-printing`, `pdfua-1`,
-    /// `pdfua-2`) or a JSON profile file; `--dump-profile` prints the chosen profile as JSON, to
-    /// edit and pass back.
+    /// `pdfua-2`, or a PDF/X level: `pdfx-1a-2001`, `pdfx-1a-2003`,
+    /// `pdfx-3-2002`, `pdfx-3-2003`, `pdfx-4`) or a JSON profile file;
+    /// `--dump-profile` prints the chosen profile as JSON, to edit and pass
+    /// back.
     Preflight {
         /// Input PDF; not needed with `--dump-profile`.
         #[arg(required_unless_present = "dump_profile")]
@@ -11863,6 +11865,31 @@ pub(crate) enum Command {
         /// Print the profile as JSON and exit without checking.
         #[arg(long)]
         dump_profile: bool,
+    },
+    /// Check a document against a PDF/X level (ISO 15930), read-only.
+    ///
+    /// Each requirement of the level is checked and every finding names its
+    /// rule, its ISO 15930 clause and the page, object, font, image or
+    /// annotation it concerns. A requirement a machine cannot decide (is
+    /// this JPEG continuous-tone?) is reported as `needs-person` at warning
+    /// level, and one pdfcer does not check, or whose clause is not sourced
+    /// for the level, as `incomplete` at info level; neither is a pass.
+    ///
+    /// The header's verdict is `fails` (an error finding; exit 18),
+    /// `unconfirmed` (only warnings or info remain; exit 0) or `conforms`.
+    /// The same checks run as `preflight --profile pdfx-4` and so on.
+    ValidatePdfx {
+        /// Input PDF.
+        input: PathBuf,
+        /// `x-1a` (2003), `x-1a:2001`, `x-3` (2003), `x-3:2002` or `x-4`.
+        #[arg(long, value_parser = parse_pdfx_level)]
+        level: pdfcer_core::preflight::PdfxLevel,
+        /// Print one JSON object instead of report lines.
+        #[arg(long)]
+        json: bool,
+        /// Keep at most this many findings; the rest are counted.
+        #[arg(long, default_value_t = 25_000)]
+        max_findings: usize,
     },
     /// List every ink the document names, read-only.
     ///

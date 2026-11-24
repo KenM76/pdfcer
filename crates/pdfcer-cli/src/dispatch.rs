@@ -3413,6 +3413,12 @@ pub(crate) fn run() -> ExitCode {
             max_findings,
             dump_profile,
         } => cmd_preflight(input.as_deref(), &profile, max_findings, dump_profile),
+        Command::ValidatePdfx {
+            input,
+            level,
+            json,
+            max_findings,
+        } => cmd_validate_pdfx(&input, level, json, max_findings),
         Command::Inks { input } => cmd_inks(&input),
         Command::AliasInk {
             input,

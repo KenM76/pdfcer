@@ -12,7 +12,7 @@
 
 use pdfcer_json::Json;
 
-use super::{Check, ColourFamily, Severity};
+use super::{Check, ColourFamily, PdfxLevel, Severity};
 use crate::PdfVersion;
 
 /// One rule: a check, the id findings carry, and their severity.
@@ -82,7 +82,16 @@ pub enum ProfileError {
 
 impl Profile {
     /// The names [`Self::builtin`] accepts.
-    pub const BUILTIN_NAMES: [&'static str; 3] = ["digital-printing", "pdfua-1", "pdfua-2"];
+    pub const BUILTIN_NAMES: [&'static str; 8] = [
+        "digital-printing",
+        "pdfua-1",
+        "pdfua-2",
+        "pdfx-1a-2001",
+        "pdfx-1a-2003",
+        "pdfx-3-2002",
+        "pdfx-3-2003",
+        "pdfx-4",
+    ];
 
     /// A built-in profile by its [`Self::BUILTIN_NAMES`] name.
     #[must_use]
@@ -91,7 +100,10 @@ impl Profile {
             "digital-printing" => Some(Self::digital_printing()),
             "pdfua-1" => Some(Self::pdfua(super::PdfuaPart::Ua1)),
             "pdfua-2" => Some(Self::pdfua(super::PdfuaPart::Ua2)),
-            _ => None,
+            other => PdfxLevel::ALL
+                .into_iter()
+                .find(|l| l.profile_name() == other)
+                .map(Self::pdfx),
         }
     }
 
@@ -178,6 +190,7 @@ impl Profile {
     /// | `transparency-used` | none |
     /// | `encrypted` | none |
     /// | `version-above` | `max`: `"1.7"`-style string |
+    /// | `pdfx-requirement` | `level`: [`PdfxLevel::as_str`] name; `row`: an inventory row id that applies to it |
     ///
     /// # Errors
     ///
@@ -296,6 +309,7 @@ fn parse_check(name: &str, id: &str, item: &Json) -> Result<Check, ProfileError>
                 .ok_or_else(|| bad("max must be a version such as \"1.7\""))?;
             Check::VersionAbove { max }
         }
+        "pdfx-requirement" => pdfx_requirement(item).ok_or_else(|| bad(PDFX_BAD))?,
         other => {
             return Err(ProfileError::UnknownCheck {
                 rule: id.to_owned(),
@@ -304,6 +318,14 @@ fn parse_check(name: &str, id: &str, item: &Json) -> Result<Check, ProfileError>
         }
     };
     Ok(check)
+}
+
+const PDFX_BAD: &str = "level must be a PDF/X level and row an inventory row that applies to it";
+
+fn pdfx_requirement(item: &Json) -> Option<Check> {
+    let level = PdfxLevel::from_name(item.get("level")?.as_str()?)?;
+    let row = super::pdfx::row_id(item.get("row")?.as_str()?, level)?;
+    Some(Check::PdfxRequirement { level, row })
 }
 
 /// `item[key]` as a finite number that `ok` accepts.
@@ -352,6 +374,14 @@ fn rule_json(rule: &ProfileRule) -> String {
         Check::Encrypted => ("encrypted", String::new()),
         Check::VersionAbove { max } => ("version-above", format!(", \"max\": \"{max}\"")),
         Check::PdfUa { part } => ("pdfua", format!(", \"part\": {}", part.number())),
+        Check::PdfxRequirement { level, row } => (
+            "pdfx-requirement",
+            format!(
+                ", \"level\": \"{}\", \"row\": {}",
+                level.as_str(),
+                quote(row)
+            ),
+        ),
     };
     format!(
         "{{\"id\": {}, \"severity\": \"{}\", \"check\": \"{name}\"{params}}}",

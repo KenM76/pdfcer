@@ -679,6 +679,7 @@ mod group_unit;
 mod inks;
 mod preflight;
 mod validate_pdfua;
+mod validate_pdfx;
 use dimension::*;
 use fix_hairlines::cmd_fix_hairlines;
 use flatten_transparency::*;
@@ -687,6 +688,7 @@ use group_unit::*;
 use inks::{cmd_alias_ink, cmd_inks, cmd_spot_to_process};
 use preflight::cmd_preflight;
 use validate_pdfua::cmd_validate_pdfua;
+use validate_pdfx::{cmd_validate_pdfx, parse_pdfx_level};
 mod dimension_area;
 use dimension_area::*;
 mod centre_cmd;
@@ -903,8 +905,8 @@ mod exit {
     /// `print`: the network printer could not be reached, or CUPS's `lp`
     /// is not installed. Nothing was sent.
     pub const PRINTER_UNREACHABLE: u8 = 17;
-    /// `preflight`: an error-severity rule produced a finding, or findings
-    /// were dropped at the cap. The report was printed.
+    /// `preflight` / `validate-pdfx`: an error-severity rule produced a
+    /// finding, or findings were dropped at the cap. The report was printed.
     pub const PREFLIGHT_FAILED: u8 = 18;
     /// The subcommand exists in the surface but is not implemented yet
     /// (Pass 0 stub). Distinct code so a script can tell "you asked for a

@@ -174,6 +174,7 @@ mod three_d_gltf;
 mod two_line_dimension;
 mod unembed_font;
 mod validate_pdfua;
+mod validate_pdfx;
 mod vector_edit;
 mod verify_signatures_crl;
 mod widget_properties;

@@ -31,7 +31,8 @@ impl Sink {
         }
     }
 
-    fn push(&mut self, finding: Finding) {
+    /// Records `finding`, counting it as dropped once the cap is reached.
+    pub(super) fn push(&mut self, finding: Finding) {
         if self.findings.len() < self.max {
             self.findings.push(finding);
         } else {
@@ -52,7 +53,7 @@ impl Sink {
     }
 }
 
-const fn is_page_level(check: &Check) -> bool {
+fn is_page_level(check: &Check) -> bool {
     matches!(
         check,
         Check::ImageBelowPpi { .. }
@@ -62,14 +63,14 @@ const fn is_page_level(check: &Check) -> bool {
             | Check::OverprintUsed
             | Check::StrokeBelow { .. }
             | Check::TransparencyUsed
-    )
+    ) || matches!(check, Check::PdfxRequirement { level, row } if super::pdfx::is_page_row(row, *level))
 }
 
-const fn uses_walk(check: &Check) -> bool {
+fn uses_walk(check: &Check) -> bool {
     matches!(
         check,
         Check::ColourSpaceUsed { .. } | Check::SpotNotAllowed { .. } | Check::OverprintUsed
-    )
+    ) || matches!(check, Check::PdfxRequirement { row, .. } if *row == "PXQ-CS-1")
 }
 
 fn finding(
@@ -132,6 +133,9 @@ pub(super) fn document(view: &DocumentView<'_>, profile: &Profile, sink: &mut Si
             }
             Check::FontNotEmbedded => fonts(view, rule, sink),
             Check::PdfUa { part } => pdfua(view, rule, *part, sink),
+            Check::PdfxRequirement { level, row } => {
+                super::pdfx::document_row(view, rule, *level, row, sink);
+            }
             _ => {}
         }
     }
@@ -166,7 +170,8 @@ fn has_output_intent(view: &DocumentView<'_>, catalog: Option<&Dict>) -> bool {
         .is_some_and(|a| !a.is_empty())
 }
 
-fn fonts(view: &DocumentView<'_>, rule: &ProfileRule, sink: &mut Sink) {
+/// One finding per non-Type 3 font that is not embedded (shared with PDF/X FT-1).
+pub(super) fn fonts(view: &DocumentView<'_>, rule: &ProfileRule, sink: &mut Sink) {
     for font in fontinfo::inventory(view).fonts {
         if font.subtype == FontSubtype::Type3 {
             continue;
@@ -228,6 +233,15 @@ pub(super) fn page(
                     )),
                 }
             }
+            Check::PdfxRequirement { level, row } => {
+                let at = super::pdfx::PageCtx {
+                    view,
+                    page,
+                    number,
+                    events: &events,
+                };
+                super::pdfx::page_row(rule, *level, row, &at, sink);
+            }
             check if uses_walk(check) => colour(rule, &events, number, sink),
             _ => {}
         }
@@ -236,7 +250,7 @@ pub(super) fn page(
 
 /// One finding per place [`crate::transparency::scan_page`] reports,
 /// pointing at the annotation, graphics state or image that carries it.
-fn transparency_used(
+pub(super) fn transparency_used(
     rule: &ProfileRule,
     view: &DocumentView<'_>,
     page: &Page,
@@ -277,7 +291,8 @@ fn transparency_used(
     }
 }
 
-fn no_trim_box(rule: &ProfileRule, page: &Page, number: usize, sink: &mut Sink) {
+/// A finding when the page has neither a TrimBox nor an ArtBox (shared with PDF/X BX-2).
+pub(super) fn no_trim_box(rule: &ProfileRule, page: &Page, number: usize, sink: &mut Sink) {
     let defaulted = |r: BoxResolution| r == BoxResolution::Defaulted;
     if defaulted(page.trim_box_resolution) && defaulted(page.art_box_resolution) {
         sink.push(Finding {
@@ -384,7 +399,13 @@ fn low_ppi(
     }
 }
 
-fn colour(rule: &ProfileRule, events: &[(Origin, Event)], number: usize, sink: &mut Sink) {
+/// One finding per colour use whose family the rule lists (shared with PDF/X CS-1).
+pub(super) fn colour(
+    rule: &ProfileRule,
+    events: &[(Origin, Event)],
+    number: usize,
+    sink: &mut Sink,
+) {
     for (origin, event) in events {
         let at = |use_: Option<&ColourUse>, fallback: FindingTarget| match origin {
             Origin::Annotation(id) => FindingTarget::Annotation(*id),
@@ -441,7 +462,8 @@ fn colour(rule: &ProfileRule, events: &[(Origin, Event)], number: usize, sink: &
     }
 }
 
-fn capitalise(s: &str) -> String {
+/// `s` with its first character upper-cased, for sentence-initial messages.
+pub(super) fn capitalise(s: &str) -> String {
     let mut chars = s.chars();
     chars
         .next()

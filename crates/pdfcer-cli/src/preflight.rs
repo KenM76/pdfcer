@@ -92,13 +92,18 @@ fn load_profile(spec: &str) -> Result<Profile, String> {
     Profile::from_json(&bytes).map_err(|e| e.to_string())
 }
 
-/// One finding in the shared text-line format `preflight` and `validate-pdfua` print.
-pub(crate) fn finding_line(f: &preflight::Finding) -> String {
-    let kind = match f.kind {
+/// `violation`, `needs-person` or `incomplete`.
+pub(crate) fn kind_name(kind: FindingKind) -> &'static str {
+    match kind {
         FindingKind::Violation => "violation",
         FindingKind::NeedsPerson => "needs-person",
-        FindingKind::Incomplete => "incomplete",
-    };
+        _ => "incomplete",
+    }
+}
+
+/// One finding as a report line, its quoted sentence last.
+pub(crate) fn finding_line(f: &preflight::Finding) -> String {
+    let kind = kind_name(f.kind);
     let page = f.page.map_or_else(|| "-".to_owned(), |p| p.to_string());
     let mut line = format!(
         "{} {kind} rule={} page={page} target={}",

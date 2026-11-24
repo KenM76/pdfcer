@@ -10,6 +10,7 @@ mod spot_process;
 pub(crate) use ink_alias::plan_alias;
 pub use inks::{InkEditReport, InkKind, InkRefusal, InkSelection, InkUse, inks};
 pub(crate) use inks::{InkPlan, Planned};
+pub(crate) use inks::{each_array, live_ids};
 pub use pdfx::{PdfxClaim, pdfx_claim, pdfx_output_intents};
 pub(crate) use spot_process::plan_spot_to_process;
 
