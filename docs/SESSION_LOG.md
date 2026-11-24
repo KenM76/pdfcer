@@ -20,6 +20,8 @@ the affected entry. Maintained by `pdfce-librarian`.
 
 **FEATURES:** FEATURES row for preflight now lists eleven checks; Planned rows for flatten, hairlines and Ink Manager replaced by five Implemented rows (hairlines; ink list; alias; spot to process; transparency detect + flatten); the `Pass 627.0` row reworded. **Sweep (rule 11):** survivors reported: the `ROADMAP.md` 1687th-filing bullets for `748.1`-`748.3` still read as not started (kept as filed, banner added above them); I did not re-read `docs/core-api/` or CLI help for the old "Nine checks" count, and `README.md`/rustdoc may still say nine checks or "no flatten verb" (engineer to sweep).
 
+**Follow-up (1689th, gate fix):** `547571c5` (`chore(fuzz): lockfile gains pdfcer-ink`, 2026-11-24) belongs to `Pass 747.0`; it only updates `fuzz/Cargo.lock`. Added to the `747.0` Shipped entry; no FEATURES change.
+
 **Next:** main-branch test counts; then `748.4`, `748.5`, `748.7`, `748.6`, `748.8`, `748.9`, `729.0`; push is gated on `check-commits-filed.py` after the engineer commits these edits.
 
 ## 2026-11-23 (1688th filing) — `Pass 748.0` (preflight framework), `Pass 747.0` (`pdfcer-ink`), `Pass 746.0` (separation-set import) SHIPPED

@@ -168,6 +168,7 @@ Engineer-reported (cherry-pick of worker `3a47d51e`); no shell here, push, CI an
 - **CI/gates edited:** gui-core-separation job (9 to 10 checks), the R24 loop, wasm32, no-network, `check-ci-parity.py`. Baselines shrank: the `compositor.rs` file-size entry and 3 panic-allows entries are gone.
 - **Tests:** 13 acceptance, 13 unit, 2 doctests.
 - **OWED:** the crate publish order in `docs/NEXT_SESSION.md` must put `pdfcer-ink` before `pdfcer-render` (engineer updates NEXT_SESSION; also before the next crates.io publish); `CmykBuffer` keeps its own pixel storage; `pdfcer-flatten` still has a separate `Blend`; no fuzz target for ink yet.
+- **Follow-up commit:** `547571c5` (2026-11-24, `chore(fuzz): lockfile gains pdfcer-ink`) updates only `fuzz/Cargo.lock` so the fuzz workspace resolves the new crate.
 - **FEATURES:** new Implemented row "Standalone ink-compositing crate" (core `[x]`, cli `—`, gui `—`); the Planned row is removed.
 
 ### `Pass 748.0`: the preflight framework (`pdfcer_core::preflight`) and `pdfcer preflight`, `95969afc`, 2026-11-23 (1688th filing)
