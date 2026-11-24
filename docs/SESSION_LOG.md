@@ -4,6 +4,16 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-11-24 (1695th filing) — DocumentNotTagged message fix (`5bec95d5`)
+
+**Filed (engineer-reported; no shell here, git, push, CI and the gates not checked from here):**
+- `5bec95d5` `fix(edit)`: the `#[error]` text for `EditError::DocumentNotTagged` in `crates/pdfcer-core/src/edit.rs` had lost its line-continuation backslash, leaving ten spaces mid-sentence in the operator-facing message. Caught by CI's "repository audits" job on `b6b654fc` via `tools/check-string-gaps.sh`. Message text only. Details in `ROADMAP.md` *Shipped*.
+- Ships in `v0.172.0`, not yet released.
+
+**FEATURES:** no row changes.
+
+**Next:** push, CI, tag v0.172.0, release to OneDrive slot `pdfcer1`, publish the crates.
+
 ## 2026-11-24 (1694th filing) — v0.172.0 version bump (`2fbc16e6`)
 
 **Filed (engineer-reported; no shell here, git, push, CI and the gates not checked from here):**

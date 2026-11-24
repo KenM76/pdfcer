@@ -112,6 +112,12 @@ wherever it appears.*
 
 ## Shipped
 
+### `5bec95d5` `fix(edit)`: rejoin the DocumentNotTagged message, 2026-11-24 (1695th filing)
+
+Engineer-reported; no shell here, git, push, CI and the gates not run or checked from here. **Ships in v0.172.0** (not yet released; the bump is `2fbc16e6`).
+- **`5bec95d5` `fix(edit): rejoin the DocumentNotTagged message (Pass 748.8)`:** the `#[error]` text for `EditError::DocumentNotTagged` in `crates/pdfcer-core/src/edit.rs` had lost its line-continuation backslash, so ten spaces appeared mid-sentence in the operator-facing message. CI's "repository audits" job caught it on `b6b654fc` through the shell gate `tools/check-string-gaps.sh`. Message text only, no behaviour change. Came in with `Pass 748.8` (`debd0d63`).
+- **FEATURES:** no row changes. **Next:** push, CI, tag v0.172.0, release, publish the crates.
+
 ### `2fbc16e6` `chore`: v0.172.0 version bump, 2026-11-24 (1694th filing)
 
 Engineer-reported; no shell here, git, push, CI and the gates not run or checked from here. **Unreleased until v0.172.0 is tagged.** Tag, package and publication are a separate filing.
