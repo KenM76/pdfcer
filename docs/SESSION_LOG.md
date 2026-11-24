@@ -4,6 +4,19 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-11-23 (1686th filing) — rustdoc link fix in `measurement_parse` + README count (`a02d42f1`, `90cf0465`)
+
+**Filed (engineer-reported; no shell here, git, push, CI and the gates not checked from here):**
+- `a02d42f1` `fix(rustdoc)`: CI's broken-intra-doc-links job failed on `90cf0465` with "unresolved link to `super::format_measurement_on`" in `crates/pdfcer-core/src/dimension/measurement_parse.rs`; three `super::` intra-doc paths became `crate::dimension::`. Docs only. Details in `ROADMAP.md` *Shipped*.
+- `90cf0465` `docs(readme)`: 258 working subcommands (`group-length`, `Pass 742.0`), the count `check-clap-help.py` enforces.
+- Both ship in `v0.171.0`, not yet released.
+
+**Gotcha (engineer-reported):** when a module has both an outer `///` doc on its `pub mod` line and an inner `//!` doc, a `super::` intra-doc link in it failed to resolve. Use `crate::` paths there. Second rustdoc-job failure in a row after the 1679th (`6487f20d`), the same job the pre-push audit was to include.
+
+**FEATURES:** no row changes.
+
+**Next:** push, CI, tag, release, publish the crates.
+
 ## 2026-11-23 (1685th filing) — v0.171.0 version bump (`83a57edb`)
 
 **Filed (engineer-reported; no shell here, git, push, CI and the gates not checked from here):**

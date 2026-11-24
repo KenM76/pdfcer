@@ -112,6 +112,13 @@ wherever it appears.*
 
 ## Shipped
 
+### `a02d42f1` `fix(rustdoc)` + `90cf0465` `docs(readme)`: measurement_parse links and the README subcommand count, 2026-11-23 (1686th filing)
+
+Engineer-reported; no shell here, git, push, CI and the gates not run or checked from here. **Both ship in v0.171.0** (not yet released).
+- **`a02d42f1` `fix(rustdoc): resolve measurement_parse links through crate::dimension (Pass 742.0)`:** CI's "cargo doc, broken intra-doc links denied" job failed on `90cf0465` with "unresolved link to `super::format_measurement_on`" in `crates/pdfcer-core/src/dimension/measurement_parse.rs`. Three `super::` intra-doc paths are now `crate::dimension::` paths. Docs only, no behaviour change. Came in with `0cdd8157` (`Pass 742.0`).
+- **`90cf0465` `docs(readme): 258 working subcommands (group-length, Pass 742.0)`:** the README subcommand count that `check-clap-help.py` enforces, updated for `group-length`.
+- **FEATURES:** no row changes. **Next:** push, CI, tag v0.171.0, release, publish the crates.
+
 ### `83a57edb` `chore`: v0.171.0 version bump, 2026-11-23 (1685th filing)
 
 Engineer-reported; no shell here, git, push, CI and the gates not run or checked from here. **Unreleased until v0.171.0 is tagged.** Tag, package and publication are a separate filing.
