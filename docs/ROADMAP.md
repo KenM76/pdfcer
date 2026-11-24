@@ -112,6 +112,27 @@ wherever it appears.*
 
 ## Shipped
 
+### `Pass 745.0` (`X109`): `scale_pages` keeps a text annotation at its size, `3b1bf4eb`, 2026-11-23 (1687th filing)
+
+Engineer-reported; no shell here, push, CI and the gates not checked from here. **Unreleased** (post-`v0.171.0`; the next release writes OneDrive `pdfcer1`).
+- **Fix:** in `crates/pdfcer-core/src/pageops/scale.rs`, `no_zoom` is now true for any `/Subtype /Text` annotation whatever its `/F` says (ISO 32000-2 §12.5.6.4), so it keeps its size when the page is scaled.
+- **Test:** `a_text_annotation_keeps_its_size_without_the_no_zoom_flag`; sabotage of the new condition fails it.
+- **Reply:** `D:\Dev\FeatureRequests\pdfce_FeatureRequests\open\reply_X109_SHIPPED.md`; request `open/request_X109_scale_keeps_text_annotations_at_size.md`.
+- **FEATURES:** "Scale page contents to a target size": added "text annotations keep their size"; boxes unchanged.
+- **Next:** the round filed this same filing (`Pass 746.0`, `747.0`, the `748.x` arc).
+
+### `v0.171.0` PUBLISHED, tag on `117bcb59` (bump `83a57edb`, the 1685th filing), 2026-11-23 (1687th filing)
+
+Engineer-reported; no shell here, tag, CI, release, crates.io and OneDrive state not checked from here. This is the publication of the release whose bump was filed 1685th and whose rustdoc fix (`a02d42f1`) was filed 1686th.
+- **Tag:** `v0.171.0` on `117bcb59` (the 1686th filing commit).
+- **GitHub release:** 8 assets.
+- **OneDrive:** `pdfcer2` written; `pdfcer1` keeps 0.170.0, so **the next release writes `pdfcer1`**.
+- **crates.io:** all 16 crates at 0.171.0.
+- **`verify-release.py`:** passed except "working tree clean".
+- **GUI notified:** `open/notice_2026-11-23_release_v0.171.0.md`.
+- **Contents:** `Pass 742.0`, `743.0`, `744.0` and the rustdoc fix `a02d42f1`. `Pass 745.0` (`3b1bf4eb`) landed after the tag and is not in it.
+- **FEATURES:** no row changes. **Next:** `Pass 746.0`, `747.0`, then the `748.x` preflight arc.
+
 ### `a02d42f1` `fix(rustdoc)` + `90cf0465` `docs(readme)`: measurement_parse links and the README subcommand count, 2026-11-23 (1686th filing)
 
 Engineer-reported; no shell here, git, push, CI and the gates not run or checked from here. **Both ship in v0.171.0** (not yet released).
@@ -28630,6 +28651,31 @@ closes out the *prior* filing's business rather than opening this one's.
 ---
 
 ## Next up
+
+> **`Pass 746.0` (`X108`) and `Pass 747.0` (`X107`) FILED 2026-11-23 (1687th filing); both IN FLIGHT with workers, none reported shipped. No shell here; engineer runs the gates.** IDs `745.0`-`748.9` grep-checked unused in `docs/` before filing (`745.0` is now Shipped).
+>
+> - **`Pass 746.0` (`X108`) session page import remaps `/SeparationInfo`.** `insert_pages*` and `copy_pages` remap a preseparated page's `/SeparationInfo` through the same remap/repair as `assemble`, never follow `/Pages` into an unrequested page, and use the same Repair/Discard/Refuse policy. Acceptance: `open/request_X108_session_page_import_remaps_separation_sets.md`.
+> - **`Pass 747.0` (`X107`) new standalone crate `pdfcer-ink`.** Holds the colorant buffer: subtractive compositing, overprint/OPM, spot planes, isolated/knockout groups, the TAC and rich-black rules, and memory/colorant ceilings. Knows nothing about PDF files, no tiny-skia, `forbid(unsafe_code)`, builds for wasm32, MIT. `pdfcer-render`'s `render_plates` and coverage warnings are rebuilt on it with **identical output**. Request: `open/request_X107_ink_compositing_as_a_standalone_crate.md`.
+> - *FEATURES:* one new Planned row per Pass, all `[ ]`.
+
+> **`Pass 748.0`-`748.9` FILED 2026-11-23 (1687th filing): the PREFLIGHT ENGINE (ARC OPEN, none started; source `O458` from `pdfcer-gui`; no shell here, engineer assigns final IDs and runs the gates).** Requests in `D:\Dev\FeatureRequests\pdfce_FeatureRequests\open\`: `request_preflight_engine.md`, `request_flatten_transparency.md`, `request_hairline_fix.md`, `request_ink_manager.md`, `request_convert_colours.md`, `request_pdfx_validate_convert.md`, `request_pdfua_validate.md`, `note_pdfa_waiting.md`. Design input (Acrobat RAG, capability only): `Acrobat_Features\prepress__preflight_{profile_library_and_import_export,checks_properties_and_severity,fixups_catalog}.md`, `prepress__ink_manager.md`, `prepress__fix_hairlines.md`, `prepress__convert_colors_options_and_embed_modes.md`.
+>
+> **Ordering:** `748.0` first; then `748.2`, `748.3`, `748.1` in parallel; then `748.4`, `748.5`, `748.7`, `748.6`, `748.8`, `748.9`, `729.0`. **Release rule (operator's standing rule): the round is released when ALL of it is done.**
+>
+> - **`748.0` the `pdfcer-core::preflight` framework.** Types: `Severity` (Error/Warning/Info), `Check` enum with parameters, `ProfileRule`, serialisable `Profile`, `Finding`, `PreflightReport`. A `Finding` carries rule, severity, 1-based page, target, page-space rect, a sentence, and measured value against the limit; target is document, page, page object (`vector::page_objects` index), form leaf, annotation `ObjId`, font, colour space or image. `preflight::run(&DocumentView, &Profile, progress/cancel)` is read-only, safe on a worker. First-cut checks, built on existing functions: image below N effective ppi (`space_audit`); font not embedded; no output intent; no TrimBox/ArtBox; RGB in a CMYK job / Lab present; spot ink not in an allowed list; overprint use; encryption; PDF version above a ceiling. Built-in profiles start with a digital-printing default. A **"needs a person"** finding kind is never reported as passed. A **result cap is disclosed when hit**, never silently truncated (Acrobat caps at 25,000 per document and the disclosure behaviour is unmeasured). CLI `pdfcer preflight <file> --profile NAME|FILE`, one line per finding, nonzero exit on an Error finding. **Divergence, exceeds Acrobat:** total area coverage as a check (Acrobat has no native TAC check; it lives in Output Preview).
+> - **`748.1` transparency.** `has_transparency(&DocumentView, page) -> TransparencyUse` (fast resource scan) and `EditSession::flatten_transparency(pages, FlattenOptions)`: vector regions via `pdfcer-flatten`, only what it cannot compute rasterised at the caller's ppi; options keep-text and keep-strokes; one undo step; report of vector regions, rasterised regions with reasons, text converted to outlines, spot inks touched. Fixup for "transparency present". CLI `flatten-transparency`.
+> - **`748.2` hairlines.** `hairlines(&DocumentView, page, min_width_pt)` measures effective width in device space after the CTM and flags width 0; `EditSession::fix_hairlines(scope, min_width_pt)` raises each stroke in its own user space so the rendered width equals the minimum. The report counts changed objects, because pdf dimensions' lineweights move. Acrobat's Fix Hairlines also offers Type 3 glyph and pattern hairlines (flagged by Adobe as giving unexpected results); decide and disclose whether `748.2` covers them. Check plus fixup. CLI.
+> - **`748.3` Ink Manager.** `inks(&DocumentView) -> Vec<InkUse>`; `EditSession::alias_ink(from, to)` across every Separation/DeviceN; `EditSession::spot_to_process(inks|All)`, keeping overprint and reporting where it cannot. **Divergence:** Acrobat applies the Ink Manager at output time only and silently drops aliases on spot-to-process; these are document edits with disclosed reports. Fixup for "spot ink not in allowed list". CLI.
+> - **`748.4` convert colours.** `EditSession::convert_colours(scope, ColourConversion)`: source spaces, an ICC destination or the output intent, rendering intent, keep-pure-K, BPC; images converted in their pixels; report per source space with out-of-gamut counts and anything unconverted with its reason; optional output-intent embedding, disclosed when it replaces an existing intent. Goes through icccer (decision 064). Fixup for "RGB in CMYK job" / "Lab present". CLI.
+> - **`748.5` `validate_pdfx(&DocumentView, PdfxLevel)`** for X-1a, X-3, X-4, built from the requirement inventory the spec librarian is writing under `PDF_Spec\pdfx\` (items not yet sourced are labelled NOT SOURCED, never asserted); findings in the `748.0` `Finding` type; built-in PDF/X profiles.
+> - **`748.6` `convert_to_pdfx(..., PdfxLevel, OutputIntent) -> (bytes, report)`** using `748.1`, `748.3`, `748.4`; sets `GTS_PDFXVersion`, XMP and the output intent; never writes the claim when the file does not conform.
+> - **`748.7` `validate_pdfua(&DocumentView, PdfuaPart)`.** Clause-level findings from the spec librarian's PDF/UA inventory (Matterhorn-sourced); machine-undecidable checks reported as needs-a-person; a PDF/UA profile. **Exceeds Acrobat**, which has no PDF/UA validator.
+> - **`748.8` PDF/UA fixups:** set `/Lang`, `DisplayDocTitle`, mark untagged decorative content as an artifact, `/Tabs /S`; write the `pdfuaid` XMP only once the rest passes.
+> - **`748.9` `Fixup` type and `EditSession::apply_fixup(&Fixup, scope)`**, scopes this finding / this rule / all, one undo step; returns what changed and what it could not. Wires the `748.1`-`748.4` and `748.8` fixups; adds a downsample-images-above-a-ceiling fixup on `space_audit`; profile import/export; the report written as text.
+> - **Rule 4 throughout:** every inferred or changed thing is disclosed in the report, never silent; a fixup that cannot complete says what it left.
+> - *FEATURES:* one new Planned row per capability (preflight engine, flatten, hairlines, ink manager, convert colours, PDF/X validate and convert, PDF/UA validate and fixups), all `[ ]`; the existing "Transparency flattening" row (`Pass 627.0`) is cross-referenced to `748.1`.
+
+> **Against `Pass 729.0` (1687th filing):** `validate_pdfa`'s findings use the `748.0` `Finding` type, so PDF/A is one more preflight profile (`note_pdfa_waiting.md`); `729.0` is ordered after `748.0` and last in the round. The rest of the arc below is unchanged.
 
 > **`Pass 729.0`-`729.2` FILED 2026-11-20 (1665th filing): PDF/A validation and conversion (ARC OPEN, none started; no shell here, engineer assigns final IDs and runs the gates).** Source: `pdfcer-gui` `request_pdfa_conversion.md`, the only GUI-blocking item; answered "not in v0.167.0, next arc" in `reply_pdfa_conversion_NOT_THIS_CYCLE.md`, so `v0.167.0` goes out naming it as the one gap. IDs `729.0`-`729.2` grep-checked unused across `docs/` before filing.
 >

@@ -4,6 +4,24 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-11-23 (1687th filing) — `v0.171.0` PUBLISHED, `Pass 745.0` (`X109`) SHIPPED, preflight arc `748.x` and `746.0`/`747.0` filed
+
+**Filed (engineer-reported; no shell here, git, push, CI, crates.io and OneDrive state not checked from here):**
+- **`v0.171.0` published:** tag on `117bcb59`, GitHub release with 8 assets, OneDrive `pdfcer2` (`pdfcer1` keeps 0.170.0, so the next release writes `pdfcer1`), all 16 crates at 0.171.0, `verify-release.py` passed except "working tree clean". GUI told: `open/notice_2026-11-23_release_v0.171.0.md`. Completes the release filed 1685th (bump) and 1686th (rustdoc fix).
+- **`Pass 745.0` (`X109`) SHIPPED `3b1bf4eb`:** `scale_pages` keeps a `/Subtype /Text` annotation at its size whatever `/F` says (ISO 32000-2 §12.5.6.4). One new test, sabotage fails it. Unreleased. Reply `open/reply_X109_SHIPPED.md`.
+- **Filed to Next up, in flight with workers:** `Pass 746.0` (`X108`, session page import remaps `/SeparationInfo`), `Pass 747.0` (`X107`, standalone `pdfcer-ink` crate; `render_plates` rebuilt on it with identical output).
+- **New arc, the preflight engine (`O458`), `Pass 748.0`-`748.9`:** framework and first checks, transparency flatten, hairlines, Ink Manager, convert colours, PDF/X validate and convert, PDF/UA validate and fixups, the `Fixup` type. `Pass 729.0` (`validate_pdfa`) now reports through the `748.0` `Finding` type.
+
+**Decisions recorded (all engineer-stated, from the requests):**
+- Order: `748.0`; then `748.2`, `748.3`, `748.1` in parallel; then `748.4`, `748.5`, `748.7`, `748.6`, `748.8`, `748.9`, `729.0`. The round is released when all of it is done (operator's standing rule).
+- Divergences from Acrobat, to be kept: a result cap is disclosed (Acrobat caps at 25,000 per document; its disclosure is unmeasured); total area coverage is a check (Acrobat has none natively); Ink Manager operations are disclosed document edits (Acrobat: output time only, aliases dropped silently on spot-to-process); a PDF/UA validator (Acrobat has none).
+
+**Findings:** IDs `745.0`-`748.9` grep-checked unused in `docs/` before filing. Acrobat RAG files read for the design notes: the preflight checks, Ink Manager and Fix Hairlines briefs. Fix Hairlines can include Type 3 and pattern hairlines; `748.2` must decide and disclose.
+
+**FEATURES:** "Scale page contents" row gains "text annotations keep their size"; ten new Planned rows (preflight, flatten, hairlines, Ink Manager, convert colours, PDF/X, PDF/UA, apply-fixup, `pdfcer-ink`, session page import); the PDF/A and "Transparency flattening" rows cross-referenced.
+
+**Next:** `Pass 746.0`, `747.0` and `748.0` in flight; push, CI as usual.
+
 ## 2026-11-23 (1686th filing) — rustdoc link fix in `measurement_parse` + README count (`a02d42f1`, `90cf0465`)
 
 **Filed (engineer-reported; no shell here, git, push, CI and the gates not checked from here):**
