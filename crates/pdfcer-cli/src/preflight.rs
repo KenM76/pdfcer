@@ -92,7 +92,8 @@ fn load_profile(spec: &str) -> Result<Profile, String> {
     Profile::from_json(&bytes).map_err(|e| e.to_string())
 }
 
-fn finding_line(f: &preflight::Finding) -> String {
+/// One finding in the shared text-line format `preflight` and `validate-pdfua` print.
+pub(crate) fn finding_line(f: &preflight::Finding) -> String {
     let kind = match f.kind {
         FindingKind::Violation => "violation",
         FindingKind::NeedsPerson => "needs-person",
@@ -123,7 +124,8 @@ fn finding_line(f: &preflight::Finding) -> String {
     line
 }
 
-fn target(t: FindingTarget) -> String {
+/// A finding's target as `kind:num gen`, `kind:index`, `page` or `document`.
+pub(crate) fn target(t: FindingTarget) -> String {
     match t {
         FindingTarget::Document => "document".into(),
         FindingTarget::Page => "page".into(),
@@ -134,6 +136,7 @@ fn target(t: FindingTarget) -> String {
         FindingTarget::ColourSpace(id) => format!("colour-space:{} {}", id.num, id.generation),
         FindingTarget::Image(id) => format!("image:{} {}", id.num, id.generation),
         FindingTarget::GraphicsState(id) => format!("graphics-state:{} {}", id.num, id.generation),
+        FindingTarget::StructElem(id) => format!("struct-elem:{} {}", id.num, id.generation),
         _ => "other".into(),
     }
 }

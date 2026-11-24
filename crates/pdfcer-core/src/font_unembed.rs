@@ -423,6 +423,14 @@ pub fn detect_pdfa(view: &DocumentView<'_>) -> PdfaClaim {
 /// cannot be read). Same byte scan and bound as [`detect_pdfa`]; a missing
 /// or undecodable packet answers `None`, no claim.
 pub(crate) fn declared_pdfua_part(view: &DocumentView<'_>) -> Option<Option<String>> {
+    let packet = catalog_xmp(view)?;
+    find_bytes(&packet, b"pdfuaid:part")?;
+    Some(xmp_short_value(&packet, b"pdfuaid:part"))
+}
+
+/// The catalog's decoded `/Metadata` packet, cut to
+/// [`MAX_METADATA_SCAN_BYTES`]; `None` when absent or undecodable.
+pub(crate) fn catalog_xmp(view: &DocumentView<'_>) -> Option<Vec<u8>> {
     let catalog = view
         .trailer_entry(b"Root")
         .map(|o| view.resolve(o))
@@ -430,14 +438,11 @@ pub(crate) fn declared_pdfua_part(view: &DocumentView<'_>) -> Option<Option<Stri
     let Object::Stream(stream) = view.resolve(catalog.get(b"Metadata")?) else {
         return None;
     };
-    let bytes = view
+    let mut bytes = view
         .slice(stream.data_span)
         .and_then(|raw| crate::filters::decode_stream(&stream.dict, raw).ok())?;
-    let window = bytes
-        .get(..bytes.len().min(MAX_METADATA_SCAN_BYTES))
-        .unwrap_or(&bytes);
-    find_bytes(window, b"pdfuaid:part")?;
-    Some(xmp_short_value(window, b"pdfuaid:part"))
+    bytes.truncate(MAX_METADATA_SCAN_BYTES);
+    Some(bytes)
 }
 
 /// Look for `pdfaid:part` in a decoded XMP packet.
@@ -460,7 +465,7 @@ fn pdfa_claim_in(packet: &[u8]) -> Option<PdfaClaim> {
 /// digit and a conformance level is one letter, so a long match means the
 /// scan found something that is not the value and reporting it would put
 /// arbitrary document bytes into an operator-facing sentence.
-fn xmp_short_value(packet: &[u8], key: &[u8]) -> Option<String> {
+pub(crate) fn xmp_short_value(packet: &[u8], key: &[u8]) -> Option<String> {
     /// The longest value worth quoting back. `"1".."4"` and `"A"/"B"/"U"`
     /// are the whole legitimate domain; the slack covers whitespace.
     const MAX_VALUE: usize = 8;
@@ -529,7 +534,7 @@ fn has_pdfa_output_intent(graph: &DocumentView<'_>, catalog: &Dict) -> bool {
 ///
 /// `slice::windows` rather than a crate: one call site, no dependency, and
 /// the packet is bounded by [`MAX_METADATA_SCAN_BYTES`].
-fn find_bytes(haystack: &[u8], needle: &[u8]) -> Option<usize> {
+pub(crate) fn find_bytes(haystack: &[u8], needle: &[u8]) -> Option<usize> {
     if needle.is_empty() || haystack.len() < needle.len() {
         return None;
     }

@@ -3447,6 +3447,7 @@ pub(crate) fn run() -> ExitCode {
             };
             cmd_flatten_transparency(&input, &args, &output, mode, verify_undo)
         }
+        Command::ValidatePdfua { input, part, json } => cmd_validate_pdfua(&input, part, json),
         Command::GroupLength {
             input,
             page,

@@ -6700,14 +6700,14 @@ Fixups are separate verbs on the edit session; nothing here writes.
 |---|---|
 | `preflight::run(&DocumentView, &Profile) -> PreflightReport` | every finding, with the default options |
 | `preflight::run_with(&DocumentView, &Profile, &RunOptions) -> PreflightReport` | the same, with `max_findings` (default `RunOptions::DEFAULT_MAX_FINDINGS`, 25 000), a `cancel: Option<&AtomicBool>` checked before each page, and `progress: Option<&dyn Fn(done, total)>` called after each |
-| `Profile::builtin(name) -> Option<Profile>` / `Profile::BUILTIN_NAMES` | built-ins by name; today `digital-printing` (`Profile::digital_printing()`) |
+| `Profile::builtin(name) -> Option<Profile>` / `Profile::BUILTIN_NAMES` | built-ins by name: `digital-printing` (`Profile::digital_printing()`), `pdfua-1` and `pdfua-2` (`Profile::pdfua(part)`, §20) |
 | `Profile::from_json(&[u8]) -> Result<Profile, ProfileError>` / `Profile::to_json() -> String` | the saved form of an edited profile; check names and parameters are tabled on `from_json` |
 | `Profile { name, description, rules: Vec<ProfileRule> }`, `ProfileRule { id, check: Check, severity: Severity }` | rules run in order; ids are unique |
-| `Check` | `ImageBelowPpi { min_ppi }`, `FontNotEmbedded`, `NoOutputIntent`, `NoTrimBox`, `ColourSpaceUsed { families: Vec<ColourFamily> }`, `SpotNotAllowed { allowed: Vec<String> }`, `OverprintUsed`, `StrokeBelow { min_width_pt }` (JSON `stroke-below`, Pass 748.2), `TransparencyUsed` (`Pass 748.1`, §19), `Encrypted`, `VersionAbove { max: PdfVersion }` |
+| `Check` | `ImageBelowPpi { min_ppi }`, `FontNotEmbedded`, `NoOutputIntent`, `NoTrimBox`, `ColourSpaceUsed { families: Vec<ColourFamily> }`, `SpotNotAllowed { allowed: Vec<String> }`, `OverprintUsed`, `StrokeBelow { min_width_pt }` (JSON `stroke-below`, Pass 748.2), `TransparencyUsed` (`Pass 748.1`, §19), `Encrypted`, `VersionAbove { max: PdfVersion }`, `PdfUa { part: PdfuaPart }` (JSON `"check": "pdfua", "part": 1`, §20) |
 | `PreflightReport { findings, dropped, pages_checked, page_count, cancelled }` | `fails()` = an `Error` finding or `dropped > 0`; `is_clean()`; `needs_person()` |
 | `Finding { rule_id, severity, kind, page: Option<usize>, target, rect: Option<Rect>, message, measured: Option<Measure> }` | `page` 1-based, `None` for document-level; `Measure { value, limit, unit: MeasureUnit }` for measuring checks |
 | `preflight::hairlines(&DocumentView, &Page, min_width_pt) -> Result<Vec<Hairline>, ContentError>` | every stroke printing below `min_width_pt` on its thinnest axis, or of width 0; `Hairline { target, line_width, axis_scale, width_pt, zero_width, rect }`, `width_for(min)` the user-space width that prints `min` |
-| `FindingTarget` | `Document`, `Page`, `PageObject(i)` / `FormLeaf(i)` (indexes into `vector::decompose_page`'s `objects` / `leaves`, the same ones `hit_test` uses), `Annotation`, `Font`, `ColourSpace`, `Image`, `GraphicsState` (each an `ObjId`) |
+| `FindingTarget` | `Document`, `Page`, `PageObject(i)` / `FormLeaf(i)` (indexes into `vector::decompose_page`'s `objects` / `leaves`, the same ones `hit_test` uses), `Annotation`, `Font`, `ColourSpace`, `Image`, `GraphicsState`, `StructElem` (each an `ObjId`) |
 
 Contract:
 
@@ -6816,3 +6816,49 @@ Contract:
 
 ⚠️ `TransparencyKind`, `TransparencyHolder`, `TransparencySite`,
 `TransparencyUse` and `TransparencyScanError` are `#[non_exhaustive]`.
+## 20. PDF/UA validation — ISO 14289-1 and -2 (`Pass 748.7`)
+
+Read-only; no edit session. `pdfcer_core::preflight` (CLI: `pdfcer
+validate-pdfua IN [--part 1|2] [--json]`; also `pdfcer preflight --profile
+pdfua-1|pdfua-2`). Fixups are Pass 748.8.
+
+| Call | Returns |
+|---|---|
+| `validate_pdfua(&DocumentView, PdfuaPart) -> PdfuaReport` | every finding for the part |
+| `PdfuaPart` | `Ua1`, `Ua2`; `number()` (1, 2), `from_number(u8)`, `standard()` (`"ISO 14289-1"`) |
+| `PdfuaReport { part, findings: Vec<Finding>, not_checked: Vec<&'static Requirement>, page_count, pages_checked }` | `fails()` = any `Error` finding; `violations()`, `needs_person()` iterators |
+| `requirements(PdfuaPart) -> &'static [Requirement]` / `requirement(id) -> Option<&'static Requirement>` | the inventory: 143 UA-1 rows, 139 UA-2 rows |
+| `Requirement { id, part, clause, matterhorn, verapdf, decided_by: DecidedBy, sourced }` | `id` is `PUI-<Matterhorn or V-veraPDF>` (UA-1) or `PUI2-<veraPDF>` (UA-2); `clause` e.g. `"ISO 14289-1 §7.18.3"`; `DecidedBy::{Machine, Person, NoTest}` |
+
+Contract:
+
+- **Every finding's `rule_id` is a `Requirement::id`**; look the clause and
+  Matterhorn checkpoint up with `requirement(id)`. Targets: `Document`,
+  `Page`, `StructElem(id)` (an element), `Annotation(id)`, `Font(id)`.
+- **Three buckets, never a silent pass.** A machine row is checked
+  (violation or incomplete, `Error`); a sourced person row is always a
+  `NeedsPerson` finding (`Info`) asking the question; every other row (no
+  test, unsourced UA-2 rows, machine rows not implemented yet) is in
+  `not_checked`. Show `not_checked` as "not checked", not as passed.
+- **`fails()` ignores needs-a-person findings.** A clean machine run is
+  "no violations found", never "conforms".
+- **Covered**: the `pdfuaid` claim (and UA-2 `rev 2024`), `/MarkInfo
+  /Marked` and `/Suspects`, the structure tree and role mapping, every
+  content item tagged or an artifact and the two not nested, `Figure` and
+  `Formula` alternates, `dc:title` and `DisplayDocTitle`, `/Lang` on the
+  catalog, elements and text, annotations in the tree and `/Tabs /S`
+  (UA-2: `A`, `W` or `S`), per-subtype annotation rules, `<Form>` elements,
+  optional-content configuration names, embedded-file `/F`+`/UF` (UA-1) or
+  `/Desc` (UA-2), XFA, encryption permission bit 10, and the fonts that
+  show text: embedded, `/ToUnicode` or a mapping encoding, `CIDToGIDMap`,
+  TrueType encodings.
+- **Annotation exemption.** UA-1 exempts an annotation that is hidden
+  (`/F` bit 2) or outside the crop box, and `Popup`; UA-2 binds real-content
+  annotations, those under a structure element other than `Artifact`.
+- **Incomplete** where a check could not finish: glyph names under
+  `/Differences` or a Type 1/Type 3 font without `/ToUnicode` (not compared
+  with the Adobe Glyph List), an unreadable content stream or font
+  program, a structure tree past its 200 000-element or 256-level guard.
+- **Forms**: an `/MCID` inside a form XObject is taken as tagged.
+
+⚠️ `PdfuaReport` and `Requirement` are `#[non_exhaustive]`.

@@ -11847,8 +11847,8 @@ pub(crate) enum Command {
     /// none of them is a pass. Exits 18 when an error-severity rule found
     /// anything or findings were dropped at the cap.
     ///
-    /// `--profile` takes a built-in name (`digital-printing`) or a JSON
-    /// profile file; `--dump-profile` prints the chosen profile as JSON, to
+    /// `--profile` takes a built-in name (`digital-printing`, `pdfua-1`,
+    /// `pdfua-2`) or a JSON profile file; `--dump-profile` prints the chosen profile as JSON, to
     /// edit and pass back.
     Preflight {
         /// Input PDF; not needed with `--dump-profile`.
@@ -11964,6 +11964,27 @@ pub(crate) enum Command {
         /// Reload and verify the edit undoes byte-identically.
         #[arg(long)]
         verify_undo: bool,
+    },
+    /// Check a document against PDF/UA (ISO 14289-1 or -2), read-only.
+    ///
+    /// Runs every machine check the part defines (tagging, artifacts,
+    /// alternate descriptions, title and DisplayDocTitle, languages,
+    /// annotations and tab order, fonts, the pdfuaid claim) and lists, as
+    /// `needs-person` findings, the checks only a person can make. Prints the
+    /// `preflight` line format, then a `not-checked` line for each
+    /// requirement no check covers yet.
+    ///
+    /// A `needs-person` finding is not a pass. Exits 18 when any violation or
+    /// incomplete is found.
+    ValidatePdfua {
+        /// Input PDF.
+        input: PathBuf,
+        /// The ISO 14289 part: 1 (PDF/UA-1) or 2 (PDF/UA-2).
+        #[arg(long, default_value_t = 1, value_parser = clap::value_parser!(u8).range(1..=2))]
+        part: u8,
+        /// Print one JSON object instead of lines.
+        #[arg(long)]
+        json: bool,
     },
     /// Convert lengths to and from a ce dimension group's scale on one page.
     ///

@@ -78,7 +78,8 @@ pub(crate) fn page_events(
     w.out
 }
 
-fn annotations(view: &DocumentView<'_>, page: ObjId) -> Vec<ObjId> {
+/// The page's `/Annots` entries that are indirect references.
+pub(super) fn annotations(view: &DocumentView<'_>, page: ObjId) -> Vec<ObjId> {
     view.graph()
         .value(page)
         .and_then(Object::as_dict)
@@ -369,7 +370,8 @@ pub(crate) fn first_operand(op: &Operation<'_>) -> Option<Object> {
     })
 }
 
-fn last_operand(op: &Operation<'_>) -> Option<Object> {
+/// The operation's last operand, owned.
+pub(super) fn last_operand(op: &Operation<'_>) -> Option<Object> {
     op.operands.iter().rev().find_map(|t| match &t.kind {
         ContentTokenKind::Operand(o) => Some(o.clone()),
         _ => None,
@@ -378,7 +380,7 @@ fn last_operand(op: &Operation<'_>) -> Option<Object> {
 
 /// `resources/<category>/<name>`, unresolved (so an indirect entry keeps
 /// its id).
-fn resource<'a>(
+pub(super) fn resource<'a>(
     view: &'a DocumentView<'_>,
     resources: &'a Dict,
     category: &[u8],

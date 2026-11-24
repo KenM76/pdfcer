@@ -17,6 +17,7 @@
 
 mod checks;
 pub(crate) mod hairlines;
+mod pdfua;
 mod profile;
 #[cfg(test)]
 mod tests;
@@ -26,6 +27,9 @@ use std::sync::atomic::{AtomicBool, Ordering};
 
 pub(crate) use hairlines::hairlines_in;
 pub use hairlines::{HAIRLINES_NOT_COVERED, Hairline, hairlines};
+pub use pdfua::{
+    DecidedBy, PdfuaPart, PdfuaReport, Requirement, requirement, requirements, validate_pdfua,
+};
 pub use profile::{Profile, ProfileError, ProfileRule};
 
 use crate::PdfVersion;
@@ -192,6 +196,13 @@ pub enum Check {
         /// The highest version allowed.
         max: PdfVersion,
     },
+    /// Every machine-checkable requirement of a PDF/UA part, as
+    /// [`validate_pdfua`] runs it. Violations and incompletes take the
+    /// rule's severity; needs-a-person findings stay [`Severity::Info`].
+    PdfUa {
+        /// The part to validate against.
+        part: PdfuaPart,
+    },
 }
 
 /// What a finding says about its target.
@@ -227,6 +238,8 @@ pub enum FindingTarget {
     Image(ObjId),
     /// An `ExtGState` dictionary.
     GraphicsState(ObjId),
+    /// A structure element dictionary.
+    StructElem(ObjId),
 }
 
 /// The unit of a [`Measure`].

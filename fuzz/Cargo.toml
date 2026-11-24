@@ -841,3 +841,9 @@ name = "mesh_rewrite"
 path = "fuzz_targets/mesh_rewrite.rs"
 test = false
 doc = false
+
+[[bin]]
+name = "pdfua_validate"
+path = "fuzz_targets/pdfua_validate.rs"
+test = false
+doc = false

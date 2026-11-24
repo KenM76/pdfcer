@@ -11,6 +11,7 @@ use crate::view::DocumentView;
 use super::walk::{self, ColourUse, Event, Origin};
 use super::{
     Check, Finding, FindingKind, FindingTarget, Measure, MeasureUnit, Profile, ProfileRule,
+    Severity,
 };
 
 /// Collects findings up to a cap and counts the rest.
@@ -130,8 +131,26 @@ pub(super) fn document(view: &DocumentView<'_>, profile: &Profile, sink: &mut Si
                 });
             }
             Check::FontNotEmbedded => fonts(view, rule, sink),
+            Check::PdfUa { part } => pdfua(view, rule, *part, sink),
             _ => {}
         }
+    }
+}
+
+/// Run PDF/UA validation as one profile rule. The rule's id prefixes
+/// each requirement id (`rule/PUI-…`).
+fn pdfua(view: &DocumentView<'_>, rule: &ProfileRule, part: super::PdfuaPart, sink: &mut Sink) {
+    for f in super::validate_pdfua(view, part).findings {
+        let severity = if f.kind == FindingKind::NeedsPerson {
+            Severity::Info
+        } else {
+            rule.severity
+        };
+        sink.push(Finding {
+            rule_id: format!("{}/{}", rule.id, f.rule_id),
+            severity,
+            ..f
+        });
     }
 }
 

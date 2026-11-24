@@ -82,13 +82,15 @@ pub enum ProfileError {
 
 impl Profile {
     /// The names [`Self::builtin`] accepts.
-    pub const BUILTIN_NAMES: [&'static str; 1] = ["digital-printing"];
+    pub const BUILTIN_NAMES: [&'static str; 3] = ["digital-printing", "pdfua-1", "pdfua-2"];
 
     /// A built-in profile by its [`Self::BUILTIN_NAMES`] name.
     #[must_use]
     pub fn builtin(name: &str) -> Option<Self> {
         match name {
             "digital-printing" => Some(Self::digital_printing()),
+            "pdfua-1" => Some(Self::pdfua(super::PdfuaPart::Ua1)),
+            "pdfua-2" => Some(Self::pdfua(super::PdfuaPart::Ua2)),
             _ => None,
         }
     }
@@ -124,6 +126,25 @@ impl Profile {
                 ProfileRule::new("overprint", Check::OverprintUsed, Severity::Info),
                 ProfileRule::new("no-trim-box", Check::NoTrimBox, Severity::Info),
             ],
+        }
+    }
+
+    /// PDF/UA conformance (ISO 14289-1 or -2) as one rule; see
+    /// [`super::validate_pdfua`].
+    #[must_use]
+    pub fn pdfua(part: super::PdfuaPart) -> Self {
+        let n = part.number();
+        Self {
+            name: format!("PDF/UA-{n}"),
+            description: format!(
+                "{} accessibility: machine checks, plus the checks a person must make.",
+                part.standard()
+            ),
+            rules: vec![ProfileRule::new(
+                format!("pdfua-{n}"),
+                Check::PdfUa { part },
+                Severity::Error,
+            )],
         }
     }
 
@@ -206,6 +227,20 @@ fn parse_rule(item: &Json) -> Result<ProfileRule, ProfileError> {
         .get("check")
         .and_then(Json::as_str)
         .ok_or_else(|| ProfileError::Member(format!("rules[{id}].check")))?;
+    let check = parse_check(name, &id, item)?;
+    Ok(ProfileRule {
+        id,
+        check,
+        severity,
+    })
+}
+
+/// The `check` member and its parameters.
+fn parse_check(name: &str, id: &str, item: &Json) -> Result<Check, ProfileError> {
+    let bad = |why: &str| ProfileError::BadValue {
+        rule: id.to_owned(),
+        why: why.to_owned(),
+    };
     let strings = |key: &str| -> Option<Vec<String>> {
         item.get(key)?
             .as_array()?
@@ -244,6 +279,15 @@ fn parse_rule(item: &Json) -> Result<ProfileRule, ProfileError> {
         },
         "transparency-used" => Check::TransparencyUsed,
         "encrypted" => Check::Encrypted,
+        "pdfua" => {
+            let part = item
+                .get("part")
+                .and_then(Json::as_u32)
+                .and_then(|n| u8::try_from(n).ok())
+                .and_then(super::PdfuaPart::from_number)
+                .ok_or_else(|| bad("part must be 1 or 2"))?;
+            Check::PdfUa { part }
+        }
         "version-above" => {
             let max = item
                 .get("max")
@@ -254,16 +298,12 @@ fn parse_rule(item: &Json) -> Result<ProfileRule, ProfileError> {
         }
         other => {
             return Err(ProfileError::UnknownCheck {
-                rule: id,
+                rule: id.to_owned(),
                 check: other.to_owned(),
             });
         }
     };
-    Ok(ProfileRule {
-        id,
-        check,
-        severity,
-    })
+    Ok(check)
 }
 
 /// `item[key]` as a finite number that `ok` accepts.
@@ -311,6 +351,7 @@ fn rule_json(rule: &ProfileRule) -> String {
         Check::TransparencyUsed => ("transparency-used", String::new()),
         Check::Encrypted => ("encrypted", String::new()),
         Check::VersionAbove { max } => ("version-above", format!(", \"max\": \"{max}\"")),
+        Check::PdfUa { part } => ("pdfua", format!(", \"part\": {}", part.number())),
     };
     format!(
         "{{\"id\": {}, \"severity\": \"{}\", \"check\": \"{name}\"{params}}}",
