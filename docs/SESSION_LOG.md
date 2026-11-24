@@ -4,6 +4,18 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-11-24 (1692nd filing) — `Pass 729.0` (PDF/A validation), `Pass 748.8` (PDF/UA fixups), `Pass 748.6` (convert to PDF/X) SHIPPED
+
+**Filed (engineer-reported; no shell here, so git, push, CI, release and backup state are not checked from here):**
+- **`Pass 729.0` `c4cd74cc`:** `validate_pdfa`/`validate_pdfa_with`, `PdfaLevel {A1b,A2b,A3b}`, `PdfaReport` (`verdict()`, `clause_of`), `Check::PdfaRequirement`, `Profile::pdfa`, built-ins `pdfa-1b/2b/3b` (`BUILTIN_NAMES` 11), CLI `validate-pdfa` (exit 18 / 0 unconfirmed / 2 unknown level) replacing the stub. Not delivered: a/u levels, PDF/A-4, many inventory rows (listed in `ROADMAP.md`), veraPDF comparison; fuzz target type-checked only. core `[x]`, cli `[x]`, gui `[ ]`.
+- **`Pass 748.8` `debd0d63`:** eight `EditSession` PDF/UA verbs, `fix_pdfua` as one undo step, five new `EditError` variants, CLI `fix-pdfua`. Preflight wiring is `Pass 748.9` (open).
+- **`Pass 748.6` `63d0219b`:** `convert_to_pdfx` (flatten, convert colours, OutputIntent plus `GTS_PDFXVersion`, re-validate; claim withdrawn on Fails, disclosed on Unconfirmed), CLI `convert-pdfx` (exit 18). Not delivered: font embedding, downsampling, OPI removal; Conforms unreachable while the validator has unchecked rows.
+- **Counts (engineer-reported, at `c4cd74cc`):** `EditSession` verbs 448, `EditError` variants 211, README working subcommands 270 (plus one not implemented), clap-help 271. Worker-branch tests: core 2499+3443+309, cli 134+1151+5 new; merged-main sweep still running. `cargo tree` untouched.
+
+**Open in the O458 round:** `748.9` and `748.10`, both in flight. `729.1` (`convert_to_pdfa`) and CLI `to-pdfa` remain open.
+
+**FEATURES:** three new Implemented rows (PDF/A validation; PDF/UA fixups; PDF/X conversion); the Planned PDF/X-conversion and PDF/UA-fixup rows removed, the Planned PDF/A row narrowed to conversion plus a/u/PDF/A-4; the preflight row now thirteen checks and eleven profiles. **Sweep (rule 11):** the earlier "no PDF/A profile" wording in the 1691st entries is kept as filed; `README.md`, rustdoc and `docs/core-api/` may still carry old counts or the "not implemented" `validate-pdfa` stub text (engineer to sweep).
+
 ## 2026-11-24 (1691st filing) — `Pass 748.5` (PDF/X validation), `Pass 748.4` (convert colours) SHIPPED
 
 **Filed (engineer-reported; no shell here, so git, push, CI, release and backup state are not checked from here):**

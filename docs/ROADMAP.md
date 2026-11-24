@@ -112,6 +112,37 @@ wherever it appears.*
 
 ## Shipped
 
+### `Pass 729.0`: validate PDF/A-1b, -2b and -3b (`pdfcer validate-pdfa`), `c4cd74cc`, 2026-11-24 (1692nd filing)
+
+Engineer-reported; source `O458` (`pdfcer-gui` `request_pdfa_conversion.md`); push, CI and backup not checked from here. **Unreleased.** Built from the spec inventory `pdfa__req__inventory_index.md` (ISO 19005).
+- **Core (`pdfcer_core::preflight`):** `validate_pdfa(view, PdfaLevel) -> PdfaReport` and `validate_pdfa_with`; `PdfaLevel { A1b, A2b, A3b }`; `PdfaReport` with `verdict()` (`Fails`/`Unconfirmed`/`Conforms`) and `clause_of`; `Check::PdfaRequirement`; `Profile::pdfa(level)`; built-ins `pdfa-1b`, `pdfa-2b`, `pdfa-3b` (`BUILTIN_NAMES` now 11).
+- **CLI:** `pdfcer validate-pdfa IN --level 1b|2b|3b [--json] [--max-findings N]`; exit 18 failing, 0 unconfirmed, 2 unknown level. Replaced the `unimplemented_stub`. Every finding carries its ISO 19005 clause; unchecked rows print as `info incomplete`, never as a pass.
+- **Fuzz:** `fuzz_targets/pdfa_validate.rs` (type-checked only, not fuzzed).
+- **NOT delivered (disclosed):** the `a` and `u` levels and PDF/A-4. Rows not checked: FS-4,7,8,10-13,17-19,40,43; MD-5,7-14; CS-7; FT-6,8,9,10,12,15,17,19,20; TG-14, 16 (unsourced), 17,18,26-28; IA-15-17. No veraPDF comparison run (oracle still owed). `/JXLDecode` reporting stays owed.
+- **Docs:** `docs/core-api/03-capabilities.md` (PDF/A validation); README subcommands 270 working plus one not yet implemented (`to-pdfa`, `Pass 729.1`/`729.2`); `check-clap-help` 271.
+- **FEATURES:** the Planned "PDF/A conformance and validation" row moved to Implemented as "Validate PDF/A-1b, -2b and -3b" (core `[x]`, cli `[x]`, gui `[ ]`); PDF/A conversion and the a/u/PDF/A-4 levels stay Planned.
+- **Open in the O458 round:** `748.9` and `748.10`, both in flight.
+
+### `Pass 748.8`: PDF/UA fixups (`pdfcer fix-pdfua`), `debd0d63`, 2026-11-24 (1692nd filing)
+
+Engineer-reported; source `O458`; push, CI and backup not checked from here. **Unreleased.**
+- **Core:** eight `EditSession` verbs: `validate_pdfua`, `document_language`, `set_document_language`, `set_display_doc_title`, `set_pdfua_tab_order`, `mark_untagged_as_artifacts`, `write_pdfua_identification`, and `fix_pdfua`, which runs the others as ONE undo step. Five new `EditError` variants.
+- **CLI:** `pdfcer fix-pdfua`.
+- **Not delivered:** wiring these as preflight fixups is `Pass 748.9` (open).
+- **Docs:** `docs/core-api/02` §1.39, `03` §24.
+- **FEATURES:** the Planned "Fix what PDF/UA validation finds" row moved to Implemented (core `[x]`, cli `[x]`, gui `[ ]`).
+
+### `Pass 748.6`: convert a document to PDF/X (`pdfcer convert-pdfx`), `63d0219b`, 2026-11-24 (1692nd filing)
+
+Engineer-reported; source `O458`; push, CI and backup not checked from here. **Unreleased.** Merged-main sweep was still running at filing; worker branch tests: core 2499 + 3443 + 309, cli 134 + 1151 + 5 new.
+- **Core:** `EditSession::convert_to_pdfx(level, &PdfxConversion, &dyn TransparencyFlattener, &dyn ColourConverter) -> Result<PdfxConversionReport, EditError>` (`CommandKind::ConvertToPdfx`); `prepress::{PdfxOutputIntent, PdfxConversion, PdfxConversionReport}`. Flattens (X-1a, X-3), converts colours to the output-intent ICC, writes the OutputIntent and `GTS_PDFXVersion`, then re-validates. The claim is taken back on Fails; on Unconfirmed it is kept with disclosure unless `--require-conforms`.
+- **CLI:** `pdfcer convert-pdfx IN --level x1a|x3|x4 --icc ICC [--condition] [--title] [--json] [--write-partial] [--require-conforms] -o OUT`; exit 18 on failure.
+- **NOT delivered (open, no Pass ID):** font embedding or outlining, image downsampling, OPI and PostScript XObject removal. A `Conforms` verdict is unreachable today because the validator still has unchecked rows, so the claim is always kept as Unconfirmed at best.
+- **Docs:** `docs/core-api/02` §1.38, `03` §23.
+- **FEATURES:** the Planned "Convert to PDF/X" row moved to Implemented as "PDF/X conversion (X-1a/X-3/X-4)" (core `[x]`, cli `[x]`, gui `[ ]`).
+
+**Round facts (1692nd filing, engineer-reported, at `c4cd74cc`):** `EditSession` verbs 448; `EditError` variants 211; README working subcommands 270 (plus one not yet implemented); clap-help 271; `cargo tree` untouched (no manifest change in core or render; only `fuzz/Cargo.toml`). **Open in the O458 round: `748.9` and `748.10`, both in flight.**
+
 ### `Pass 748.5`: validate PDF/X-1a, X-3 and X-4 (`pdfcer validate-pdfx`), `a8e4da20`, 2026-11-24 (1691st filing)
 
 Engineer-reported; source `O458`; unpushed as far as known, push, CI and backup not checked from here. **Unreleased** (release `v0.172.0` when the round is done). Built from the spec librarian's `pdfx__req__inventory_index.md` (ISO 15930-1/-3/-4/-7).
@@ -28760,6 +28791,8 @@ closes out the *prior* filing's business rather than opening this one's.
 
 ## Next up
 
+> **`Pass 729.0`, `748.6` and `748.8` SHIPPED (1692nd filing, `c4cd74cc`, `63d0219b`, `debd0d63`); see *Shipped*.** Preflight round still open: `748.9` and `748.10`, both in flight. Their bullets below are kept as filed. `729.1` (`convert_to_pdfa`) and the `to-pdfa` CLI half of `729.2` remain open; `validate-pdfa` is done. Owed (no ID): `convert-pdfx` font embedding, image downsampling, OPI removal.
+>
 > **`Pass 748.4` and `748.5` SHIPPED (1691st filing, `29888e43`, `a8e4da20`); see *Shipped*.** Preflight round still open: `748.6`, `748.8`, `729.0` (in flight), `748.9` (after `748.8`), `748.10` (queued). Their bullets below are kept as filed. Owed (no ID): convert-colours gaps (Selection scope, spot colours, inline images, mesh and function shadings, Type 3 glyphs, `/DA`).
 >
 > **`Pass 748.7` SHIPPED (1690th filing, `a4d41557`); see *Shipped*.** Its bullet below is kept as filed. Owed: checks for 76 machine-decidable PDF/UA rows (no ID).
