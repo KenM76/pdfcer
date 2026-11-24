@@ -112,6 +112,11 @@ pub enum LadderRung {
     /// mapped through the AGL anyway. Recovered text, **not** sourced
     /// under §9.10.2.
     GlyphNameExtension,
+    /// pdfcer's inference: the glyph name spells a character code in hex
+    /// (`/G41`), read through the font's base encoding. The Windows
+    /// PostScript driver names converted TrueType glyphs this way.
+    /// Recovered text, **not** sourced under §9.10.2.
+    HexGlyphName,
     /// Rung 4: the ladder failed. §9.10.2 concedes "there is no way to
     /// determine what the character code represents". pdfcer emits
     /// U+FFFD and counts it.
@@ -141,6 +146,7 @@ impl LadderRung {
             Self::EncodingAgl => "encoding_agl",
             Self::CidCollection => "cid_collection",
             Self::GlyphNameExtension => "glyph_name_extension",
+            Self::HexGlyphName => "hex_glyph_name",
             Self::Failed => "failed",
         }
     }
@@ -267,6 +273,8 @@ pub struct ExtractFont {
     /// literally stated. Drives rung classification, not availability —
     /// see the module docs' deviation 2.
     rung2_precondition: bool,
+    /// The encoding a hex glyph name (`/G41`) is read in.
+    hex_base: BaseEncoding,
     /// Code segmentation.
     width: CodeWidth,
     /// Advance widths, glyph space (1000/em unless `width_scale` says
@@ -535,6 +543,7 @@ impl ExtractFont {
             to_unicode,
             glyph_names: Some(names),
             rung2_precondition,
+            hex_base: super::hex_name::base(doc, font_dict),
             width: CodeWidth::One,
             widths,
             width_scale,
@@ -641,6 +650,7 @@ impl ExtractFont {
             to_unicode,
             glyph_names: None,
             rung2_precondition: false,
+            hex_base: BaseEncoding::WinAnsi,
             width,
             widths,
             width_scale: 0.001,
@@ -743,6 +753,14 @@ impl ExtractFont {
         }
 
         // Rung 3 would go here. It cannot: see `Rung3Gap`.
+
+        // pdfcer's inference: a name that spells its code in hex.
+        if let Some(names) = &self.glyph_names
+            && let Some(Some(name)) = usize::try_from(code).ok().and_then(|i| names.get(i))
+            && let Some(text) = super::hex_name::text(name, self.hex_base)
+        {
+            return (text, LadderRung::HexGlyphName);
+        }
 
         // Rung 4 — "there is no way to determine what the character code
         // represents". What that looks like is `TX-A1`, above.

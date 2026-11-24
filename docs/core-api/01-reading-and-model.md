@@ -2230,7 +2230,8 @@ let text = font.unicode_for_code(code);                     // Option<String>: N
 Only `base_font: String` and `notes: Vec<FontNote>` are public fields
 (`font.rs`). `LadderRung` (`font.rs`) is the §9.10.2 decoding
 ladder: `ToUnicode` | `EncodingAgl` | `CidCollection` | `GlyphNameExtension`
-| `Failed`. `Rung3Gap`, `FontNote`. All four re-exported at
+| `HexGlyphName` (a `/G41`-style name read as a code in the base encoding;
+counted in `TextDiagnostics::via_hex_glyph_name`, not sourced) | `Failed`. `Rung3Gap`, `FontNote`. All four re-exported at
 `text_extract::` (`mod.rs`).
 
 ### 9.3 `/ToUnicode` CMaps

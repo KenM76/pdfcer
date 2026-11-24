@@ -427,6 +427,28 @@ def tagged_marked() -> bytes:
     )
 
 
+# ---------------------------------------------------------------------------
+# Fixture — hex glyph names, as the Windows PostScript driver writes them
+# ---------------------------------------------------------------------------
+
+
+def hex_glyph_names() -> bytes:
+    """`/Differences` naming glyphs `/G48`, `/G69`, `/G92`: hex spellings
+    of their WinAnsi codes, no `/ToUnicode`. Code 65 is named `/g41`,
+    which must NOT be read as hex (lowercase is a glyph-index style).
+    """
+    content = b"BT\n/F1 24 Tf\n72 700 Td\n(Hi\222A) Tj\nET\n"
+    fonts = "/F1 5 0 R"
+    extra = {
+        5: (
+            b"<< /Type /Font /Subtype /Type1 /BaseFont /MSTT31c1f0 "
+            b"/Encoding << /Type /Encoding /BaseEncoding /WinAnsiEncoding "
+            b"/Differences [65 /g41 72 /G48 105 /G69 146 /G92] >> >>"
+        )
+    }
+    return one_page_doc(content, fonts, extra)
+
+
 def main() -> int:
     OUT_DIR.mkdir(parents=True, exist_ok=True)
     fixtures = {
@@ -436,6 +458,7 @@ def main() -> int:
         "actual-text-drucker.pdf": actual_text_drucker(),
         "artifact-and-reversed.pdf": artifact_and_reversed(),
         "tagged-marked.pdf": tagged_marked(),
+        "hex-glyph-names.pdf": hex_glyph_names(),
     }
     for name, data in fixtures.items():
         path = OUT_DIR / name

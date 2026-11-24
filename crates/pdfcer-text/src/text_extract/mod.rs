@@ -130,6 +130,7 @@
 
 pub mod cmap;
 pub mod font;
+mod hex_name;
 mod layout;
 mod ocr_layer;
 pub(crate) mod page;
@@ -1127,6 +1128,9 @@ pub struct TextDiagnostics {
     /// failed §9.10.2 method 2's whole-array precondition but the name
     /// mapped through the AGL anyway). **Not sourced.**
     pub via_glyph_name_extension: u64,
+    /// Codes resolved by reading a hex glyph name (`/G41`) as a code in
+    /// the font's base encoding. pdfcer's inference. **Not sourced.**
+    pub via_hex_glyph_name: u64,
     /// Codes that fell through the entire ladder to §9.10.2's failure
     /// clause and became U+FFFD. **The headline honesty metric.**
     pub ladder_failures: u64,
@@ -1257,6 +1261,7 @@ impl TextDiagnostics {
         self.via_encoding_agl += other.via_encoding_agl;
         self.via_cid_collection += other.via_cid_collection;
         self.via_glyph_name_extension += other.via_glyph_name_extension;
+        self.via_hex_glyph_name += other.via_hex_glyph_name;
         self.ladder_failures += other.ladder_failures;
         self.identity_fonts_without_to_unicode += other.identity_fonts_without_to_unicode;
         self.type3_fonts_without_to_unicode += other.type3_fonts_without_to_unicode;

@@ -1052,6 +1052,7 @@ impl Walk<'_> {
             LadderRung::EncodingAgl => self.diagnostics.via_encoding_agl += 1,
             LadderRung::CidCollection => self.diagnostics.via_cid_collection += 1,
             LadderRung::GlyphNameExtension => self.diagnostics.via_glyph_name_extension += 1,
+            LadderRung::HexGlyphName => self.diagnostics.via_hex_glyph_name += 1,
             LadderRung::Failed => self.diagnostics.ladder_failures += 1,
         }
 

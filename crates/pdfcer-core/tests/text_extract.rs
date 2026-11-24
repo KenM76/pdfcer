@@ -61,6 +61,21 @@ fn rung2_resolves_a_winansi_simple_font() {
 }
 
 #[test]
+fn hex_glyph_names_are_recovered_and_counted_not_sourced() {
+    let text = extract("hex-glyph-names.pdf");
+    let d = &text.diagnostics;
+    assert_eq!(d.codes_total, 4);
+    assert_eq!(d.via_hex_glyph_name, 3, "G48 G69 G92 read as WinAnsi codes");
+    assert_eq!(d.ladder_failures, 1, "lowercase g41 is not hex");
+    assert!(
+        text.plain_text().starts_with("Hi\u{2019}"),
+        "plain text: {:?}",
+        text.plain_text()
+    );
+    assert_eq!(d.sourced_fraction(), Some(0.0), "recovered, not sourced");
+}
+
+#[test]
 fn a_tj_offset_with_no_space_glyph_derives_a_space() {
     // S3/S4: the gap between "Hello" and "world" is a TJ offset and
     // nothing else — there is no space character anywhere in the file.

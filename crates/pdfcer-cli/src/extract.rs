@@ -130,7 +130,7 @@ pub(crate) fn cmd_extract_text(
     let d = &extracted.diagnostics;
     let line = format!(
         "extracted {} pages={} chars={} codes={} \
-via_tounicode={} via_encoding={} via_cid={} via_extension={} failed={} \
+via_tounicode={} via_encoding={} via_cid={} via_extension={} via_hex_name={} failed={} \
 sourced_pct={:.1} spaces_derived={} lines_derived={} \
 actual_text={} artifacts={} reversed={} identity_no_tounicode={} \
 ucs2_missing={} predefined_cmaps_missing={} tagged={} suspects={} \
@@ -144,6 +144,7 @@ contents_unresolved={} type3_no_tounicode={} pages_resources_defaulted={}",
         d.via_encoding_agl,
         d.via_cid_collection,
         d.via_glyph_name_extension,
+        d.via_hex_glyph_name,
         d.ladder_failures,
         d.sourced_fraction().unwrap_or(0.0) * 100.0,
         d.spaces_derived,
@@ -280,12 +281,13 @@ pub(crate) fn extraction_json(
     ));
 
     out.push_str("  \"diagnostics\": {\n");
-    let counters: [(&str, u64); 21] = [
+    let counters: [(&str, u64); 22] = [
         ("codes_total", d.codes_total),
         ("via_to_unicode", d.via_to_unicode),
         ("via_encoding_agl", d.via_encoding_agl),
         ("via_cid_collection", d.via_cid_collection),
         ("via_glyph_name_extension", d.via_glyph_name_extension),
+        ("via_hex_glyph_name", d.via_hex_glyph_name),
         ("ladder_failures", d.ladder_failures),
         (
             "identity_fonts_without_to_unicode",
