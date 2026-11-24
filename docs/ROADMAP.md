@@ -112,6 +112,13 @@ wherever it appears.*
 
 ## Shipped
 
+### `83a57edb` `chore`: v0.171.0 version bump, 2026-11-23 (1685th filing)
+
+Engineer-reported; no shell here, git, push, CI and the gates not run or checked from here. **Unreleased until v0.171.0 is tagged.** Tag, package and publication are a separate filing.
+- **`83a57edb` `chore: version 0.171.0`:** `Cargo.toml`, `Cargo.lock` and `fuzz/Cargo.lock` move from 0.170.0 to 0.171.0, the same shape as the 0.170.0 bump. No code change.
+- **v0.171.0 carries, since v0.170.0:** `Pass 743.0` (`G326`, `54935c1d`), filed in the 1682nd filing; `Pass 744.0` (`X106`, `af6104f7`), filed in the 1683rd; `Pass 742.0` (`G325`, `0cdd8157`), filed in the 1684th.
+- **FEATURES:** no row changes. **Next:** push, CI, tag, release to the next OneDrive slot, publish the crates.
+
 ### `Pass 742.0` (`G325`): `user_units_from_measurement_on`, a typed scaled length back to page units, `0cdd8157`, 2026-11-23 (1684th filing)
 
 Engineer-reported; no shell here, push, CI and the gates not checked from here. One commit on `main`. Ships in `v0.171.0` (not yet released).

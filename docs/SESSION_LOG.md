@@ -4,6 +4,16 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-11-23 (1685th filing) — v0.171.0 version bump (`83a57edb`)
+
+**Filed (engineer-reported; no shell here, git, push, CI and the gates not checked from here):**
+- `83a57edb` `chore: version 0.171.0`: `Cargo.toml`, `Cargo.lock`, `fuzz/Cargo.lock` from 0.170.0 to 0.171.0. No code change. Details in `ROADMAP.md` *Shipped*.
+- Carries `Pass 743.0` (`G326`, `54935c1d`), `744.0` (`X106`, `af6104f7`), `742.0` (`G325`, `0cdd8157`), filed 1682nd to 1684th. Not yet published.
+
+**FEATURES:** no row changes.
+
+**Next:** push, CI, tag, release, publish the crates.
+
 ## 2026-11-23 (1684th filing) — `Pass 742.0` (`G325`) SHIPPED, `0cdd8157`
 
 **Shipped (engineer-reported; no shell here; push, CI and gates not checked from here):**
