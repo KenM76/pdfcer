@@ -112,6 +112,13 @@ wherever it appears.*
 
 ## Shipped
 
+### `40e23b16` `chore`: v0.173.0 version bump, 2026-11-24 (1699th filing)
+
+Engineer-reported; no shell here, git, push, CI and the gates not run or checked from here. **Unreleased until v0.173.0 is tagged.** Tag, package and publication are a separate filing.
+- **`40e23b16` `chore: version 0.173.0`:** `Cargo.toml` (18 occurrences), `Cargo.lock` (21) and `fuzz/Cargo.lock` (17) move from 0.172.0 to 0.173.0, the same shape as the 0.172.0 bump (`2fbc16e6`). No code change.
+- **v0.173.0 carries, since v0.172.0:** `Pass 752.0` (`X111`, `05316f40`); `753.0` (`b8c13aa2`); `754.0` (`ab101085`); `755.0` (`e1e19868`); and the doc comment `560a08e9`; all filed 1698th (`2900116c`).
+- **FEATURES:** no row changes. **Next:** push, CI, tag v0.173.0, release to OneDrive slot `pdfcer2`, publish the crates.
+
 ### `Pass 755.0`: `render_plates` composites once per four inks (`O460`), `e1e19868`, 2026-11-24 (1698th filing)
 
 Engineer-reported; request `request_render_plates_one_pass.md` (`O460`, from `pdfcer-gui`); no shell here, git, push, CI and the gates not run or checked from here. **Unreleased: since `v0.172.0`.**
