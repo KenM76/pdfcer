@@ -112,6 +112,27 @@ wherever it appears.*
 
 ## Shipped
 
+### `Pass 748.5`: validate PDF/X-1a, X-3 and X-4 (`pdfcer validate-pdfx`), `a8e4da20`, 2026-11-24 (1691st filing)
+
+Engineer-reported; source `O458`; unpushed as far as known, push, CI and backup not checked from here. **Unreleased** (release `v0.172.0` when the round is done). Built from the spec librarian's `pdfx__req__inventory_index.md` (ISO 15930-1/-3/-4/-7).
+- **Core (`pdfcer_core::preflight`):** `validate_pdfx(&DocumentView, PdfxLevel) -> PdfxReport` and `validate_pdfx_with`; `PdfxLevel { X1a2001, X1a2003, X3_2002, X3_2003, X4 }`; `PdfxReport { level, claim, preflight }` with `verdict()` and `clause_of`; `PdfxVerdict { Fails, Unconfirmed, Conforms }`; `Profile::pdfx(level)`; `Check::PdfxRequirement { level, row }` (JSON `pdfx-requirement`). Built-in profiles `pdfx-1a-2001`, `pdfx-1a-2003`, `pdfx-3-2002`, `pdfx-3-2003`, `pdfx-4` (`BUILTIN_NAMES` now 8).
+- **CLI:** `pdfcer validate-pdfx IN --level <level> [--json] [--max-findings N]`; exit 18 on failure.
+- **Not covered, disclosed:** object and xref streams are invisible to the version-ceiling check; the PostScript content operator is not scanned; some inventory rows are unsourced.
+- **Gates on merged main (engineer-reported):** clippy clean, core lib 2469, cli all 1145 (worker run), `check-core-api-verbs` pass, `check-clap-help` 268 subcommands, code-structure clean.
+- **Docs:** `docs/core-api/03-capabilities.md` §21.
+- **FEATURES:** new Implemented row "Validate PDF/X-1a, X-3 and X-4" (core `[x]`, cli `[x]`, gui `[ ]`); the preflight row lists twelve checks and eight profiles; the Planned PDF/X row narrowed to the conversion (`748.6`).
+- **Open in the O458 round:** `748.6`, `748.8`, `729.0` (in flight), `748.9` (after `748.8`), `748.10` (queued).
+
+### `Pass 748.4`: convert colours to one ICC profile (`pdfcer convert-colours`), `29888e43`, 2026-11-24 (1691st filing)
+
+Engineer-reported; source `O458`; push, CI and backup not checked from here. **Unreleased.** Merged-main test sweep was still running at filing (engineer will report); worker: render 577 + 700 + 41 doctests.
+- **Core:** `EditSession::convert_colours(&ConvertScope, &ColourConversion, &dyn ColourConverter) -> Result<ConvertColoursReport, EditError>`; one undo step (`CommandKind::ConvertColours`); `EditError::ColourConversionRefused { reason }`. Prepress types `ColourConverter` (trait; the implementation is injected, core stays render-free), `ColourTransform`, `ColourConversion`, `ColourDestination`, `IntentChoice`, `ConvertScope`, `ColourSource`, `ConvertedColour`, `ConvertFailure`, `ConvertColoursReport`, `SourceCount`, `SourceFamily`, `ImageConversion`, `Unconverted`, `OutputIntentChange`; shared helpers in `prepress/rewrite.rs`.
+- **Render:** `pdfcer_render::convert_colours::IcccerConverter` (icccer does all colour maths, decision 064); `DEFAULT_GAMUT_TOLERANCE` 2.0.
+- **CLI:** `pdfcer convert-colours` (in-place family).
+- **Not delivered, disclosed (open, no Pass ID):** Selection scope, spot colours, inline images, mesh and function shadings, Type 3 glyphs, `/DA` strings. Out-of-gamut counting is an sRGB screen comparison, disclosed.
+- **Docs:** `docs/core-api/02` §1.37 (`EditSession` verbs now 439, `EditError` variants 206), `03` §22; README subcommands 267; `check-clap-help` reports 269.
+- **FEATURES:** new Implemented row "Convert colours to one ICC profile" (core `[x]`, cli `[x]`, gui `[ ]`); the Planned convert-colours row removed.
+
 ### `Pass 748.7`: validate PDF/UA-1 and PDF/UA-2 with clause-level findings (`pdfcer validate-pdfua`), `a4d41557`, 2026-11-24 (1690th filing)
 
 Engineer-reported; source `O458` (`request_pdfua_validate.md`); cherry-picked from worker `1eec1f42`, unpushed; push, CI and backup not checked from here. **Unreleased** (the preflight round is released only when all of it is done).
@@ -28739,6 +28760,8 @@ closes out the *prior* filing's business rather than opening this one's.
 
 ## Next up
 
+> **`Pass 748.4` and `748.5` SHIPPED (1691st filing, `29888e43`, `a8e4da20`); see *Shipped*.** Preflight round still open: `748.6`, `748.8`, `729.0` (in flight), `748.9` (after `748.8`), `748.10` (queued). Their bullets below are kept as filed. Owed (no ID): convert-colours gaps (Selection scope, spot colours, inline images, mesh and function shadings, Type 3 glyphs, `/DA`).
+>
 > **`Pass 748.7` SHIPPED (1690th filing, `a4d41557`); see *Shipped*.** Its bullet below is kept as filed. Owed: checks for 76 machine-decidable PDF/UA rows (no ID).
 >
 > **`Pass 748.1`, `748.2` and `748.3` SHIPPED (1689th filing, `83317911`, `bc0273af`, `b76734ff`); see *Shipped*.** Preflight arc still open: `748.4`-`748.9`, `748.10`, `729.0`. The per-Pass bullets for `748.1`-`748.3` in the 1687th-filing text below are kept as filed; the `748.2` open question (Type 3 and pattern hairlines) is answered: not covered, disclosed.

@@ -4,6 +4,17 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-11-24 (1691st filing) — `Pass 748.5` (PDF/X validation), `Pass 748.4` (convert colours) SHIPPED
+
+**Filed (engineer-reported; no shell here, so git, push, CI, release and backup state are not checked from here):**
+- **`Pass 748.5` `a8e4da20`:** `validate_pdfx`/`validate_pdfx_with`, `PdfxLevel` (5 levels), `PdfxReport` with `verdict()` (`Fails`/`Unconfirmed`/`Conforms`), `Check::PdfxRequirement`, five `pdfx-*` built-in profiles (`BUILTIN_NAMES` now 8), CLI `validate-pdfx` (exit 18). Built from the spec inventory (ISO 15930-1/-3/-4/-7). Not covered, disclosed: object and xref streams in the version-ceiling check, the PostScript operator, some unsourced rows. Merged main: clippy clean, core lib 2469, cli 1145 (worker run), core-api verbs, clap-help (268 subcommands) and code-structure pass. core `[x]`, cli `[x]`, gui `[ ]`.
+- **`Pass 748.4` `29888e43`:** `EditSession::convert_colours` (one undo step), `ColourConverter` trait injected so core stays render-free, `IcccerConverter` in render (decision 064), CLI `convert-colours`. Not delivered: Selection scope, spot colours, inline images, mesh/function shadings, Type 3 glyphs, `/DA` (no Pass ID); out-of-gamut count is an sRGB screen comparison, disclosed. Worker: render 577 + 700 + 41 doctests; merged-main sweep still running. core `[x]`, cli `[x]`, gui `[ ]`.
+- **Counts (engineer-reported):** `EditSession` verbs 439, `EditError` variants 206, README subcommands 267, clap-help 269.
+
+**Open in the O458 round:** `748.6`, `748.8`, `729.0` (in flight); `748.9` (after `748.8`); `748.10` (queued). Release `v0.172.0` when all are done.
+
+**FEATURES:** two new Implemented rows (PDF/X validation; convert colours); preflight row now twelve checks and eight profiles; Planned convert-colours row removed, Planned PDF/X row narrowed to the conversion (`748.6`); the arcs A-D conformance row now mentions PDF/X profiles. **Sweep (rule 11):** the earlier 1689th text and the `748.7` entries that say "no PDF/X profile" or "eleven checks" are kept as filed; `README.md`, rustdoc and `docs/core-api/` may still say the old counts (engineer to sweep).
+
 ## 2026-11-24 (1689th filing) — `Pass 748.2` (hairlines), `Pass 748.3` (Ink Manager), `Pass 748.1` (transparency) SHIPPED
 
 **Filed (engineer-reported; no shell here, so git, push, CI, release and backup state are not checked from here; all three cherry-picked onto `main`, unpushed; main-branch test counts pending, worker counts below):**
