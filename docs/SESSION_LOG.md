@@ -4,6 +4,21 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-11-24 (1700th filing) — `v0.173.0` PUBLISHED
+
+**Filed (engineer-reported, checked by the engineer with a shell; nothing here checked from this filing's side):**
+- Tag `v0.173.0` on `e4dd17e8`, CI green at the tag. Bump `40e23b16` (1699th).
+- GitHub release with 8 assets (zip 33,518,580 bytes; OCR add-ons 3,789,155 / 11,352,262 / 4,483,685; each with `.sha256`).
+- Fresh-folder smoke test passed (`D:\builds\smoke-v0.173.0`, copy of `D:\builds\pdfcer-20261124-1307-e4dd17e`): `--version` shows `v0.173.0`, `render-page`, `tac --limit 300`, `preflight --profile pdfx-4 --report FILE`, `validate-pdfa --level 2b`.
+- OneDrive `pdfcer2` written (held 0.171.0); `pdfcer1` keeps 0.172.0; **the next release writes `pdfcer1`**.
+- crates.io: 17 crates at 0.173.0, leaf-first, all in round 1.
+- `verify-release.py` passed except "working tree clean". Contents: `Pass 752.0`-`755.0`, `560a08e9`, `40e23b16`. Details: `ROADMAP.md` *Shipped*.
+- Channel: release notice `open/notice_2026-11-24_release_v0.173.0.md`; SHIPPED replies for all four requests.
+
+**FEATURES:** no box changes; `gpu_scene_cancellable` row's "unreleased" now reads "shipped in v0.173.0".
+
+**Next:** `Pass 729.1` (`convert_to_pdfa`), CLI `to-pdfa`, `Pass 755.1`.
+
 ## 2026-11-24 (1699th filing) — v0.173.0 version bump (`40e23b16`)
 
 **Filed (engineer-reported; no shell here, git, push, CI and the gates not checked from here):**

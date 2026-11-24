@@ -112,6 +112,19 @@ wherever it appears.*
 
 ## Shipped
 
+### `v0.173.0` PUBLISHED, tag on `e4dd17e8` (bump `40e23b16`, the 1699th filing), 2026-11-24 (1700th filing)
+
+Engineer-reported (the engineer checked these with a shell); this filing had no shell, so none of it is checked from here. This is the publication of the release whose bump was filed 1699th.
+- **Tag:** `v0.173.0` on `e4dd17e8` (the 1699th filing commit). CI green at the tag.
+- **GitHub release `pdfcer v0.173.0`:** 8 assets, each zip with a `.sha256`: `pdfcer-v0.173.0-windows-x64.zip` (33,518,580 bytes), `ocr-addon-ocrcer.zip` (3,789,155), `ocr-addon-ocrs.zip` (11,352,262), `ocr-addon-tesseract.zip` (4,483,685).
+- **Smoke test:** fresh folder `D:\builds\smoke-v0.173.0` (a copy of `D:\builds\pdfcer-20261124-1307-e4dd17e`); `--version` reports revision `v0.173.0`; `render-page`, `tac --limit 300`, `preflight --profile pdfx-4 --report FILE` and `validate-pdfa --level 2b` ran on `fixtures/synthetic/hello.pdf`.
+- **OneDrive:** slot `pdfcer2` written (it held 0.171.0); `pdfcer1` keeps 0.172.0, so **the next release writes `pdfcer1`**.
+- **crates.io:** all 17 crates at 0.173.0, leaf-first, all in round 1.
+- **`verify-release.py`:** passed every check except "working tree clean" (uncommitted agent memory and line-ending-only files, as at v0.172.0).
+- **Contents:** `Pass 752.0`-`755.0` and `560a08e9` (filed 1698th, `2900116c`) and the bump `40e23b16` (1699th). The entries above them say "Unreleased: since `v0.172.0`"; that was true when filed and they shipped here.
+- **Channel:** release notice `open/notice_2026-11-24_release_v0.173.0.md`; SHIPPED replies for all four requests.
+- **FEATURES:** no box changes; the `gpu_scene_cancellable` row now says it shipped in v0.173.0. **Next:** `Pass 729.1` (`convert_to_pdfa`), CLI `to-pdfa`, `Pass 755.1`.
+
 ### `40e23b16` `chore`: v0.173.0 version bump, 2026-11-24 (1699th filing)
 
 Engineer-reported; no shell here, git, push, CI and the gates not run or checked from here. **Unreleased until v0.173.0 is tagged.** Tag, package and publication are a separate filing.
