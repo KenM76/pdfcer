@@ -304,12 +304,18 @@ pub(crate) fn map_rect(r: Rect, p: &PagePlacement) -> Rect {
 }
 
 /// `/F` bit 4, NoZoom (§12.5.3 Table 165): the annotation keeps its size
-/// and its upper-left corner stays fixed to the page.
+/// and its upper-left corner stays fixed to the page. A `/Text` annotation
+/// always behaves as NoZoom, whatever `/F` says (ISO 32000-2 §12.5.6.4).
 fn no_zoom(resolve: &dyn Fn(&Object) -> Object, annot: &Dict) -> bool {
-    annot
-        .get(b"F")
-        .and_then(|o| resolve(o).as_int())
-        .is_some_and(|f| f & 8 != 0)
+    let is_text = annot
+        .get(b"Subtype")
+        .map(resolve)
+        .is_some_and(|o| o.as_name().is_some_and(|n| n.as_bytes() == b"Text"));
+    is_text
+        || annot
+            .get(b"F")
+            .and_then(|o| resolve(o).as_int())
+            .is_some_and(|f| f & 8 != 0)
 }
 
 /// Transform one annotation's geometry. Returns the changed dictionary, or
@@ -712,6 +718,21 @@ mod tests {
         let out = transform_annotation(&id_resolve, &d, &half()).unwrap();
         // Upper-left (100,120) → (50,60); size 20×20 kept.
         assert_eq!(nums(out.get(b"Rect").unwrap()), [50.0, 40.0, 70.0, 60.0]);
+    }
+
+    #[test]
+    fn a_text_annotation_keeps_its_size_without_the_no_zoom_flag() {
+        let mut d = Dict::new();
+        d.insert(Name::from(b"Subtype"), Object::Name(Name::from(b"Text")));
+        d.insert(Name::from(b"Rect"), arr(&[100.0, 100.0, 124.0, 124.0]));
+        d.insert(Name::from(b"F"), Object::Integer(4));
+        let out = transform_annotation(&id_resolve, &d, &half()).unwrap();
+        // Upper-left (100,124) -> (50,62); 24x24 kept.
+        assert_eq!(nums(out.get(b"Rect").unwrap()), [50.0, 38.0, 74.0, 62.0]);
+
+        d.insert(Name::from(b"Subtype"), Object::Name(Name::from(b"Square")));
+        let out = transform_annotation(&id_resolve, &d, &half()).unwrap();
+        assert_eq!(nums(out.get(b"Rect").unwrap()), [50.0, 50.0, 62.0, 62.0]);
     }
 
     fn format(c: f64) -> Object {
