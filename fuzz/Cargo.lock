@@ -974,6 +974,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "pdfcer-ink"
+version = "0.171.0"
+dependencies = [
+ "thiserror",
+]
+
+[[package]]
 name = "pdfcer-jpeg-remux"
 version = "0.171.0"
 dependencies = [
@@ -1029,6 +1036,7 @@ dependencies = [
  "icccer-profile",
  "jpeg-encoder",
  "pdfcer-core",
+ "pdfcer-ink",
  "png",
  "skrifa",
  "subsetter",
