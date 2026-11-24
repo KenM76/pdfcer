@@ -6820,7 +6820,7 @@ Contract:
 
 Read-only; no edit session. `pdfcer_core::preflight` (CLI: `pdfcer
 validate-pdfua IN [--part 1|2] [--json]`; also `pdfcer preflight --profile
-pdfua-1|pdfua-2`). Fixups are Pass 748.8.
+pdfua-1|pdfua-2`). Fixups: §24.
 
 | Call | Returns |
 |---|---|
@@ -7027,3 +7027,47 @@ another subtype is left.
 
 ⚠️ `PdfxOutputIntent`, `PdfxConversion` and `PdfxConversionReport` are
 `#[non_exhaustive]`: construct with `new`.
+## 24. PDF/UA fixups (`Pass 748.8`)
+
+The edits that `validate-pdfua` (§20) findings call for and a machine can
+make. Verbs: `02-editing-and-saving.md` §1.39. CLI: `pdfcer fix-pdfua IN
+[--part 1|2] [--lang TAG] [--title TEXT] [--json] -o OUT`. Each verb can be
+called on its own (the generic preflight `Fixup` wiring is Pass 748.9).
+
+| Fixup | Answers | Writes |
+|---|---|---|
+| `Language` | PUI-11-006 (ISO 14289-1 §7.2); PUI2-8.4.4-1 (ISO 14289-2 §8.4.4) | catalog `/Lang` |
+| `DisplayDocTitle` | PUI-06-003, PUI-07-001, PUI-07-002 (§7.1 ¶8, ¶10); PUI2-8.11.1-1, PUI2-8.11.2-1 | `/ViewerPreferences /DisplayDocTitle true`; XMP `dc:title` when missing |
+| `TabOrder` | PUI-28-008, PUI-28-009 (§7.18.3); PUI2-8.9.3.3-1 | `/Tabs /S` on annotated pages whose value the part does not permit |
+| `Artifacts` | PUI-01-005 (§7.1 ¶2); PUI2-8.2.2-1 | `/Artifact BMC … EMC` around untagged content on tagged pages |
+| `Identification` | PUI-06-002 (§5); PUI2-5-1, PUI2-5-2, PUI2-5-5 | XMP `pdfuaid:part`, and `pdfuaid:rev 2024` for part 2 |
+
+Contract:
+
+- **Order** is the table's; the claim is last, so it sees the other four.
+  `fix_pdfua` is one undo step; each verb alone is one too.
+- **Never invented.** No `--lang` and no `/Lang` → `Skipped` (pdfcer does
+  not guess a language). No title in XMP, Info or `--title` →
+  `DocumentTitleMissing`, reported as `Refused`.
+- **The claim is a gate, not a fix.** It is written only when the session
+  then validates with no error outside the identification rows, and for
+  part 2 only on a PDF 2.0 file (header or catalog `/Version`). Otherwise
+  `PdfuaIdentificationWithheld { reasons }` lists each remaining failure;
+  a shell shows them. A clean run still has needs-a-person findings: show
+  them, and say "no machine-checkable failure", never "conforms".
+- **★ Disclose, off-canvas:** every `FixPdfuaReport::disclosures` entry.
+  Marking content as artifacts is an inference that every untagged item is
+  decorative; assistive technology then skips it. Also disclosed: a title
+  copied from Info into XMP, a metadata stream created, pages skipped (no
+  tagged content at all, or unreadable content), `/MCID`s the structure
+  tree does not claim (left), and forms mixing tagged and untagged content
+  (left).
+- **Not touched:** annotation appearance streams, untagged content inside
+  a form that also holds tags, pages with no tagged content.
+- **Minimal diff:** only the catalog, the metadata stream, the page
+  dictionaries whose `/Tabs` changed and the content streams that gained a
+  wrap are written. A second run changes nothing.
+
+⚠️ `ArtifactMarkReport`, `DocTitleOutcome`, `FixPdfuaOptions`,
+`FixPdfuaReport` and `PdfuaFixupResult` are `#[non_exhaustive]`;
+`PdfuaFixup` and `PdfuaFixupOutcome` likewise.

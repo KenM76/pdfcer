@@ -493,13 +493,25 @@ pub(crate) fn xmp_short_value(packet: &[u8], key: &[u8]) -> Option<String> {
             let end = tail.iter().position(|b| *b == quote)?;
             short_ascii(tail.get(..end)?, MAX_VALUE)
         }
-        Some(b'>') => {
-            let tail = rest.get(idx + 1..)?;
-            let end = tail.iter().position(|b| *b == b'<')?;
-            short_ascii(tail.get(..end)?, MAX_VALUE)
+        Some(b'>') => element_text(rest.get(idx + 1..)?, MAX_VALUE),
+        // Element form with attributes, e.g. a namespace declared on the
+        // property itself: `<pdfuaid:part xmlns:pdfuaid="…">1</…>`.
+        Some(_) if idx > 0 => {
+            let open = rest.get(idx..)?;
+            let close = open.iter().position(|b| *b == b'>')?;
+            if open.get(close.checked_sub(1)?) == Some(&b'/') {
+                return None;
+            }
+            element_text(open.get(close + 1..)?, MAX_VALUE)
         }
         _ => None,
     }
+}
+
+/// The text before the next `<`, if short printable ASCII.
+fn element_text(tail: &[u8], max: usize) -> Option<String> {
+    let end = tail.iter().position(|b| *b == b'<')?;
+    short_ascii(tail.get(..end)?, max)
 }
 
 /// Accept a candidate value only if it is short, printable ASCII.
@@ -1357,6 +1369,18 @@ pub(crate) fn strip_descriptor(descriptor: &mut Dict, target: &UnembedTarget) ->
 )]
 mod tests {
     use super::*;
+
+    #[test]
+    fn short_value_reads_an_element_carrying_its_own_namespace() {
+        let packet =
+            br#"<pdfuaid:part xmlns:pdfuaid="http://www.aiim.org/pdfua/ns/id/">2</pdfuaid:part>"#;
+        assert_eq!(
+            xmp_short_value(packet, b"pdfuaid:part").as_deref(),
+            Some("2")
+        );
+        let empty = br#"<pdfuaid:part xmlns:pdfuaid="http://www.aiim.org/pdfua/ns/id/"/>"#;
+        assert_eq!(xmp_short_value(empty, b"pdfuaid:part"), None);
+    }
 
     #[test]
     fn pdfa_claim_reads_attribute_form() {

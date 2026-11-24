@@ -31,6 +31,10 @@ pub use hairlines::{HAIRLINES_NOT_COVERED, Hairline, hairlines};
 pub use pdfua::{
     DecidedBy, PdfuaPart, PdfuaReport, Requirement, requirement, requirements, validate_pdfua,
 };
+pub(crate) use pdfua::{
+    claimed_mcids, has_title as xmp_has_title, header_ok as pdfua_header_ok, lang_well_formed,
+    plan_page,
+};
 pub use pdfx::{PdfxLevel, PdfxReport, PdfxVerdict, validate_pdfx, validate_pdfx_with};
 pub use profile::{Profile, ProfileError, ProfileRule};
 

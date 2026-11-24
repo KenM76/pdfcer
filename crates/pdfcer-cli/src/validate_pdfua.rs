@@ -76,7 +76,8 @@ fn opt(v: Option<&str>) -> String {
     v.map_or_else(|| "null".to_owned(), |s| format!("\"{}\"", json_escape(s)))
 }
 
-fn finding_json(f: &preflight::Finding) -> String {
+/// One finding as a JSON object; shared with `fix-pdfua`.
+pub(crate) fn finding_json(f: &preflight::Finding) -> String {
     let kind = match f.kind {
         FindingKind::Violation => "violation",
         FindingKind::NeedsPerson => "needs-person",

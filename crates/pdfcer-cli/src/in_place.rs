@@ -83,6 +83,7 @@ pub(crate) const IN_PLACE_COMMANDS: &[&str] = &[
     "xfa-fill",
     "xfa-materialize",
     "fix-hairlines",
+    "fix-pdfua",
     "flatten",
     "flatten-annotations",
     "flatten-transparency",

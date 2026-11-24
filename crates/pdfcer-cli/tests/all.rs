@@ -64,6 +64,7 @@ mod fill_field_types;
 mod fill_rich_text;
 mod find_text;
 mod fix_hairlines;
+mod fix_pdfua;
 mod flatten_annotations;
 mod flatten_transparency;
 mod font_licence_notice;

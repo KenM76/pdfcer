@@ -12113,6 +12113,48 @@ pub(crate) enum Command {
         #[arg(long)]
         json: bool,
     },
+    /// Fix what PDF/UA validation can fix without a person, then re-validate.
+    ///
+    /// Runs, in order: set the document language (`--lang`, or kept if
+    /// already set); show the title in the window bar, copying the title into
+    /// the XMP metadata when only the Info dictionary has one (`--title`
+    /// supplies one; a title is never invented); set structure tab order on
+    /// pages with annotations; mark untagged content on tagged pages as
+    /// artifacts; and write the pdfuaid conformance claim. The claim is written
+    /// only when validation then finds no violation or incomplete; otherwise a
+    /// `refused` line lists what stops it.
+    ///
+    /// Prints one `fixup` line per step (applied, already-done, refused or
+    /// skipped), a `disclosure` line per inference (marking content as
+    /// artifacts hides it from assistive technology), a `verdict` line and the
+    /// remaining findings. The output is saved either way; exits 18 when the
+    /// file still fails. One undo step.
+    FixPdfua {
+        /// Input PDF.
+        input: PathBuf,
+        /// The ISO 14289 part: 1 (PDF/UA-1) or 2 (PDF/UA-2, needs a PDF 2.0
+        /// file).
+        #[arg(long, default_value_t = 1, value_parser = clap::value_parser!(u8).range(1..=2))]
+        part: u8,
+        /// Document language as a BCP 47 tag, such as `en-US`.
+        #[arg(long)]
+        lang: Option<String>,
+        /// Document title, used when the file has none.
+        #[arg(long)]
+        title: Option<String>,
+        /// Print one JSON object instead of lines.
+        #[arg(long)]
+        json: bool,
+        /// Output path.
+        #[arg(short, long)]
+        output: PathBuf,
+        /// Save mode.
+        #[arg(long, value_enum, default_value_t = SaveMode::Incremental)]
+        mode: SaveMode,
+        /// Reload and verify the edit undoes byte-identically.
+        #[arg(long)]
+        verify_undo: bool,
+    },
     /// Convert lengths to and from a ce dimension group's scale on one page.
     ///
     /// `--typed` reads a length as it would be typed into a box showing the

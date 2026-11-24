@@ -187,6 +187,9 @@ mod group;
 pub use form_group::{FormGroupOutcome, FormUngroupOutcome};
 pub use group::{GroupOutcome, UngroupOutcome, is_group_form};
 mod hairlines;
+mod pdfua_artifacts;
+mod pdfua_fix;
+mod pdfua_title;
 mod restack;
 mod running_text;
 #[cfg(feature = "signing")]
@@ -199,6 +202,11 @@ pub use annot_restyle::{
 pub use foreign_button::ForeignAppearance;
 pub use form_paint::FormPaintOutcome;
 pub use hairlines::HairlineFixReport;
+pub use pdfua_artifacts::ArtifactMarkReport;
+pub use pdfua_fix::{
+    FixPdfuaOptions, FixPdfuaReport, PdfuaFixup, PdfuaFixupOutcome, PdfuaFixupResult,
+};
+pub use pdfua_title::{DocTitleOutcome, DocTitleSource};
 pub use print_decoration::{PrintDecoration, PrintDecorationReport};
 mod info_entries;
 mod markup_respan;
@@ -1326,6 +1334,18 @@ pub enum CommandKind {
     SetObjectStrokeStyle,
     /// [`EditSession::fix_hairlines`].
     FixHairlines,
+    /// [`EditSession::set_document_language`].
+    SetDocumentLanguage,
+    /// [`EditSession::set_display_doc_title`].
+    SetDisplayDocTitle,
+    /// [`EditSession::mark_untagged_as_artifacts`].
+    MarkUntaggedAsArtifacts,
+    /// [`EditSession::set_pdfua_tab_order`].
+    SetPdfuaTabOrder,
+    /// [`EditSession::write_pdfua_identification`].
+    WritePdfuaIdentification,
+    /// [`EditSession::fix_pdfua`].
+    FixPdfua,
     /// [`EditSession::restack_objects`].
     RestackObjects,
     /// [`EditSession::group_objects`].
@@ -9336,6 +9356,55 @@ pub enum EditError {
     TabsValueUndefined {
         /// The name that was requested.
         value: String,
+    },
+    /// [`EditSession::set_document_language`] was given a tag not shaped
+    /// like a BCP 47 language tag, `/^[a-zA-Z]{1,8}(-[a-zA-Z0-9]{1,8})*$/`
+    /// (ISO 32000-1 §14.9.2.1; ISO 14289-1 §7.2 ¶3, veraPDF 7.2-29). Nothing
+    /// was written.
+    #[error(
+        "{tag:?} is not a language tag: it must be letters, then dash-separated parts of up \
+         to 8 letters or digits each, such as en-US"
+    )]
+    LanguageTagMalformed {
+        /// The tag as given.
+        tag: String,
+    },
+    /// [`EditSession::set_display_doc_title`] found no title to show: no
+    /// `dc:title` in the XMP metadata, no `/Info /Title`, and none supplied.
+    /// pdfcer never invents one.
+    #[error(
+        "the document has no title (no dc:title in its XMP metadata and no /Info /Title), so \
+         there is nothing for the title bar to show; supply a title"
+    )]
+    DocumentTitleMissing,
+    /// [`EditSession::mark_untagged_as_artifacts`] needs a structure tree
+    /// (`/StructTreeRoot`, ISO 32000-1 §14.7.2) to tell tagged content from
+    /// untagged; an untagged document needs tagging, not artifacts.
+    #[error(
+        "the document has no structure tree (/StructTreeRoot), so no content is tagged and          none can be told apart as decorative; tag the document first"
+    )]
+    DocumentNotTagged,
+    /// The catalog's XMP packet could not be read or updated (ISO 32000-1
+    /// §14.3.2), so a PDF/UA fixup that writes it changed nothing.
+    #[error("the XMP metadata packet cannot be updated: {reason}")]
+    XmpPacketUnwritable {
+        /// Why, in a phrase.
+        reason: &'static str,
+    },
+    /// [`EditSession::write_pdfua_identification`] withheld the
+    /// `pdfuaid:part` claim because the document still fails validation
+    /// (ISO 14289-1 §5, ISO 14289-2 §5). Nothing was written.
+    #[error(
+        "PDF/UA-{part} identification withheld: {} finding(s) still fail validation, the \
+         first: {}",
+        reasons.len(),
+        reasons.first().map_or("", String::as_str)
+    )]
+    PdfuaIdentificationWithheld {
+        /// The part that was to be claimed.
+        part: u8,
+        /// Each failing finding, as `rule: message`.
+        reasons: Vec<String>,
     },
     /// [`EditSession::add_validation_material`] was given a blob that cannot
     /// be stored in `/DSS`. Nothing was written.

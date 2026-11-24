@@ -393,7 +393,7 @@ pub(super) fn heading_level(t: &[u8]) -> Option<u32> {
 
 /// ISO 14289-1 §7.2 ¶3 / veraPDF 7.2-29, ISO 14289-2 §8.4.4: a language
 /// tag of the shape `/^[a-zA-Z]{1,8}(-[a-zA-Z0-9]{1,8})*$/`.
-pub(super) fn lang_well_formed(tag: &str) -> bool {
+pub(crate) fn lang_well_formed(tag: &str) -> bool {
     let mut parts = tag.split('-');
     let first_ok = parts
         .next()

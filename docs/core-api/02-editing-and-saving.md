@@ -18,7 +18,7 @@ answers *"I want to do X — what do I call, in what order, and what will bite m
 | **Date** | 2026-08-29 |
 | **Verified against** | `5c37c7c` (`git rev-parse --short HEAD`) — *"he gave no reason" was a claim, and it has been corrected* |
 | **Primary subject** | `crates/pdfcer-core/src/edit.rs` (35655) |
-| **Covers** | `EditSession` end to end: construction, the command/undo/redo model, **all 440 public methods**, the `EditError` taxonomy, the save path (incremental vs full rewrite), the guard/refusal model (encryption, certification, sidecar version, `/Size` suppression), object allocation and byte staging |
+| **Covers** | `EditSession` end to end: construction, the command/undo/redo model, **all 448 public methods**, the `EditError` taxonomy, the save path (incremental vs full rewrite), the guard/refusal model (encryption, certification, sidecar version, `/Size` suppression), object allocation and byte staging |
 | **Does NOT cover** | Document loading and the read-only object model → **`01-reading-and-model.md`**. Per-feature capability guides (ce dimensions, forms, annotations, redaction, OCR, printing) → **`03-capabilities.md`**. This document covers the *session mechanics* those features flow through; part 3 covers the features. |
 | **Terminology** | Project rule 15. **ce dimensions** = the dimension objects pdfcer authors (`/Line` + `/IT /LineDimension` + baked `/AP` + `/PieceInfo` sidecar). **pdf dimensions** = dimensions already present in the page content, exported by CAD. Never bare "dimension". This document only concerns ce dimensions. |
 
@@ -69,9 +69,9 @@ Five consequences a GUI author must internalise before writing any code:
 
 ---
 
-## 1. Verb index — all 440 public `EditSession` methods
+## 1. Verb index — all 448 public `EditSession` methods
 
-**Count: 440.** Established by brace-matched extraction of the
+**Count: 448.** Established by brace-matched extraction of the
 `impl EditSession` blocks in `edit.rs` and its `edit/` child modules, matching `pub fn` / `pub const fn`, and checked
 on every run by `tools/check-core-api-verbs.py` — which is what caught this
 figure at 120 when `add_outline_item` landed, and caught it again at 227 when
@@ -96,7 +96,7 @@ added `add_file_attachment_annotation`, and at 274 when `Pass 261.1` added
 `add_caret_annotation` and `add_replace_text`, and at 275 when `Pass 261.2`
 added `add_sound_annotation`, and at 276 when `Pass 261.3` added
 `add_screen_annotation`, and at 277 when `Pass 142.3` added
-`preview_style_ladder_with_donors`, and at 279 when `Pass 375.0` added `set_crop_boxes` and `resize_pages`, at 283 when Bates numbering added `stamp_bates`, and at 284 when `remove_bates` followed, and at 348 when `G154` added `insert_node`, `convert_node`, `convert_segment` and their three `_in_form` twins, and at 349 when `G160` added `turn_widget`, and at 350 when `G168` added `set_3d_views`, and at 352 when `G164` added `metadata_inventory` and `remove_metadata`, and at 355 when `G165` added `page_scan_image`, `detect_image_skew` and `deskew_image`, and at 356 when `G171` added `coalesce_last_same`, and at 371 when `G198` added `upscale_image`, and at 385 when `Pass 55.10` added `stamp_running_text`, and at 386 when `Pass 55.11` added `add_printer_marks`, and at 387 when `G238` added `decorate_for_print`, and at 388 when `G247` added `set_3d_opening_view`, and at 391 when `G243` added `fork_for_print` and `decorated_for_print`, and at 401 when `Pass 694.2` added `set_page_boxes`, and at 402 when `Pass 700.9` added `fill_rich_text_field`, and at 404 when its follow-up added `set_rich_style_precedence` and `rich_style_precedence`, and at 423 when `Pass 722.0` added `extend_path`, `open_subpath` and their two `_in_form` twins, and at 427 when `G295` added `can_extend_path`, `can_open_subpath` and their two `_in_form` twins, and at 428 when `G301` added `materialize_merged_xfa`, and at 429 when `X101` added `deskew_image_with`, and at 430 when `G317` added `edit_capability_for`, and at 431 when `G319` added `insert_pages_with_options`, and at 432 when `G321` added `fill_rich_text_field_runs`, and at 433 when `G324` added `page_snap_geometry`, and at 436 when `Pass 748.3` added `inks`, `alias_ink` and `spot_to_process`, and at 438 when `Pass 748.1` added `flatten_transparency`, and at 439 when `Pass 748.4` added `convert_colours`, and at 440 when `Pass 748.6` added `convert_to_pdfx`.
+`preview_style_ladder_with_donors`, and at 279 when `Pass 375.0` added `set_crop_boxes` and `resize_pages`, at 283 when Bates numbering added `stamp_bates`, and at 284 when `remove_bates` followed, and at 348 when `G154` added `insert_node`, `convert_node`, `convert_segment` and their three `_in_form` twins, and at 349 when `G160` added `turn_widget`, and at 350 when `G168` added `set_3d_views`, and at 352 when `G164` added `metadata_inventory` and `remove_metadata`, and at 355 when `G165` added `page_scan_image`, `detect_image_skew` and `deskew_image`, and at 356 when `G171` added `coalesce_last_same`, and at 371 when `G198` added `upscale_image`, and at 385 when `Pass 55.10` added `stamp_running_text`, and at 386 when `Pass 55.11` added `add_printer_marks`, and at 387 when `G238` added `decorate_for_print`, and at 388 when `G247` added `set_3d_opening_view`, and at 391 when `G243` added `fork_for_print` and `decorated_for_print`, and at 401 when `Pass 694.2` added `set_page_boxes`, and at 402 when `Pass 700.9` added `fill_rich_text_field`, and at 404 when its follow-up added `set_rich_style_precedence` and `rich_style_precedence`, and at 423 when `Pass 722.0` added `extend_path`, `open_subpath` and their two `_in_form` twins, and at 427 when `G295` added `can_extend_path`, `can_open_subpath` and their two `_in_form` twins, and at 428 when `G301` added `materialize_merged_xfa`, and at 429 when `X101` added `deskew_image_with`, and at 430 when `G317` added `edit_capability_for`, and at 431 when `G319` added `insert_pages_with_options`, and at 432 when `G321` added `fill_rich_text_field_runs`, and at 433 when `G324` added `page_snap_geometry`, and at 436 when `Pass 748.3` added `inks`, `alias_ink` and `spot_to_process`, and at 438 when `Pass 748.1` added `flatten_transparency`, and at 439 when `Pass 748.4` added `convert_colours`, and at 440 when `Pass 748.6` added `convert_to_pdfx`, and at 448 when `Pass 748.8` added `validate_pdfua`, `document_language`, `set_document_language`, `set_display_doc_title`, `set_pdfua_tab_order`, `mark_untagged_as_artifacts`, `write_pdfua_identification` and `fix_pdfua`.
 There are no `EditSession` methods in any other file
 (`grep -rn "impl EditSession" crates/pdfcer-core/src/` returns those lines only).
 
@@ -5439,6 +5439,26 @@ the strict certification gate. Show `steps`, every `disclosures` entry and,
 on a refusal, `validation`'s findings off-canvas. **Detail:
 `03-capabilities.md`, part 23.**
 
+### 1.39 PDF/UA fixups (8) — `Pass 748.8`
+
+Each fixup is its own verb with its own undo step; `fix_pdfua` runs them
+in order as ONE undo step. **Detail and the disclosure contract:
+`03-capabilities.md` §24.**
+
+| I want to… | Call | Returns |
+|---|---|---|
+| Validate the session against PDF/UA | `validate_pdfua(&self, part: preflight::PdfuaPart) -> preflight::PdfuaReport` | `preflight::validate_pdfua` over the session's current state. The header row (PUI-V-6.1-1) is answered from the base file's bytes, which a session view does not carry. |
+| Read the document language | `document_language(&self) -> Option<String>` | The catalog `/Lang`, decoded; `None` when absent. |
+| Set the document language | `set_document_language(&mut self, tag: &str) -> Result<bool, EditError>` | Writes catalog `/Lang` (ISO 32000-1 §14.9.2.2; ISO 14289-1 §7.2). `false` and no undo entry when it already holds `tag`. ONE undo entry, `CommandKind::SetDocumentLanguage`. Refuses `LanguageTagMalformed` (not BCP 47 shaped: a primary subtag of 1–8 letters, then subtags of 1–8 letters or digits, joined by `-`; the same test as validation's PUI-V-7.2-29). |
+| Show the title in the window bar | `set_display_doc_title(&mut self, title: Option<&str>) -> Result<DocTitleOutcome, EditError>` | Sets `/ViewerPreferences /DisplayDocTitle true` and ensures an XMP `dc:title` (ISO 14289-1 §7.1 ¶8, ¶10). Title source, in order: the packet's own (`DocTitleSource::Existing`), `title` (`Supplied`, also written to Info `/Title`), Info `/Title` (`CopiedFromInfo`). **Never invents one:** none of the three → `DocumentTitleMissing`. Creates a packet when the file has none (`packet_created`). ONE undo entry, `CommandKind::SetDisplayDocTitle`; `changed == false` writes nothing. Refuses `XmpPacketUnwritable { reason }` for a packet that cannot be read or rewritten. |
+| Set tab order on annotated pages | `set_pdfua_tab_order(&mut self, part) -> Result<Vec<usize>, EditError>` | Every page with annotations whose `/Tabs` the part does not permit gets `/S` (UA-1 permits `S` only, §7.18.3; UA-2 `A`/`W`/`S`, ISO 14289-2 §8.9.3.3). Returns the pages changed (0-based). ONE undo entry, `CommandKind::SetPdfuaTabOrder`. |
+| Mark untagged content as artifacts | `mark_untagged_as_artifacts(&mut self, pages: &[usize]) -> Result<ArtifactMarkReport, EditError>` | Wraps content that is neither tagged nor an artifact in `/Artifact BMC … EMC` (ISO 32000-1 §14.8.2.2.2) on tagged pages (empty `pages` = all). Only changed streams are rewritten; wraps never split `BT`/`ET`, `q`/`Q` or `BX`/`EX`. `ArtifactMarkReport { marked: Vec<(page, items)>, sequences, items, skipped: Vec<(page, reason)>, disclosures }`. **An inference** — disclose `disclosures`. ONE undo entry, `CommandKind::MarkUntaggedAsArtifacts`. Refuses `DocumentNotTagged` (no `/StructTreeRoot`), `PageOutOfRange`. |
+| Write the conformance claim | `write_pdfua_identification(&mut self, part) -> Result<bool, EditError>` | Writes XMP `pdfuaid:part` (and `pdfuaid:rev 2024` for UA-2, ISO 14289-2 §5) **only when `validate_pdfua` finds no error outside the identification rows themselves**, and for UA-2 only on a PDF 2.0 file. Otherwise `PdfuaIdentificationWithheld { part, reasons }`, one reason per remaining failure. `false` when the claim is already there. ONE undo entry, `CommandKind::WritePdfuaIdentification`. |
+| Run every fixup and re-validate | `fix_pdfua(&mut self, part, options: &FixPdfuaOptions) -> Result<FixPdfuaReport, EditError>` | Language → DisplayDocTitle → TabOrder → Artifacts → Identification. A fixup that refuses is reported, not raised. `FixPdfuaOptions::default().with_lang(..).with_title(..)` (`#[non_exhaustive]`). `FixPdfuaReport { results: Vec<PdfuaFixupResult { fixup: PdfuaFixup, outcome: PdfuaFixupOutcome, detail }>, disclosures, validation }`, `identified()`. Outcomes: `Applied`, `AlreadyDone`, `Refused`, `Skipped`. ONE undo entry, `CommandKind::FixPdfua`. CLI: `pdfcer fix-pdfua IN [--part 1\|2] [--lang TAG] [--title TEXT] [--json] -o OUT [--mode] [--verify-undo] [--in-place]`. |
+
+Every verb also refuses `DocumentEncrypted` (no modify permission) and the
+certification gate. Every outcome struct is `#[non_exhaustive]`.
+
 ## 2. Construction, and the session's three read views
 
 ```rust
@@ -6268,10 +6288,10 @@ borrow it (`tests/image_placement.rs`).
 ### 6.7 The `EditError` taxonomy
 
 `edit.rs`, `#[derive(Debug, Clone, thiserror::Error)]`, `#[non_exhaustive]`.
-**206 variants**, counted at depth 1 inside `pub enum EditError`.
+**211 variants**, counted at depth 1 inside `pub enum EditError`.
 `RunningText(RunningTextError)` wraps `stamp_running_text`'s request errors.
 `PrinterMarks(PrinterMarksError)` wraps `add_printer_marks`'s request errors.
-(`ColourConversionRefused { reason }`, from `convert_colours`, is the newest; `InkNameRefused { name, reason }`, from `alias_ink`; `PasteNamesCount { fields, names }`, from `paste_fields`; `InfoKeyReserved { key: ReservedInfoKey }` and `InvalidInfoKey { problem: InfoKeyProblem }`, from `set_info_entry`; `XfaNotDynamic` and `XfaSigned`; `SourcePageOutOfRange`: a SOURCE document's page index, kept
+(`LanguageTagMalformed { tag }`, `DocumentTitleMissing`, `DocumentNotTagged`, `XmpPacketUnwritable { reason }` and `PdfuaIdentificationWithheld { part, reasons }`, from the PDF/UA fixups (§1.38), are the newest; `ColourConversionRefused { reason }`, from `convert_colours`; `InkNameRefused { name, reason }`, from `alias_ink`; `PasteNamesCount { fields, names }`, from `paste_fields`; `InfoKeyReserved { key: ReservedInfoKey }` and `InvalidInfoKey { problem: InfoKeyProblem }`, from `set_info_entry`; `XfaNotDynamic` and `XfaSigned`; `SourcePageOutOfRange`: a SOURCE document's page index, kept
 distinct from `PageOutOfRange` because the two name different mistakes.)
 
 `Pass 270.2` added `AnnotationContentsLocked` — **Table 165 bit 10,
@@ -6332,12 +6352,13 @@ Grouped for a shell's error presenter:
 `SidecarWrittenByNewerBuild` 2415 · `ObjectCreationWouldExposeHiddenObjects` 2355 ·
 `FieldLockedBySignature` 3044 · `AnnotationLocked` 2917 · `AnnotationIsTrapNet` 2945 ·
 `AnnotationIsWidget` 2877 · `FieldAuthoringRefusedXfa` 2504 · `AttachmentTreeUnsupported` 2374 ·
-`TabsNeedPdf20` · `TabsBreakPdfUa` · `NoSignatureToValidate` · `DssUnderNoChangesCertification`
+`TabsNeedPdf20` · `TabsBreakPdfUa` · `NoSignatureToValidate` · `DssUnderNoChangesCertification` ·
+`DocumentTitleMissing` · `DocumentNotTagged` · `PdfuaIdentificationWithheld` · `XmpPacketUnwritable`
 
 **Bad argument from the shell (a bug in the shell, not the document)**
 `PageOutOfRange` 2303 · `InvertedPageRange` · `RotationNotMultipleOf90` 2316 · `NotAPermutation` 3090 ·
 `WidgetIndexOutOfRange` 2582 · `FieldNameEmpty` 2696 · `FieldRectDegenerate` 2517 ·
-`ImageRectDegenerate` 3130 · `EmptyGeometry` 2771 · `TabsValueUndefined` ·
+`ImageRectDegenerate` 3130 · `EmptyGeometry` 2771 · `TabsValueUndefined` · `LanguageTagMalformed` ·
 `NotACircularDimension` 2468 · `AreaNeedsThreeVertices` · `AreaNeedsClosedOutline` · `InvalidTolerance` 2481 · `NotARedactionMark` 2832 ·
 `ChoiceEditRequiresCombo` 2568 · `ChoiceRequiresMultiSelect` 3053 ·
 `ChoiceValueNotInOptions` 3067 · `CheckBoxOnStateInvalid` 2654 ·

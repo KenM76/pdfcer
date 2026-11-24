@@ -45,14 +45,18 @@ fn header(view: &DocumentView<'_>, out: &mut Out) {
         out.incomplete("PUI-V-6.1-1", "", None, DOC, message);
         return;
     };
-    let ok = bytes.starts_with(b"%PDF-1.")
-        && matches!(bytes.get(7), Some(b'0'..=b'7'))
-        && matches!(bytes.get(8), Some(b'\r' | b'\n'));
-    if !ok {
+    if !header_ok(bytes) {
         let message =
             "The file header is not \"%PDF-1.n\" (n from 0 to 7) on a line of its own.".into();
         out.violation("PUI-V-6.1-1", "", None, DOC, message);
     }
+}
+
+/// Whether `bytes` open with the header veraPDF PDFUA-1 6.1-1 accepts.
+pub(crate) fn header_ok(bytes: &[u8]) -> bool {
+    bytes.starts_with(b"%PDF-1.")
+        && matches!(bytes.get(7), Some(b'0'..=b'7'))
+        && matches!(bytes.get(8), Some(b'\r' | b'\n'))
 }
 
 /// ISO 14289-1 §6.2 / ISO 14289-2 §6.2: `/MarkInfo /Marked true`, and
@@ -127,7 +131,7 @@ fn identification(packet: &[u8], out: &mut Out) {
 }
 
 /// A `dc:title` with some non-blank text in it.
-fn has_title(packet: &[u8]) -> bool {
+pub(crate) fn has_title(packet: &[u8]) -> bool {
     let Some(start) = find_bytes(packet, b"<dc:title") else {
         return false;
     };

@@ -25,6 +25,7 @@
 //! type under UA-1 (ISO 14289-1 §7.4.2 asks for `H7` and deeper).
 
 mod annots;
+mod artifact;
 mod content;
 mod document;
 mod fonts;
@@ -33,6 +34,10 @@ mod requirements;
 mod structure;
 #[cfg(test)]
 mod tests;
+
+pub(crate) use artifact::{claimed_mcids, plan_page};
+pub(crate) use document::{has_title, header_ok};
+pub(crate) use structure::lang_well_formed;
 
 use super::{Finding, FindingKind, FindingTarget, Severity};
 use crate::graph::ObjectGraph;
