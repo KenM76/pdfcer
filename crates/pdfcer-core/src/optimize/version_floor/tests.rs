@@ -267,3 +267,35 @@ fn an_icc_profile_version_is_reported_and_raises_only_when_strict() {
     );
     assert_eq!(old.floor, v(1, 3), "{old:?}");
 }
+
+#[test]
+fn single_dictionary_keys_count_only_in_their_dictionary() {
+    let page = doc(
+        "",
+        "/Path [[1 2]] /DL 5 /SS 1.0 /CI 6 0 R /EP 6 0 R",
+        b"",
+        &[],
+    );
+    assert!(page.requirements.is_empty(), "{page:?}");
+    assert_eq!(page.floor, v(1, 3));
+
+    let ink = doc(
+        "",
+        "/Annots [5 0 R]",
+        b"",
+        &[b"<< /Type /Annot /Subtype /Ink /Rect [0 0 9 9] /Path [[1 2 3 4]] >>".to_vec()],
+    );
+    assert_eq!(ink.floor, v(2, 0), "{ink:?}");
+
+    let dl = doc(
+        "",
+        "/Resources << /XObject << /X 5 0 R >> >>",
+        b"",
+        &[stream("/Subtype /Form /BBox [0 0 1 1] /DL 0", b"")],
+    );
+    assert_eq!(dl.floor, v(1, 5), "{dl:?}");
+    assert_eq!(constructs(&dl), ["/DL"]);
+
+    let ci = doc("", "", b"", &[b"<< /CI << >> >>".to_vec()]);
+    assert_eq!(ci.floor, v(1, 7), "{ci:?}");
+}

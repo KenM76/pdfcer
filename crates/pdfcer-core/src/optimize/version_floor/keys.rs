@@ -37,7 +37,10 @@ const A20: Rule = &[(ANY, 20)];
 /// §7.3.8 streams, §7.6 encryption, §7.12 extensions.
 fn structure(key: &[u8]) -> Option<Rule> {
     Some(match key {
-        b"DL" | b"CF" | b"StmF" | b"StrF" | b"EncryptMetadata" | b"CFM" | b"AuthEvent" => A15,
+        b"DL" => &[(STREAM, 15)],
+        b"CF" | b"StmF" | b"StrF" => &[(ENCRYPT, 15)],
+        b"EncryptMetadata" => &[(ENCRYPT | CRYPT_FILTER, 15)],
+        b"CFM" | b"AuthEvent" => &[(CRYPT_FILTER, 15)],
         b"EFF" => A16,
         b"OE" | b"UE" | b"ExtensionRevision" => A20,
         b"Perms" => &[(CATALOG, 15), (ENCRYPT | UNKNOWN, 20)],
@@ -70,12 +73,14 @@ fn document(key: &[u8]) -> Option<Rule> {
         | b"Tabs"
         | b"TemplateInstantiated"
         | b"PresSteps"
-        | b"Renditions"
-        | b"SS" => A15,
+        | b"Renditions" => A15,
+        b"SS" => &[(TRANSITION, 15)],
         b"UserUnit" | b"VP" | b"PrintScaling" => A16,
-        b"Extensions" | b"Requirements" | b"Collection" | b"NeedsRendering" | b"UF" | b"CI"
-        | b"Duplex" | b"PickTrayByPDFSize" | b"PrintPageRange" | b"NumCopies" => A17,
-        b"DSS" | b"DPartRoot" | b"AF" | b"DPart" | b"EP" | b"AFRelationship" | b"Enforce"
+        b"CI" => &[(FILESPEC | UNKNOWN, 17)],
+        b"EP" => &[(FILESPEC | UNKNOWN, 20)],
+        b"Extensions" | b"Requirements" | b"Collection" | b"NeedsRendering" | b"UF" | b"Duplex"
+        | b"PickTrayByPDFSize" | b"PrintPageRange" | b"NumCopies" => A17,
+        b"DSS" | b"DPartRoot" | b"AF" | b"DPart" | b"AFRelationship" | b"Enforce"
         | b"CompressedSize" => A20,
         b"Metadata" => &[(THREAD, 20), (ANY, 14)],
         b"Desc" => &[(FILESPEC, 16), (ATTR_OBJ, 17), (FOLDER, 20), (UNKNOWN, 17)],
@@ -117,8 +122,9 @@ fn annotation(key: &[u8]) -> Option<Rule> {
         b"RT" => A16,
         b"ExData" | b"LLO" | b"CP" => A17,
         b"CL" | b"LL" | b"LLE" | b"Cap" => A16,
-        b"Path" | b"GCS" | b"DCS" | b"PDU" | b"GPTS" | b"LPTS" | b"PCSM" | b"EPSG" | b"WKT"
-        | b"XPTS" | b"Penalty" => A20,
+        b"Path" => &[(ANNOT, 20)],
+        b"GCS" | b"DCS" | b"PDU" | b"GPTS" | b"LPTS" | b"PCSM" | b"EPSG" | b"WKT" | b"XPTS"
+        | b"Penalty" => A20,
         b"CreationDate" => &[(MARKUP, 15)],
         b"IT" => &[(STAMP, 20), (ANNOT | UNKNOWN, 16)],
         b"QuadPoints" => &[(LINK, 16)],
