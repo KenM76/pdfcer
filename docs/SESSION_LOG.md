@@ -4,6 +4,17 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-11-23 (1684th filing) — `Pass 742.0` (`G325`) SHIPPED, `0cdd8157`
+
+**Shipped (engineer-reported; no shell here; push, CI and gates not checked from here):**
+- `Pass 742.0`: `dimension::user_units_from_measurement_on`, the exact inverse of `format_measurement_on` (`/UserUnit`, other typed unit, `OneToOne`, decimal marker). New `LengthParseError::UnusableScale`. `parse_length` also reads `km`, `yd`, `mi`; its baseline debt paid.
+- Decision (engineer's, left open by `G325`): on `NeverSet` a bare number is points, a unit-bearing length is paper length.
+- CLI: read-only `pdfcer group-length`. Tests green (core lib 2420, `all.rs` 3414, cli 1129); four sabotage checks failed their tests. Ships in `v0.171.0`. Detail: `ROADMAP.md` Shipped.
+
+**FEATURES:** Planned row moved to Implemented, core `[x]` cli `[x]` gui `[ ]`.
+
+**Next:** `Pass 729.0` stays deferred; Next up has no head.
+
 ## 2026-11-23 (1683rd filing) — `Pass 744.0` (`X106`) SHIPPED, `af6104f7`
 
 **Shipped (engineer-reported; no shell here; push, CI and gates not checked from here):**

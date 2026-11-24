@@ -112,6 +112,19 @@ wherever it appears.*
 
 ## Shipped
 
+### `Pass 742.0` (`G325`): `user_units_from_measurement_on`, a typed scaled length back to page units, `0cdd8157`, 2026-11-23 (1684th filing)
+
+Engineer-reported; no shell here, push, CI and the gates not checked from here. One commit on `main`. Ships in `v0.171.0` (not yet released).
+- **Core:** `dimension::user_units_from_measurement_on(page, typed, scale_state, format) -> Result<f64, LengthParseError>` (new `dimension/measurement_parse.rs`), the exact inverse of `format_measurement_on`. Bare number = group's top unit; another typed unit converts through the calibration (`ScaleState::in_unit`); `OneToOne` = typed unit at true scale; `pt` suffix = printed points always; the format's decimal marker is honoured (`2,4`); leading `-` and zero accepted; result divided by `/UserUnit` (ISO 32000-1 §14.11.2 Table 30).
+- **`NeverSet` (engineer's decision, `G325` left it open):** bare number = points (the raw readout); a unit-bearing length = physical paper length.
+- **Errors:** new `LengthParseError::UnusableScale { input }` for a scale or `/UserUnit` not positive and finite.
+- **`parse_length`:** now wraps `pub(super) parse_magnitude` (zero allowed), still refuses <= 0 with `NotPositive`; both read `km`, `yd/yard/yards`, `mi/mile/miles`. Feet-inches split into `parse_feet_inches`; `parse_length` removed from `tools/code-structure-baseline.txt` (debt paid).
+- **CLI:** new read-only `pdfcer group-length <input> --page N --group G --typed TEXT (repeatable) --user-units X (repeatable)`, printing `typed=... user_units=... readout=...` and `user_units=... readout=...`; exit 9 on bad text, unknown group or unknown page (`group_length.rs`). `docs/core-api/03-capabilities.md` entry beside `format_measurement_on`; `check-core-api-verbs` green.
+- **Tests:** 8 core (`measurement_parse_tests.rs`, incl. `every_readout_reads_back_as_itself` over 11 scale/format cases at `/UserUnit` 1, 2, 0.75, lengths incl. 0 and negative), 2 `length_parse` (`kilometres_yards_and_miles_are_read`, `zero_is_still_not_a_length`), 2 CLI (`tests/group_length.rs`). Full run: core lib 2420, core `all.rs` 3414, cli 1129, 0 failed. Sabotage of the `/UserUnit` divide, unit conversion, `NeverSet` rule and comma marker each failed tests. clippy `-D warnings`, fmt, `check-code-structure`, `check-public-fns-documented`, `check-string-gaps` clean. No manifest change, `cargo tree` unaffected.
+- **Reply:** `D:\Dev\FeatureRequests\pdfce_FeatureRequests\open\reply_G325_SHIPPED.md`, INDEX row added.
+- **FEATURES:** Planned row "Type a length in a ce-dimension group's scale" moved to Implemented as core `[x]`, cli `[x]`, gui `[ ]` (GUI consumption pending in `pdfcer-gui`).
+- **Next:** `Pass 729.0` stays deferred; no other head in Next up.
+
 ### `Pass 744.0` (`X106`): `scale_pages` places page-level fill patterns with the content, `af6104f7`, 2026-11-23 (1683rd filing)
 
 Engineer-reported; no shell here, push, CI and the gates not checked from here. Request from the operator as crates consumer (pin `5a2d397c`).
@@ -28603,12 +28616,6 @@ closes out the *prior* filing's business rather than opening this one's.
 ---
 
 ## Next up
-
-> **`Pass 742.0` FILED 2026-11-23 (1681st filing): a scaled length back to page units (`G325`, `O456`; OPEN, none started; no shell here, engineer assigns the final ID).** Source: `pdfcer-gui` `request_page_length_from_scaled_length.md`. New `dimension::user_units_from_measurement_on(page, typed, scale_state, format) -> Result<f64, LengthParseError>`, the exact inverse of `format_measurement_on`.
->
-> - **Must honour:** `/UserUnit`, `ScaleState::OneToOne`, a typed unit that differs from the group's top unit, and the format's decimal marker. `NeverSet` behaviour is the engineer's to choose and document.
-> - **Acceptance:** round-trip test: `format_measurement_on(page, inverse(t))` re-reads as `t` to the format's precision. CLI: a way to exercise it (engineer picks).
-> - *FEATURES:* new Planned row "Type a length in a ce-dimension group's scale", core/cli/gui all `[ ]`.
 
 > **`Pass 729.0`-`729.2` FILED 2026-11-20 (1665th filing): PDF/A validation and conversion (ARC OPEN, none started; no shell here, engineer assigns final IDs and runs the gates).** Source: `pdfcer-gui` `request_pdfa_conversion.md`, the only GUI-blocking item; answered "not in v0.167.0, next arc" in `reply_pdfa_conversion_NOT_THIS_CYCLE.md`, so `v0.167.0` goes out naming it as the one gap. IDs `729.0`-`729.2` grep-checked unused across `docs/` before filing.
 >
