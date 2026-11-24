@@ -140,6 +140,7 @@ mod image_tiff;
 mod indirect_acroform_entries;
 mod indirect_entry_edits;
 mod info_entries;
+mod ink_manager;
 mod ink_reshape;
 mod insert_pages_carries_fields;
 mod insert_pages_carry_outline;

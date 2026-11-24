@@ -1,10 +1,17 @@
 //! Print-production questions about a whole document, answered before any
 //! page is drawn: does anything it draws ask for overprint, and which
-//! PDF/X level does it claim.
+//! PDF/X level does it claim, and which inks it names.
 
+mod ink_alias;
+mod inks;
 mod pdfx;
+mod spot_process;
 
+pub(crate) use ink_alias::plan_alias;
+pub use inks::{InkEditReport, InkKind, InkRefusal, InkSelection, InkUse, inks};
+pub(crate) use inks::{InkPlan, Planned};
 pub use pdfx::{PdfxClaim, pdfx_claim, pdfx_output_intents};
+pub(crate) use spot_process::plan_spot_to_process;
 
 use crate::object::ObjId;
 use crate::view::DocumentView;

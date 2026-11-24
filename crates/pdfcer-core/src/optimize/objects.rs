@@ -454,7 +454,8 @@ fn print_strips(view: &DocumentView<'_>, cat: &Dict) -> Vec<Vec<&'static [u8]>> 
         .collect()
 }
 
-fn is_image(dict: &Dict) -> bool {
+/// Whether `dict` is an image XObject (`/Subtype /Image`).
+pub(crate) fn is_image(dict: &Dict) -> bool {
     dict.get(b"Subtype")
         .and_then(Object::as_name)
         .is_some_and(|n| n.as_bytes() == b"Image")

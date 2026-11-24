@@ -197,6 +197,8 @@ pub(crate) const IN_PLACE_COMMANDS: &[&str] = &[
     "unembed-font",
     "unshare-form",
     "upscale-images",
+    "alias-ink",
+    "spot-to-process",
 ];
 
 const IN_PLACE_HELP: &str = "Write the result back over the input file instead of to --output. \

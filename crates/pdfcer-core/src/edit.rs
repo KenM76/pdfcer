@@ -141,6 +141,7 @@ mod checkpoint;
 mod history_codec;
 mod history_kind;
 mod history_transfer;
+mod ink_manager;
 mod radio_state;
 mod recognised_block;
 mod regroup;
@@ -840,6 +841,10 @@ pub enum CommandKind {
     /// [`EditSession::remove_metadata`] removed metadata items, with the
     /// verbs it ran folded in.
     RemoveMetadata,
+    /// [`EditSession::alias_ink`] renamed a colorant.
+    AliasInk,
+    /// [`EditSession::spot_to_process`] converted spot inks to process.
+    SpotToProcess,
     /// [`EditSession::purge_password_values`] — §12.7.4.3 Table 228 bit 14.
     PurgePasswordValues,
     /// [`EditSession::promote_inline_dr_fonts`] moved inline `/AcroForm /DR
@@ -10240,6 +10245,14 @@ pub enum EditError {
     XfaSigned {
         /// Signature dictionaries found.
         signatures: usize,
+    },
+    /// [`EditSession::alias_ink`] with a name it cannot alias.
+    #[error("cannot alias the ink \"{name}\": {reason}")]
+    InkNameRefused {
+        /// The name refused; empty for an empty name.
+        name: String,
+        /// One clause.
+        reason: &'static str,
     },
     /// A 3D model that cannot be embedded
     /// ([`EditSession::add_3d_annotation`]).

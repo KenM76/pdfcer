@@ -3413,6 +3413,22 @@ pub(crate) fn run() -> ExitCode {
             max_findings,
             dump_profile,
         } => cmd_preflight(input.as_deref(), &profile, max_findings, dump_profile),
+        Command::Inks { input } => cmd_inks(&input),
+        Command::AliasInk {
+            input,
+            from,
+            to,
+            output,
+            mode,
+            verify_undo,
+        } => cmd_alias_ink(&input, &from, &to, &output, mode, verify_undo),
+        Command::SpotToProcess {
+            input,
+            inks,
+            output,
+            mode,
+            verify_undo,
+        } => cmd_spot_to_process(&input, &inks, &output, mode, verify_undo),
         Command::GroupLength {
             input,
             page,

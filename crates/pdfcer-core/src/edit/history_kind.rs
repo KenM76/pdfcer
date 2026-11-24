@@ -260,6 +260,8 @@ kind_codec! {
     MaterializeXfa { pages: usize },
     ResetForm,
     RemoveMetadata,
+    AliasInk,
+    SpotToProcess,
     PurgePasswordValues,
     PromoteInlineDrFonts,
     AddValidationMaterial,

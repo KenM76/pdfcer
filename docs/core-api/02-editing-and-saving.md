@@ -18,7 +18,7 @@ answers *"I want to do X — what do I call, in what order, and what will bite m
 | **Date** | 2026-08-29 |
 | **Verified against** | `5c37c7c` (`git rev-parse --short HEAD`) — *"he gave no reason" was a claim, and it has been corrected* |
 | **Primary subject** | `crates/pdfcer-core/src/edit.rs` (35655) |
-| **Covers** | `EditSession` end to end: construction, the command/undo/redo model, **all 434 public methods**, the `EditError` taxonomy, the save path (incremental vs full rewrite), the guard/refusal model (encryption, certification, sidecar version, `/Size` suppression), object allocation and byte staging |
+| **Covers** | `EditSession` end to end: construction, the command/undo/redo model, **all 437 public methods**, the `EditError` taxonomy, the save path (incremental vs full rewrite), the guard/refusal model (encryption, certification, sidecar version, `/Size` suppression), object allocation and byte staging |
 | **Does NOT cover** | Document loading and the read-only object model → **`01-reading-and-model.md`**. Per-feature capability guides (ce dimensions, forms, annotations, redaction, OCR, printing) → **`03-capabilities.md`**. This document covers the *session mechanics* those features flow through; part 3 covers the features. |
 | **Terminology** | Project rule 15. **ce dimensions** = the dimension objects pdfcer authors (`/Line` + `/IT /LineDimension` + baked `/AP` + `/PieceInfo` sidecar). **pdf dimensions** = dimensions already present in the page content, exported by CAD. Never bare "dimension". This document only concerns ce dimensions. |
 
@@ -69,9 +69,9 @@ Five consequences a GUI author must internalise before writing any code:
 
 ---
 
-## 1. Verb index — all 434 public `EditSession` methods
+## 1. Verb index — all 437 public `EditSession` methods
 
-**Count: 434.** Established by brace-matched extraction of the
+**Count: 437.** Established by brace-matched extraction of the
 `impl EditSession` blocks in `edit.rs` and its `edit/` child modules, matching `pub fn` / `pub const fn`, and checked
 on every run by `tools/check-core-api-verbs.py` — which is what caught this
 figure at 120 when `add_outline_item` landed, and caught it again at 227 when
@@ -96,7 +96,7 @@ added `add_file_attachment_annotation`, and at 274 when `Pass 261.1` added
 `add_caret_annotation` and `add_replace_text`, and at 275 when `Pass 261.2`
 added `add_sound_annotation`, and at 276 when `Pass 261.3` added
 `add_screen_annotation`, and at 277 when `Pass 142.3` added
-`preview_style_ladder_with_donors`, and at 279 when `Pass 375.0` added `set_crop_boxes` and `resize_pages`, at 283 when Bates numbering added `stamp_bates`, and at 284 when `remove_bates` followed, and at 348 when `G154` added `insert_node`, `convert_node`, `convert_segment` and their three `_in_form` twins, and at 349 when `G160` added `turn_widget`, and at 350 when `G168` added `set_3d_views`, and at 352 when `G164` added `metadata_inventory` and `remove_metadata`, and at 355 when `G165` added `page_scan_image`, `detect_image_skew` and `deskew_image`, and at 356 when `G171` added `coalesce_last_same`, and at 371 when `G198` added `upscale_image`, and at 385 when `Pass 55.10` added `stamp_running_text`, and at 386 when `Pass 55.11` added `add_printer_marks`, and at 387 when `G238` added `decorate_for_print`, and at 388 when `G247` added `set_3d_opening_view`, and at 391 when `G243` added `fork_for_print` and `decorated_for_print`, and at 401 when `Pass 694.2` added `set_page_boxes`, and at 402 when `Pass 700.9` added `fill_rich_text_field`, and at 404 when its follow-up added `set_rich_style_precedence` and `rich_style_precedence`, and at 423 when `Pass 722.0` added `extend_path`, `open_subpath` and their two `_in_form` twins, and at 427 when `G295` added `can_extend_path`, `can_open_subpath` and their two `_in_form` twins, and at 428 when `G301` added `materialize_merged_xfa`, and at 429 when `X101` added `deskew_image_with`, and at 430 when `G317` added `edit_capability_for`, and at 431 when `G319` added `insert_pages_with_options`, and at 432 when `G321` added `fill_rich_text_field_runs`, and at 433 when `G324` added `page_snap_geometry`.
+`preview_style_ladder_with_donors`, and at 279 when `Pass 375.0` added `set_crop_boxes` and `resize_pages`, at 283 when Bates numbering added `stamp_bates`, and at 284 when `remove_bates` followed, and at 348 when `G154` added `insert_node`, `convert_node`, `convert_segment` and their three `_in_form` twins, and at 349 when `G160` added `turn_widget`, and at 350 when `G168` added `set_3d_views`, and at 352 when `G164` added `metadata_inventory` and `remove_metadata`, and at 355 when `G165` added `page_scan_image`, `detect_image_skew` and `deskew_image`, and at 356 when `G171` added `coalesce_last_same`, and at 371 when `G198` added `upscale_image`, and at 385 when `Pass 55.10` added `stamp_running_text`, and at 386 when `Pass 55.11` added `add_printer_marks`, and at 387 when `G238` added `decorate_for_print`, and at 388 when `G247` added `set_3d_opening_view`, and at 391 when `G243` added `fork_for_print` and `decorated_for_print`, and at 401 when `Pass 694.2` added `set_page_boxes`, and at 402 when `Pass 700.9` added `fill_rich_text_field`, and at 404 when its follow-up added `set_rich_style_precedence` and `rich_style_precedence`, and at 423 when `Pass 722.0` added `extend_path`, `open_subpath` and their two `_in_form` twins, and at 427 when `G295` added `can_extend_path`, `can_open_subpath` and their two `_in_form` twins, and at 428 when `G301` added `materialize_merged_xfa`, and at 429 when `X101` added `deskew_image_with`, and at 430 when `G317` added `edit_capability_for`, and at 431 when `G319` added `insert_pages_with_options`, and at 432 when `G321` added `fill_rich_text_field_runs`, and at 433 when `G324` added `page_snap_geometry`, and at 436 when `Pass 748.3` added `inks`, `alias_ink` and `spot_to_process`.
 There are no `EditSession` methods in any other file
 (`grep -rn "impl EditSession" crates/pdfcer-core/src/` returns those lines only).
 
@@ -5392,6 +5392,19 @@ operator has to get the order of right.
 
 **Detail: `03-capabilities.md`, part 15.**
 
+### 1.36 Ink Manager (3) — `Pass 748.3`
+
+| I want to… | Call | Returns |
+|---|---|---|
+| List the inks | `inks(&self) -> Vec<prepress::InkUse>` | `prepress::inks` over the session's current state. |
+| Print one spot as another | `alias_ink(&mut self, from: &str, to: &str) -> Result<prepress::InkEditReport, EditError>` | Renames `from` in every `Separation`/`DeviceN` space, `DeviceN` `/Colorants` and `/MixingHints` keys and `/SeparationInfo /DeviceColorant`. ONE undo entry (`CommandKind::AliasInk`); nothing committed when nothing changes. A `DeviceN` naming both inks is refused in the report. `InkNameRefused { name, reason }` for an empty, `All`/`None`, process `from`, or `from == to`. Resolves `Check::SpotNotAllowed` for `from`. CLI: `pdfcer alias-ink IN --from A --to B -o OUT [--mode] [--verify-undo]`. |
+| Convert spots to CMYK | `spot_to_process(&mut self, &prepress::InkSelection) -> Result<prepress::InkEditReport, EditError>` | Evaluates each space's own tint transform where its alternate is `DeviceCMYK`; anything else is refused in the report (colour conversion is icccer's). ONE undo entry (`CommandKind::SpotToProcess`). CLI: `pdfcer spot-to-process IN [--ink NAME]... -o OUT [--mode] [--verify-undo]`. |
+
+Both edits are document edits, unlike Acrobat's output-time Ink Manager.
+Show every `refused`, `overprint_lost` and `disclosures` entry off-canvas.
+Errors besides `InkNameRefused`: `DocumentEncrypted` (no modify permission)
+and the strict certification gate. **Detail: `03-capabilities.md`, part 18.**
+
 ## 2. Construction, and the session's three read views
 
 ```rust
@@ -6221,10 +6234,10 @@ borrow it (`tests/image_placement.rs`).
 ### 6.7 The `EditError` taxonomy
 
 `edit.rs`, `#[derive(Debug, Clone, thiserror::Error)]`, `#[non_exhaustive]`.
-**202 variants**, counted at depth 1 inside `pub enum EditError`.
+**203 variants**, counted at depth 1 inside `pub enum EditError`.
 `RunningText(RunningTextError)` wraps `stamp_running_text`'s request errors.
 `PrinterMarks(PrinterMarksError)` wraps `add_printer_marks`'s request errors.
-(`PasteNamesCount { fields, names }`, from `paste_fields`, is the newest; `InfoKeyReserved { key: ReservedInfoKey }` and `InvalidInfoKey { problem: InfoKeyProblem }`, from `set_info_entry`; `XfaNotDynamic` and `XfaSigned`; `SourcePageOutOfRange`: a SOURCE document's page index, kept
+(`InkNameRefused { name, reason }`, from `alias_ink`, is the newest; `PasteNamesCount { fields, names }`, from `paste_fields`; `InfoKeyReserved { key: ReservedInfoKey }` and `InvalidInfoKey { problem: InfoKeyProblem }`, from `set_info_entry`; `XfaNotDynamic` and `XfaSigned`; `SourcePageOutOfRange`: a SOURCE document's page index, kept
 distinct from `PageOutOfRange` because the two name different mistakes.)
 
 `Pass 270.2` added `AnnotationContentsLocked` — **Table 165 bit 10,

@@ -79,6 +79,7 @@ mod import_structure_stale;
 mod in_place;
 mod info_cli;
 mod ink_edit;
+mod ink_manager;
 mod inspect_ink;
 mod inspect_overprint;
 mod inspect_prepress;

@@ -11864,6 +11864,69 @@ pub(crate) enum Command {
         #[arg(long)]
         dump_profile: bool,
     },
+    /// List every ink the document names, read-only.
+    ///
+    /// One line per ink: process or spot, its name, the alternate space of
+    /// every Separation or DeviceN space naming it (more than one means
+    /// the definitions disagree), the pages that draw with it and how many
+    /// distinct uses they make. `All` and `None` are not inks.
+    Inks {
+        /// Input PDF.
+        input: PathBuf,
+    },
+    /// Print one spot ink as another, as a saved edit.
+    ///
+    /// Renames the ink in every Separation and DeviceN space naming it, and
+    /// in DeviceN colorant and mixing-hint entries, so it prints on the
+    /// `--to` plate. `--to` may be a process ink (`Black`) or another spot.
+    /// Each space keeps its own appearance on screen. A DeviceN space that
+    /// already names `--to` is left as it was and listed as refused. Unlike
+    /// Acrobat, which aliases only at output time, this changes the file.
+    AliasInk {
+        /// Input PDF.
+        input: PathBuf,
+        /// The spot ink to alias away, exactly as `inks` prints it.
+        #[arg(long)]
+        from: String,
+        /// The ink to print it as.
+        #[arg(long)]
+        to: String,
+        /// Output path.
+        #[arg(short, long)]
+        output: PathBuf,
+        /// Save mode.
+        #[arg(long, value_enum, default_value_t = SaveMode::Incremental)]
+        mode: SaveMode,
+        /// Reload and verify the edit undoes byte-identically.
+        #[arg(long)]
+        verify_undo: bool,
+    },
+    /// Convert spot inks to CMYK process colour, as a saved edit.
+    ///
+    /// Each colour drawn in a spot ink becomes the CMYK its own tint
+    /// transform gives: content colours, images, indexed palettes and axial
+    /// and radial shadings. A spot whose alternate space is not DeviceCMYK
+    /// is refused (that would be a colour conversion), as are inline images
+    /// and mesh shadings; each refusal is printed. Paints that overprinted
+    /// and no longer do (overprint mode 0, images, shadings) are printed as
+    /// `overprint-lost` lines.
+    SpotToProcess {
+        /// Input PDF.
+        input: PathBuf,
+        /// A spot ink to convert, exactly as `inks` prints it. Repeatable;
+        /// none converts every spot ink.
+        #[arg(long = "ink")]
+        inks: Vec<String>,
+        /// Output path.
+        #[arg(short, long)]
+        output: PathBuf,
+        /// Save mode.
+        #[arg(long, value_enum, default_value_t = SaveMode::Incremental)]
+        mode: SaveMode,
+        /// Reload and verify the edit undoes byte-identically.
+        #[arg(long)]
+        verify_undo: bool,
+    },
     /// Convert lengths to and from a ce dimension group's scale on one page.
     ///
     /// `--typed` reads a length as it would be typed into a box showing the

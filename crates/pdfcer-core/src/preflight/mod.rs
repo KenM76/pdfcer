@@ -20,7 +20,7 @@ pub(crate) mod hairlines;
 mod profile;
 #[cfg(test)]
 mod tests;
-mod walk;
+pub(crate) mod walk;
 
 use std::sync::atomic::{AtomicBool, Ordering};
 

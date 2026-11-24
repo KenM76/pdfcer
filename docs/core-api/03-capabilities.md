@@ -6738,3 +6738,49 @@ Contract:
 
 ⚠️ `Check`, `ColourFamily`, `FindingTarget`, `MeasureUnit`, `ProfileError`,
 `Finding` and `PreflightReport` are `#[non_exhaustive]`.
+
+## 18. Ink Manager — list, alias, spot to process (`Pass 748.3`)
+
+`pdfcer_core::prepress` (CLI: `pdfcer inks`, `alias-ink`, `spot-to-process`).
+The two edits are `EditSession` verbs (`02-editing-and-saving.md` §1.36).
+Unlike Acrobat, which applies the Ink Manager only at output time and drops
+aliases on spot to process, both are document edits with a report.
+
+| Call | Returns |
+|---|---|
+| `prepress::inks(&DocumentView) -> Vec<InkUse>` | every colorant a `Separation`/`DeviceN` space names, process first (CMYK order), then spots by name |
+| `InkUse { name, kind: InkKind, alternates: Vec<String>, pages: Vec<usize>, uses }` | `alternates` by family, sorted (more than one: the definitions disagree); `pages` 1-based, empty when defined but never drawn |
+| `InkKind` | `Process` (`Cyan`/`Magenta`/`Yellow`/`Black`), `Spot` |
+| `InkSelection` | `All`, `Only(Vec<String>)` (exact names); `selects(&[u8]) -> bool` |
+| `InkEditReport { changed, spaces, paints, images, shadings, lookups, refused: Vec<InkRefusal>, overprint_lost: Vec<ObjId>, disclosures }` | `changed` is every object written; `is_empty()` when none |
+| `InkRefusal { object: Option<ObjId>, ink, reason }` | one sentence per thing left as it was |
+
+Contract:
+
+- **Alias** renames the colorant in every space naming it (§8.6.6.4,
+  §8.6.6.5), `DeviceN` `/Colorants`, `/MixingHints /Solidities`, `/DotGain`,
+  `/PrintingOrder` (§8.6.6.5, Table 71) and `/SeparationInfo
+  /DeviceColorant` (§14.11.4). Each space keeps its alternate and tint
+  transform; a disclosure says when the two names were defined with
+  different alternates. A `DeviceN` naming both inks is refused (two
+  components of one ink). Content streams are never rewritten.
+- **Spot to process** converts a space only when every spot it names is
+  selected, its alternate is literally `DeviceCMYK` and its tint transform
+  has n inputs and 4 outputs. Content colour operators become `k`/`K` (an
+  initial colour from `cs` is every tint 1.0); image samples become 8-bit
+  `DeviceCMYK` (Flate); `Indexed` lookups are converted in place; axial and
+  radial shadings get a 64-segment stitching function (disclosed). The
+  spaces' own arrays stay, so anything not reached still draws correctly.
+- **Refused, in the report, never guessed past:** a non-`DeviceCMYK`
+  alternate (colour conversion belongs to icccer, decision 064), a space
+  naming an unselected spot, an unreadable tint transform, inline images,
+  colour-keyed or undecodable (DCT, JPX) images, mesh and function-based
+  shadings, uncoloured patterns, a form drawn under two colour states.
+- **Overprint** survives only for a `DeviceCMYK` paint under `/OPM 1`
+  (§8.6.7). Streams painting a converted ink under overprint with mode 0,
+  or drawing a converted image or shading under overprint, are in
+  `overprint_lost`.
+- Walked: page content, forms, tiling patterns, annotation `/AP` N/R/D.
+  Type 3 glyph procedures and soft masks are not entered.
+
+⚠️ `InkUse`, `InkRefusal` and `InkEditReport` are `#[non_exhaustive]`.

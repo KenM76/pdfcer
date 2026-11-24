@@ -23,18 +23,21 @@ const MAX_EVENTS: usize = 4096;
 /// What drew a use: the page's own content (and forms under it) or one
 /// annotation's appearance.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(super) enum Origin {
+pub(crate) enum Origin {
     Page,
     Annotation(ObjId),
 }
 
 /// One colour space a page paints with.
 #[derive(Debug, Clone, PartialEq)]
-pub(super) struct ColourUse {
+pub(crate) struct ColourUse {
     pub family: ColourFamily,
     /// Spot colorants named by a `Separation` or `DeviceN` space, process
     /// names, `All` and `None` excluded.
     pub spots: Vec<String>,
+    /// Every colorant a `Separation` or `DeviceN` space names, process
+    /// names included, `All` and `None` excluded; empty for other spaces.
+    pub colorants: Vec<String>,
     /// The indirect colour-space array, when the space is one.
     pub space: Option<ObjId>,
     /// The image XObject the space belongs to.
@@ -43,7 +46,7 @@ pub(super) struct ColourUse {
 
 /// One thing the walk saw.
 #[derive(Debug, Clone, PartialEq)]
-pub(super) enum Event {
+pub(crate) enum Event {
     Colour(ColourUse),
     /// An `ExtGState` with `/OP` or `/op` true was set.
     Overprint(Option<ObjId>),
@@ -52,7 +55,7 @@ pub(super) enum Event {
 }
 
 /// Every event on one page, in content order, each with its origin.
-pub(super) fn page_events(
+pub(crate) fn page_events(
     view: &DocumentView<'_>,
     page: &crate::page_tree::Page,
 ) -> Vec<(Origin, Event)> {
@@ -177,6 +180,7 @@ impl Walker<'_, '_> {
         self.push(Event::Colour(ColourUse {
             family,
             spots: Vec::new(),
+            colorants: Vec::new(),
             space: None,
             image: None,
         }));
@@ -357,7 +361,8 @@ impl Walker<'_, '_> {
     }
 }
 
-fn first_operand(op: &Operation<'_>) -> Option<Object> {
+/// The first operand of `op`, skipping comments and whitespace tokens.
+pub(crate) fn first_operand(op: &Operation<'_>) -> Option<Object> {
     op.operands.iter().find_map(|t| match &t.kind {
         ContentTokenKind::Operand(o) => Some(o.clone()),
         _ => None,
@@ -388,7 +393,7 @@ fn resource<'a>(
 
 /// Classify a colour-space object (ISO 32000-2 §8.6). `Indexed` reports its
 /// base; a pattern space reports `Pattern`. `None` for an unknown space.
-pub(super) fn classify(view: &DocumentView<'_>, cs: &Object, depth: usize) -> Option<ColourUse> {
+pub(crate) fn classify(view: &DocumentView<'_>, cs: &Object, depth: usize) -> Option<ColourUse> {
     if depth > 4 {
         return None;
     }
@@ -396,6 +401,7 @@ pub(super) fn classify(view: &DocumentView<'_>, cs: &Object, depth: usize) -> Op
         Some(ColourUse {
             family,
             spots: Vec::new(),
+            colorants: Vec::new(),
             space: None,
             image: None,
         })
@@ -418,10 +424,12 @@ fn classify_array(view: &DocumentView<'_>, items: &[Object], depth: usize) -> Op
         .first()
         .map(|o| view.resolve(o))
         .and_then(Object::as_name)?;
-    let with = |family, spots| {
+    let with = |family, names: Vec<&[u8]>| {
+        let colorants = colorant_names(names.iter().copied(), |n| n != b"All" && n != b"None");
         Some(ColourUse {
             family,
-            spots,
+            spots: colorant_names(names.into_iter(), is_spot_colorant),
+            colorants,
             space: None,
             image: None,
         })
@@ -456,7 +464,7 @@ fn classify_array(view: &DocumentView<'_>, items: &[Object], depth: usize) -> Op
                 .and_then(Object::as_name);
             with(
                 ColourFamily::Separation,
-                spot_names(name.into_iter().map(|n| n.as_bytes())),
+                name.into_iter().map(|n| n.as_bytes()).collect(),
             )
         }
         b"DeviceN" => {
@@ -468,20 +476,29 @@ fn classify_array(view: &DocumentView<'_>, items: &[Object], depth: usize) -> Op
             let names = names
                 .iter()
                 .filter_map(|o| view.resolve(o).as_name())
-                .map(|n| n.as_bytes());
-            with(ColourFamily::DeviceN, spot_names(names))
+                .map(|n| n.as_bytes())
+                .collect();
+            with(ColourFamily::DeviceN, names)
         }
         _ => None,
     }
 }
 
-/// Colorant names that are spots: not `All` or `None` (§8.6.6.4), and not
-/// `Cyan`, `Magenta`, `Yellow` or `Black`, which are always process
+/// Whether a colorant name is a spot: not `All` or `None` (§8.6.6.4), and
+/// not `Cyan`, `Magenta`, `Yellow` or `Black`, which are always process
 /// colorants (§8.6.6.5).
-fn spot_names<'a>(names: impl Iterator<Item = &'a [u8]>) -> Vec<String> {
+pub(crate) fn is_spot_colorant(name: &[u8]) -> bool {
     const NOT_SPOT: [&[u8]; 6] = [b"All", b"None", b"Cyan", b"Magenta", b"Yellow", b"Black"];
+    !NOT_SPOT.contains(&name)
+}
+
+/// The names `keep` accepts, as sorted, deduplicated text.
+fn colorant_names<'a>(
+    names: impl Iterator<Item = &'a [u8]>,
+    keep: impl Fn(&[u8]) -> bool,
+) -> Vec<String> {
     let mut out: Vec<String> = names
-        .filter(|n| !NOT_SPOT.contains(n))
+        .filter(|n| keep(n))
         .map(|n| String::from_utf8_lossy(n).into_owned())
         .collect();
     out.sort();
