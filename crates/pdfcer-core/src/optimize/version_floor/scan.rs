@@ -91,6 +91,7 @@ pub(super) struct Walk<'a> {
 }
 
 impl<'a> Walk<'a> {
+    /// A walk over `doc` with nothing resolved yet.
     pub(super) fn new(doc: &'a Document) -> Self {
         Walk {
             doc,
