@@ -18,11 +18,14 @@
 mod checks;
 mod cos;
 mod coverage;
+mod fixup;
+mod fixup_json;
 pub(crate) mod hairlines;
 mod pdfa;
 mod pdfua;
 mod pdfx;
 mod profile;
+mod report_text;
 #[cfg(test)]
 pub(crate) mod tests;
 pub(crate) mod walk;
@@ -30,6 +33,9 @@ pub(crate) mod walk;
 use std::sync::atomic::{AtomicBool, Ordering};
 
 pub use coverage::{CoverageMeter, TacFailure, TacMeasurement, TacRegion, TacRequest};
+pub use fixup::{
+    Fixup, FixupOutcome, FixupReport, FixupScope, FixupStep, FixupTools, rule_matches,
+};
 pub(crate) use hairlines::hairlines_in;
 pub use hairlines::{HAIRLINES_NOT_COVERED, Hairline, hairlines};
 pub use pdfa::{PdfaLevel, PdfaReport, PdfaVerdict, validate_pdfa, validate_pdfa_with};
@@ -42,6 +48,7 @@ pub(crate) use pdfua::{
 };
 pub use pdfx::{PdfxLevel, PdfxReport, PdfxVerdict, validate_pdfx, validate_pdfx_with};
 pub use profile::{Profile, ProfileError, ProfileRule};
+pub use report_text::report_text;
 
 use crate::PdfVersion;
 use crate::object::ObjId;
@@ -169,6 +176,14 @@ pub enum Check {
     ImageBelowPpi {
         /// The floor, in pixels per inch.
         min_ppi: f64,
+    },
+    /// An image draws at more than `max_ppi` pixels per inch on either
+    /// axis, measured as for [`Self::ImageBelowPpi`]. A downsample fixup
+    /// answers it ([`Fixup::DownsampleImages`]); an image also drawn larger
+    /// elsewhere keeps the pixels that placement needs.
+    ImageAbovePpi {
+        /// The ceiling, in pixels per inch.
+        max_ppi: f64,
     },
     /// A font's program is not embedded. Type 3 fonts are drawn by the
     /// document and always pass.

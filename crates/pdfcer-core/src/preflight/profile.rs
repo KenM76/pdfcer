@@ -12,6 +12,8 @@
 
 use pdfcer_json::Json;
 
+use super::fixup::Fixup;
+use super::fixup_json::{fixups_json, parse_fixups};
 use super::{Check, ColourFamily, PdfaLevel, PdfxLevel, Severity};
 use crate::PdfVersion;
 
@@ -24,6 +26,10 @@ pub struct ProfileRule {
     pub check: Check,
     /// The severity of every finding the rule produces.
     pub severity: Severity,
+    /// The fixups that answer it, run in order by
+    /// [`crate::edit::EditSession::apply_profile_fixups`]. Empty: none named
+    /// (a run may still use [`Fixup::suggested`]).
+    pub fixups: Vec<Fixup>,
 }
 
 impl ProfileRule {
@@ -34,7 +40,15 @@ impl ProfileRule {
             id: id.into(),
             check,
             severity,
+            fixups: Vec::new(),
         }
+    }
+
+    /// The rule with `fixup` appended to [`Self::fixups`].
+    #[must_use]
+    pub fn with_fixup(mut self, fixup: Fixup) -> Self {
+        self.fixups.push(fixup);
+        self
     }
 }
 
@@ -189,6 +203,7 @@ impl Profile {
     /// | `check` | parameters |
     /// |---|---|
     /// | `image-below-ppi` | `min_ppi`: number > 0 |
+    /// | `image-above-ppi` | `max_ppi`: number > 0 |
     /// | `font-not-embedded` | none |
     /// | `no-output-intent` | none |
     /// | `no-trim-box` | none |
@@ -203,10 +218,27 @@ impl Profile {
     /// | `pdfx-requirement` | `level`: [`PdfxLevel::as_str`] name; `row`: an inventory row id that applies to it |
     /// | `pdfa-requirement` | `level`: [`PdfaLevel::as_str`] name (`1b`, `2b`, `3b`); `row`: an inventory row id that applies to it |
     ///
+    /// A rule may also carry `fixups`, an array of objects each with a
+    /// `fixup` name ([`Fixup::NAMES`]) and its parameters; an omitted
+    /// parameter takes the verb's default:
+    ///
+    /// | `fixup` | parameters |
+    /// |---|---|
+    /// | `flatten-transparency` | `keep_text`, `keep_strokes`: bool; `raster_ppi`: 36 to 2400 |
+    /// | `fix-hairlines` | `min_width_pt`: number > 0 |
+    /// | `alias-ink` | `from`, `to`: ink names |
+    /// | `spot-to-process` | `keep`: array of ink names |
+    /// | `convert-colours` | `destination`: `output-intent` or `profile` (the profile supplied at apply time); `intent`: `objects-own` or an intent name; `device_rgb`, `icc_rgb`, `lab`, `cal_rgb`, `grey`, `keep_pure_black`, `black_point_compensation`: bool; `embed_output_intent`: subtype name |
+    /// | `convert-to-pdfx` | `level`; `condition`, `registry_name`, `info`, `title`: strings; `trapped`: bool; `spot_to_process`: `"all"` or ink names; `flatten`: the flatten parameters; `intent`; `infer_trim_boxes`, `require_conforms`, `keep_partial`: bool |
+    /// | `fix-pdfua` | `part`: 1 or 2; `lang`, `title`: strings; `step`: one [`crate::edit::PdfuaFixup::as_str`] name |
+    /// | `downsample-images` | `above_ppi`: 1 to 65535; `to_ppi`: at most `above_ppi` (default `above_ppi`); `method`: `average`, `subsample`, `bicubic` (default), `lanczos` |
+    ///
+    /// ICC bytes are never written to or read from a profile.
+    ///
     /// # Errors
     ///
     /// [`ProfileError`] naming the member or rule that is wrong. Unknown
-    /// members are ignored; an unknown check is refused.
+    /// members are ignored; an unknown check or fixup is refused.
     pub fn from_json(bytes: &[u8]) -> Result<Self, ProfileError> {
         let root = pdfcer_json::parse(bytes).map_err(|e| ProfileError::Json(e.to_string()))?;
         let text = |key: &str| root.get(key).and_then(Json::as_str).map(str::to_owned);
@@ -252,10 +284,12 @@ fn parse_rule(item: &Json) -> Result<ProfileRule, ProfileError> {
         .and_then(Json::as_str)
         .ok_or_else(|| ProfileError::Member(format!("rules[{id}].check")))?;
     let check = parse_check(name, &id, item)?;
+    let fixups = parse_fixups(item, &id)?;
     Ok(ProfileRule {
         id,
         check,
         severity,
+        fixups,
     })
 }
 
@@ -276,6 +310,10 @@ fn parse_check(name: &str, id: &str, item: &Json) -> Result<Check, ProfileError>
         "image-below-ppi" => Check::ImageBelowPpi {
             min_ppi: number(item, "min_ppi", |v| v > 0.0)
                 .ok_or_else(|| bad("min_ppi must be a number above 0"))?,
+        },
+        "image-above-ppi" => Check::ImageAbovePpi {
+            max_ppi: number(item, "max_ppi", |v| v > 0.0)
+                .ok_or_else(|| bad("max_ppi must be a number above 0"))?,
         },
         "font-not-embedded" => Check::FontNotEmbedded,
         "no-output-intent" => Check::NoOutputIntent,
@@ -365,7 +403,7 @@ fn pdfa_requirement(item: &Json) -> Option<Check> {
 }
 
 /// `item[key]` as a finite number that `ok` accepts.
-fn number(item: &Json, key: &str, ok: impl Fn(f64) -> bool) -> Option<f64> {
+pub(super) fn number(item: &Json, key: &str, ok: impl Fn(f64) -> bool) -> Option<f64> {
     item.get(key)
         .and_then(Json::as_f64)
         .filter(|&v| v.is_finite() && ok(v))
@@ -383,6 +421,9 @@ fn rule_json(rule: &ProfileRule) -> String {
     let (name, params) = match &rule.check {
         Check::ImageBelowPpi { min_ppi } => {
             ("image-below-ppi", format!(", \"min_ppi\": {min_ppi}"))
+        }
+        Check::ImageAbovePpi { max_ppi } => {
+            ("image-above-ppi", format!(", \"max_ppi\": {max_ppi}"))
         }
         Check::FontNotEmbedded => ("font-not-embedded", String::new()),
         Check::NoOutputIntent => ("no-output-intent", String::new()),
@@ -432,14 +473,15 @@ fn rule_json(rule: &ProfileRule) -> String {
         ),
     };
     format!(
-        "{{\"id\": {}, \"severity\": \"{}\", \"check\": \"{name}\"{params}}}",
+        "{{\"id\": {}, \"severity\": \"{}\", \"check\": \"{name}\"{params}{}}}",
         quote(&rule.id),
-        rule.severity.as_str()
+        rule.severity.as_str(),
+        fixups_json(&rule.fixups)
     )
 }
 
 /// A JSON string literal (RFC 8259 §7).
-fn quote(s: &str) -> String {
+pub(super) fn quote(s: &str) -> String {
     let mut out = String::with_capacity(s.len() + 2);
     out.push('"');
     for c in s.chars() {

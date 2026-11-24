@@ -7033,7 +7033,7 @@ another subtype is left.
 The edits that `validate-pdfua` (§20) findings call for and a machine can
 make. Verbs: `02-editing-and-saving.md` §1.39. CLI: `pdfcer fix-pdfua IN
 [--part 1|2] [--lang TAG] [--title TEXT] [--json] -o OUT`. Each verb can be
-called on its own (the generic preflight `Fixup` wiring is Pass 748.9).
+called on its own; a profile rule can name them as a `Fixup` (§26).
 
 | Fixup | Answers | Writes |
 |---|---|---|
@@ -7136,6 +7136,67 @@ Contract:
 
 ⚠️ `PdfaLevel` and `PdfaReport` are `#[non_exhaustive]`; `PdfaVerdict` is closed.
 
+## 26. Preflight fixups and the text report (`Pass 748.9`)
+
+A profile rule may name the edits that answer it; a shell runs them over a
+finding, a rule or the document. Verbs: `02-editing-and-saving.md` §1.40.
+CLI: `pdfcer preflight IN --profile P --fix OUT [--fix-suggested] [--icc
+FILE] [--report FILE] [--mode] [--verify-undo]`.
+
+| `Fixup` (JSON `fixup`) | Runs | Needs |
+|---|---|---|
+| `FlattenTransparency(FlattenOptions)` (`flatten-transparency`) | `flatten_transparency` on the reached pages | `tools.flattener` |
+| `FixHairlines { min_width_pt }` (`fix-hairlines`) | `fix_hairlines` on the reached pages | — |
+| `AliasInk { from, to }` (`alias-ink`) | `alias_ink` (document-wide) | — |
+| `SpotToProcess { keep }` (`spot-to-process`) | `spot_to_process` of every spot ink not in `keep` (document-wide) | — |
+| `ConvertColours(ColourConversion)` (`convert-colours`) | `convert_colours` on the reached pages | `tools.converter`; `tools.icc_profile` when the destination profile is empty |
+| `ConvertToPdfx { level, conversion }` (`convert-to-pdfx`) | `convert_to_pdfx` (document-wide; §23's claim gate) | flattener, converter, and an ICC profile in the intent or `tools.icc_profile` |
+| `FixPdfua { part, options, step }` (`fix-pdfua`) | `fix_pdfua`, or the one `PdfuaFixup` in `step` (document-wide; §24) | — |
+| `DownsampleImages { above_ppi, to_ppi, method }` (`downsample-images`) | the optimize pipeline (§ optimize): resample images drawn above `above_ppi` to `to_ppi` | — |
+
+| Call | Returns |
+|---|---|
+| `Fixup::NAMES`, `name()` | the JSON names above, in variant order |
+| `Fixup::suggested(&Check) -> Option<Fixup>` | `ImageAbovePpi` → downsample to the ceiling, bicubic; `StrokeBelow` → hairlines; `TransparencyUsed` → flatten (defaults); `SpotNotAllowed` → spot-to-process keeping the allowed inks; `ColourSpaceUsed` → convert (output intent); `PdfUa` → `fix_pdfua`; `PdfxRequirement` → `convert_to_pdfx` with an empty intent; otherwise `None` |
+| `FixupScope::{Finding, Rule { rule_id, findings }, All}`; `findings()` | the violations in scope (`None` for `All`) |
+| `rule_matches(finding_rule, rule) -> bool` | `rule` itself or a `rule/…` sub-rule |
+| `FixupTools::new().with_flattener(..).with_converter(..).with_icc_profile(..).with_time(..).with_title(..)` | the engines and data core does not carry; the CLI passes `pdfcer_emf::RecordingFlattener` and `pdfcer_render::convert_colours::IcccerConverter`. `with_time`/`with_title` fill a PDF/X conversion's missing dates and `/Title` (core never reads the clock) |
+| `FixupReport { steps, undo_entries }` | `changed()`, `not_fixed()` (steps that wrote nothing, or with `not_done`), `to_text()` |
+| `Check::ImageAbovePpi { max_ppi }` (JSON `image-above-ppi`) | a `Warning`-style rule: an image drawn above `max_ppi` in either direction, at its largest placement |
+| `ProfileRule.fixups: Vec<Fixup>`, `with_fixup()` | a rule's fixups; JSON `"fixups": [{"fixup": "<name>", …}]`, round-tripped by `to_json`/`from_json` |
+| `report_text(&PreflightReport, &Profile) -> String` | the report as text: name, description, pages checked, result (`FAILS`/`passes`/`needs review`), counts; per rule with findings its fixups (or the suggested one) and one line per finding; the rules with no finding |
+
+Contract:
+
+- **One undo step.** `apply_fixup` and `apply_profile_fixups` each push
+  exactly one `CommandKind::ApplyFixup` entry when anything was written,
+  and none when nothing was; a `ConvertToPdfx` inside an open undo group is
+  `Unavailable` (its claim gate must be able to take itself back).
+- **Nothing silent.** Every step lists what it changed (`changed`), what it
+  could not do and why (`not_done`), and its inferences (`disclosures`,
+  including each wrapped verb's own). A document-wide fixup under a
+  narrowed scope discloses "This fixup acts on the whole document, not
+  only the scope." A failing rule with no fixup is a named `none` step.
+  Show `to_text()` or the fields, off-canvas.
+- **Missing engine or profile** → `Unavailable`, nothing written.
+- **Downsample never grows a file.** An image whose re-encoding is not
+  smaller is kept and listed in `not_done` ("not smaller (…), kept"), so
+  the rule still fails after the run.
+- **No false claim.** A refused PDF/X claim is `Failed` (every step taken
+  back) or, with `keep_partial`, `Applied` with "No PDF/X claim was
+  written" in `not_done`; PDF/UA's claim keeps §24's gate.
+- **ICC bytes are never written to JSON**: a profile destination reads
+  back empty and is filled from `tools.icc_profile`. A PDF/X conversion's
+  `at` is not serialized either.
+- **CLI.** `--fix OUT` checks IN, runs `apply_profile_fixups`, prints
+  `to_text()`, saves to OUT, then checks OUT; the exit code (18 = still
+  fails) and `--report` describe OUT. Without `--fix`, `--report FILE`
+  describes IN. The CLI supplies the clock and IN's file stem as the PDF/X
+  time and title.
+- **Not delivered:** a PDF/A fixup; forcing a not-smaller downsample.
+
+⚠️ `Fixup`, `FixupScope`, `FixupOutcome`, `FixupStep`, `FixupReport` and
+`FixupTools` are `#[non_exhaustive]`.
 ## 27. Total area coverage — the most ink on the sheet (`Pass 748.10`)
 
 Read-only; no edit session. The measuring needs a rasteriser, so core

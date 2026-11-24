@@ -271,6 +271,24 @@ impl EditSession {
         })
     }
 
+    /// Run one PDF/UA fixup as [`Self::fix_pdfua`] runs it, for
+    /// [`Self::apply_fixup`]; disclosures are appended to `out`.
+    pub(super) fn run_pdfua_step(
+        &mut self,
+        step: PdfuaFixup,
+        part: PdfuaPart,
+        options: &FixPdfuaOptions,
+        out: &mut Vec<String>,
+    ) -> PdfuaFixupResult {
+        match step {
+            PdfuaFixup::Language => self.fixup_language(options.lang.as_deref()),
+            PdfuaFixup::DisplayDocTitle => self.fixup_title(options.title.as_deref(), out),
+            PdfuaFixup::TabOrder => self.fixup_tabs(part),
+            PdfuaFixup::Artifacts => self.fixup_artifacts(out),
+            PdfuaFixup::Identification => self.fixup_identification(part),
+        }
+    }
+
     fn fixup_language(&mut self, lang: Option<&str>) -> PdfuaFixupResult {
         let fixup = PdfuaFixup::Language;
         let Some(tag) = lang else {

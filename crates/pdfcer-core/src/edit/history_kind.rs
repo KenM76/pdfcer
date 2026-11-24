@@ -333,6 +333,7 @@ kind_codec! {
     SetPdfuaTabOrder,
     WritePdfuaIdentification,
     FixPdfua,
+    ApplyFixup,
     RestackObjects,
     GroupObjects,
     UngroupForm,

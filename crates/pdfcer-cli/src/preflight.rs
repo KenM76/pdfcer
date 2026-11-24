@@ -2,12 +2,41 @@
 
 use super::*;
 
-use pdfcer_core::preflight::{self, FindingKind, FindingTarget, Profile, RunOptions};
+use pdfcer_core::preflight::{
+    self, FindingKind, FindingTarget, PreflightReport, Profile, RunOptions,
+};
+
+#[path = "preflight_fix.rs"]
+mod fix;
 
 /// Profile files above this size are refused unread.
 const MAX_PROFILE_BYTES: u64 = 1 << 20;
 
-/// `preflight` — read-only.
+/// The `preflight` arguments after parsing.
+pub(crate) struct PreflightArgs<'a> {
+    /// The PDF to check; `None` only with `dump`.
+    pub(crate) input: Option<&'a Path>,
+    /// `--profile`: a built-in name or a JSON file.
+    pub(crate) profile: &'a str,
+    /// `--max-findings`.
+    pub(crate) max_findings: usize,
+    /// `--dump-profile`.
+    pub(crate) dump: bool,
+    /// `--report FILE`.
+    pub(crate) report: Option<&'a Path>,
+    /// `--fix OUTPUT`.
+    pub(crate) fix: Option<&'a Path>,
+    /// `--fix-suggested`.
+    pub(crate) suggested: bool,
+    /// `--icc FILE`.
+    pub(crate) icc: Option<&'a Path>,
+    /// `--mode`.
+    pub(crate) mode: SaveMode,
+    /// `--verify-undo`.
+    pub(crate) verify_undo: bool,
+}
+
+/// `preflight` — read-only unless `--fix`.
 ///
 /// ## Contract
 ///
@@ -18,40 +47,67 @@ const MAX_PROFILE_BYTES: u64 = 1 << 20;
 ///   `<severity> <violation|needs-person|incomplete> rule=<id> page=<N|-> target=<t>`
 ///   with ` rect=<llx>,<lly>,<urx>,<ury>` and
 ///   ` measured=<v> limit=<l> unit=<u>` when known, then ` "<sentence>"`.
+/// - `--report FILE` also writes `preflight::report_text` of the checked
+///   document to FILE; with `--fix`, of the fixed output.
+/// - `--fix OUTPUT`: see [`fix::cmd_preflight_fix`].
 /// - Exit `PREFLIGHT_FAILED` (18) when an error-severity rule found anything
 ///   or findings were dropped; `EDIT_REFUSED` for an unknown or invalid
 ///   profile; the usual read codes for an unreadable input.
-pub(crate) fn cmd_preflight(
-    input: Option<&Path>,
-    profile: &str,
-    max_findings: usize,
-    dump: bool,
-) -> u8 {
-    let profile = match load_profile(profile) {
+pub(crate) fn cmd_preflight(a: &PreflightArgs<'_>) -> u8 {
+    let profile = match load_profile(a.profile) {
         Ok(p) => p,
         Err(why) => {
-            eprintln!("pdfcer: --profile {profile}: {why}");
+            eprintln!("pdfcer: --profile {}: {why}", a.profile);
             return exit::EDIT_REFUSED;
         }
     };
-    if dump {
+    if a.dump {
         print!("{}", profile.to_json());
         return exit::SUCCESS;
     }
-    let Some(input) = input else {
+    let Some(input) = a.input else {
         eprintln!("pdfcer: preflight needs an input file");
         return exit::RUNTIME_ERROR;
     };
+    if let Some(output) = a.fix {
+        return fix::cmd_preflight_fix(a, input, output, &profile);
+    }
     let doc = match open_for_read(input) {
         Ok(doc) => doc,
         Err(code) => return code,
     };
-    let options = RunOptions {
-        max_findings,
-        ..RunOptions::default()
-    };
+    let report = check(&doc.view(), &profile, a);
+    print_report(input, &profile, &report);
+    if let Err(code) = write_report(a.report, &report, &profile) {
+        return code;
+    }
+    if report.fails() {
+        exit::PREFLIGHT_FAILED
+    } else {
+        exit::SUCCESS
+    }
+}
+
+/// Run `profile` over `view`, measuring ink coverage with the renderer.
+pub(crate) fn check(
+    view: &pdfcer_core::view::DocumentView<'_>,
+    profile: &Profile,
+    a: &PreflightArgs<'_>,
+) -> PreflightReport {
     let meter = pdfcer_render::TacMeter::new();
-    let report = preflight::run_with_meter(&doc.view(), &profile, &options, Some(&meter));
+    preflight::run_with_meter(view, profile, &run_options(a), Some(&meter))
+}
+
+/// The run options `a` asks for.
+pub(crate) fn run_options(a: &PreflightArgs<'_>) -> RunOptions<'static> {
+    RunOptions {
+        max_findings: a.max_findings,
+        ..RunOptions::default()
+    }
+}
+
+/// The header line and one line per finding.
+pub(crate) fn print_report(input: &Path, profile: &Profile, report: &PreflightReport) {
     println!(
         "preflight {} profile=\"{}\" pages={}/{} findings={} dropped={}",
         input.display(),
@@ -64,14 +120,25 @@ pub(crate) fn cmd_preflight(
     for f in &report.findings {
         println!("{}", finding_line(f));
     }
-    if report.fails() {
-        exit::PREFLIGHT_FAILED
-    } else {
-        exit::SUCCESS
-    }
 }
 
-fn load_profile(spec: &str) -> Result<Profile, String> {
+/// Write the text report to `path`, when one was asked for.
+pub(crate) fn write_report(
+    path: Option<&Path>,
+    report: &PreflightReport,
+    profile: &Profile,
+) -> Result<(), u8> {
+    let Some(path) = path else {
+        return Ok(());
+    };
+    std::fs::write(path, preflight::report_text(report, profile)).map_err(|err| {
+        eprintln!("pdfcer: --report {}: {err}", path.display());
+        exit::IO_ERROR
+    })
+}
+
+/// A built-in profile by name, or a profile JSON file.
+pub(crate) fn load_profile(spec: &str) -> Result<Profile, String> {
     if let Some(p) = Profile::builtin(spec) {
         return Ok(p);
     }

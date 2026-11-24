@@ -11868,7 +11868,7 @@ pub(crate) enum Command {
         #[arg(long)]
         verify_undo: bool,
     },
-    /// Check a document against a preflight profile, read-only.
+    /// Check a document against a preflight profile; read-only unless `--fix`.
     ///
     /// Prints one header line, then one line per finding with its severity,
     /// kind, rule, page, target and, for measuring rules, the measured value
@@ -11882,7 +11882,14 @@ pub(crate) enum Command {
     /// `pdfx-3-2002`, `pdfx-3-2003`, `pdfx-4`, or a PDF/A level: `pdfa-1b`,
     /// `pdfa-2b`, `pdfa-3b`) or a JSON profile file;
     /// `--dump-profile` prints the chosen profile as JSON, to edit and pass
-    /// back.
+    /// back. `--report FILE` also writes a readable text report.
+    ///
+    /// `--fix OUTPUT` runs the fixups the failing rules name in the profile
+    /// (a rule's `fixups` list in its JSON) as one undo step, saves the
+    /// result to OUTPUT, and checks OUTPUT again. Every fixup prints what it
+    /// changed, what it could not do and why; a rule left unfixed is named.
+    /// `--fix-suggested` also runs pdfcer's suggested fixup for a rule that
+    /// names none. The exit code and `--report` then describe OUTPUT.
     Preflight {
         /// Input PDF; not needed with `--dump-profile`.
         #[arg(required_unless_present = "dump_profile")]
@@ -11896,6 +11903,26 @@ pub(crate) enum Command {
         /// Print the profile as JSON and exit without checking.
         #[arg(long)]
         dump_profile: bool,
+        /// Also write the report as readable text to this file.
+        #[arg(long, value_name = "FILE")]
+        report: Option<PathBuf>,
+        /// Run the profile's fixups and save the fixed document here.
+        #[arg(long, value_name = "OUTPUT", conflicts_with = "dump_profile")]
+        fix: Option<PathBuf>,
+        /// With `--fix`, also run pdfcer's suggested fixup for each failing
+        /// rule that names none.
+        #[arg(long, requires = "fix")]
+        fix_suggested: bool,
+        /// With `--fix`, the ICC profile a colour conversion or PDF/X
+        /// conversion with no profile of its own converts to.
+        #[arg(long, value_name = "FILE", requires = "fix")]
+        icc: Option<PathBuf>,
+        /// With `--fix`, the save mode.
+        #[arg(long, value_enum, default_value_t = SaveMode::Incremental)]
+        mode: SaveMode,
+        /// With `--fix`, reload and verify the fixups undo byte-identically.
+        #[arg(long, requires = "fix")]
+        verify_undo: bool,
     },
     /// Check a document against a PDF/X level (ISO 15930), read-only.
     ///

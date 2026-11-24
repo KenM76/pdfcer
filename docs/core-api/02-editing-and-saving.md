@@ -18,7 +18,7 @@ answers *"I want to do X — what do I call, in what order, and what will bite m
 | **Date** | 2026-08-29 |
 | **Verified against** | `5c37c7c` (`git rev-parse --short HEAD`) — *"he gave no reason" was a claim, and it has been corrected* |
 | **Primary subject** | `crates/pdfcer-core/src/edit.rs` (35655) |
-| **Covers** | `EditSession` end to end: construction, the command/undo/redo model, **all 448 public methods**, the `EditError` taxonomy, the save path (incremental vs full rewrite), the guard/refusal model (encryption, certification, sidecar version, `/Size` suppression), object allocation and byte staging |
+| **Covers** | `EditSession` end to end: construction, the command/undo/redo model, **all 450 public methods**, the `EditError` taxonomy, the save path (incremental vs full rewrite), the guard/refusal model (encryption, certification, sidecar version, `/Size` suppression), object allocation and byte staging |
 | **Does NOT cover** | Document loading and the read-only object model → **`01-reading-and-model.md`**. Per-feature capability guides (ce dimensions, forms, annotations, redaction, OCR, printing) → **`03-capabilities.md`**. This document covers the *session mechanics* those features flow through; part 3 covers the features. |
 | **Terminology** | Project rule 15. **ce dimensions** = the dimension objects pdfcer authors (`/Line` + `/IT /LineDimension` + baked `/AP` + `/PieceInfo` sidecar). **pdf dimensions** = dimensions already present in the page content, exported by CAD. Never bare "dimension". This document only concerns ce dimensions. |
 
@@ -69,9 +69,9 @@ Five consequences a GUI author must internalise before writing any code:
 
 ---
 
-## 1. Verb index — all 448 public `EditSession` methods
+## 1. Verb index — all 450 public `EditSession` methods
 
-**Count: 448.** Established by brace-matched extraction of the
+**Count: 450.** Established by brace-matched extraction of the
 `impl EditSession` blocks in `edit.rs` and its `edit/` child modules, matching `pub fn` / `pub const fn`, and checked
 on every run by `tools/check-core-api-verbs.py` — which is what caught this
 figure at 120 when `add_outline_item` landed, and caught it again at 227 when
@@ -96,7 +96,7 @@ added `add_file_attachment_annotation`, and at 274 when `Pass 261.1` added
 `add_caret_annotation` and `add_replace_text`, and at 275 when `Pass 261.2`
 added `add_sound_annotation`, and at 276 when `Pass 261.3` added
 `add_screen_annotation`, and at 277 when `Pass 142.3` added
-`preview_style_ladder_with_donors`, and at 279 when `Pass 375.0` added `set_crop_boxes` and `resize_pages`, at 283 when Bates numbering added `stamp_bates`, and at 284 when `remove_bates` followed, and at 348 when `G154` added `insert_node`, `convert_node`, `convert_segment` and their three `_in_form` twins, and at 349 when `G160` added `turn_widget`, and at 350 when `G168` added `set_3d_views`, and at 352 when `G164` added `metadata_inventory` and `remove_metadata`, and at 355 when `G165` added `page_scan_image`, `detect_image_skew` and `deskew_image`, and at 356 when `G171` added `coalesce_last_same`, and at 371 when `G198` added `upscale_image`, and at 385 when `Pass 55.10` added `stamp_running_text`, and at 386 when `Pass 55.11` added `add_printer_marks`, and at 387 when `G238` added `decorate_for_print`, and at 388 when `G247` added `set_3d_opening_view`, and at 391 when `G243` added `fork_for_print` and `decorated_for_print`, and at 401 when `Pass 694.2` added `set_page_boxes`, and at 402 when `Pass 700.9` added `fill_rich_text_field`, and at 404 when its follow-up added `set_rich_style_precedence` and `rich_style_precedence`, and at 423 when `Pass 722.0` added `extend_path`, `open_subpath` and their two `_in_form` twins, and at 427 when `G295` added `can_extend_path`, `can_open_subpath` and their two `_in_form` twins, and at 428 when `G301` added `materialize_merged_xfa`, and at 429 when `X101` added `deskew_image_with`, and at 430 when `G317` added `edit_capability_for`, and at 431 when `G319` added `insert_pages_with_options`, and at 432 when `G321` added `fill_rich_text_field_runs`, and at 433 when `G324` added `page_snap_geometry`, and at 436 when `Pass 748.3` added `inks`, `alias_ink` and `spot_to_process`, and at 438 when `Pass 748.1` added `flatten_transparency`, and at 439 when `Pass 748.4` added `convert_colours`, and at 440 when `Pass 748.6` added `convert_to_pdfx`, and at 448 when `Pass 748.8` added `validate_pdfua`, `document_language`, `set_document_language`, `set_display_doc_title`, `set_pdfua_tab_order`, `mark_untagged_as_artifacts`, `write_pdfua_identification` and `fix_pdfua`.
+`preview_style_ladder_with_donors`, and at 279 when `Pass 375.0` added `set_crop_boxes` and `resize_pages`, at 283 when Bates numbering added `stamp_bates`, and at 284 when `remove_bates` followed, and at 348 when `G154` added `insert_node`, `convert_node`, `convert_segment` and their three `_in_form` twins, and at 349 when `G160` added `turn_widget`, and at 350 when `G168` added `set_3d_views`, and at 352 when `G164` added `metadata_inventory` and `remove_metadata`, and at 355 when `G165` added `page_scan_image`, `detect_image_skew` and `deskew_image`, and at 356 when `G171` added `coalesce_last_same`, and at 371 when `G198` added `upscale_image`, and at 385 when `Pass 55.10` added `stamp_running_text`, and at 386 when `Pass 55.11` added `add_printer_marks`, and at 387 when `G238` added `decorate_for_print`, and at 388 when `G247` added `set_3d_opening_view`, and at 391 when `G243` added `fork_for_print` and `decorated_for_print`, and at 401 when `Pass 694.2` added `set_page_boxes`, and at 402 when `Pass 700.9` added `fill_rich_text_field`, and at 404 when its follow-up added `set_rich_style_precedence` and `rich_style_precedence`, and at 423 when `Pass 722.0` added `extend_path`, `open_subpath` and their two `_in_form` twins, and at 427 when `G295` added `can_extend_path`, `can_open_subpath` and their two `_in_form` twins, and at 428 when `G301` added `materialize_merged_xfa`, and at 429 when `X101` added `deskew_image_with`, and at 430 when `G317` added `edit_capability_for`, and at 431 when `G319` added `insert_pages_with_options`, and at 432 when `G321` added `fill_rich_text_field_runs`, and at 433 when `G324` added `page_snap_geometry`, and at 436 when `Pass 748.3` added `inks`, `alias_ink` and `spot_to_process`, and at 438 when `Pass 748.1` added `flatten_transparency`, and at 439 when `Pass 748.4` added `convert_colours`, and at 440 when `Pass 748.6` added `convert_to_pdfx`, and at 448 when `Pass 748.8` added `validate_pdfua`, `document_language`, `set_document_language`, `set_display_doc_title`, `set_pdfua_tab_order`, `mark_untagged_as_artifacts`, `write_pdfua_identification` and `fix_pdfua`, and at 450 when `Pass 748.9` added `apply_fixup` and `apply_profile_fixups`.
 There are no `EditSession` methods in any other file
 (`grep -rn "impl EditSession" crates/pdfcer-core/src/` returns those lines only).
 
@@ -5458,6 +5458,22 @@ in order as ONE undo step. **Detail and the disclosure contract:
 
 Every verb also refuses `DocumentEncrypted` (no modify permission) and the
 certification gate. Every outcome struct is `#[non_exhaustive]`.
+
+### 1.40 Preflight fixups (2) — `Pass 748.9`
+
+A preflight finding answered by an edit. Both verbs run as ONE undo step
+(`CommandKind::ApplyFixup`), never raise, and return a
+`preflight::FixupReport`. **Detail and the disclosure contract:
+`03-capabilities.md` §26.**
+
+| I want to… | Call | Returns |
+|---|---|---|
+| Run one fixup over a finding, a rule or the document | `apply_fixup(&mut self, fixup: &preflight::Fixup, scope: &preflight::FixupScope<'_>, tools: &preflight::FixupTools<'_>) -> preflight::FixupReport` | One `FixupStep`: outcome (`Applied`, `NothingToDo`, `Failed`, `Unavailable`), `count`, `changed`, `not_done`, `disclosures`. `FixupScope::Finding(&f)` reaches the finding's page (its image, for a downsample); `Rule { rule_id, findings }` the pages of that rule's violations (`rule_id` also matches `rule_id/…` sub-rules); `All` every page. A narrowed scope with no violation → `Unavailable`, nothing written. `undo_entries` is 1 when anything was written, 0 otherwise, and 0 when called inside an open undo group (the group owns the step). |
+| Run every fixup a profile's failing rules name | `apply_profile_fixups(&mut self, profile: &preflight::Profile, report: &preflight::PreflightReport, tools: &preflight::FixupTools<'_>, suggest: bool) -> preflight::FixupReport` | One step per distinct fixup, in rule order, each scoped to its rule's violations; two rules naming the same fixup run it once with both `rule_ids`. A failing rule with no fixup gets an `Unavailable` step named `none`, or, with `suggest`, `Fixup::suggested(&rule.check)`. ONE undo step for the whole run. |
+
+Every verb also refuses (as a `Failed` step, not an `Err`)
+`DocumentEncrypted` (no modify permission) and the certification gate.
+`FixupReport`, `FixupStep` and `FixupTools` are `#[non_exhaustive]`.
 
 ## 2. Construction, and the session's three read views
 

@@ -186,6 +186,8 @@ mod form_group;
 mod group;
 pub use form_group::{FormGroupOutcome, FormUngroupOutcome};
 pub use group::{GroupOutcome, UngroupOutcome, is_group_form};
+mod apply_fixup;
+mod apply_fixup_steps;
 mod hairlines;
 mod pdfua_artifacts;
 mod pdfua_fix;
@@ -1346,6 +1348,8 @@ pub enum CommandKind {
     WritePdfuaIdentification,
     /// [`EditSession::fix_pdfua`].
     FixPdfua,
+    /// [`EditSession::apply_fixup`] and [`EditSession::apply_profile_fixups`].
+    ApplyFixup,
     /// [`EditSession::restack_objects`].
     RestackObjects,
     /// [`EditSession::group_objects`].

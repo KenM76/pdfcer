@@ -57,6 +57,7 @@ fn is_page_level(check: &Check) -> bool {
     matches!(
         check,
         Check::ImageBelowPpi { .. }
+            | Check::ImageAbovePpi { .. }
             | Check::NoTrimBox
             | Check::ColourSpaceUsed { .. }
             | Check::SpotNotAllowed { .. }
@@ -217,11 +218,12 @@ pub(super) fn page(
         match &rule.check {
             Check::NoTrimBox => no_trim_box(rule, page, number, sink),
             Check::TransparencyUsed => transparency_used(rule, view, page, number, sink),
-            Check::ImageBelowPpi { min_ppi } => {
+            Check::ImageBelowPpi { min_ppi: limit } | Check::ImageAbovePpi { max_ppi: limit } => {
+                let below = matches!(rule.check, Check::ImageBelowPpi { .. });
                 let decomposed = objects
                     .get_or_insert_with(|| vector::decompose_page(view, page, Matrix::IDENTITY));
                 match decomposed {
-                    Ok(objs) => low_ppi(rule, *min_ppi, objs, number, sink),
+                    Ok(objs) => image_ppi(rule, *limit, below, objs, number, sink),
                     Err(e) => sink.push(incomplete(
                         rule,
                         Some(number),
@@ -363,10 +365,12 @@ pub(super) fn rect(b: Bounds) -> Rect {
     }
 }
 
-/// Every image object and form leaf placed below `min_ppi` on either axis.
-fn low_ppi(
+/// Every image object and form leaf placed below `limit` on either axis
+/// (`below`), or above it on either axis.
+fn image_ppi(
     rule: &ProfileRule,
-    min_ppi: f64,
+    limit: f64,
+    below: bool,
     objs: &vector::PageObjects,
     number: usize,
     sink: &mut Sink,
@@ -382,38 +386,47 @@ fn low_ppi(
         .enumerate()
         .map(|(i, l)| (FindingTarget::FormLeaf(i), &l.object));
     for (target, object) in top.chain(leaves) {
-        let VectorObject::Image(image) = object else {
+        let Some((px, py, image)) = placed_ppi(object) else {
             continue;
         };
-        if image.source == ImageSource::Form {
-            continue;
-        }
-        let Some((w, h)) = image.pixel_size else {
-            continue;
+        let (value, hit, word) = if below {
+            (px.min(py), px.min(py) < limit, "below")
+        } else {
+            (px.max(py), px.max(py) > limit, "above")
         };
-        let m = image.ctm;
-        let (Some(px), Some(py)) = (axis_ppi(w, m.a.hypot(m.b)), axis_ppi(h, m.c.hypot(m.d)))
-        else {
-            continue;
-        };
-        let worst = px.min(py);
-        if worst < min_ppi {
+        if hit {
             sink.push(Finding {
                 rect: Some(rect(image.page_bbox)),
                 measured: Some(Measure {
-                    value: worst,
-                    limit: min_ppi,
+                    value,
+                    limit,
                     unit: MeasureUnit::Ppi,
                 }),
                 ..finding(
                     rule,
                     Some(number),
                     target,
-                    format!("An image draws at {px:.0} x {py:.0} ppi, below {min_ppi:.0}."),
+                    format!("An image draws at {px:.0} x {py:.0} ppi, {word} {limit:.0}."),
                 )
             });
         }
     }
+}
+
+/// An image object's drawn resolution on its two axes; `None` for an
+/// inline form image or one whose size or placement is unknown.
+fn placed_ppi(object: &VectorObject) -> Option<(f64, f64, &vector::ImageObject)> {
+    let VectorObject::Image(image) = object else {
+        return None;
+    };
+    if image.source == ImageSource::Form {
+        return None;
+    }
+    let (w, h) = image.pixel_size?;
+    let m = image.ctm;
+    let px = axis_ppi(w, m.a.hypot(m.b))?;
+    let py = axis_ppi(h, m.c.hypot(m.d))?;
+    Some((px, py, image))
 }
 
 /// One finding per colour use whose family the rule lists (shared with PDF/X CS-1).
