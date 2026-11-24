@@ -1,7 +1,7 @@
 //! The two passes: propagate context bits along edges to a fixpoint, then
 //! apply the key, value and custom rules to every dictionary.
 
-use std::collections::{BTreeSet, HashMap, VecDeque};
+use std::collections::{BTreeSet, HashMap, HashSet, VecDeque};
 
 use super::ctx::{self, ENCRYPT, FONT_DESC, SIGNATURE, TRAILER};
 use super::{checks, keys};
@@ -28,6 +28,7 @@ pub(super) fn reached(doc: &Document) -> HashMap<ObjId, u64> {
         match &obj.value {
             Object::Dict(d) => dict_edges(d, inherited, 0, &mut found),
             Object::Stream(s) => dict_edges(&s.dict, inherited | ctx::STREAM, 0, &mut found),
+            array @ Object::Array(_) => child_edges(array, inherited, 0, &mut found),
             _ => {}
         }
         grow(&mut bits, &mut found, &mut queue);
@@ -76,11 +77,34 @@ fn child_edges(v: &Object, bits: u64, depth: usize, out: &mut Vec<(ObjId, u64)>)
     }
 }
 
-/// Streams the content pass decodes, found while scanning.
-#[derive(Default)]
-pub(super) struct Jobs {
+/// The document being scanned, what the scan has resolved, and the streams
+/// the content pass decodes.
+pub(super) struct Walk<'a> {
+    doc: &'a Document,
     /// Font programs (`/FontFile2`, `/FontFile3`) to sniff.
     pub fonts: Vec<ObjId>,
+    /// References resolved for the current object, under the key naming
+    /// them: the cycle guard, cleared by [`Walk::next_object`].
+    seen: HashSet<(ObjId, Vec<u8>)>,
+    /// What a shared indirect `/Filter` needs, read once.
+    filters: HashMap<ObjId, Notes>,
+}
+
+impl<'a> Walk<'a> {
+    pub(super) fn new(doc: &'a Document) -> Self {
+        Walk {
+            doc,
+            fonts: Vec::new(),
+            seen: HashSet::new(),
+            filters: HashMap::new(),
+        }
+    }
+
+    /// Start crediting a new object: a value it references counts for it
+    /// even if an earlier object referenced the same value.
+    pub(super) fn next_object(&mut self) {
+        self.seen.clear();
+    }
 }
 
 /// Apply every rule to dictionary `d` (context `inherited` plus its own
@@ -90,7 +114,7 @@ pub(super) fn scan_dict(
     inherited: u64,
     depth: usize,
     notes: &mut Notes,
-    jobs: &mut Jobs,
+    walk: &mut Walk<'_>,
 ) {
     if depth > MAX_DEPTH {
         return;
@@ -104,9 +128,10 @@ pub(super) fn scan_dict(
             notes.insert((ver, format!("/{}", lossy(key))));
         }
         if bits & FONT_DESC != 0 && matches!(key, b"FontFile2" | b"FontFile3") {
-            jobs.fonts.extend(v.as_reference());
+            walk.fonts.extend(v.as_reference());
         }
-        let binary = bits & (ENCRYPT | SIGNATURE | TRAILER) != 0;
+        let binary = bits & (ENCRYPT | TRAILER) != 0
+            || (bits & SIGNATURE != 0 && matches!(key, b"Contents" | b"Cert"));
         scan_value(
             key,
             v,
@@ -114,7 +139,7 @@ pub(super) fn scan_dict(
             binary,
             depth,
             notes,
-            jobs,
+            walk,
         );
     }
 }
@@ -126,7 +151,7 @@ fn scan_value(
     binary: bool,
     depth: usize,
     notes: &mut Notes,
-    jobs: &mut Jobs,
+    walk: &mut Walk<'_>,
 ) {
     match v {
         Object::Name(n) => {
@@ -137,7 +162,10 @@ fn scan_value(
         Object::String(s) if !binary && s.starts_with(&[0xEF, 0xBB, 0xBF]) => {
             notes.insert((20, "UTF-8 text string".to_owned()));
         }
-        Object::Dict(d) => scan_dict(d, child & !ctx::STREAM, depth + 1, notes, jobs),
+        Object::Dict(d) => scan_dict(d, child & !ctx::STREAM, depth + 1, notes, walk),
+        Object::Reference(r) => {
+            referenced(key, *r, (bits, child), binary, depth + 1, notes, walk);
+        }
         Object::Array(a) => {
             for (i, e) in a.iter().enumerate() {
                 let elem = child | ctx::colour_space_element(a, i);
@@ -147,12 +175,43 @@ fn scan_value(
                             notes.insert((ver, format!("/Filter /{}", lossy(n.as_bytes()))));
                         }
                     }
-                    _ => scan_value(key, e, (bits, elem), binary, depth + 1, notes, jobs),
+                    _ => scan_value(key, e, (bits, elem), binary, depth + 1, notes, walk),
                 }
             }
         }
         _ => {}
     }
+}
+
+/// A value given by reference, judged under the key that names it. A
+/// dictionary or stream is skipped: it is scanned as its own object.
+fn referenced(
+    key: &[u8],
+    id: ObjId,
+    ctx: (u64, u64),
+    binary: bool,
+    depth: usize,
+    notes: &mut Notes,
+    walk: &mut Walk<'_>,
+) {
+    let doc = walk.doc;
+    let Some(obj) = doc.get(id) else { return };
+    if depth > MAX_DEPTH
+        || matches!(obj.value, Object::Dict(_) | Object::Stream(_))
+        || !walk.seen.insert((id, key.to_vec()))
+    {
+        return;
+    }
+    if key != b"Filter" {
+        scan_value(key, &obj.value, ctx, binary, depth, notes, walk);
+        return;
+    }
+    if !walk.filters.contains_key(&id) {
+        let mut found = Notes::new();
+        scan_value(key, &obj.value, ctx, binary, depth, &mut found, walk);
+        walk.filters.insert(id, found);
+    }
+    notes.extend(walk.filters.get(&id).into_iter().flatten().cloned());
 }
 
 /// `b` as text for a construct name; invalid UTF-8 is replaced, not refused.

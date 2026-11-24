@@ -23,14 +23,14 @@ mod scan;
 #[cfg(test)]
 mod tests;
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, HashSet};
 use std::fmt;
 
 use crate::PdfVersion;
 use crate::document::Document;
 use crate::object::{ObjId, Object, Provenance};
 use crate::xref::SectionShape;
-use scan::{Jobs, Notes};
+use scan::{Notes, Walk};
 
 pub use icc::{IccProfile, IccVersionGate};
 
@@ -149,13 +149,23 @@ pub fn version_floor(doc: &Document) -> VersionFloor {
 #[must_use]
 pub fn version_floor_with(doc: &Document, options: FloorOptions) -> VersionFloor {
     let reached = scan::reached(doc);
-    let mut tally = Tally::default();
-    let mut unprovable = Vec::new();
-    let mut jobs = Jobs::default();
-    let mut notes = Notes::new();
-    let mut icc_profiles = Vec::new();
-    scan::scan_dict(doc.trailer(), ctx::TRAILER, 0, &mut notes, &mut jobs);
-    tally.add(&mut notes, None);
+    let pages = content::page_contents(doc);
+    let page_streams: HashSet<ObjId> = pages.values().flatten().copied().collect();
+    let mut run = Run {
+        tally: Tally::default(),
+        unprovable: Vec::new(),
+        walk: Walk::new(doc),
+        notes: Notes::new(),
+        icc_profiles: Vec::new(),
+    };
+    scan::scan_dict(
+        doc.trailer(),
+        ctx::TRAILER,
+        0,
+        &mut run.notes,
+        &mut run.walk,
+    );
+    run.tally.add(&mut run.notes, None);
     for obj in doc.objects() {
         let bits = reached.get(&obj.id).copied().unwrap_or(0);
         let (dict, stream) = match &obj.value {
@@ -163,13 +173,22 @@ pub fn version_floor_with(doc: &Document, options: FloorOptions) -> VersionFloor
             Object::Stream(s) => (&s.dict, true),
             _ => continue,
         };
+        run.walk.next_object();
         let stream_bits = if stream { ctx::STREAM } else { 0 };
-        scan::scan_dict(dict, bits | stream_bits, 0, &mut notes, &mut jobs);
-        if stream && (ctx::own(dict, true) | bits) & ctx::CONTENT != 0 {
-            let read =
-                content::decoded(doc, obj.id).is_some_and(|d| content::scan_content(d, &mut notes));
+        scan::scan_dict(dict, bits | stream_bits, 0, &mut run.notes, &mut run.walk);
+        let own = ctx::own(dict, stream);
+        if let Some(streams) = pages.get(&obj.id) {
+            for id in content::scan_page(doc, streams, &mut run.notes) {
+                run.unprovable(Unprovable::UnreadableContent(id));
+            }
+        } else if stream
+            && (own | bits) & ctx::CONTENT != 0
+            && (own & ctx::CONTENT != 0 || !page_streams.contains(&obj.id))
+        {
+            let read = content::decoded(doc, obj.id)
+                .is_some_and(|d| content::scan_content(d, &mut run.notes));
             if !read {
-                unprovable.push(Unprovable::UnreadableContent(obj.id));
+                run.unprovable(Unprovable::UnreadableContent(obj.id));
             }
         }
         if stream && bits & ctx::ICC != 0 {
@@ -177,29 +196,51 @@ pub fn version_floor_with(doc: &Document, options: FloorOptions) -> VersionFloor
                 doc,
                 obj.id,
                 options.icc,
-                (&mut icc_profiles, &mut unprovable, &mut notes),
+                (&mut run.icc_profiles, &mut run.unprovable, &mut run.notes),
             );
         }
-        tally.add(&mut notes, Some(obj.id));
+        run.tally.add(&mut run.notes, Some(obj.id));
     }
-    for id in std::mem::take(&mut jobs.fonts) {
-        match content::decoded(doc, id) {
-            Some(data) => content::scan_font(&data, &mut notes),
-            None => unprovable.push(Unprovable::UnreadableFont(id)),
+    run.finish(doc)
+}
+
+/// The scan's running state.
+struct Run<'a> {
+    tally: Tally,
+    unprovable: Vec<Unprovable>,
+    walk: Walk<'a>,
+    notes: Notes,
+    icc_profiles: Vec<IccProfile>,
+}
+
+impl Run<'_> {
+    fn unprovable(&mut self, u: Unprovable) {
+        if !self.unprovable.contains(&u) {
+            self.unprovable.push(u);
         }
-        tally.add(&mut notes, Some(id));
     }
-    let requirements = tally.into_requirements();
-    let floor = requirements
-        .iter()
-        .map(|r| r.version)
-        .fold(V13, PdfVersion::max);
-    VersionFloor {
-        floor,
-        requirements,
-        structural: structural(doc),
-        unprovable,
-        icc_profiles,
+
+    /// Sniff the queued font programs and assemble the result.
+    fn finish(mut self, doc: &Document) -> VersionFloor {
+        for id in std::mem::take(&mut self.walk.fonts) {
+            match content::decoded(doc, id) {
+                Some(data) => content::scan_font(&data, &mut self.notes),
+                None => self.unprovable(Unprovable::UnreadableFont(id)),
+            }
+            self.tally.add(&mut self.notes, Some(id));
+        }
+        let requirements = self.tally.into_requirements();
+        let floor = requirements
+            .iter()
+            .map(|r| r.version)
+            .fold(V13, PdfVersion::max);
+        VersionFloor {
+            floor,
+            requirements,
+            structural: structural(doc),
+            unprovable: self.unprovable,
+            icc_profiles: self.icc_profiles,
+        }
     }
 }
 

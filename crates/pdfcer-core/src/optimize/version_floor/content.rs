@@ -2,10 +2,13 @@
 //! marked-content properties in content streams (§8.9.7, §14.6), and the
 //! OpenType wrapper of a font program (§9.9).
 
-use super::keys;
+use std::collections::HashMap;
+
 use super::scan::{Notes, lossy};
+use super::{ctx, keys};
 use crate::content::{ContentStream, ContentTokenKind};
 use crate::document::Document;
+use crate::filters::MAX_DECODED_LEN;
 use crate::object::{Dict, ObjId, Object};
 
 /// The decoded data of stream `id`, or `None` when it cannot be read.
@@ -15,6 +18,70 @@ pub(super) fn decoded(doc: &Document, id: ObjId) -> Option<Vec<u8>> {
     };
     let raw = doc.view().slice(stream.data_span)?;
     crate::filters::decode_stream(&stream.dict, raw).ok()
+}
+
+/// The streams of every page's `/Contents`, by page: a stream, or an
+/// array of streams, given directly or by reference.
+pub(super) fn page_contents(doc: &Document) -> HashMap<ObjId, Vec<ObjId>> {
+    fn resolve<'a>(doc: &'a Document, v: &'a Object) -> Option<(Option<ObjId>, &'a Object)> {
+        match v {
+            Object::Reference(r) => doc.get(*r).map(|o| (Some(*r), &o.value)),
+            other => Some((None, other)),
+        }
+    }
+    let mut out = HashMap::new();
+    for obj in doc.objects() {
+        let Object::Dict(d) = &obj.value else {
+            continue;
+        };
+        if ctx::own(d, false) & ctx::PAGE == 0 {
+            continue;
+        }
+        let streams = match d.get(b"Contents").and_then(|v| resolve(doc, v)) {
+            Some((Some(id), Object::Stream(_))) => vec![id],
+            Some((_, Object::Array(a))) => a
+                .iter()
+                .filter_map(Object::as_reference)
+                .filter(|r| matches!(doc.get(*r).map(|o| &o.value), Some(Object::Stream(_))))
+                .collect(),
+            _ => continue,
+        };
+        out.insert(obj.id, streams);
+    }
+    out
+}
+
+/// Scan a page's content `streams` as the one stream they form (ISO
+/// 32000-2 §7.8.2), joined within [`MAX_DECODED_LEN`]. Returns the streams
+/// that could not be read.
+pub(super) fn scan_page(doc: &Document, streams: &[ObjId], notes: &mut Notes) -> Vec<ObjId> {
+    let mut joined = Vec::new();
+    let mut unread = Vec::new();
+    for &id in streams {
+        match decoded(doc, id) {
+            Some(d) if joined.len() + d.len() < MAX_DECODED_LEN => {
+                joined.extend_from_slice(&d);
+                joined.push(b'\n');
+            }
+            _ => unread.push(id),
+        }
+    }
+    if scan_content(joined, notes) {
+        return unread;
+    }
+    let alone: Vec<ObjId> = streams
+        .iter()
+        .copied()
+        .filter(|&id| !unread.contains(&id))
+        .filter(|&id| !decoded(doc, id).is_some_and(|d| scan_content(d, &mut Notes::new())))
+        .collect();
+    let blamed = if alone.is_empty() { streams } else { &alone };
+    for &id in blamed {
+        if !unread.contains(&id) {
+            unread.push(id);
+        }
+    }
+    unread
 }
 
 /// Scan content stream `data`; `false` when it does not tokenize.
