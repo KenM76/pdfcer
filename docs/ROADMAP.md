@@ -112,6 +112,19 @@ wherever it appears.*
 
 ## Shipped
 
+### `v0.172.0` PUBLISHED, tag on `a99d1e13` (bump `2fbc16e6`, the 1694th filing), 2026-11-24 (1696th filing)
+
+Engineer-reported (the engineer checked these with a shell); this filing had no shell, so none of it is checked from here. This is the publication of the release whose bump was filed 1694th and whose `DocumentNotTagged` message fix (`5bec95d5`) was filed 1695th.
+- **Tag:** `v0.172.0`, annotated and pushed, on `a99d1e13` (the 1695th filing commit). CI green on `a99d1e13`.
+- **GitHub release `pdfcer v0.172.0`:** 8 assets, each zip with a `.sha256`: `pdfcer-v0.172.0-windows-x64.zip` (33,478,803 bytes), `ocr-addon-ocrcer.zip` (3,789,155), `ocr-addon-ocrs.zip` (11,352,262), `ocr-addon-tesseract.zip` (4,483,685).
+- **Smoke test:** fresh folder `D:\builds\pdfcer-20261124-0629-a99d1e1`; `--version` reports revision `v0.172.0`; `tac`, `preflight --profile pdfx-4 --report --fix --fix-suggested`, `validate-pdfa --level 2b` and `render-page` all ran on `fixtures/synthetic/hello.pdf`.
+- **OneDrive:** slot `pdfcer1` written (it held 0.170.0); `pdfcer2` keeps 0.171.0, so **the next release writes `pdfcer2`**.
+- **crates.io:** all 17 crates at 0.172.0 in one round, leaf-first (pdfcer-model, color, pkix, vec3, json, jpeg-remux, 3d, 3d-nav, image-codec, fonts, function, text, core, ink, render, flatten, emf). **`pdfcer-ink` is a first publication.**
+- **`verify-release.py`:** passed every check except "working tree clean" (only agent memory, untracked scratch files and the line-ending-only `THIRD_PARTY_LICENSES.md` diff were dirty, as in earlier releases).
+- **Contents:** the O458 preflight round (`Pass 748.0`-`748.10`, `729.0`), `745.0`, `746.0`, `747.0`, and the `5bec95d5` message fix; the full list is in the 1694th entry below.
+- **Gotcha:** CI went red on `b6b654fc` because `tools/check-string-gaps.sh` caught a wrapped `#[error]` literal from `Pass 748.8`. The local pre-push sweep had run the 35 python `check-*.py` gates but not the two `.sh` gates (`check-string-gaps.sh`, `check-bypass-paths.sh`). **The pre-push sweep must include both.**
+- **FEATURES:** no row changes. **Next:** `Pass 729.1` (`convert_to_pdfa`) and the CLI `to-pdfa` (`729.2`'s open half).
+
 ### `5bec95d5` `fix(edit)`: rejoin the DocumentNotTagged message, 2026-11-24 (1695th filing)
 
 Engineer-reported; no shell here, git, push, CI and the gates not run or checked from here. **Ships in v0.172.0** (not yet released; the bump is `2fbc16e6`).

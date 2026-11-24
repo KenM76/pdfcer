@@ -4,6 +4,22 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-11-24 (1696th filing) — `v0.172.0` PUBLISHED
+
+**Filed (engineer-reported, checked by the engineer with a shell; nothing here checked from this filing's side):**
+- Tag `v0.172.0` on `a99d1e13` (annotated, pushed), CI green. Bump `2fbc16e6` (1694th), message fix `5bec95d5` (1695th).
+- GitHub release with 8 assets (zip 33,478,803 bytes; OCR add-ons 3,789,155 / 11,352,262 / 4,483,685; each with `.sha256`).
+- Fresh-folder smoke test passed (`D:\builds\pdfcer-20261124-0629-a99d1e1`): `--version`, `tac`, `preflight --profile pdfx-4 --report --fix --fix-suggested`, `validate-pdfa --level 2b`, `render-page`.
+- OneDrive `pdfcer1` written (held 0.170.0); `pdfcer2` keeps 0.171.0; **the next release writes `pdfcer2`**.
+- crates.io: 17 crates at 0.172.0, leaf-first; `pdfcer-ink` first published.
+- `verify-release.py` passed except "working tree clean". Contents: the O458 preflight round (`748.0`-`748.10`, `729.0`) plus `745.0`, `746.0`, `747.0` and `5bec95d5`. Details: `ROADMAP.md` *Shipped*.
+
+**Finding:** CI went red on `b6b654fc`: `tools/check-string-gaps.sh` caught a wrapped `#[error]` literal from `Pass 748.8`. The local pre-push sweep ran the 35 python gates but not the two `.sh` gates (`check-string-gaps.sh`, `check-bypass-paths.sh`). **The pre-push sweep must run both.**
+
+**FEATURES:** no row changes.
+
+**Next:** `Pass 729.1` (`convert_to_pdfa`) and the CLI `to-pdfa`.
+
 ## 2026-11-24 (1695th filing) — DocumentNotTagged message fix (`5bec95d5`)
 
 **Filed (engineer-reported; no shell here, git, push, CI and the gates not checked from here):**
