@@ -17,6 +17,7 @@
 
 mod checks;
 mod cos;
+mod coverage;
 pub(crate) mod hairlines;
 mod pdfa;
 mod pdfua;
@@ -28,6 +29,7 @@ pub(crate) mod walk;
 
 use std::sync::atomic::{AtomicBool, Ordering};
 
+pub use coverage::{CoverageMeter, TacFailure, TacMeasurement, TacRegion, TacRequest};
 pub(crate) use hairlines::hairlines_in;
 pub use hairlines::{HAIRLINES_NOT_COVERED, Hairline, hairlines};
 pub use pdfa::{PdfaLevel, PdfaReport, PdfaVerdict, validate_pdfa, validate_pdfa_with};
@@ -230,6 +232,16 @@ pub enum Check {
         /// The row id.
         row: &'static str,
     },
+    /// The summed ink of every plate (C, M, Y, K and each spot) is above
+    /// `limit_percent` somewhere on a page, measured by compositing the
+    /// page in ink at `ppi`. Needs a [`CoverageMeter`]: see
+    /// [`run_with_meter`]; without one the rule is reported incomplete.
+    TotalAreaCoverage {
+        /// The limit, in percent of one plate (300 is three solid plates).
+        limit_percent: f64,
+        /// The measuring resolution, in pixels per inch.
+        ppi: f64,
+    },
 }
 
 /// What a finding says about its target.
@@ -418,11 +430,26 @@ pub fn run(view: &DocumentView<'_>, profile: &Profile) -> PreflightReport {
 }
 
 /// Run `profile` with a result cap, cancellation and progress.
+///
+/// [`Check::TotalAreaCoverage`] rules are reported incomplete; use
+/// [`run_with_meter`] to measure them.
 #[must_use]
 pub fn run_with(
     view: &DocumentView<'_>,
     profile: &Profile,
     options: &RunOptions<'_>,
+) -> PreflightReport {
+    run_with_meter(view, profile, options, None)
+}
+
+/// [`run_with`], measuring [`Check::TotalAreaCoverage`] rules with `meter`
+/// (`pdfcer_render::TacMeter` in the shipped shells).
+#[must_use]
+pub fn run_with_meter(
+    view: &DocumentView<'_>,
+    profile: &Profile,
+    options: &RunOptions<'_>,
+    meter: Option<&dyn CoverageMeter>,
 ) -> PreflightReport {
     let mut sink = checks::Sink::new(options.max_findings);
     checks::document(view, profile, &mut sink);
@@ -447,6 +474,7 @@ pub fn run_with(
             break;
         }
         checks::page(view, profile, page, i + 1, &mut sink);
+        coverage::page(view, profile, page, i + 1, meter, &mut sink);
         report.pages_checked = i + 1;
         if let Some(progress) = options.progress {
             progress(i + 1, pages.len());

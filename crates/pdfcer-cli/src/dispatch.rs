@@ -1360,6 +1360,13 @@ pub(crate) fn run() -> ExitCode {
             hide_ink,
             output: output.as_deref(),
         }),
+        Command::Tac {
+            input,
+            pages,
+            limit,
+            ppi,
+            max_regions,
+        } => cmd_tac(&input, &pages, limit, ppi, max_regions),
         Command::ListStandards { standard } => cmd_list_standards(standard.as_deref()),
         Command::Ocr {
             input,

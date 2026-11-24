@@ -109,6 +109,7 @@ mod supersampled_large_sheet_is_tiled;
 mod svg_import;
 mod symbolic_truetype_glyphs;
 mod synthetic_style_render;
+mod tac_meter;
 mod text_annotation_preview_paint;
 mod text_clipping_modes;
 mod text_matrix_precision;

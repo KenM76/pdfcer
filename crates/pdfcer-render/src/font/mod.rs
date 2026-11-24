@@ -868,6 +868,9 @@ pub struct RenderOptions {
     /// buffer to up to three rules' masks, one per RGB channel, instead of
     /// to colour.
     pub(crate) coverage_warnings: crate::coverage_warning::RuleSlots,
+    /// Set only by [`crate::total_area_coverage`]: collapse the colorant
+    /// buffer to each pixel's total coverage instead of to colour.
+    pub(crate) coverage_readout: bool,
 }
 
 /// The medium a finished page group is composited onto — §11.4.7's
@@ -1348,6 +1351,7 @@ impl Default for RenderOptions {
             overprint_preview: crate::OverprintPreview::Simulate,
             separation_preview: None,
             coverage_warnings: [None; 3],
+            coverage_readout: false,
         }
     }
 }

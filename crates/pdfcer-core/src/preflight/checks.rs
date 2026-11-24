@@ -63,6 +63,7 @@ fn is_page_level(check: &Check) -> bool {
             | Check::OverprintUsed
             | Check::StrokeBelow { .. }
             | Check::TransparencyUsed
+            | Check::TotalAreaCoverage { .. }
     ) || matches!(check, Check::PdfxRequirement { level, row } if super::pdfx::is_page_row(row, *level))
         || matches!(check, Check::PdfaRequirement { level, row } if super::pdfa::is_page_row(row, *level))
 }
@@ -75,7 +76,8 @@ fn uses_walk(check: &Check) -> bool {
         || matches!(check, Check::PdfaRequirement { row, .. } if super::pdfa::uses_walk(row))
 }
 
-fn finding(
+/// A finding of `rule`'s severity, `Violation` kind, with no rect or measure.
+pub(super) fn finding(
     rule: &ProfileRule,
     page: Option<usize>,
     target: FindingTarget,
@@ -93,7 +95,8 @@ fn finding(
     }
 }
 
-fn incomplete(rule: &ProfileRule, page: Option<usize>, why: &str) -> Finding {
+/// An `Incomplete` finding of `rule`: the part it needed could not be measured.
+pub(super) fn incomplete(rule: &ProfileRule, page: Option<usize>, why: &str) -> Finding {
     Finding {
         kind: FindingKind::Incomplete,
         ..finding(

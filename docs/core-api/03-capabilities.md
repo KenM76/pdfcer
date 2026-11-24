@@ -6700,10 +6700,11 @@ Fixups are separate verbs on the edit session; nothing here writes.
 |---|---|
 | `preflight::run(&DocumentView, &Profile) -> PreflightReport` | every finding, with the default options |
 | `preflight::run_with(&DocumentView, &Profile, &RunOptions) -> PreflightReport` | the same, with `max_findings` (default `RunOptions::DEFAULT_MAX_FINDINGS`, 25 000), a `cancel: Option<&AtomicBool>` checked before each page, and `progress: Option<&dyn Fn(done, total)>` called after each |
+| `preflight::run_with_meter(&DocumentView, &Profile, &RunOptions, Option<&dyn CoverageMeter>) -> PreflightReport` | the same, with a rasteriser for `TotalAreaCoverage` rules (§27); `run_with` passes `None`, which makes every such rule `Incomplete` |
 | `Profile::builtin(name) -> Option<Profile>` / `Profile::BUILTIN_NAMES` | built-ins by name: `digital-printing` (`Profile::digital_printing()`), `pdfua-1` and `pdfua-2` (`Profile::pdfua(part)`, §20), and the PDF/X levels `pdfx-1a-2001`, `pdfx-1a-2003`, `pdfx-3-2002`, `pdfx-3-2003`, `pdfx-4` (`Profile::pdfx(level)`, §21) | |
 | `Profile::from_json(&[u8]) -> Result<Profile, ProfileError>` / `Profile::to_json() -> String` | the saved form of an edited profile; check names and parameters are tabled on `from_json` |
 | `Profile { name, description, rules: Vec<ProfileRule> }`, `ProfileRule { id, check: Check, severity: Severity }` | rules run in order; ids are unique |
-| `Check` | `ImageBelowPpi { min_ppi }`, `FontNotEmbedded`, `NoOutputIntent`, `NoTrimBox`, `ColourSpaceUsed { families: Vec<ColourFamily> }`, `SpotNotAllowed { allowed: Vec<String> }`, `OverprintUsed`, `StrokeBelow { min_width_pt }` (JSON `stroke-below`, Pass 748.2), `TransparencyUsed` (`Pass 748.1`, §19), `Encrypted`, `VersionAbove { max: PdfVersion }`, `PdfUa { part: PdfuaPart }` (JSON `"check": "pdfua", "part": 1`, §20), `PdfxRequirement { level: PdfxLevel, row: &'static str }` (JSON `pdfx-requirement` with `level` and `row`; §21) |
+| `Check` | `ImageBelowPpi { min_ppi }`, `FontNotEmbedded`, `NoOutputIntent`, `NoTrimBox`, `ColourSpaceUsed { families: Vec<ColourFamily> }`, `SpotNotAllowed { allowed: Vec<String> }`, `OverprintUsed`, `StrokeBelow { min_width_pt }` (JSON `stroke-below`, Pass 748.2), `TransparencyUsed` (`Pass 748.1`, §19), `Encrypted`, `VersionAbove { max: PdfVersion }`, `PdfUa { part: PdfuaPart }` (JSON `"check": "pdfua", "part": 1`, §20), `PdfxRequirement { level: PdfxLevel, row: &'static str }` (JSON `pdfx-requirement` with `level` and `row`; §21), `TotalAreaCoverage { limit_percent, ppi }` (JSON `total-area-coverage`, `limit_percent` required, `ppi` 9–600 default 150; §27) |
 | `PreflightReport { findings, dropped, pages_checked, page_count, cancelled }` | `fails()` = an `Error` finding or `dropped > 0`; `is_clean()`; `needs_person()` |
 | `Finding { rule_id, severity, kind, page: Option<usize>, target, rect: Option<Rect>, message, measured: Option<Measure> }` | `page` 1-based, `None` for document-level; `Measure { value, limit, unit: MeasureUnit }` for measuring checks |
 | `preflight::hairlines(&DocumentView, &Page, min_width_pt) -> Result<Vec<Hairline>, ContentError>` | every stroke printing below `min_width_pt` on its thinnest axis, or of width 0; `Hairline { target, line_width, axis_scale, width_pt, zero_width, rect }`, `width_for(min)` the user-space width that prints `min` |
@@ -7134,3 +7135,44 @@ Contract:
   signature `/ByteRange` and PKCS#7 rows.
 
 ⚠️ `PdfaLevel` and `PdfaReport` are `#[non_exhaustive]`; `PdfaVerdict` is closed.
+
+## 27. Total area coverage — the most ink on the sheet (`Pass 748.10`)
+
+Read-only; no edit session. The measuring needs a rasteriser, so core
+defines the trait and `pdfcer-render` implements it. CLI: `pdfcer tac IN
+--limit P [--ppi N] [--pages S] [--max-regions N]`, and a profile rule
+`"check": "total-area-coverage"` inside `pdfcer preflight` (which supplies
+the meter). Exceeds Acrobat, whose preflight has no native TAC check.
+
+| Call | Returns |
+|---|---|
+| `preflight::CoverageMeter` (trait) | `measure_tac(&DocumentView, &Page, &TacRequest) -> Result<TacMeasurement, TacFailure>` |
+| `pdfcer_render::TacMeter::new()` / `with_options(RenderOptions)` | the shipped meter (fonts, annotation scope, output intent from the options; separation preview and antialiasing are overridden) |
+| `preflight::run_with_meter(…, Some(&meter))` | §17's run with `TotalAreaCoverage` rules measured |
+| `TacRequest::new(limit_percent, ppi)`, `with_max_regions(n)` | `DEFAULT_PPI` 150, `MIN_PPI` 9, `MAX_PPI` 600, `DEFAULT_MAX_REGIONS` 8 |
+| `TacMeasurement { max_percent, pixels, over_pixels, ppi, regions, caveats, not_measured }` | one page; `over_area_sq_in()` = over pixels / ppi² |
+| `TacRegion { rect, max_percent, over_pixels, merged }` | one 8-connected over-limit area (eighth-inch cells), `rect` in default user space of the unrotated page; `merged > 1` = the region bounding every area past `max_regions` |
+| `pdfcer_render::total_area_coverage(&DocumentView, &Page, scale, &RenderOptions) -> Result<TacRaster, RenderError>` | the raw raster: `tenths: Vec<u16>` per pixel (4000 = four solid plates), `width`, `height`, `in_ink`, `diagnostics`, `max_tenths()` |
+
+Contract:
+
+- **Coverage is the sum of C, M, Y, K and every spot plane as the ink
+  lands**, after overprint and transparency (ISO 32000-2 §10.8.3, §11.7.4),
+  in tenths of a percent — the number `coverage-warning --tac` compares.
+  A pixel is over when **strictly** above the limit; edges are not
+  antialiased.
+- **Findings** (rule severity): one `Violation` per region, target `Page`,
+  `rect`, `Measure { value: region max, limit, unit: Percent }`, message
+  naming pixels, square inches and ppi; a page-level `Violation` if pixels
+  are over but no region was reported.
+- **Never a silent pass**: no meter, a meter `Err` (colorant buffer refused
+  for memory, ppi out of range) and content the renderer could not draw or
+  spot inks past its plane limit are each `Incomplete`.
+- **★ Disclose the estimate.** RGB, CalRGB, Lab and non-CMYK ICC paint and
+  images reach ink through the renderer's estimate, not an ICC conversion
+  (colour conversion is icccer's, decision 064). That is one `Info`
+  `NeedsPerson` finding per page, recommending `convert-colours` (§22) to
+  the output profile first. It does not fail the run.
+
+⚠️ `TacRequest`, `TacRegion`, `TacMeasurement` and `TacRaster` are
+`#[non_exhaustive]`: build them with their constructors.

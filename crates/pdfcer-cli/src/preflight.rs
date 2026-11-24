@@ -50,7 +50,8 @@ pub(crate) fn cmd_preflight(
         max_findings,
         ..RunOptions::default()
     };
-    let report = preflight::run_with(&doc.view(), &profile, &options);
+    let meter = pdfcer_render::TacMeter::new();
+    let report = preflight::run_with_meter(&doc.view(), &profile, &options, Some(&meter));
     println!(
         "preflight {} profile=\"{}\" pages={}/{} findings={} dropped={}",
         input.display(),

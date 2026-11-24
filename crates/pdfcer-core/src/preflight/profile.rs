@@ -197,6 +197,7 @@ impl Profile {
     /// | `overprint-used` | none |
     /// | `stroke-below` | `min_width_pt`: number >= 0 |
     /// | `transparency-used` | none |
+    /// | `total-area-coverage` | `limit_percent`: number > 0; `ppi`: 9–600, default 150 (needs [`super::run_with_meter`]) |
     /// | `encrypted` | none |
     /// | `version-above` | `max`: `"1.7"`-style string |
     /// | `pdfx-requirement` | `level`: [`PdfxLevel::as_str`] name; `row`: an inventory row id that applies to it |
@@ -301,6 +302,11 @@ fn parse_check(name: &str, id: &str, item: &Json) -> Result<Check, ProfileError>
                 .ok_or_else(|| bad("min_width_pt must be a number of at least 0"))?,
         },
         "transparency-used" => Check::TransparencyUsed,
+        "total-area-coverage" => Check::TotalAreaCoverage {
+            limit_percent: number(item, "limit_percent", |v| v > 0.0)
+                .ok_or_else(|| bad("limit_percent must be a number above 0"))?,
+            ppi: tac_ppi(item).ok_or_else(|| bad(TAC_PPI_BAD))?,
+        },
         "encrypted" => Check::Encrypted,
         "pdfua" => {
             let part = item
@@ -329,6 +335,17 @@ fn parse_check(name: &str, id: &str, item: &Json) -> Result<Check, ProfileError>
         }
     };
     Ok(check)
+}
+
+const TAC_PPI_BAD: &str = "ppi must be a number from 9 to 600";
+
+/// `ppi`, or the default when absent.
+fn tac_ppi(item: &Json) -> Option<f64> {
+    use super::TacRequest as R;
+    if item.get("ppi").is_none() {
+        return Some(R::DEFAULT_PPI);
+    }
+    number(item, "ppi", |v| (R::MIN_PPI..=R::MAX_PPI).contains(&v))
 }
 
 const PDFX_BAD: &str = "level must be a PDF/X level and row an inventory row that applies to it";
@@ -390,6 +407,10 @@ fn rule_json(rule: &ProfileRule) -> String {
             format!(", \"min_width_pt\": {min_width_pt}"),
         ),
         Check::TransparencyUsed => ("transparency-used", String::new()),
+        Check::TotalAreaCoverage { limit_percent, ppi } => (
+            "total-area-coverage",
+            format!(", \"limit_percent\": {limit_percent}, \"ppi\": {ppi}"),
+        ),
         Check::Encrypted => ("encrypted", String::new()),
         Check::VersionAbove { max } => ("version-above", format!(", \"max\": \"{max}\"")),
         Check::PdfUa { part } => ("pdfua", format!(", \"part\": {}", part.number())),

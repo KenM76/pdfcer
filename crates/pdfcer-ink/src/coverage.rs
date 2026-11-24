@@ -36,8 +36,7 @@ impl CoverageWarning {
     pub fn flags(self, process: [f32; 4], spots: &[f32]) -> bool {
         match self {
             Self::TotalAreaCoverage { limit_percent } => {
-                let total: u32 = process.iter().chain(spots).map(|&t| tenths(t)).sum();
-                total > u32::from(limit_percent) * 10
+                total_tenths(process, spots) > u32::from(limit_percent) * 10
             }
             Self::RichBlack {
                 black_start_percent,
@@ -47,6 +46,16 @@ impl CoverageWarning {
             }
         }
     }
+}
+
+/// One pixel's total area coverage in tenths of a percent: each plate's
+/// tint rounded to a tenth, then summed, exactly as
+/// [`CoverageWarning::TotalAreaCoverage`] compares it. `process` is
+/// `[C, M, Y, K]` and `spots` each spot ink, as ink on the sheet in
+/// `0.0..=1.0`.
+#[must_use]
+pub fn total_tenths(process: [f32; 4], spots: &[f32]) -> u32 {
+    process.iter().chain(spots).map(|&t| tenths(t)).sum()
 }
 
 /// A tint in tenths of a percent, rounded.

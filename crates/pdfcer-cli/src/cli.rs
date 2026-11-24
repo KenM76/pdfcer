@@ -5218,6 +5218,43 @@ pub(crate) enum Command {
         #[arg(long, short)]
         output: Option<PathBuf>,
     },
+    /// **Measure total area coverage**: the most ink any point of each page
+    /// carries, and where it goes over a limit.
+    ///
+    /// Each page is composited in ink at `--ppi` (as `coverage-warning`
+    /// does, every plate shown, edges not antialiased) and each pixel's
+    /// coverage is the sum of C, M, Y, K and every spot ink as they land on
+    /// the sheet, after overprint and transparency. A pixel is over when its
+    /// sum is strictly above `--limit`. Per page it prints
+    /// `tac page=N max=PERCENT over=PIXELS of=PIXELS area=SQ_IN ppi=P limit=L`
+    /// and then one `tac-region page=N rect=X0,Y0,X1,Y1 max=PERCENT
+    /// pixels=N merged=M` per connected over-limit area, largest first, in
+    /// PDF units of the unrotated page; past `--max-regions` the rest are
+    /// bounded together in one region whose `merged` says how many it holds.
+    ///
+    /// What was only estimated prints as `tac-caveat page=N "…"` (RGB or Lab
+    /// paint and images reach ink through the renderer's estimate, not an
+    /// ICC conversion; run `convert-colours` to the output profile first for
+    /// the press figure) and what could not be counted as `tac-not-measured
+    /// page=N "…"`. Exits 18 when any page is over the limit or had content
+    /// not measured, 0 otherwise. A profile rule `"check":
+    /// "total-area-coverage"` runs the same measurement inside `preflight`.
+    Tac {
+        /// Input PDF.
+        input: PathBuf,
+        /// Pages: `all`, or a list like `1,3-5`.
+        #[arg(long, default_value = "all")]
+        pages: String,
+        /// The limit, in percent (300 is three solid plates).
+        #[arg(long, value_name = "PERCENT")]
+        limit: f64,
+        /// Resolution measured at, 9 to 600 pixels per inch.
+        #[arg(long, default_value_t = 150.0)]
+        ppi: f64,
+        /// Report at most this many regions per page.
+        #[arg(long, default_value_t = 8)]
+        max_regions: usize,
+    },
     /// **List the rendering presets** pdfcer holds for the PDF subset
     /// standards (PDF/X, PDF/A, PDF/UA), and what each one would set.
     ///

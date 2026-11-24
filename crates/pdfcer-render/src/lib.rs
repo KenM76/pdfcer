@@ -268,6 +268,7 @@ mod soft_proof;
 mod supersample;
 pub mod svg;
 mod svg_text;
+mod tac;
 pub mod text;
 pub(crate) mod tiling;
 pub mod type3;
@@ -329,6 +330,7 @@ pub use page_overprint::{PageOverprint, page_overprint};
 pub use separation_preview::{PROCESS_INKS, SeparationPreview};
 pub use shading::{ColorRamp, Geometry, PaintRoute, Shading, ShadingDiagnostics, ShadingFunction};
 pub use soft_proof::{MAX_SOFT_PROOF_PROFILE_BYTES, SoftProof, SoftProofError};
+pub use tac::{TacMeter, TacRaster, total_area_coverage};
 pub use visual_compare::{
     INSERTED_PAGE_NOTE, PageMatch, PagePair, VisualCompareError, VisualCompareOptions,
     VisualCompareReport, VisualRegion, visual_compare,
@@ -1361,6 +1363,13 @@ fn collapse_ink(
     if let Some(preview) = &options.separation_preview {
         diagnostics.inks = buffer.ink_names();
         (diagnostics.inks_hidden, diagnostics.inks_unmatched) = buffer.hide_inks(&preview.hidden);
+    }
+    if options.coverage_readout {
+        if let Some(readout) = tac::readout_pixmap(&buffer) {
+            *pixmap = readout;
+        }
+        diagnostics.ink_probe = probe_cmyk;
+        return;
     }
     if options.coverage_warnings.iter().any(Option::is_some) {
         if let Some(mask) = coverage_warning::mask_pixmap(&buffer, &options.coverage_warnings) {

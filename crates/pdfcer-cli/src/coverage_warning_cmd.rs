@@ -3,6 +3,10 @@
 
 use super::*;
 
+#[path = "tac_cmd.rs"]
+mod tac_cmd;
+pub(crate) use tac_cmd::cmd_tac;
+
 /// What `coverage-warning` was asked.
 pub(crate) struct CoverageArgs<'a> {
     pub(crate) input: &'a Path,
