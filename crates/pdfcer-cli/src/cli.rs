@@ -12003,6 +12003,57 @@ pub(crate) enum Command {
         #[arg(long)]
         verify_undo: bool,
     },
+    /// Convert a document to one PDF/X level and claim it if it conforms.
+    ///
+    /// Runs, in order: transparency flattening (X-1a and X-3 only), the
+    /// colour conversion to the `--icc` profile (RGB, Lab and calibrated
+    /// colours; for X-1a, calibrated grey too), embedding that profile as
+    /// the one GTS_PDFX output intent, and a trim box equal to the crop box
+    /// on pages with neither a trim nor an art box. Then it writes the
+    /// claim (GTS_PDFXVersion, Trapped, the title and dates, and the XMP
+    /// identification; X-4 creates an XMP packet), validates the result as
+    /// `validate-pdfx` does, and keeps the claim only if no requirement
+    /// fails. Every step, every inference and the findings still standing
+    /// are printed. When the claim is refused nothing is written unless
+    /// `--write-partial`, and the exit is 18 either way.
+    ConvertPdfx {
+        /// Input PDF.
+        input: PathBuf,
+        /// `x-1a` (2003), `x-1a:2001`, `x-3` (2003), `x-3:2002` or `x-4`.
+        #[arg(long, value_parser = parse_pdfx_level)]
+        level: pdfcer_core::preflight::PdfxLevel,
+        /// The printing condition's ICC output profile, embedded as the
+        /// output intent and the target of every colour conversion.
+        #[arg(long)]
+        icc: PathBuf,
+        /// The output condition identifier, such as `FOGRA39`. Default:
+        /// the profile's description.
+        #[arg(long)]
+        condition: Option<String>,
+        /// The title written when the document has none. Default: the
+        /// input's file name.
+        #[arg(long)]
+        title: Option<String>,
+        /// Print one JSON object instead of report lines.
+        #[arg(long)]
+        json: bool,
+        /// When the claim is refused, save the conversion without it.
+        #[arg(long)]
+        write_partial: bool,
+        /// Claim only when every requirement was checked and passed. No
+        /// level can reach that yet, so this always refuses today.
+        #[arg(long)]
+        require_conforms: bool,
+        /// Output path.
+        #[arg(short, long)]
+        output: PathBuf,
+        /// Save mode.
+        #[arg(long, value_enum, default_value_t = SaveMode::Incremental)]
+        mode: SaveMode,
+        /// Reload and verify the edit undoes byte-identically.
+        #[arg(long)]
+        verify_undo: bool,
+    },
     /// Composite page transparency into opaque content.
     ///
     /// Constant alpha, blend modes, soft masks and transparency groups on

@@ -275,9 +275,12 @@ struct InfoWrite {
 }
 
 /// The catalog's `/Metadata`, as far as it resolves.
-enum Metadata {
+pub(super) enum Metadata {
+    /// No packet.
     Absent,
+    /// `/Metadata` is not a stream.
     Malformed,
+    /// The packet stream.
     Stream(ObjId, Stream),
 }
 
@@ -515,7 +518,8 @@ impl EditSession {
         })
     }
 
-    fn metadata(&self) -> Metadata {
+    /// The catalog's `/Metadata` as it is now.
+    pub(super) fn metadata(&self) -> Metadata {
         let catalog = self
             .trailer
             .get(b"Root")
@@ -587,7 +591,7 @@ impl EditSession {
 
     /// `dict`'s stream carrying `data` with no filter (`XP-A3`: a packet
     /// should be readable by a tool that only scans bytes).
-    fn unfiltered_stream(&mut self, mut dict: Dict, data: &[u8]) -> Stream {
+    pub(super) fn unfiltered_stream(&mut self, mut dict: Dict, data: &[u8]) -> Stream {
         for key in [&b"Filter"[..], b"DecodeParms", b"DL"] {
             dict.remove(key);
         }

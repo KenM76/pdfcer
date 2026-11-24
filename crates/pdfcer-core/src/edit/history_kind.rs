@@ -263,6 +263,7 @@ kind_codec! {
     AliasInk,
     SpotToProcess,
     ConvertColours,
+    ConvertToPdfx,
     PurgePasswordValues,
     PromoteInlineDrFonts,
     AddValidationMaterial,

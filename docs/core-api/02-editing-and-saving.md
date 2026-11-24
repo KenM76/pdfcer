@@ -18,7 +18,7 @@ answers *"I want to do X — what do I call, in what order, and what will bite m
 | **Date** | 2026-08-29 |
 | **Verified against** | `5c37c7c` (`git rev-parse --short HEAD`) — *"he gave no reason" was a claim, and it has been corrected* |
 | **Primary subject** | `crates/pdfcer-core/src/edit.rs` (35655) |
-| **Covers** | `EditSession` end to end: construction, the command/undo/redo model, **all 439 public methods**, the `EditError` taxonomy, the save path (incremental vs full rewrite), the guard/refusal model (encryption, certification, sidecar version, `/Size` suppression), object allocation and byte staging |
+| **Covers** | `EditSession` end to end: construction, the command/undo/redo model, **all 440 public methods**, the `EditError` taxonomy, the save path (incremental vs full rewrite), the guard/refusal model (encryption, certification, sidecar version, `/Size` suppression), object allocation and byte staging |
 | **Does NOT cover** | Document loading and the read-only object model → **`01-reading-and-model.md`**. Per-feature capability guides (ce dimensions, forms, annotations, redaction, OCR, printing) → **`03-capabilities.md`**. This document covers the *session mechanics* those features flow through; part 3 covers the features. |
 | **Terminology** | Project rule 15. **ce dimensions** = the dimension objects pdfcer authors (`/Line` + `/IT /LineDimension` + baked `/AP` + `/PieceInfo` sidecar). **pdf dimensions** = dimensions already present in the page content, exported by CAD. Never bare "dimension". This document only concerns ce dimensions. |
 
@@ -69,9 +69,9 @@ Five consequences a GUI author must internalise before writing any code:
 
 ---
 
-## 1. Verb index — all 439 public `EditSession` methods
+## 1. Verb index — all 440 public `EditSession` methods
 
-**Count: 439.** Established by brace-matched extraction of the
+**Count: 440.** Established by brace-matched extraction of the
 `impl EditSession` blocks in `edit.rs` and its `edit/` child modules, matching `pub fn` / `pub const fn`, and checked
 on every run by `tools/check-core-api-verbs.py` — which is what caught this
 figure at 120 when `add_outline_item` landed, and caught it again at 227 when
@@ -96,7 +96,7 @@ added `add_file_attachment_annotation`, and at 274 when `Pass 261.1` added
 `add_caret_annotation` and `add_replace_text`, and at 275 when `Pass 261.2`
 added `add_sound_annotation`, and at 276 when `Pass 261.3` added
 `add_screen_annotation`, and at 277 when `Pass 142.3` added
-`preview_style_ladder_with_donors`, and at 279 when `Pass 375.0` added `set_crop_boxes` and `resize_pages`, at 283 when Bates numbering added `stamp_bates`, and at 284 when `remove_bates` followed, and at 348 when `G154` added `insert_node`, `convert_node`, `convert_segment` and their three `_in_form` twins, and at 349 when `G160` added `turn_widget`, and at 350 when `G168` added `set_3d_views`, and at 352 when `G164` added `metadata_inventory` and `remove_metadata`, and at 355 when `G165` added `page_scan_image`, `detect_image_skew` and `deskew_image`, and at 356 when `G171` added `coalesce_last_same`, and at 371 when `G198` added `upscale_image`, and at 385 when `Pass 55.10` added `stamp_running_text`, and at 386 when `Pass 55.11` added `add_printer_marks`, and at 387 when `G238` added `decorate_for_print`, and at 388 when `G247` added `set_3d_opening_view`, and at 391 when `G243` added `fork_for_print` and `decorated_for_print`, and at 401 when `Pass 694.2` added `set_page_boxes`, and at 402 when `Pass 700.9` added `fill_rich_text_field`, and at 404 when its follow-up added `set_rich_style_precedence` and `rich_style_precedence`, and at 423 when `Pass 722.0` added `extend_path`, `open_subpath` and their two `_in_form` twins, and at 427 when `G295` added `can_extend_path`, `can_open_subpath` and their two `_in_form` twins, and at 428 when `G301` added `materialize_merged_xfa`, and at 429 when `X101` added `deskew_image_with`, and at 430 when `G317` added `edit_capability_for`, and at 431 when `G319` added `insert_pages_with_options`, and at 432 when `G321` added `fill_rich_text_field_runs`, and at 433 when `G324` added `page_snap_geometry`, and at 436 when `Pass 748.3` added `inks`, `alias_ink` and `spot_to_process`, and at 438 when `Pass 748.1` added `flatten_transparency`, and at 439 when `Pass 748.4` added `convert_colours`.
+`preview_style_ladder_with_donors`, and at 279 when `Pass 375.0` added `set_crop_boxes` and `resize_pages`, at 283 when Bates numbering added `stamp_bates`, and at 284 when `remove_bates` followed, and at 348 when `G154` added `insert_node`, `convert_node`, `convert_segment` and their three `_in_form` twins, and at 349 when `G160` added `turn_widget`, and at 350 when `G168` added `set_3d_views`, and at 352 when `G164` added `metadata_inventory` and `remove_metadata`, and at 355 when `G165` added `page_scan_image`, `detect_image_skew` and `deskew_image`, and at 356 when `G171` added `coalesce_last_same`, and at 371 when `G198` added `upscale_image`, and at 385 when `Pass 55.10` added `stamp_running_text`, and at 386 when `Pass 55.11` added `add_printer_marks`, and at 387 when `G238` added `decorate_for_print`, and at 388 when `G247` added `set_3d_opening_view`, and at 391 when `G243` added `fork_for_print` and `decorated_for_print`, and at 401 when `Pass 694.2` added `set_page_boxes`, and at 402 when `Pass 700.9` added `fill_rich_text_field`, and at 404 when its follow-up added `set_rich_style_precedence` and `rich_style_precedence`, and at 423 when `Pass 722.0` added `extend_path`, `open_subpath` and their two `_in_form` twins, and at 427 when `G295` added `can_extend_path`, `can_open_subpath` and their two `_in_form` twins, and at 428 when `G301` added `materialize_merged_xfa`, and at 429 when `X101` added `deskew_image_with`, and at 430 when `G317` added `edit_capability_for`, and at 431 when `G319` added `insert_pages_with_options`, and at 432 when `G321` added `fill_rich_text_field_runs`, and at 433 when `G324` added `page_snap_geometry`, and at 436 when `Pass 748.3` added `inks`, `alias_ink` and `spot_to_process`, and at 438 when `Pass 748.1` added `flatten_transparency`, and at 439 when `Pass 748.4` added `convert_colours`, and at 440 when `Pass 748.6` added `convert_to_pdfx`.
 There are no `EditSession` methods in any other file
 (`grep -rn "impl EditSession" crates/pdfcer-core/src/` returns those lines only).
 
@@ -5418,7 +5418,26 @@ and the document has none with a readable profile, the page tree cannot be
 read), `PageOutOfRange { index, count }`, `DocumentEncrypted` and the strict
 certification gate. All refusals write nothing. Show `by_source`,
 `out_of_gamut`, every `images`, `unconverted`, `output_intent` and
-`disclosures` entry off-canvas. **Detail: `03-capabilities.md`, part 20.**
+`disclosures` entry off-canvas. **Detail: `03-capabilities.md`, part 22.**
+
+### 1.38 Convert to PDF/X (1) — `Pass 748.6`
+
+| I want to… | Call | Returns |
+|---|---|---|
+| Convert a document to one PDF/X level and claim it only if it validates | `convert_to_pdfx(&mut self, level: preflight::PdfxLevel, conversion: &prepress::PdfxConversion, flattener: &dyn transparency::TransparencyFlattener, converter: &dyn prepress::ColourConverter) -> Result<prepress::PdfxConversionReport, EditError>` | Runs `flatten_transparency` (X-1a/X-3 only), the optional `spot_to_process`, `convert_colours` to the intent's profile with it embedded as the `GTS_PDFX` output intent, and inferred trim boxes; writes the claim (Info + XMP); re-validates with `validate_pdfx`; keeps the claim only when the verdict is not `Fails` (with `require_conforms`, only `Conforms`). **Both engines are injected** (decision 064): pass `pdfcer_emf::RecordingFlattener::new()` and `pdfcer_render::convert_colours::IcccerConverter::new()`. ONE undo entry, `CommandKind::ConvertToPdfx`; a refused claim leaves the document unchanged and no entry, unless `keep_partial` (the steps, without the claim, as one entry). CLI: `pdfcer convert-pdfx IN --level x-1a\|x-1a:2001\|x-3\|x-3:2002\|x-4 --icc ICC [--condition NAME] [--title T] [--json] [--write-partial] [--require-conforms] -o OUT [--mode] [--verify-undo]`; exit 18 on a refused claim. |
+
+**Why a verb and not a script over the five verbs:** the claim must never be
+written for a file that does not conform, and only validating the
+document *with the claim written* can say whether it does (several rows
+read the claim itself). That needs a commit that can be taken back
+unseen, which only the session can do; a caller composing the verbs would
+leave a non-conforming claim in the undo history.
+
+Errors: `ColourConversionRefused`, `PageOutOfRange` and the flatten refusals
+of the verbs it runs (each reverts everything), `DocumentEncrypted` and
+the strict certification gate. Show `steps`, every `disclosures` entry and,
+on a refusal, `validation`'s findings off-canvas. **Detail:
+`03-capabilities.md`, part 23.**
 
 ## 2. Construction, and the session's three read views
 

@@ -3459,6 +3459,30 @@ pub(crate) fn run() -> ExitCode {
             };
             cmd_convert_colours(&input, &args, &output, mode, verify_undo)
         }
+        Command::ConvertPdfx {
+            input,
+            level,
+            icc,
+            condition,
+            title,
+            json,
+            write_partial,
+            require_conforms,
+            output,
+            mode,
+            verify_undo,
+        } => {
+            let args = PdfxArgs {
+                level,
+                icc: &icc,
+                condition: condition.as_deref(),
+                title: title.as_deref(),
+                json,
+                write_partial,
+                require_conforms,
+            };
+            cmd_convert_pdfx(&input, &args, &output, mode, verify_undo)
+        }
         Command::FlattenTransparency {
             input,
             pages,

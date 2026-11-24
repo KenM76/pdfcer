@@ -144,6 +144,8 @@ mod history_codec;
 mod history_kind;
 mod history_transfer;
 mod ink_manager;
+mod pdfx_claim;
+mod pdfx_convert;
 mod radio_state;
 mod recognised_block;
 mod regroup;
@@ -850,6 +852,9 @@ pub enum CommandKind {
     /// [`EditSession::convert_colours`] converted colours to a destination
     /// profile.
     ConvertColours,
+    /// [`EditSession::convert_to_pdfx`] converted the document to a PDF/X
+    /// level and wrote its claim, with the verbs it ran folded in.
+    ConvertToPdfx,
     /// [`EditSession::purge_password_values`] — §12.7.4.3 Table 228 bit 14.
     PurgePasswordValues,
     /// [`EditSession::promote_inline_dr_fonts`] moved inline `/AcroForm /DR

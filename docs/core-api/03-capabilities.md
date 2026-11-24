@@ -6972,3 +6972,58 @@ Contract:
 ⚠️ `ColourSource`, `ColourConversion`, `ConvertedColour`, `ConvertFailure`,
 `SourceCount`, `ImageConversion`, `Unconverted`, `OutputIntentChange` and
 `ConvertColoursReport` are `#[non_exhaustive]`: construct with `new`.
+
+## 23. Convert to PDF/X — X-1a, X-3, X-4 (`Pass 748.6`)
+
+`pdfcer_core::prepress` (CLI: `pdfcer convert-pdfx`). The edit is
+`EditSession::convert_to_pdfx` (`02-editing-and-saving.md` §1.38). It
+composes parts 18, 19, 22 and 21 and adds the claim.
+
+| Call | Returns |
+|---|---|
+| `PdfxOutputIntent::new(profile: Vec<u8>)`, `with_condition`, `with_registry_name`, `with_info` | the printing condition; `None` entries keep what the embedded intent says (the profile's description) |
+| `PdfxConversion::new(PdfxOutputIntent)` | `title: None`, `at: None` (unix seconds; core never reads the clock), `trapped: None`, `spot_to_process: None`, `FlattenOptions::default()`, relative colorimetric, `infer_trim_boxes: true`, `require_conforms: false`, `keep_partial: false`; a `with_` setter per field |
+| `PdfxConversionReport { level, before, after, claimed, kept_partial, flatten, spot_to_process, colours, trim_boxes, steps, disclosures, validation: PdfxReport }` | `before`/`after` are `PdfxVerdict`s; `validation` is the converted document with the claim written: on a refusal, what remains |
+
+Steps, in order:
+
+1. **Flatten** every page (X-1a and X-3; ISO 15930-1 §6.6, -6 §6.6). X-4
+   keeps transparency. Annotations left transparent are disclosed.
+2. **Spot to process**, only when asked; every level allows spot inks.
+3. **Convert colours** to the intent's profile, embedded as the
+   `/GTS_PDFX` output intent (ISO 32000-2 §14.11.5). X-1a converts
+   calibrated grey too; X-3 and X-4 keep ICC-based and Lab colour.
+4. **One `/GTS_PDFX` intent**: further ones are removed, the condition
+   entries patched (ISO 15930-7 §6.2.3), each disclosed. When the profile
+   already was an intent of another subtype, a `GTS_PDFX` entry sharing
+   its profile is added.
+5. **Trim boxes**: a page with neither `/TrimBox` nor `/ArtBox` gets
+   `/TrimBox` = its crop box (ISO 15930-7 §6.5.2, ISO 32000-2 Table 30),
+   disclosed; one whose written bleed box does not hold the crop box is
+   left, disclosed.
+6. **The claim**: Info `GTS_PDFXVersion` (`PDF/X-1:2001` plus
+   `GTS_PDFXConformance PDF/X-1a:2001` for X-1a:2001, otherwise the level's
+   name), `Trapped` (kept, or `/False` disclosed), `Title` when missing and
+   given, `CreationDate` when missing and `ModDate` when `at` is given; the
+   XMP packet mirrors them (`pdfxid:`, `pdfx:`, `pdf:Trapped`, `xmp:`,
+   `dc:title`). X-4 creates a packet when there is none (-7 §6.11.3);
+   other levels disclose its absence. A packet claiming PDF/A-1 to -3 does
+   not get `pdfx:`/`pdf:` keys it does not predefine; X-4's `pdfxid:` is
+   written there with a disclosure.
+7. **Re-validate**. `Fails` → the claim is taken back and a disclosure says
+   how many requirements fail; the steps are taken back too unless
+   `keep_partial`. Otherwise the claim stays and every step and the claim
+   are one undo entry. `Unconfirmed` (rows pdfcer cannot check yet) is
+   claimed and disclosed unless `require_conforms`.
+
+★ **What the UI must disclose:** every `steps` and `disclosures` line, and
+on a refusal the error findings of `validation`. An inferred trim box, a
+defaulted `Trapped` and an `Unconfirmed` claim are inferences (rule 4).
+
+Not done: fonts are never embedded or outlined (an unembedded font
+refuses the claim), images are not downsampled, OPI and PostScript
+XObjects are not removed, and a non-conforming `/OutputIntents` of
+another subtype is left.
+
+⚠️ `PdfxOutputIntent`, `PdfxConversion` and `PdfxConversionReport` are
+`#[non_exhaustive]`: construct with `new`.

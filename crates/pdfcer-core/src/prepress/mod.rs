@@ -6,6 +6,7 @@ mod convert_colours;
 mod ink_alias;
 mod inks;
 mod pdfx;
+mod pdfx_conversion;
 mod rewrite;
 mod spot_process;
 
@@ -20,6 +21,7 @@ pub use inks::{InkEditReport, InkKind, InkRefusal, InkSelection, InkUse, inks};
 pub(crate) use inks::{InkPlan, Planned};
 pub(crate) use inks::{each_array, live_ids};
 pub use pdfx::{PdfxClaim, pdfx_claim, pdfx_output_intents};
+pub use pdfx_conversion::{PdfxConversion, PdfxConversionReport, PdfxOutputIntent};
 pub(crate) use spot_process::plan_spot_to_process;
 
 use crate::object::ObjId;

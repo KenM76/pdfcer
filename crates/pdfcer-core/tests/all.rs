@@ -49,6 +49,7 @@ mod composite_refusal_reachable;
 mod content_edit_no_duplication;
 mod contents_append_shapes;
 mod convert_colours;
+mod convert_to_pdfx;
 mod copy_objects_in_form;
 mod cross_object_edit;
 mod cut_verbs;
