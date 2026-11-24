@@ -4,6 +4,23 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-11-24 (1697th filing) — `Pass 750.0` (hex glyph names), `Pass 751.0` (version-floor key scoping) SHIPPED
+
+**Shipped (engineer-reported; no shell here, git, push, CI and the gates not checked from here; the engineer reports `run-gates.sh` in progress):**
+- `Pass 750.0` (`c3402441`): text extraction recovers `/G41`-style hex glyph names (Windows PostScript driver fonts, no `/ToUnicode`) through new rung `LadderRung::HexGlyphName`, counted in `TextDiagnostics::via_hex_glyph_name`, never sourced. Operator's file, pages 20-21: failed 5,372 of 6,064 codes down to 0. CLI `extract-text` prints `via_hex_name=`.
+- `Pass 751.0` (`f6d64e62`, `X110`): the optimize version floor now scopes `Path`, `DL`, `SS`, `CI`, `EP` and the encryption keys to their own dictionaries, so an unrelated dictionary no longer raises the reported floor.
+- Both **unreleased, since `v0.172.0`**; the next release writes OneDrive `pdfcer2`. Details: `ROADMAP.md` *Shipped*.
+
+**Findings:**
+- The paste-as-boxes symptom was a glyph-NAME gap, not a missing font: the AGL does not know `G41`, so the §9.10.2 ladder fell to U+FFFD. Lesson `C:\personal_rag\pdf\lesson_20261124_windows_ps_driver_hex_glyph_names.md` (already indexed).
+- Not recoverable: Type0 Identity-H CID fonts with no `/ToUnicode` (OCR only), stated as a caveat.
+
+**FEATURES:** one new Implemented row (hex glyph names; core `[x]`, cli `[x]`, gui `[ ]`). `751.0`: no row changes. Amended same day: the two "numbered glyph names" known-miss mentions (Extract and copy text; Text extraction Unicode fallbacks) now say only `G`+2-hex is recovered (`Pass 750.0`) and the general `F128` rule stays open; no box ticked, rows not lengthened.
+
+**For the GUI project / others:** "copy as plain text" option and right-click gesture filed in `D:\Dev\FeatureRequests\pdfcer-gui\KensFeatureRequestFile.MD`; pdfcraft notice filed, reply owed by pdfcraft.
+
+**Next:** `Pass 729.1` (`convert_to_pdfa`) and CLI `to-pdfa`; report `run-gates.sh` result.
+
 ## 2026-11-24 (1696th filing) — `v0.172.0` PUBLISHED
 
 **Filed (engineer-reported, checked by the engineer with a shell; nothing here checked from this filing's side):**
