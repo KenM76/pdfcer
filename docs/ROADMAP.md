@@ -112,6 +112,44 @@ wherever it appears.*
 
 ## Shipped
 
+### `Pass 746.0` (`X108`): a session page import remaps a preseparated page's separation set, `8aa20670`, 2026-11-23 (1688th filing)
+
+Engineer-reported (cherry-pick of worker `77862c1c`); no shell here, push, CI and the gates not checked from here. **Unreleased** (the next release writes OneDrive `pdfcer1`). Tests green at filing; see engineer commit (the full runs were still in progress).
+- **Behaviour (ISO 32000-2 §14.11.4):** `insert_pages*` remaps `/SeparationInfo`. Only plates copied in the same operation stay in one set; a repeated page maps only to itself; a shared separation dict is rebuilt once per operation, with no orphan or dangling `/Pages`. The extract orphan bug is fixed too.
+- **API:** policy `Repair`/`Discard`/`Refuse` on `InsertOptions` (`separations` field, `with_separations`), default `Repair`; merge uses the default. Outcome disclosed in `InsertOutcome::separations`. **Breaking:** `InsertOutcome` is no longer `Copy`; `SeparationPolicy` now derives `Hash`.
+- **CLI:** `page-paste` prints a stderr line plus `sep_*` tokens.
+- **Also fixed:** `sets_split` counted one split set three times on delete; it now counts it once.
+- **Tests:** 15 new in `crates/pdfcer-core/tests/insert_pages_separation_sets.rs`, sabotage-verified.
+- **Gates at filing (engineer-reported):** fmt, workspace clippy, core-api verbs gate and all `tools/check-*.py` clean; `cargo tree` for core and render shows no GUI and no network.
+- **OWED, not delivered:** `copy_pages` does not report a split at copy time; no dedicated §14.11.4 spec-RAG file (spec librarian); an extract edge case (a shared dict referenced elsewhere before the walk reaches it) has no test.
+- **FEATURES:** new Implemented row "Import pages keeping their separation sets" (core `[x]`, cli `[x]`, gui `[ ]`); the Planned row is removed.
+
+### `Pass 747.0` (`X107`): the standalone `pdfcer-ink` crate, `d9ad2e6c`, 2026-11-23 (1688th filing)
+
+Engineer-reported (cherry-pick of worker `3a47d51e`); no shell here, push, CI and the gates not checked from here. **Unreleased.** Tests green at filing; see engineer commit (the full runs of ink, core, render and cli were in progress).
+- **What:** the only copy of the ink-compositing and coverage-rule code is now its own crate, which `pdfcer-render` uses. Public API: `InkCanvas` (`new`/`paint`/`begin_group`/`end_group`/`landed`/`coverage_masks`), `Paint`, `Coverage::{Mask,Spans}`, `Span`, `Overprint::{Off,On,OnNonzero}`, `Group`, `Limits`, `InkError`; moved verbatim: `blend`, `nonsep`, `pixel` (`MAX_SPOTS=4`), `overprint::ComponentRule`, `coverage`.
+- **Compatibility:** render re-exports at the old paths. **One break:** `Blend::from_tiny_skia` is now `compositor::blend_from_tiny_skia`.
+- **Results:** golden digests for 7 fixtures identical before and after; wasm32 check passes; `cargo tree -p pdfcer-ink` shows only `thiserror` (no GUI, network or tiny-skia); core's manifest unchanged, render gains `pdfcer-ink` only.
+- **CI/gates edited:** gui-core-separation job (9 to 10 checks), the R24 loop, wasm32, no-network, `check-ci-parity.py`. Baselines shrank: the `compositor.rs` file-size entry and 3 panic-allows entries are gone.
+- **Tests:** 13 acceptance, 13 unit, 2 doctests.
+- **OWED:** the crate publish order in `docs/NEXT_SESSION.md` must put `pdfcer-ink` before `pdfcer-render` (engineer updates NEXT_SESSION; also before the next crates.io publish); `CmykBuffer` keeps its own pixel storage; `pdfcer-flatten` still has a separate `Blend`; no fuzz target for ink yet.
+- **FEATURES:** new Implemented row "Standalone ink-compositing crate" (core `[x]`, cli `—`, gui `—`); the Planned row is removed.
+
+### `Pass 748.0`: the preflight framework (`pdfcer_core::preflight`) and `pdfcer preflight`, `95969afc`, 2026-11-23 (1688th filing)
+
+Engineer-reported; source `O458` (`pdfcer-gui` `request_preflight_engine.md`); no shell here, push, CI and the gates not checked from here. **Unreleased; the preflight round is released only when all of it is done (operator's standing rule).** Tests green at filing; see engineer commit.
+- **Types:** `Severity`, `Check`, `ProfileRule`, `Profile` (`to_json`/`from_json`, `ProfileError`); `Finding` (rule, severity, kind, 1-based page, target, page-space rect, a sentence, measured against limit); `FindingKind::{Violation, NeedsPerson, Incomplete}` (the last two are never a pass); `FindingTarget` (Document, Page, `PageObject(i)`/`FormLeaf(i)` using the `decompose_page` indexes `hit_test` uses, and Annotation/Font/ColourSpace/Image/GraphicsState by `ObjId`); `PreflightReport` (`fails` = an Error finding or `dropped > 0`, `is_clean`, `needs_person`).
+- **Run:** `run`/`run_with`, a `max_findings` cap (default 25,000; the dropped count is disclosed and fails the run), a cancel `AtomicBool`, per-page progress.
+- **Checks:** image below ppi (shares `space_audit`'s new `axis_ppi`), font not embedded (Type 3 passes), no output intent, no TrimBox (TrimBox and ArtBox both defaulted), colour space used (13 `ColourFamily` values; RGB in a CMYK job / Lab present), spot not allowed, overprint used, encrypted, version above.
+- **Colour walk:** page content, forms, tiling and shading patterns, image and inline-image colour spaces, annotation `/AP /N`; depth, event and cycle guards; anything unwalkable becomes an `Incomplete` finding.
+- **Profile:** built-in `digital-printing`.
+- **CLI:** `pdfcer preflight <file> [--profile NAME|FILE] [--max-findings N] [--dump-profile]`: one header line, then one line per finding. **Exit 18 (`PREFLIGHT_FAILED`, new)** on an Error finding or on drops. New fuzz target `preflight_profile`.
+- **Docs:** `docs/core-api/03-capabilities.md` §17; README count of working subcommands is now 259.
+- **Tests:** 12 core unit, 1 doctest, 4 CLI.
+- **Gates at filing (engineer-reported):** fmt, workspace clippy, core-api verbs gate and all `tools/check-*.py` clean.
+- **NOT delivered (open, not rounded up):** (1) **total area coverage check** (the "exceeds Acrobat" divergence) needs rasterising, which core cannot do: filed as **`Pass 748.10`**, below; (2) Type 3 glyph procedures and soft-mask groups are not walked yet (owed under `748.0`, no ID); (3) transparency, hairlines and fixups stay with `748.1`, `748.2`, `748.9` as filed; `748.9`'s profile import/export is partly met in core (`to_json`/`from_json`, `--dump-profile`), the `apply_fixup` half is not.
+- **FEATURES:** the Planned "Preflight a document against a profile" row becomes Implemented (core `[x]`, cli `[x]`, gui `[ ]`; first-cut checks only, no fixups, no PDF/X or PDF/UA profiles); one new Planned row for `748.10`.
+
 ### `Pass 745.0` (`X109`): `scale_pages` keeps a text annotation at its size, `3b1bf4eb`, 2026-11-23 (1687th filing)
 
 Engineer-reported; no shell here, push, CI and the gates not checked from here. **Unreleased** (post-`v0.171.0`; the next release writes OneDrive `pdfcer1`).
@@ -28652,11 +28690,13 @@ closes out the *prior* filing's business rather than opening this one's.
 
 ## Next up
 
-> **`Pass 746.0` (`X108`) and `Pass 747.0` (`X107`) FILED 2026-11-23 (1687th filing); both IN FLIGHT with workers, none reported shipped. No shell here; engineer runs the gates.** IDs `745.0`-`748.9` grep-checked unused in `docs/` before filing (`745.0` is now Shipped).
+> **`Pass 746.0` (`X108`) and `Pass 747.0` (`X107`) SHIPPED (1688th filing, `8aa20670`, `d9ad2e6c`); see *Shipped*.** Their owed items: `copy_pages` split disclosure at copy time; a §14.11.4 spec-RAG file; the extract shared-dict edge test; `pdfcer-ink` publish order before `pdfcer-render` in `docs/NEXT_SESSION.md`; a fuzz target for ink; `CmykBuffer` pixel storage; `pdfcer-flatten`'s separate `Blend`.
+
+> **`Pass 748.0` SHIPPED (1688th filing, `95969afc`); the preflight arc is OPEN with `748.0` done, `748.1`-`748.9` not started, and `748.10` newly filed.** The 1687th-filing text below is kept as filed; its `748.0` bullet is delivered except the total-area-coverage check, which moved to `748.10`.
 >
-> - **`Pass 746.0` (`X108`) session page import remaps `/SeparationInfo`.** `insert_pages*` and `copy_pages` remap a preseparated page's `/SeparationInfo` through the same remap/repair as `assemble`, never follow `/Pages` into an unrequested page, and use the same Repair/Discard/Refuse policy. Acceptance: `open/request_X108_session_page_import_remaps_separation_sets.md`.
-> - **`Pass 747.0` (`X107`) new standalone crate `pdfcer-ink`.** Holds the colorant buffer: subtractive compositing, overprint/OPM, spot planes, isolated/knockout groups, the TAC and rich-black rules, and memory/colorant ceilings. Knows nothing about PDF files, no tiny-skia, `forbid(unsafe_code)`, builds for wasm32, MIT. `pdfcer-render`'s `render_plates` and coverage warnings are rebuilt on it with **identical output**. Request: `open/request_X107_ink_compositing_as_a_standalone_crate.md`.
-> - *FEATURES:* one new Planned row per Pass, all `[ ]`.
+> - **`Pass 748.10` (new, 1688th filing): total area coverage as a preflight check.** Needs rasterising, which `pdfcer-core` cannot do, so it lives in `pdfcer-render` or is built on the new `pdfcer-ink` crate, reusing the `748.0` `Finding` type (rule, page, rect, measured TAC against a limit). **Divergence, exceeds Acrobat** (no native TAC check; it lives in Output Preview). IDs `748.10`, `748.11` grep-checked unused in `docs/` before filing. Position in the order not yet decided (the engineer's to set).
+> - **Owed under `748.0` (no ID):** the colour walk does not yet descend into Type 3 glyph procedures or soft-mask groups.
+> - **Inputs now named (spec librarian, written this round):** `748.5` (PDF/X) is built from `D:\Dev\Rag-Specialized\PDF_Spec\pdfx\pdfx__req__inventory_index.md` (74 rows; 23 unsourced at some level; X-4 is the weakest). `748.7` (PDF/UA) is built from `D:\Dev\Rag-Specialized\PDF_Spec\pdfua\pdfua__req__inventory_index.md` (UA-1: 143 rows, 0 unsourced; UA-2: 139 rows, 6 unsourced). **A row not sourced for a level is reported as "not checked", never "passed".**
 
 > **`Pass 748.0`-`748.9` FILED 2026-11-23 (1687th filing): the PREFLIGHT ENGINE (ARC OPEN, none started; source `O458` from `pdfcer-gui`; no shell here, engineer assigns final IDs and runs the gates).** Requests in `D:\Dev\FeatureRequests\pdfce_FeatureRequests\open\`: `request_preflight_engine.md`, `request_flatten_transparency.md`, `request_hairline_fix.md`, `request_ink_manager.md`, `request_convert_colours.md`, `request_pdfx_validate_convert.md`, `request_pdfua_validate.md`, `note_pdfa_waiting.md`. Design input (Acrobat RAG, capability only): `Acrobat_Features\prepress__preflight_{profile_library_and_import_export,checks_properties_and_severity,fixups_catalog}.md`, `prepress__ink_manager.md`, `prepress__fix_hairlines.md`, `prepress__convert_colors_options_and_embed_modes.md`.
 >

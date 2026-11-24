@@ -4,6 +4,26 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-11-23 (1688th filing) — `Pass 748.0` (preflight framework), `Pass 747.0` (`pdfcer-ink`), `Pass 746.0` (separation-set import) SHIPPED
+
+**Filed (engineer-reported; no shell here, so git, push, CI, release, crates.io and OneDrive state are not checked from here; tests "green at filing; see engineer commit", the full ink/core/render/cli runs were in progress):**
+- **`Pass 748.0` `95969afc`:** `pdfcer_core::preflight` (Severity, Check, Profile, Finding, FindingKind `Violation`/`NeedsPerson`/`Incomplete`, FindingTarget, PreflightReport, `run`/`run_with` with a 25,000 default cap that fails the run when hit) with nine first-cut checks, built-in profile `digital-printing`, CLI `pdfcer preflight` (exit 18, new `PREFLIGHT_FAILED`), fuzz target `preflight_profile`, `core-api/03-capabilities.md` §17, README count 259. 12 unit + 1 doctest + 4 CLI tests. core `[x]`, cli `[x]`, gui `[ ]`.
+- **`Pass 747.0` `d9ad2e6c` (worker `3a47d51e`):** `pdfcer-ink` is the only copy of the ink-compositing and coverage code; render re-exports at the old paths (one break: `Blend::from_tiny_skia` is now `compositor::blend_from_tiny_skia`). 7 golden digests identical, wasm32 passes, `cargo tree -p pdfcer-ink` shows only `thiserror`. CI lists edited (separation job 9 to 10 checks, R24 loop, wasm32, no-network, `check-ci-parity.py`); the `compositor.rs` file-size and 3 panic-allows baseline entries are gone. 13 acceptance + 13 unit + 2 doctests.
+- **`Pass 746.0` `8aa20670` (worker `77862c1c`):** session page import remaps a preseparated page's separation set (ISO 32000-2 §14.11.4); policy Repair/Discard/Refuse on `InsertOptions`, outcome in `InsertOutcome::separations` (no longer `Copy`; `SeparationPolicy` derives `Hash`); `page-paste` prints `sep_*`. Fixed the extract orphan and `sets_split` counting one split set three times on delete. 15 new tests, sabotage-verified.
+- **Gates so far (engineer-reported):** fmt, workspace clippy, core-api verbs gate and all `tools/check-*.py` clean; `cargo tree` core and render: no GUI, no network (core manifest unchanged; render gains `pdfcer-ink` only).
+
+**Decisions / facts recorded:**
+- **Open, not delivered:** total area coverage needs rasterising, so it is filed as new **`Pass 748.10`** (in `pdfcer-render` or on `pdfcer-ink`, reusing `Finding`); Type 3 glyph procedures and soft-mask groups are not walked by the preflight colour walk; `copy_pages` does not report a split at copy time; no §14.11.4 spec-RAG file; extract shared-dict edge case untested; no ink fuzz target; `CmykBuffer` keeps its own pixel storage; `pdfcer-flatten` has a separate `Blend`.
+- **`docs/NEXT_SESSION.md` owes an edit:** crate publish order must put `pdfcer-ink` before `pdfcer-render` (engineer updates it).
+- **`#[non_exhaustive]` now on `fontinfo::Program` and `page_tree::BoxResolution`:** a downstream `match` needs a `_` arm.
+- **Spec librarian's new inventories, the named inputs for `748.5` and `748.7`:** `D:\Dev\Rag-Specialized\PDF_Spec\pdfua\pdfua__req__inventory_index.md` (UA-1: 143 rows, 0 unsourced; UA-2: 139 rows, 6 unsourced) and `D:\Dev\Rag-Specialized\PDF_Spec\pdfx\pdfx__req__inventory_index.md` (74 rows; 23 unsourced at some level; X-4 weakest). **A row not sourced for a level is reported as "not checked", never "passed".**
+
+**Facts from `v0.171.0`, recorded here (the 1687th entry carried the tag, assets, OneDrive and crate count but not these):** tag on `117bcb59`; CI run `45308927128`; OneDrive slot `pdfcer2` written (**next release writes `pdfcer1`**); 16 crates published; zip 32,877,005 bytes. These are the engineer's figures, not checked from here.
+
+**FEATURES:** three Planned rows moved to Implemented (preflight first cut, `pdfcer-ink`, separation-set import); two new Planned rows (`748.10` total area coverage; preflight walk of Type 3 and soft-mask groups); the "validate against a named standard" row's "nothing built" reworded. **Sweep (rule 11):** the only survivor found was that wording; `ROADMAP.md` Backlog arcs A-D text on conformance validation was not re-read in full here and may still say "nothing built".
+
+**Next:** gates finish and the engineer commits these edits; then `748.2`, `748.3`, `748.1` in parallel per the filed order; the round releases when all of it is done.
+
 ## 2026-11-23 (1687th filing) — `v0.171.0` PUBLISHED, `Pass 745.0` (`X109`) SHIPPED, preflight arc `748.x` and `746.0`/`747.0` filed
 
 **Filed (engineer-reported; no shell here, git, push, CI, crates.io and OneDrive state not checked from here):**
