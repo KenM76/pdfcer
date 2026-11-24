@@ -16,6 +16,7 @@
 //! writes.
 
 mod checks;
+pub(crate) mod hairlines;
 mod profile;
 #[cfg(test)]
 mod tests;
@@ -23,6 +24,8 @@ mod walk;
 
 use std::sync::atomic::{AtomicBool, Ordering};
 
+pub(crate) use hairlines::hairlines_in;
+pub use hairlines::{HAIRLINES_NOT_COVERED, Hairline, hairlines};
 pub use profile::{Profile, ProfileError, ProfileRule};
 
 use crate::PdfVersion;
@@ -172,6 +175,12 @@ pub enum Check {
     },
     /// A graphics state turns overprint on.
     OverprintUsed,
+    /// A stroke prints thinner than `min_width_pt` on its thinnest axis, or
+    /// has line width 0 (ISO 32000-2 §8.4.3.2). See [`hairlines`].
+    StrokeBelow {
+        /// The minimum printed width, in points; 0 finds width-0 strokes only.
+        min_width_pt: f64,
+    },
     /// The file is encrypted.
     Encrypted,
     /// The header version is above `max`.

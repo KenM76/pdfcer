@@ -59,6 +59,7 @@ const fn is_page_level(check: &Check) -> bool {
             | Check::ColourSpaceUsed { .. }
             | Check::SpotNotAllowed { .. }
             | Check::OverprintUsed
+            | Check::StrokeBelow { .. }
     )
 }
 
@@ -194,6 +195,18 @@ pub(super) fn page(
                     )),
                 }
             }
+            Check::StrokeBelow { min_width_pt } => {
+                let decomposed = objects
+                    .get_or_insert_with(|| vector::decompose_page(view, page, Matrix::IDENTITY));
+                match decomposed {
+                    Ok(objs) => thin_strokes(rule, *min_width_pt, objs, number, sink),
+                    Err(e) => sink.push(incomplete(
+                        rule,
+                        Some(number),
+                        &format!("the page content could not be read ({e})"),
+                    )),
+                }
+            }
             check if uses_walk(check) => colour(rule, &events, number, sink),
             _ => {}
         }
@@ -215,7 +228,37 @@ fn no_trim_box(rule: &ProfileRule, page: &Page, number: usize, sink: &mut Sink) 
     }
 }
 
-fn rect(b: Bounds) -> Rect {
+/// Every stroke on the page printing below `min_width_pt`, or of width 0.
+fn thin_strokes(
+    rule: &ProfileRule,
+    min_width_pt: f64,
+    objs: &vector::PageObjects,
+    number: usize,
+    sink: &mut Sink,
+) {
+    for h in super::hairlines_in(objs, min_width_pt) {
+        let message = if h.zero_width {
+            "A stroke has width 0, the thinnest line the device can draw.".to_owned()
+        } else {
+            format!(
+                "A stroke prints {:.3} pt wide, below {min_width_pt} pt.",
+                h.width_pt
+            )
+        };
+        sink.push(Finding {
+            rect: Some(h.rect),
+            measured: Some(Measure {
+                value: h.width_pt,
+                limit: min_width_pt,
+                unit: MeasureUnit::Points,
+            }),
+            ..finding(rule, Some(number), h.target, message)
+        });
+    }
+}
+
+/// A page-space [`Bounds`] as a [`Rect`].
+pub(super) fn rect(b: Bounds) -> Rect {
     Rect {
         llx: b.min.x,
         lly: b.min.y,

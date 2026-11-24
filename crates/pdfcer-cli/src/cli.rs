@@ -11810,6 +11810,34 @@ pub(crate) enum Command {
         #[arg(long)]
         verify_undo: bool,
     },
+    /// Widen every stroke thinner than `--min-width` points to exactly that.
+    ///
+    /// A stroke is measured on its thinnest axis once the drawing transform is
+    /// applied, and width 0 always counts. Each one is widened in its own
+    /// coordinates, so nothing else on the page moves; a shared form is
+    /// changed everywhere it is drawn, and a `form` line says how far. Any pdf
+    /// dimensions among the strokes print at the new lineweight. Strokes in
+    /// Type 3 glyphs, tiling patterns and annotation appearances, and stroked
+    /// text, are not changed; a `disclosure` line says so. One undo step.
+    FixHairlines {
+        /// Input PDF.
+        input: PathBuf,
+        /// Pages: `all`, or a list like `1,3-5`.
+        #[arg(long, default_value = "all")]
+        pages: String,
+        /// The minimum printed width, in points.
+        #[arg(long, default_value_t = 0.25)]
+        min_width: f64,
+        /// Output path.
+        #[arg(short, long)]
+        output: PathBuf,
+        /// Save mode.
+        #[arg(long, value_enum, default_value_t = SaveMode::Incremental)]
+        mode: SaveMode,
+        /// Reload and verify the edit undoes byte-identically.
+        #[arg(long)]
+        verify_undo: bool,
+    },
     /// Check a document against a preflight profile, read-only.
     ///
     /// Prints one header line, then one line per finding with its severity,

@@ -3399,6 +3399,14 @@ pub(crate) fn run() -> ExitCode {
             mode,
             verify_undo,
         } => cmd_group_set_unit(&input, group, &unit, &output, mode, verify_undo),
+        Command::FixHairlines {
+            input,
+            pages,
+            min_width,
+            output,
+            mode,
+            verify_undo,
+        } => cmd_fix_hairlines(&input, &pages, min_width, &output, mode, verify_undo),
         Command::Preflight {
             input,
             profile,

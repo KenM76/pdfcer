@@ -251,7 +251,7 @@ impl EditSession {
 
     /// Wrap `leaves` (page leaf indices, one invocation) in their form's
     /// stream with `plan`, as one command.
-    fn wrap_leaves(
+    pub(super) fn wrap_leaves(
         &mut self,
         kind: CommandKind,
         page_index: usize,

@@ -6703,9 +6703,10 @@ Fixups are separate verbs on the edit session; nothing here writes.
 | `Profile::builtin(name) -> Option<Profile>` / `Profile::BUILTIN_NAMES` | built-ins by name; today `digital-printing` (`Profile::digital_printing()`) |
 | `Profile::from_json(&[u8]) -> Result<Profile, ProfileError>` / `Profile::to_json() -> String` | the saved form of an edited profile; check names and parameters are tabled on `from_json` |
 | `Profile { name, description, rules: Vec<ProfileRule> }`, `ProfileRule { id, check: Check, severity: Severity }` | rules run in order; ids are unique |
-| `Check` | `ImageBelowPpi { min_ppi }`, `FontNotEmbedded`, `NoOutputIntent`, `NoTrimBox`, `ColourSpaceUsed { families: Vec<ColourFamily> }`, `SpotNotAllowed { allowed: Vec<String> }`, `OverprintUsed`, `Encrypted`, `VersionAbove { max: PdfVersion }` |
+| `Check` | `ImageBelowPpi { min_ppi }`, `FontNotEmbedded`, `NoOutputIntent`, `NoTrimBox`, `ColourSpaceUsed { families: Vec<ColourFamily> }`, `SpotNotAllowed { allowed: Vec<String> }`, `OverprintUsed`, `StrokeBelow { min_width_pt }` (JSON `stroke-below`, Pass 748.2), `Encrypted`, `VersionAbove { max: PdfVersion }` |
 | `PreflightReport { findings, dropped, pages_checked, page_count, cancelled }` | `fails()` = an `Error` finding or `dropped > 0`; `is_clean()`; `needs_person()` |
 | `Finding { rule_id, severity, kind, page: Option<usize>, target, rect: Option<Rect>, message, measured: Option<Measure> }` | `page` 1-based, `None` for document-level; `Measure { value, limit, unit: MeasureUnit }` for measuring checks |
+| `preflight::hairlines(&DocumentView, &Page, min_width_pt) -> Result<Vec<Hairline>, ContentError>` | every stroke printing below `min_width_pt` on its thinnest axis, or of width 0; `Hairline { target, line_width, axis_scale, width_pt, zero_width, rect }`, `width_for(min)` the user-space width that prints `min` |
 | `FindingTarget` | `Document`, `Page`, `PageObject(i)` / `FormLeaf(i)` (indexes into `vector::decompose_page`'s `objects` / `leaves`, the same ones `hit_test` uses), `Annotation`, `Font`, `ColourSpace`, `Image`, `GraphicsState` (each an `ObjId`) |
 
 Contract:
@@ -6726,6 +6727,14 @@ Contract:
   placed length of each axis; the worst axis is the measured value.
 - **Fonts**: Type 3 always passes; an unreadable embedded program is a
   finding, naming why.
+- **Hairlines** (`stroke-below`, `hairlines`): a stroke's printed width is
+  its line width times the CTM's **smallest singular value** (the thin axis
+  of the pen ellipse, ISO 32000-2 §8.4.3.2), in points of default user space
+  (`/UserUnit` not applied). Width 0 is always a finding; `min_width_pt: 0`
+  finds only those. Covers stroked paths on the page and inside forms; NOT
+  Type 3 glyphs, tiling-pattern cells, annotation appearances or stroked text
+  (`HAIRLINES_NOT_COVERED`, the sentence to show). `Measure` is `Points`.
+  The fixup is `EditSession::fix_hairlines` (`02` §2).
 
 ⚠️ `Check`, `ColourFamily`, `FindingTarget`, `MeasureUnit`, `ProfileError`,
 `Finding` and `PreflightReport` are `#[non_exhaustive]`.

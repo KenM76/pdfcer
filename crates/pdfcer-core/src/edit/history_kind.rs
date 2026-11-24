@@ -321,6 +321,7 @@ kind_codec! {
     DeleteObject,
     SetObjectPaint,
     SetObjectStrokeStyle,
+    FixHairlines,
     RestackObjects,
     GroupObjects,
     UngroupForm,

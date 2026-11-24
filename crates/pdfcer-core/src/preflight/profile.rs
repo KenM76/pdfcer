@@ -153,6 +153,7 @@ impl Profile {
     /// | `colour-space-used` | `families`: array of [`ColourFamily::as_str`] names |
     /// | `spot-not-allowed` | `allowed`: array of ink names |
     /// | `overprint-used` | none |
+    /// | `stroke-below` | `min_width_pt`: number >= 0 |
     /// | `encrypted` | none |
     /// | `version-above` | `max`: `"1.7"`-style string |
     ///
@@ -212,14 +213,10 @@ fn parse_rule(item: &Json) -> Result<ProfileRule, ProfileError> {
             .collect()
     };
     let check = match name {
-        "image-below-ppi" => {
-            let min_ppi = item
-                .get("min_ppi")
-                .and_then(Json::as_f64)
-                .filter(|v| v.is_finite() && *v > 0.0)
-                .ok_or_else(|| bad("min_ppi must be a number above 0"))?;
-            Check::ImageBelowPpi { min_ppi }
-        }
+        "image-below-ppi" => Check::ImageBelowPpi {
+            min_ppi: number(item, "min_ppi", |v| v > 0.0)
+                .ok_or_else(|| bad("min_ppi must be a number above 0"))?,
+        },
         "font-not-embedded" => Check::FontNotEmbedded,
         "no-output-intent" => Check::NoOutputIntent,
         "no-trim-box" => Check::NoTrimBox,
@@ -240,6 +237,10 @@ fn parse_rule(item: &Json) -> Result<ProfileRule, ProfileError> {
                 .ok_or_else(|| bad("allowed must be an array of ink names"))?,
         },
         "overprint-used" => Check::OverprintUsed,
+        "stroke-below" => Check::StrokeBelow {
+            min_width_pt: number(item, "min_width_pt", |v| v >= 0.0)
+                .ok_or_else(|| bad("min_width_pt must be a number of at least 0"))?,
+        },
         "encrypted" => Check::Encrypted,
         "version-above" => {
             let max = item
@@ -261,6 +262,13 @@ fn parse_rule(item: &Json) -> Result<ProfileRule, ProfileError> {
         check,
         severity,
     })
+}
+
+/// `item[key]` as a finite number that `ok` accepts.
+fn number(item: &Json, key: &str, ok: impl Fn(f64) -> bool) -> Option<f64> {
+    item.get(key)
+        .and_then(Json::as_f64)
+        .filter(|&v| v.is_finite() && ok(v))
 }
 
 fn parse_version(s: &str) -> Option<PdfVersion> {
@@ -294,6 +302,10 @@ fn rule_json(rule: &ProfileRule) -> String {
             )
         }
         Check::OverprintUsed => ("overprint-used", String::new()),
+        Check::StrokeBelow { min_width_pt } => (
+            "stroke-below",
+            format!(", \"min_width_pt\": {min_width_pt}"),
+        ),
         Check::Encrypted => ("encrypted", String::new()),
         Check::VersionAbove { max } => ("version-above", format!(", \"max\": \"{max}\"")),
     };

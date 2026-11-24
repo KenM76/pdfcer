@@ -181,6 +181,7 @@ mod form_group;
 mod group;
 pub use form_group::{FormGroupOutcome, FormUngroupOutcome};
 pub use group::{GroupOutcome, UngroupOutcome, is_group_form};
+mod hairlines;
 mod restack;
 mod running_text;
 #[cfg(feature = "signing")]
@@ -192,6 +193,7 @@ pub use annot_restyle::{
 };
 pub use foreign_button::ForeignAppearance;
 pub use form_paint::FormPaintOutcome;
+pub use hairlines::HairlineFixReport;
 pub use print_decoration::{PrintDecoration, PrintDecorationReport};
 mod info_entries;
 mod markup_respan;
@@ -1301,6 +1303,8 @@ pub enum CommandKind {
     SetObjectPaint,
     /// [`EditSession::set_object_stroke_style`].
     SetObjectStrokeStyle,
+    /// [`EditSession::fix_hairlines`].
+    FixHairlines,
     /// [`EditSession::restack_objects`].
     RestackObjects,
     /// [`EditSession::group_objects`].

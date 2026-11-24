@@ -82,6 +82,7 @@ pub(crate) const IN_PLACE_COMMANDS: &[&str] = &[
     "fill-field",
     "xfa-fill",
     "xfa-materialize",
+    "fix-hairlines",
     "flatten",
     "flatten-annotations",
     "format-text",

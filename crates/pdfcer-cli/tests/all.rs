@@ -61,6 +61,7 @@ mod field_set_clip;
 mod fill_field_types;
 mod fill_rich_text;
 mod find_text;
+mod fix_hairlines;
 mod flatten_annotations;
 mod font_licence_notice;
 mod font_preflight;
