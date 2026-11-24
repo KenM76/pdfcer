@@ -4,6 +4,24 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-11-24 (1689th filing) — `Pass 748.2` (hairlines), `Pass 748.3` (Ink Manager), `Pass 748.1` (transparency) SHIPPED
+
+**Filed (engineer-reported; no shell here, so git, push, CI, release and backup state are not checked from here; all three cherry-picked onto `main`, unpushed; main-branch test counts pending, worker counts below):**
+- **`Pass 748.2` `bc0273af`:** `preflight::hairlines`, `Check::StrokeBelow`, `EditSession::fix_hairlines`, `pdfcer fix-hairlines`. Type 3 glyphs, tiling cells, annotation appearances and stroked text not covered, disclosed (`HAIRLINES_NOT_COVERED`). Worker: core lib 2442, core integration 3429, cli bin 134, cli integration 1135. core `[x]`, cli `[x]`, gui `[ ]`.
+- **`Pass 748.3` `b76734ff`:** `prepress::inks`, `alias_ink`, `spot_to_process`, `EditError::InkNameRefused`; CLI `inks`, `alias-ink`, `spot-to-process`. Alias is a document edit (Acrobat: output-time only). Spot to process converts only DeviceCMYK-alternate spaces; others refused naming icccer (decision 064); shadings get a disclosed 64-segment stitching function; overprint kept only for DeviceCMYK under OPM 1, else `overprint_lost`. 8 core + 3 CLI new tests. Worker: core lib 2433, core integration 3437, cli bin 134, cli integration 1136. core `[x]`, cli `[x]`, gui `[ ]`.
+- **`Pass 748.1` `83317911`:** `has_transparency`, `Check::TransparencyUsed`, `flatten_transparency(pages, &FlattenOptions, &dyn TransparencyFlattener)` (flattener passed in, since core cannot depend on render; impl `pdfcer_emf::RecordingFlattener`), CLI `flatten-transparency`. A build, not wiring: `Pass 627.0` shipped no verb. Worker: core lib 2443, core integration 3429, emf 17+109+8, cli 134+1135, flatten 18+9+2; the emf render-before/after test fails 37.5% of pixels when sabotaged. core `[x]`, cli `[x]`, gui `[ ]`.
+- **Counts (engineer-reported):** README subcommands 264; `EditSession` verbs 438; `EditError` variants 205. `cargo tree`: no manifest changed in any of the three.
+
+**Decisions / facts recorded:**
+- **Signature deviation (`748.1`):** the request's `flatten_transparency(pages, FlattenOptions)` gained a `&dyn TransparencyFlattener` argument; core stays render-free.
+- **Divergence (`748.3`):** alias as a document edit exceeds Acrobat's output-time alias.
+- **Requests closed:** `request_hairline_fix.md`, `request_ink_manager.md`, `request_flatten_transparency.md` (O458, `pdfcer-gui`).
+- **Open in the round:** `748.4`, `748.5`, `748.6`, `748.7`, `748.8`, `748.9` (fixup wiring for spot-not-allowed, transparency and hairlines), `729.0`, `748.10`.
+
+**FEATURES:** FEATURES row for preflight now lists eleven checks; Planned rows for flatten, hairlines and Ink Manager replaced by five Implemented rows (hairlines; ink list; alias; spot to process; transparency detect + flatten); the `Pass 627.0` row reworded. **Sweep (rule 11):** survivors reported: the `ROADMAP.md` 1687th-filing bullets for `748.1`-`748.3` still read as not started (kept as filed, banner added above them); I did not re-read `docs/core-api/` or CLI help for the old "Nine checks" count, and `README.md`/rustdoc may still say nine checks or "no flatten verb" (engineer to sweep).
+
+**Next:** main-branch test counts; then `748.4`, `748.5`, `748.7`, `748.6`, `748.8`, `748.9`, `729.0`; push is gated on `check-commits-filed.py` after the engineer commits these edits.
+
 ## 2026-11-23 (1688th filing) — `Pass 748.0` (preflight framework), `Pass 747.0` (`pdfcer-ink`), `Pass 746.0` (separation-set import) SHIPPED
 
 **Filed (engineer-reported; no shell here, so git, push, CI, release, crates.io and OneDrive state are not checked from here; tests "green at filing; see engineer commit", the full ink/core/render/cli runs were in progress):**

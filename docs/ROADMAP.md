@@ -112,6 +112,41 @@ wherever it appears.*
 
 ## Shipped
 
+### `Pass 748.1`: find, preflight and flatten page transparency (`pdfcer flatten-transparency`), `83317911`, 2026-11-24 (1689th filing)
+
+Engineer-reported; source `O458` (`pdfcer-gui` `request_flatten_transparency.md`, now closed); cherry-picked onto `main`, unpushed. No shell here; push, CI and gates not checked from here. **Unreleased** (the preflight round releases when all of it is done). Main-branch test counts pending; worker counts below.
+- **This was a build, not wiring:** `Pass 627.0` shipped no flatten verb.
+- **Core:** `transparency::has_transparency` scan (`MAX_DEPTH` 32, `too_deep` counted); `Check::TransparencyUsed` (JSON `transparency-used`; depth overflow becomes an `Incomplete` finding, never a pass).
+- **`EditSession::flatten_transparency(pages, &FlattenOptions, &dyn TransparencyFlattener)`; `CommandKind::FlattenTransparency`; errors `FlattenPpiOutOfRange`, `TransparencyFlattenFailed`.** **Deviation from the request:** the flattener is passed in, because core cannot depend on render. Shipped impl: `pdfcer_emf::RecordingFlattener`. Overlay mode (keep_text) never changes objects shared with other pages; Rebuilt mode outlines text. Rasterised regions carry a reason; everything inferred is disclosed.
+- **CLI:** `pdfcer flatten-transparency` (`--pages`, `--outline-text`, `--outline-strokes`, `--ppi` 36-2400, `-o`/`--in-place`, `--mode`, `--verify-undo`).
+- **Worker tests:** core lib 2443, core integration 3429, emf 17+109+8, cli bin 134, cli integration 1135, flatten 18+9+2. The emf render-before/after test fails 37.5% of pixels when sabotaged.
+- **Invariants:** no manifest changed, so `cargo tree` unchanged (engineer-reported).
+- **OWED:** the preflight fixup wiring for "transparency present" is `Pass 748.9`. **gui `[ ]`.**
+- **FEATURES:** the Planned "Flatten transparency" row moved to Implemented (core `[x]`, cli `[x]`, gui `[ ]`); the `Pass 627.0` row reworded.
+
+### `Pass 748.3`: the Ink Manager (`inks`, `alias-ink`, `spot-to-process`), `b76734ff`, 2026-11-24 (1689th filing)
+
+Engineer-reported; source `O458` (`request_ink_manager.md`, now closed); cherry-picked, unpushed; gates and push not checked from here. **Unreleased.**
+- **Core:** `prepress::inks(&DocumentView) -> Vec<InkUse>`; `EditSession::inks`/`alias_ink`/`spot_to_process`; `CommandKind::AliasInk`/`SpotToProcess`; new `EditError::InkNameRefused`.
+- **Divergence (record):** alias is a **document edit**; Acrobat's alias is output-time only.
+- **Spot to process:** converts only DeviceCMYK-alternate spaces, via their own tint transform; any other alternate is refused naming icccer (decision 064). Shadings get a 64-segment stitching function (disclosed). Overprint kept only for DeviceCMYK under OPM 1, otherwise listed in `overprint_lost`.
+- **CLI:** `pdfcer inks`, `alias-ink --from --to`, `spot-to-process [--ink]...`.
+- **Tests:** 8 core + 3 CLI new (incremental append-only and full-rewrite leave untouched objects byte-identical). Worker totals: core lib 2433, core integration 3437, cli bin 134, cli integration 1136.
+- **OWED:** the "spot ink not allowed" fixup wiring is `Pass 748.9`. **gui `[ ]`.**
+- **FEATURES:** Planned "Ink Manager" row replaced by three Implemented rows (list, alias, spot to process).
+
+### `Pass 748.2`: find hairlines and raise them to a minimum (`pdfcer fix-hairlines`), `bc0273af`, 2026-11-24 (1689th filing)
+
+Engineer-reported; source `O458` (`request_hairline_fix.md`, now closed); cherry-picked, unpushed; gates and push not checked from here. **Unreleased.**
+- **Core:** `preflight::hairlines(&DocumentView, &Page, min_width_pt) -> Vec<Hairline>`; `Check::StrokeBelow { min_width_pt }` (JSON `stroke-below`); `EditSession::fix_hairlines(&[usize], f64) -> HairlineFixReport`; `CommandKind::FixHairlines`; one undo step.
+- **Disclosure `HAIRLINES_NOT_COVERED`:** Type 3 glyphs, tiling cells, annotation appearances and stroked text are not covered; disclosed, never silent (resolves the open question left in the `748.2` filing).
+- **CLI:** `pdfcer fix-hairlines` (`--pages`, `--min-width` default 0.25, `-o`/`--mode`, `--verify-undo`).
+- **Worker tests:** core lib 2442, core integration 3429, cli bin 134, cli integration 1135.
+- **OWED:** the fixup wiring is `Pass 748.9`. **gui `[ ]`.**
+- **FEATURES:** Planned "Find and fix hairlines" row moved to Implemented (core `[x]`, cli `[x]`, gui `[ ]`).
+
+**Round facts (1689th filing, engineer-reported):** README subcommand count now 264; `EditSession` verbs 438; `EditError` variants 205. Open in the O458 round: `748.4` convert colours, `748.5` PDF/X, `748.6`, `748.7` PDF/UA, `748.8`, `748.9` fixups, `729.0`, `748.10` TAC.
+
 ### `Pass 746.0` (`X108`): a session page import remaps a preseparated page's separation set, `8aa20670`, 2026-11-23 (1688th filing)
 
 Engineer-reported (cherry-pick of worker `77862c1c`); no shell here, push, CI and the gates not checked from here. **Unreleased** (the next release writes OneDrive `pdfcer1`). Tests green at filing; see engineer commit (the full runs were still in progress).
@@ -28689,6 +28724,8 @@ closes out the *prior* filing's business rather than opening this one's.
 ---
 
 ## Next up
+
+> **`Pass 748.1`, `748.2` and `748.3` SHIPPED (1689th filing, `83317911`, `bc0273af`, `b76734ff`); see *Shipped*.** Preflight arc still open: `748.4`-`748.9`, `748.10`, `729.0`. The per-Pass bullets for `748.1`-`748.3` in the 1687th-filing text below are kept as filed; the `748.2` open question (Type 3 and pattern hairlines) is answered: not covered, disclosed.
 
 > **`Pass 746.0` (`X108`) and `Pass 747.0` (`X107`) SHIPPED (1688th filing, `8aa20670`, `d9ad2e6c`); see *Shipped*.** Their owed items: `copy_pages` split disclosure at copy time; a §14.11.4 spec-RAG file; the extract shared-dict edge test; `pdfcer-ink` publish order before `pdfcer-render` in `docs/NEXT_SESSION.md`; a fuzz target for ink; `CmykBuffer` pixel storage; `pdfcer-flatten`'s separate `Blend`.
 
