@@ -11810,6 +11810,34 @@ pub(crate) enum Command {
         #[arg(long)]
         verify_undo: bool,
     },
+    /// Convert lengths to and from a ce dimension group's scale on one page.
+    ///
+    /// `--typed` reads a length as it would be typed into a box showing the
+    /// group's scale (`2.4 m`, `4'-7 1/2"`, `2,4` in a comma group, or a bare
+    /// number in the group's unit) and prints the page length in user units
+    /// that reads as it. `--user-units` goes the other way and prints what
+    /// the group shows for a page length. The page's /UserUnit is honoured.
+    ///
+    /// With no scale set, a bare number is points and a length with a unit is
+    /// that length on the paper. A `pt` suffix always means printed points.
+    /// Read-only: nothing is written.
+    GroupLength {
+        /// Input PDF.
+        input: PathBuf,
+        /// Page number, from 1.
+        #[arg(long, default_value_t = 1)]
+        page: usize,
+        /// Group id, as printed by `dimension-list`.
+        #[arg(long, default_value_t = 0)]
+        group: u32,
+        /// A length typed in the group's scale. Repeatable.
+        #[arg(long, allow_hyphen_values = true)]
+        typed: Vec<String>,
+        /// A page length in user units to show in the group's scale.
+        /// Repeatable.
+        #[arg(long, allow_hyphen_values = true)]
+        user_units: Vec<f64>,
+    },
     /// **Set a ce dimension GROUP's style defaults** (Pass 69.0) and
     /// regenerate every member.
     ///

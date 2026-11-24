@@ -221,7 +221,6 @@ fn pdfcer-core/src/attachments.rs::model_attachment
 fn pdfcer-core/src/attachments.rs::sanitize_attachment_name
 fn pdfcer-core/src/attachments.rs::walk_name_tree
 fn pdfcer-core/src/dimension/author.rs::author_dimension_with_label
-fn pdfcer-core/src/dimension/length_parse.rs::parse_length
 fn pdfcer-core/src/dimension/sidecar.rs::deserialize_dimension
 fn pdfcer-core/src/dimension/sidecar.rs::serialize_dimension
 fn pdfcer-core/src/edit.rs::acroform_write_parts

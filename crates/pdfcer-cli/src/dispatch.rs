@@ -3399,6 +3399,13 @@ pub(crate) fn run() -> ExitCode {
             mode,
             verify_undo,
         } => cmd_group_set_unit(&input, group, &unit, &output, mode, verify_undo),
+        Command::GroupLength {
+            input,
+            page,
+            group,
+            typed,
+            user_units,
+        } => cmd_group_length(&input, page, group, &typed, &user_units),
         Command::GroupStyle {
             input,
             group,

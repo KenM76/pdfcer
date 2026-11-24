@@ -68,6 +68,7 @@ mod format_decoration_flags;
 mod format_text;
 mod free_text_frame_style;
 mod group_cmds;
+mod group_length;
 mod hand_signature;
 mod image_replace;
 mod image_stamp_and_button_icon;

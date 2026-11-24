@@ -89,6 +89,10 @@ pub enum LengthParseError {
     /// intend. Named rather than normalised.
     #[error("{input:?} has {inches} inches in the feet-and-inches part; it should be under 12")]
     InchesOutOfRange { input: String, inches: f64 },
+    /// The group's scale (or the page's `/UserUnit`) is zero, negative or
+    /// not finite, so no page length reads as the typed text.
+    #[error("{input:?} cannot be turned back into a page length: the scale is not usable")]
+    UnusableScale { input: String },
 }
 
 /// A parsed real-world length: a magnitude and the unit it is expressed in.
@@ -137,6 +141,21 @@ pub struct ParsedLength {
 /// assert!(!b.unit_from_text);
 /// ```
 pub fn parse_length(input: &str, default_unit: Unit) -> Result<ParsedLength, LengthParseError> {
+    let parsed = parse_magnitude(input, default_unit)?;
+    if parsed.value <= 0.0 {
+        return Err(LengthParseError::NotPositive {
+            input: input.to_owned(),
+        });
+    }
+    Ok(parsed)
+}
+
+/// [`parse_length`] without the positivity check: zero is accepted, so a
+/// caller reading a position rather than a calibration length can use it.
+pub(super) fn parse_magnitude(
+    input: &str,
+    default_unit: Unit,
+) -> Result<ParsedLength, LengthParseError> {
     // Normalise the quote characters a real drawing (or a PDF's own text)
     // uses: typographic primes and curly quotes all mean foot and inch here.
     // A `"` pasted out of a PDF is very often U+201D, and refusing that would
@@ -155,11 +174,12 @@ pub fn parse_length(input: &str, default_unit: Unit) -> Result<ParsedLength, Len
     }
     let orig = input.to_owned();
 
-    // --- metric: a number followed by mm / cm / m --------------------------
+    // --- metric: a number followed by km / mm / cm / m --------------------------
     // Checked before the imperial forms because `m` would otherwise be eaten
     // by nothing and fall through to `Unrecognised`. Longest suffix first, so
     // `mm` is not read as `m` with a stray leading `m`.
     for (suffix, unit) in [
+        ("km", Unit::Kilometer),
         ("mm", Unit::Millimeter),
         ("cm", Unit::Centimeter),
         ("m", Unit::Meter),
@@ -170,34 +190,8 @@ pub fn parse_length(input: &str, default_unit: Unit) -> Result<ParsedLength, Len
         }
     }
 
-    // --- imperial ----------------------------------------------------------
-    // Split on the FIRST foot marker. Everything before it is feet; everything
-    // after is inches. `4'-7 1/2"`, `4' 7 1/2"` and `4'7 1/2"` all land here,
-    // and the architectural hyphen is stripped as a separator rather than
-    // being read as a minus sign — which is the one ambiguity in the notation
-    // and the reason this is split explicitly instead of by a general tokeniser.
     if let Some(idx) = s.find(['\'']) {
-        let (feet_txt, rest) = s.split_at(idx);
-        let rest = rest
-            .get(1..)
-            .unwrap_or("")
-            .trim_start()
-            .trim_start_matches('-')
-            .trim();
-        let feet = parse_mixed(feet_txt.trim(), &orig)?;
-        if rest.is_empty() {
-            // `12'` — feet only.
-            return finish(feet, Unit::DecimalFeet, true, &orig);
-        }
-        let inch_txt = strip_inch_suffix(rest);
-        let inches = parse_mixed(inch_txt.trim(), &orig)?;
-        if !(0.0..12.0).contains(&inches) {
-            return Err(LengthParseError::InchesOutOfRange {
-                input: orig,
-                inches,
-            });
-        }
-        return finish(feet + inches / 12.0, Unit::FeetInches, true, &orig);
+        return parse_feet_inches(s, idx, &orig);
     }
 
     // Inches, with an explicit marker: `55 5/8"`, `55 5/8 in`.
@@ -206,11 +200,20 @@ pub fn parse_length(input: &str, default_unit: Unit) -> Result<ParsedLength, Len
         return finish(v, Unit::Inch, true, &orig);
     }
 
-    // Feet spelled out without a prime: `12 ft`.
-    for suffix in ["feet", "ft"] {
+    // Feet spelled out without a prime (`12 ft`), yards and miles.
+    for (suffix, unit) in [
+        ("feet", Unit::DecimalFeet),
+        ("ft", Unit::DecimalFeet),
+        ("yards", Unit::Yard),
+        ("yard", Unit::Yard),
+        ("yd", Unit::Yard),
+        ("miles", Unit::Mile),
+        ("mile", Unit::Mile),
+        ("mi", Unit::Mile),
+    ] {
         if let Some(head) = strip_suffix_ci(s, suffix) {
             let v = parse_mixed(head.trim(), &orig)?;
-            return finish(v, Unit::DecimalFeet, true, &orig);
+            return finish(v, unit, true, &orig);
         }
     }
 
@@ -220,14 +223,42 @@ pub fn parse_length(input: &str, default_unit: Unit) -> Result<ParsedLength, Len
     finish(v, default_unit, false, &orig)
 }
 
-/// Reject a non-positive result once, in one place.
+/// Feet and inches, split on the FIRST foot marker at `idx`: everything
+/// before it is feet, everything after is inches. `4'-7 1/2"`, `4' 7 1/2"`
+/// and `4'7 1/2"` all land here, and the architectural hyphen is stripped as
+/// a separator rather than read as a minus sign — the one ambiguity in the
+/// notation, and why this is split explicitly instead of by a tokeniser.
+fn parse_feet_inches(s: &str, idx: usize, orig: &str) -> Result<ParsedLength, LengthParseError> {
+    let (feet_txt, rest) = s.split_at(idx);
+    let rest = rest
+        .get(1..)
+        .unwrap_or("")
+        .trim_start()
+        .trim_start_matches('-')
+        .trim();
+    let feet = parse_mixed(feet_txt.trim(), orig)?;
+    if rest.is_empty() {
+        // `12'` — feet only.
+        return finish(feet, Unit::DecimalFeet, true, orig);
+    }
+    let inches = parse_mixed(strip_inch_suffix(rest).trim(), orig)?;
+    if !(0.0..12.0).contains(&inches) {
+        return Err(LengthParseError::InchesOutOfRange {
+            input: orig.to_owned(),
+            inches,
+        });
+    }
+    finish(feet + inches / 12.0, Unit::FeetInches, true, orig)
+}
+
+/// Reject a non-finite result once, in one place.
 fn finish(
     value: f64,
     unit: Unit,
     unit_from_text: bool,
     orig: &str,
 ) -> Result<ParsedLength, LengthParseError> {
-    if !value.is_finite() || value <= 0.0 {
+    if !value.is_finite() {
         return Err(LengthParseError::NotPositive {
             input: orig.to_owned(),
         });
@@ -330,6 +361,28 @@ fn parse_decimal(s: &str, orig: &str) -> Result<f64, LengthParseError> {
 )]
 mod tests {
     use super::*;
+
+    #[test]
+    fn kilometres_yards_and_miles_are_read() {
+        assert_eq!(ok("1.5 km", Unit::Meter).unit, Unit::Kilometer);
+        assert_eq!(ok("3 mm", Unit::Meter).unit, Unit::Millimeter);
+        for t in ["2 yd", "2 yards", "2 yard"] {
+            let p = ok(t, Unit::Meter);
+            assert_eq!((p.value, p.unit), (2.0, Unit::Yard), "{t}");
+        }
+        for t in ["2 mi", "2 miles", "2 mile"] {
+            assert_eq!(ok(t, Unit::Meter).unit, Unit::Mile, "{t}");
+        }
+    }
+
+    #[test]
+    fn zero_is_still_not_a_length() {
+        assert!(matches!(
+            parse_length("0", Unit::Meter),
+            Err(LengthParseError::NotPositive { .. })
+        ));
+        assert_eq!(parse_magnitude("0 mm", Unit::Meter).unwrap().value, 0.0);
+    }
 
     fn ok(s: &str, default_unit: Unit) -> ParsedLength {
         parse_length(s, default_unit).unwrap_or_else(|e| panic!("{s:?} should parse: {e}"))
