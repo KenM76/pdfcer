@@ -4,6 +4,24 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-11-24 (1698th filing) — `Pass 752.0`-`755.0` SHIPPED (version floor, GPU cancel, GPU card speed, plates in one pass)
+
+**Shipped (engineer-reported; no shell here, git, push, CI and the gates not checked from here):**
+- `Pass 752.0` (`05316f40`, `X111`): the optimize version floor joins a page's `/Contents` streams before scanning and follows references under their naming key (depth limit, cycle guard).
+- `Pass 753.0` (`b8c13aa2`, `O459`): `DisplayList::gpu_scene_cancellable` with `GpuRefusal::Cancelled`; the token is a parameter because lists are cached across renders. Core only.
+- `Pass 754.0` (`ab101085`, `O459`): GPU span-break mask precomputed at pack time; site plan card draw 490 ms down to 158 ms (CPU 8 bands about 360-440 ms); card equals CPU, 0 rows differ.
+- `Pass 755.0` (`e1e19868`, `O460`): `render_plates` composites once per four inks; the dense CMYK + spot test file 150 dpi page 1 plates 8.2 s (was 41.0 s), page 0 1.8 s (was 6.9 s); golden digests unchanged.
+- `560a08e9`: a doc comment for the version-floor walk's constructor, missed by `752.0` (caught by the public-fns gate).
+- All **unreleased, since `v0.172.0`**; the next release writes OneDrive `pdfcer2`. Details: `ROADMAP.md` *Shipped*.
+
+**Findings:** `752.0` bullet-2 acceptance test passes even without the array-context change (so it does not guard it). Not followed: dictionary or stream by reference under a key; unreferenced name objects. the dense CMYK + spot test file page 1 single render (8-10 s) not investigated; filed as `Pass 755.1` in *Backlog*.
+
+**Tests (engineer-reported):** `pdfcer-render` 579 lib + 707 integration + 42 pass; `pdfcer-emf` 109; CLI print 57. No manifest change in core or render, `cargo tree` unchanged.
+
+**FEATURES:** one new row (`gpu_scene_cancellable`, core `[x]`, cli `[ ]`, gui `[ ]`); the version-floor row gained a clause, boxes unchanged; `754.0`/`755.0` no box change.
+
+**Next:** `Pass 729.1` (`convert_to_pdfa`), CLI `to-pdfa`; `Pass 755.1`; report `run-gates.sh`.
+
 ## 2026-11-24 (1697th filing) — `Pass 750.0` (hex glyph names), `Pass 751.0` (version-floor key scoping) SHIPPED
 
 **Shipped (engineer-reported; no shell here, git, push, CI and the gates not checked from here; the engineer reports `run-gates.sh` in progress):**

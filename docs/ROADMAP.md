@@ -112,6 +112,39 @@ wherever it appears.*
 
 ## Shipped
 
+### `Pass 755.0`: `render_plates` composites once per four inks (`O460`), `e1e19868`, 2026-11-24 (1698th filing)
+
+Engineer-reported; request `request_render_plates_one_pass.md` (`O460`, from `pdfcer-gui`); no shell here, git, push, CI and the gates not run or checked from here. **Unreleased: since `v0.172.0`.**
+- **Change:** a crate-private `Collapse` enum on `RenderOptions` (`Colour`/`Warnings`/`Readout`/`Plates`) replaces three fields. Plates are packed into RGBA: process inks first, then spots by name, four to a composite, instead of one render per ink.
+- **Measured (the dense CMYK + spot test file, 150 dpi, release):** page 1, page 8.4 s / plates 8.2 s (was 41.0 s); page 0, 1.0 s / 1.8 s (was 6.9 s).
+- **Byte-identical:** golden digests unchanged (supersampled edges average greys); dropping the spot renders fails 4 of 7 digests. Not parallelised (no threads in the engine). `tools/render-profile` gained `--plates`.
+- **Tests:** `pdfcer-render` 579 lib + 707 integration + 42 pass; `pdfcer-emf` 109; CLI print 57. No manifest change, so `cargo tree` is unchanged.
+- **FEATURES:** no box change (performance of the existing "Separation plates as engine API" row).
+- **Open follow-up:** the dense CMYK + spot test file page 1 single render takes 8-10 s; not investigated (see *Backlog*).
+
+### `Pass 754.0`: GPU span-break test precomputed at pack time (`O459`), `ab101085`, 2026-11-24 (1698th filing)
+
+Engineer-reported; request `request_gpu_card_slower_than_cpu.md` (`O459`, `pdfcer-gui`); no shell here, git, push, CI and the gates not run or checked from here. **Unreleased: since `v0.172.0`.**
+- **Change:** the span-break test is computed per tile row at pack time as a 64-bit mask held in one texel; the shader reads one bit.
+- **Measured (site plan, ncored benchmark, 754x534):** card draw 490 ms down to 158 ms, against the CPU at 8 bands about 360-440 ms; pack about 220-245 ms. Card equals the CPU reference, 0 rows differ; zeroing the mask fails 5 tests. `tools/gpu-raster-measure` gained `STATS=1`.
+- **FEATURES:** no box change (performance of the existing GPU row).
+
+### `Pass 753.0`: `gpu_scene_cancellable` (`O459`), `b8c13aa2`, 2026-11-24 (1698th filing)
+
+Engineer-reported; answers `request_gpu_scene_cancel.md` (`pdfcer-gui` `O459`); no shell here, git, push, CI and the gates not run or checked from here. **Unreleased: since `v0.172.0`.**
+- **API:** `DisplayList::gpu_scene_cancellable(key, region, &RenderCancel) -> Result<GpuScene, GpuRefusal>`; new `GpuRefusal::Cancelled`. Checked before packing, per clip, per 512-op block, and after fills and tile lists.
+- **Decision:** the token is a parameter, not stored, because display lists are cached across renders.
+- **Reach:** core only; no CLI caller (the CLI draws on the CPU).
+- **FEATURES:** one new row, `gpu_scene_cancellable` (core `[x]`, cli `[ ]`, gui `[ ]`).
+
+### `Pass 752.0`: version floor follows references and joins page content (`X111`), `05316f40`, 2026-11-24 (1698th filing)
+
+Engineer-reported; request `X111` (operator); no shell here, git, push, CI and the gates not run or checked from here. **Unreleased: since `v0.172.0`.**
+- **Page `/Contents`:** decoded per stream, joined within `MAX_DECODED_LEN`, scanned once (ISO 32000-2 §7.8.2), so a token split across streams is seen.
+- **References:** context is kept through indirect arrays; values reached by reference are judged under their naming key, with a depth limit and a per-(id, key) cycle guard; a shared indirect `/Filter` is cached. Only `/Contents` and `/Cert` of a signature are treated as binary.
+- **Notes:** the bullet-2 acceptance test passes even without the array-context change. **Not followed:** a dictionary or stream reached by reference under a key; unreferenced name objects.
+- **FEATURES:** no box change (the "Lowest PDF version the content needs" row stays core `[x]`, cli `[x]`; clause added).
+
 ### `Pass 751.0`: version floor scopes single-dictionary keys to their dictionary (`X110`), `f6d64e62`, 2026-11-24 (1697th filing)
 
 Engineer-reported; request `X110` (`D:\Dev\FeatureRequests\pdfce_FeatureRequests\open\request_X110_version_floor_scopes_keys_to_their_dictionaries.md`); no shell here, git, push, CI and the gates not run or checked from here (the engineer reports `run-gates.sh` in progress). **Unreleased: since `v0.172.0`**; the next release writes OneDrive slot `pdfcer2`.
@@ -40297,6 +40330,8 @@ overrides the image dictionary; `/ColorSpace` optional,
 Grouped by rough Acrobat Pro feature area. Each bucket gets scoped into
 real Pass entries as the engineer reaches it — this list exists so
 nothing gets forgotten, not as a commitment to build in this order.
+
+- **`Pass 755.1` (OPEN, NOT STARTED; filed 1698th filing; found by `Pass 755.0`):** the dense CMYK + spot test file page 1 as a single render takes 8-10 s at 150 dpi (release); not investigated. Profile with `tools/render-profile`. ID by grep before use.
 
 - **`Pass 722.2` (OPEN, NOT STARTED; filed 1589th filing; residue of `Pass 722.0`, `37d649a4`):** join two open ends of paths (merge two open subpaths, or two paths, into one), and close an open path (add the closing segment or `h`). Neither shipped with `722.0`; both want the same planner shape (`plan_*` plus `_in_form` twins, CLI, undo, R151). ID by grep: zero hits for `722.2` as a Pass before this filing (only "next free" mentions).
 - **`Pass 722.1` (OPEN, NOT STARTED; filed 1588th filing; NEEDS AN OPERATOR RULING BEFORE SCOPING):** rich-text (`/RC` plus `/DS`) authoring for text-box (FreeText) annotations: the operator wish list's "full formatting control" for markup text boxes. Ruling needed on which formatting set (runs, fonts, colours, sizes, lists, links) and on how a plain-`/Contents` fallback is kept in step. Not gating `v0.156.0`. ID by grep: zero hits for `722.1` before this filing.
