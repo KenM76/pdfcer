@@ -4500,7 +4500,11 @@ on the sheet (tint × page-group alpha after overprint, transparency and
 spots); hidden plates count as no ink; every tint compares in tenths of a
 percent, rounded. `flags(process, spots)` is the per-pixel rule for a caller
 with its own ink values. `CoverageMask { width, height, mask: Vec<u8>
-(1 = flagged, row-major), flagged: u64 }`, `is_flagged(x, y)`. Edges are not
+(1 = flagged, row-major), flagged: u64 }`, `is_flagged(x, y)`,
+`CoverageMask::from_mask(width, height, mask)` (counts `flagged`). Both types
+are defined in the PDF-free `pdfcer-ink` crate and re-exported here; its
+`InkCanvas` composites caller-supplied paints into the same planes without a
+document (see `crates/pdfcer-ink/README.md`). Edges are not
 antialiased. Several rules: `coverage_warning_masks(.., &[CoverageWarning])
 -> Result<Vec<CoverageMask>, RenderError>` returns one mask per rule in order,
 equal to the single-rule call, from **one render per three rules** (an empty

@@ -29,7 +29,7 @@
 //! # What is here, and what deliberately is not
 //!
 //! Here: [`Union`](union_), the thirteen Table 136 separable blend
-//! functions ([`blend_separable`]), the dispatcher over both tables
+//! functions ([`blend_separable`](pdfcer_ink::blend::blend_separable)), the dispatcher over both tables
 //! ([`Blend`]), the §11.4.4 element-composite formula
 //! ([`composite_element`]), the §11.4.8 knockout variant
 //! ([`composite_element_knockout`]), §11.4.4's backdrop removal
@@ -66,73 +66,13 @@
 
 use tiny_skia::PremultipliedColorU8;
 
-use crate::blend_nonsep::NonSeparableBlend;
-
-/// §11.3.7.3's `Union` — the "either" of two shape or alpha values.
-///
-/// ```text
-/// Union(b, s) = 1 − [(1 − b) × (1 − s)] = b + s − (b × s)
-/// ```
-///
-/// Named with a trailing underscore because `union` is a reserved word in
-/// Rust 2024 only as a contextual keyword for `union` types; the underscore
-/// removes any question at the call site.
-///
-/// # Why `max` is not a substitute
-///
-/// `max(0.5, 0.5) = 0.5`; `Union(0.5, 0.5) = 0.75`. Two half-covering
-/// elements leave a quarter of the pixel uncovered, not a half. Using
-/// `max` under-reports accumulated alpha everywhere two partially
-/// transparent things overlap, which is every anti-aliased edge in a
-/// transparency group.
-#[must_use]
-#[inline]
-pub fn union_(b: f32, s: f32) -> f32 {
-    b.mul_add(-s, b + s)
-}
-
-/// A blend mode, over **both** of clause 11.3.5's tables.
-///
-/// # Why one enum rather than `tiny_skia::BlendMode`
-///
-/// Because this module must be able to name a blend that `tiny_skia`
-/// cannot compute correctly. `crate::gstate::blend_mode_from_name` returns
-/// a `tiny_skia::BlendMode` and deliberately refuses the four
-/// non-separable modes (decision 066: the dependency's `clip_color` gates
-/// its low-gamut rescale on the wrong comparison and is measurably wrong by
-/// up to 107/255). A compositor that owns the arithmetic needs a type that
-/// can carry all seventeen.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum Blend {
-    /// Table 136's `Normal` — and its PDF 1.3 alias `Compatible`, which
-    /// §11.3.5 defines as exactly source-over.
-    Normal,
-    /// `B(cb, cs) = cb × cs`.
-    Multiply,
-    /// `B(cb, cs) = cb + cs − (cb × cs)`.
-    Screen,
-    /// `HardLight(cs, cb)` — the arguments are **swapped**, §11.3.5 §3.1.
-    Overlay,
-    /// `min(cb, cs)`.
-    Darken,
-    /// `max(cb, cs)`.
-    Lighten,
-    /// `min(1, cb / (1 − cs))` if `cs < 1`, else `1`.
-    ColorDodge,
-    /// `1 − min(1, (1 − cb) / cs)` if `cs > 0`, else `0`.
-    ColorBurn,
-    /// `Multiply(cb, 2cs)` if `cs ≤ 0.5`, else `Screen(cb, 2cs − 1)`.
-    HardLight,
-    /// The two-branch soft light with `D(x)`.
-    SoftLight,
-    /// `|cb − cs|` — note the **absolute value**; ISO 32000-1's printed
-    /// table drops the bars (corpus erratum `GD-4`).
-    Difference,
-    /// `cb + cs − 2 × cb × cs`.
-    Exclusion,
-    /// One of Table 137's four, computed by [`crate::blend_nonsep`].
-    NonSeparable(NonSeparableBlend),
-}
+#[cfg(test)]
+use pdfcer_ink::blend::blend_separable;
+pub use pdfcer_ink::blend::{Blend, union_};
+pub use pdfcer_ink::pixel::{
+    MAX_SPOTS, PixelCmyk, composite_element_cmyk, composite_element_knockout_cmyk,
+    remove_backdrop_cmyk,
+};
 
 /// Which side of §11.3.4 a set of colour components is on.
 ///
@@ -231,210 +171,31 @@ impl BlendSpace {
     }
 }
 
-impl Blend {
-    /// Map a `tiny_skia::BlendMode` that `blend_mode_from_name` produced
-    /// back onto this enum.
-    ///
-    /// # Why this direction exists
-    ///
-    /// The graphics state stores the rasteriser's type (it has to — that is
-    /// what the ordinary paint path hands to `tiny_skia`). The compositor
-    /// needs the standard's type. Rather than storing both and letting them
-    /// disagree, the conversion happens at the one boundary that needs it.
-    ///
-    /// Returns `None` for a mode `blend_mode_from_name` never produces —
-    /// `tiny_skia::BlendMode` has thirty-odd Porter-Duff operators and only
-    /// the twelve below are reachable from a PDF `/BM` name.
-    #[must_use]
-    pub fn from_tiny_skia(mode: tiny_skia::BlendMode) -> Option<Self> {
-        use tiny_skia::BlendMode as B;
-        Some(match mode {
-            B::SourceOver => Self::Normal,
-            B::Multiply => Self::Multiply,
-            B::Screen => Self::Screen,
-            B::Overlay => Self::Overlay,
-            B::Darken => Self::Darken,
-            B::Lighten => Self::Lighten,
-            B::ColorDodge => Self::ColorDodge,
-            B::ColorBurn => Self::ColorBurn,
-            B::HardLight => Self::HardLight,
-            B::SoftLight => Self::SoftLight,
-            B::Difference => Self::Difference,
-            B::Exclusion => Self::Exclusion,
-            _ => return None,
-        })
-    }
-
-    /// `true` when `B(cb, cs) = cs` for every `cb` — i.e. the mode is
-    /// indistinguishable from `Normal` and the whole blend can be skipped.
-    #[must_use]
-    pub fn is_normal(self) -> bool {
-        self == Self::Normal
-    }
-
-    /// Evaluate `B(C_b, C_s)` for this mode.
-    ///
-    /// Both arguments are **un-premultiplied, additive** components in
-    /// `[0, 1]` — §11.3.4's requirement. A subtractive (CMYK/Separation/
-    /// DeviceN) space must complement its components before calling this
-    /// and complement the result back; that is `Pass 97.1`'s work and is
-    /// deliberately **not** done here, because doing it in an sRGB buffer
-    /// would be a second wrong answer rather than a first right one.
-    #[must_use]
-    pub fn apply(self, cb: [f32; 3], cs: [f32; 3]) -> [f32; 3] {
-        match self {
-            Self::Normal => cs,
-            Self::NonSeparable(m) => crate::blend_nonsep::blend(m, cb, cs),
-            _ => [
-                blend_separable(self, cb[0], cs[0]),
-                blend_separable(self, cb[1], cs[1]),
-                blend_separable(self, cb[2], cs[2]),
-            ],
-        }
-    }
-
-    /// Evaluate `B(C_b, C_s)` on **four subtractive** components —
-    /// §11.3.4's complement rule, and §11.3.5.3's CMYK detour for the four
-    /// non-separable modes.
-    ///
-    /// # The two rules, and why they are not the same rule
-    ///
-    /// For a **separable** mode §11.3.4 is the whole story: complement each
-    /// component, apply the scalar function, complement the result back.
-    ///
-    /// For a **non-separable** mode §11.3.5.3 is more specific, and it is
-    /// quoted here because the difference is easy to lose:
-    ///
-    /// > "The formulas in this sub-clause apply to **RGB** spaces. Blending
-    /// > in **CMYK** spaces … **shall** be handled in the following way:
-    /// > the C, M and Y components **shall** be converted to their
-    /// > complementary R, G and B components in the usual way; the
-    /// > preceding formulas **shall** be applied to the RGB colour values;
-    /// > the results **shall** be converted back to C, M and Y. For the
-    /// > **K** component, the result **shall** be the K component of **Cb**
-    /// > for the `Hue`, `Saturation` and `Color` blend modes; it **shall**
-    /// > be the K component of **Cs** for the `Luminosity` blend mode."
-    ///
-    /// ⇒ **K is not blended, it is SELECTED**, and which operand it comes
-    /// from depends on the mode. Running all four channels through the
-    /// non-separable formulas produces entirely plausible output and is
-    /// non-conforming — the failure mode this project exists to catch.
-    ///
-    /// The CMY half is not a second rule: complementing C, M and Y **is**
-    /// §11.3.4's complement for those three. §11.3.5.3 is the
-    /// specialisation, not a competitor.
-    #[must_use]
-    pub fn apply_subtractive(self, cb: [f32; 4], cs: [f32; 4]) -> [f32; 4] {
-        match self {
-            Self::Normal => cs,
-            Self::NonSeparable(m) => {
-                let rb = [1.0 - cb[0], 1.0 - cb[1], 1.0 - cb[2]];
-                let rs = [1.0 - cs[0], 1.0 - cs[1], 1.0 - cs[2]];
-                let out = crate::blend_nonsep::blend(m, rb, rs);
-                // §11.3.5.3's K selection, by mode. `Luminosity` takes the
-                // SOURCE's black; the other three take the BACKDROP's.
-                use crate::blend_nonsep::NonSeparableBlend as N;
-                let k = if matches!(m, N::Luminosity) {
-                    cs[3]
-                } else {
-                    cb[3]
-                };
-                [1.0 - out[0], 1.0 - out[1], 1.0 - out[2], k]
-            }
-            _ => {
-                let mut out = [0.0_f32; 4];
-                for ((o, &b), &s) in out.iter_mut().zip(&cb).zip(&cs) {
-                    *o = 1.0 - blend_separable(self, 1.0 - b, 1.0 - s);
-                }
-                out
-            }
-        }
-    }
-}
-
-/// §11.3.5.2 Table 136 — one component of one separable blend mode.
+/// Map a `tiny_skia::BlendMode` that `blend_mode_from_name` produced
+/// back onto [`Blend`]: the graphics state stores the rasteriser's type, the
+/// compositor needs the standard's.
 ///
-/// Transcribed from `iso32000__s__11.3.5.md` §3, **including its four
-/// recorded printing errata** (`GD-1`…`GD-4`), each of which is
-/// independently corroborated there by ISO 32000-2:2020 and by W3C
-/// Compositing Level 1:
-///
-/// * `GD-1` — `ColorDodge`'s second branch is `1` **if `cs = 1`**.
-/// * `GD-2` — `ColorBurn`'s second branch is `0` **if `cs = 0`**.
-/// * `GD-3` — `SoftLight`'s `D(x)` is `((16x − 12)x + 4)x` for `x ≤ 0.25`.
-/// * `GD-4` — `Difference` is `|cb − cs|`. ISO 32000-1's printed table
-///   shows `cb – cs`; the bars are path-drawn and lost by every text
-///   extractor. NOTE 14's own words ("subtracts the darker … from the
-///   lighter") require the absolute value.
-///
-/// # Panics
-///
-/// Never. [`Blend::Normal`] and [`Blend::NonSeparable`] are handled by
-/// [`Blend::apply`] before this is reached; they fall through to `cs`
-/// here rather than panicking, because a panic in a per-pixel loop is a
-/// worse failure than a `Normal` blend.
+/// Returns `None` for a mode `blend_mode_from_name` never produces —
+/// only twelve of `tiny_skia::BlendMode`'s operators are reachable from a
+/// PDF `/BM` name.
 #[must_use]
-fn blend_separable(mode: Blend, cb: f32, cs: f32) -> f32 {
-    match mode {
-        Blend::Multiply => cb * cs,
-        Blend::Screen => cb.mul_add(-cs, cb + cs),
-        // §11.3.5 §3.1: Overlay(cb, cs) = HardLight(cs, cb). The swap is
-        // the whole definition — writing the HardLight branches out again
-        // with the arguments in place is how the swap gets lost.
-        Blend::Overlay => blend_separable(Blend::HardLight, cs, cb),
-        Blend::Darken => cb.min(cs),
-        Blend::Lighten => cb.max(cs),
-        Blend::ColorDodge => {
-            if cs < 1.0 {
-                (cb / (1.0 - cs)).min(1.0)
-            } else {
-                1.0
-            }
-        }
-        Blend::ColorBurn => {
-            if cs > 0.0 {
-                1.0 - ((1.0 - cb) / cs).min(1.0)
-            } else {
-                0.0
-            }
-        }
-        Blend::HardLight => {
-            if cs <= 0.5 {
-                cb * (2.0 * cs)
-            } else {
-                let s = cs.mul_add(2.0, -1.0);
-                cb.mul_add(-s, cb + s)
-            }
-        }
-        Blend::SoftLight => {
-            if cs <= 0.5 {
-                // cb − (1 − 2cs) × cb × (1 − cb)
-                cs.mul_add(2.0, -1.0).mul_add(cb * (1.0 - cb), cb)
-            } else {
-                let d = if cb <= 0.25 {
-                    // ((16x − 12)x + 4)x
-                    (cb.mul_add(16.0, -12.0).mul_add(cb, 4.0)) * cb
-                } else {
-                    cb.sqrt()
-                };
-                cs.mul_add(2.0, -1.0).mul_add(d - cb, cb)
-            }
-        }
-        Blend::Difference => (cb - cs).abs(),
-        Blend::Exclusion => (cb * cs).mul_add(-2.0, cb + cs),
-        // Unreachable through `Blend::apply`, and also through
-        // `blend_spots`, which screens `NonSeparable` out before this is
-        // called (§11.7.4.2). See the Panics note.
-        //
-        // Answering `cs` rather than panicking makes this arm a SECOND,
-        // accidental enforcement of §11.7.4.2 -- `cs` is exactly what
-        // `Normal` would give. Established by sabotage, not by reading:
-        // removing `blend_spots`'s guard leaves behaviour unchanged
-        // because of this line. It is not the guarantee, it merely
-        // coincides with it, and the two are documented separately so a
-        // change to either does not silently take the other with it.
-        Blend::Normal | Blend::NonSeparable(_) => cs,
-    }
+pub fn blend_from_tiny_skia(mode: tiny_skia::BlendMode) -> Option<Blend> {
+    use tiny_skia::BlendMode as B;
+    Some(match mode {
+        B::SourceOver => Blend::Normal,
+        B::Multiply => Blend::Multiply,
+        B::Screen => Blend::Screen,
+        B::Overlay => Blend::Overlay,
+        B::Darken => Blend::Darken,
+        B::Lighten => Blend::Lighten,
+        B::ColorDodge => Blend::ColorDodge,
+        B::ColorBurn => Blend::ColorBurn,
+        B::HardLight => Blend::HardLight,
+        B::SoftLight => Blend::SoftLight,
+        B::Difference => Blend::Difference,
+        B::Exclusion => Blend::Exclusion,
+        _ => return None,
+    })
 }
 
 /// A colour and an alpha in the standard's own model: **un-premultiplied**
@@ -592,210 +353,6 @@ pub fn composite_element(backdrop: Pixel, source: Pixel, blend: Blend) -> Pixel 
     }
 }
 
-/// A colour and an alpha in a **subtractive** space — four ink tints,
-/// `0.0` meaning *no ink*.
-///
-/// # Why this is a separate type and not `Pixel` with a flag
-///
-/// Because every formula that touches it needs to know, and a flag is
-/// something a call site can forget to read. `1 − c` is either the
-/// complement §11.3.4 requires or a bug, and the type is what decides
-/// which — the same argument [`Blend::NonSeparable`] makes for keeping the
-/// four Table 137 modes out of `tiny_skia::BlendMode`.
-///
-/// Four components rather than N: `Pass 97.1`'s first deliverable is the
-/// **blending colour space**, which for every file in the suite corpus is
-/// `DeviceCMYK`. Spot planes are the *second* deliverable and want a
-/// runtime-N plane-major buffer (measured 3–5× faster than interleaved,
-/// `docs/compositor-plan.md` §3.2). Building N now would fuse two
-/// questions that fail independently.
-#[derive(Debug, Clone, Copy, PartialEq)]
-pub struct PixelCmyk {
-    /// Subtractive tints `[C, M, Y, K]`, `0.0..=1.0`.
-    pub c: [f32; 4],
-    /// Tints of the page's SPOT colorants, indexed by the page's spot roster
-    /// (`Pass 217.0`). Unused entries are `0.0` — "no ink", which is the
-    /// correct value for a colorant this page never names.
-    ///
-    /// A fixed array HERE and a `Vec` in the buffer, because they answer
-    /// different questions. `PixelCmyk` is a TRANSIENT value — one pixel in
-    /// flight — so a fixed array keeps it `Copy` and costs nothing that
-    /// survives the call. The buffer is per-page STORAGE where an unused plane
-    /// is real memory, so it allocates only what the page's roster needs.
-    pub s: [f32; MAX_SPOTS],
-    /// Alpha, `[0, 1]`.
-    pub a: f32,
-}
-
-/// The most spot colorants one page can composite natively.
-///
-/// # Why there is a ceiling, and why it is small
-///
-/// A census of 4,023 real PDFs found **98.6% name no spot colorant at all**,
-/// 99.85% name three or fewer, and the maximum seen anywhere was nine. A small
-/// ceiling therefore covers essentially the whole corpus, and the pages it does
-/// not cover fall back to the flattening that predates this — disclosed, not
-/// silent.
-///
-/// MEMORY is what sets the number, not the census. Each plane costs 4 bytes
-/// per pixel on top of the existing 20, and a 300 DPI US-Letter page with four
-/// spot planes needs **289 MiB** against the 256 MiB default buffer ceiling —
-/// so it would be REFUSED outright. That measurement is why planes are
-/// allocated from the page's actual roster rather than provisioned to this
-/// maximum, and why this maximum is 4 rather than 9.
-pub const MAX_SPOTS: usize = 4;
-
-impl PixelCmyk {
-    /// A fully transparent pixel.
-    ///
-    /// **Its colour is `[0,0,0,0]` — NO INK — and that is deliberately
-    /// NOT what a zeroed `DeviceCMYK` buffer should be initialised to.**
-    /// §8.6.4.4 gives `DeviceCMYK` an initial colour of `[0 0 0 1]`, so a
-    /// `memset(0)` over a CMYK buffer yields **white**, not black, and
-    /// inverts every luminosity soft mask built over it. That trap is
-    /// correct in sRGB and wrong in CMYK, which is exactly why it belongs
-    /// at the Stage A → Stage B boundary and is named here.
-    ///
-    /// This constant is for a **transparent** pixel, whose colour §11.3.2
-    /// declares undefined and which every formula multiplies by its own
-    /// zero alpha. It is not an initialiser for an opaque one.
-    pub const TRANSPARENT: Self = Self {
-        c: [0.0; 4],
-        s: [0.0; MAX_SPOTS],
-        a: 0.0,
-    };
-}
-
-/// **§11.4.4's element-compositing formula, in a subtractive space.**
-///
-/// Identical in structure to [`composite_element`] — the compositing
-/// arithmetic itself is space-agnostic, which is §11.3.6's own point: the
-/// weighted average is affine and its weights sum to exactly 1, so
-/// complementation commutes with it. **Only `B()` needs the round trip**,
-/// and that is where [`Blend::apply_subtractive`] does it.
-///
-/// Deliberately a second function rather than a branch inside the first:
-/// the two operate on different-width arrays, and unifying them behind a
-/// const generic would put a type parameter on the one function every
-/// per-pixel loop in this crate calls.
-#[must_use]
-#[allow(clippy::indexing_slicing)] // every loop runs 0..N over `[f32; N]` arrays (N = 3, 4 or MAX_SPOTS)
-pub fn composite_element_cmyk(backdrop: PixelCmyk, source: PixelCmyk, blend: Blend) -> PixelCmyk {
-    let ab = backdrop.a.clamp(0.0, 1.0);
-    let a_s = source.a.clamp(0.0, 1.0);
-    let ai = union_(ab, a_s);
-    if ai <= 0.0 {
-        return PixelCmyk::TRANSPARENT;
-    }
-    let w = a_s / ai;
-    let blended = if blend.is_normal() || ab <= 0.0 {
-        source.c
-    } else {
-        let b = blend.apply_subtractive(backdrop.c, source.c);
-        let mut m = [0.0_f32; 4];
-        for i in 0..4 {
-            m[i] = ab.mul_add(b[i] - source.c[i], source.c[i]);
-        }
-        m
-    };
-    let blended_s = blend_spots(blend, backdrop, source, ab);
-    let mut c = [0.0_f32; 4];
-    for i in 0..4 {
-        c[i] = w.mul_add(blended[i] - backdrop.c[i], backdrop.c[i]);
-    }
-    let mut sp = [0.0_f32; MAX_SPOTS];
-    for i in 0..MAX_SPOTS {
-        sp[i] = w.mul_add(blended_s[i] - backdrop.s[i], backdrop.s[i]);
-    }
-    PixelCmyk { c, s: sp, a: ai }
-}
-
-/// §11.3.6's blend-and-mix step applied to the SPOT colorant planes.
-///
-/// Structurally identical to what [`composite_element_cmyk`] does for the
-/// four process channels — `C_s' = (1 - α_b) × C_s + α_b × B(C_b, C_s)`,
-/// per §11.3.6 — with one substitution that is a `shall`, not a choice.
-///
-/// # §11.7.4.2: a spot colorant takes SEPARABLE blend modes only
-///
-/// The clause is normative and unambiguous: only **separable,
-/// white-preserving** blend modes may be applied to a spot colour. A
-/// non-separable mode (`Hue`, `Saturation`, `Color`, `Luminosity`), and
-/// `Difference` and `Exclusion`, which ISO 32000-2 notes are not
-/// white-preserving,
-/// are therefore **degraded to `Normal`** on every spot plane, while the
-/// four process channels still get them.
-///
-/// That asymmetry is deliberate and is not an approximation. It is what the
-/// standard requires, and the implementation reason reinforces it:
-/// [`Blend::apply_subtractive`]'s non-separable arm complements exactly
-/// three channels, treats the fourth as black, and hands the triple to a
-/// **CIE-derived** hue/saturation/luminosity computation. That computation
-/// is defined on a colour, not on an arbitrary ink coverage. There is no
-/// meaning to the "hue" of a `PANTONE 265 C` plane, so the function cannot
-/// be extended over spot planes even if the clause permitted it — the arm
-/// is structurally CMYK-only.
-///
-/// ## This guard is the SECOND enforcement, not the only one — measured
-///
-/// Deleting the `NonSeparable` arm from the test below changes **nothing
-/// observable**, and that was established by sabotage rather than assumed:
-/// the test for it still passed with the guard removed.
-///
-/// The reason is that [`blend_separable`]'s own final arm already answers
-/// `cs` for `Blend::NonSeparable(_)`, so a non-separable mode reaching the
-/// per-channel loop would come back as the source tint anyway — which is
-/// `Normal`, which is the required behaviour. The two mechanisms agree.
-///
-/// It is kept regardless, for two reasons that survive the redundancy:
-///
-/// 1. It states the clause **at the branch the clause governs**, where the
-///    next reader of this function will look for it. `blend_separable`'s
-///    fallback is documented as a panic-avoidance measure, not as a
-///    conformance rule, and relying on it would make §11.7.4.2's
-///    enforcement an accident of an unrelated function's error handling.
-/// 2. It keeps `blend_separable`'s own *"unreachable through
-///    `Blend::apply`"* note true of this path too. Without the guard, the
-///    spot loop would be a live caller of an arm labelled unreachable.
-///
-/// ⇒ **The test below asserts the observable contract, which is right, and
-/// cannot distinguish which mechanism delivered it. Do not read a green run
-/// as proof that this guard is load-bearing.**
-///
-/// # Why `ab <= 0.0` short-circuits to the source
-///
-/// Same reason as the process path: §11.3.6's mix weight is the backdrop
-/// alpha, so a fully transparent backdrop contributes nothing and `B` need
-/// not be evaluated at all. Skipping it is not merely faster — several
-/// separable functions are undefined-ish at the extremes and this keeps
-/// them off a path whose result is known.
-#[must_use]
-fn blend_spots(blend: Blend, backdrop: PixelCmyk, source: PixelCmyk, ab: f32) -> [f32; MAX_SPOTS] {
-    // `NonSeparable` joins `Normal` here, per §11.7.4.2 above. Matched
-    // explicitly rather than folded into the `is_normal()` test so that the
-    // clause is visible at the branch it governs; `Difference` and
-    // `Exclusion` by ISO 32000-2's note on each.
-    if blend.is_normal()
-        || matches!(
-            blend,
-            Blend::NonSeparable(_) | Blend::Difference | Blend::Exclusion
-        )
-        || ab <= 0.0
-    {
-        return source.s;
-    }
-    let mut out = [0.0_f32; MAX_SPOTS];
-    for ((slot, &cb), &cs) in out.iter_mut().zip(backdrop.s.iter()).zip(source.s.iter()) {
-        // The `1.0 - x` pairs convert ink coverage to the additive
-        // colour value Table 136's functions are written in, exactly as
-        // `apply_subtractive` does for the process channels. A spot plane
-        // is subtractive in the same sense: 0.0 is no ink.
-        let b = 1.0 - blend_separable(blend, 1.0 - cb, 1.0 - cs);
-        *slot = ab.mul_add(b - cs, cs);
-    }
-    out
-}
-
 /// **§11.4.8's element-compositing formula for a KNOCKOUT group.**
 ///
 /// In a knockout group each element composites against the group's
@@ -899,115 +456,6 @@ pub fn composite_element_knockout(
     (Pixel { c, a: ai }, ag)
 }
 
-/// **§11.4.8's knockout formula, in a subtractive space.**
-///
-/// The subtractive twin of [`composite_element_knockout`], standing in the
-/// same relationship to it that [`composite_element_cmyk`] stands to
-/// [`composite_element`]: identical structure, four components instead of
-/// three, and `B()` reached through [`Blend::apply_subtractive`] so that
-/// §11.3.4's complement is applied around the blend function and
-/// §11.3.5.3's **K selection** replaces the formula entirely for the four
-/// non-separable modes.
-///
-/// # Why this is a second function and not a const generic
-///
-/// The same reason [`composite_element_cmyk`] is: unifying them would put
-/// a type parameter on the function every per-pixel loop in this crate
-/// calls, to save about twenty lines that the compiler would then have to
-/// monomorphise back into two anyway.
-///
-/// # Everything load-bearing about the additive version is load-bearing here
-///
-/// The blend function reads the **initial** backdrop, never the
-/// accumulated one — using `accum` turns a knockout group back into a
-/// normal one while still looking entirely plausible on opaque artwork.
-/// Shape and alpha stay separate because `f_s` appears **alone** in
-/// `(1 − f_si)` where the ordinary formula has `(1 − α_si)`, and the two
-/// coincide exactly when opacity is 1, which is why a fixture built from
-/// opaque fills cannot tell a correct implementation from a collapsed one.
-///
-/// # Returns
-///
-/// `(⟨C_i, α_i⟩, α_gi)` — the accumulated pixel and the group's own alpha
-/// excluding the backdrop, which the caller must carry forward because it
-/// cannot be recovered from `α_i` alone.
-#[must_use]
-#[allow(clippy::indexing_slicing)] // every loop runs 0..N over `[f32; N]` arrays (N = 3, 4 or MAX_SPOTS)
-pub fn composite_element_knockout_cmyk(
-    initial: PixelCmyk,
-    accum: PixelCmyk,
-    source: PixelCmyk,
-    shape: f32,
-    accum_group_alpha: f32,
-    blend: Blend,
-) -> (PixelCmyk, f32) {
-    let a0 = initial.a.clamp(0.0, 1.0);
-    let a_s = source.a.clamp(0.0, 1.0);
-    let f_s = shape.clamp(a_s, 1.0);
-    let ag_prev = accum_group_alpha.clamp(0.0, 1.0);
-
-    // α_gi = (1 − f_si)·α_g(i−1) + α_si   (the α_gb term is identically 0)
-    let ag = (1.0 - f_s).mul_add(ag_prev, a_s).clamp(0.0, 1.0);
-    let ai = union_(a0, ag);
-    if ai <= 0.0 {
-        return (PixelCmyk::TRANSPARENT, 0.0);
-    }
-
-    let blended = if a0 <= 0.0 || blend.is_normal() {
-        source.c
-    } else {
-        let b = blend.apply_subtractive(initial.c, source.c);
-        let mut m = [0.0_f32; 4];
-        for i in 0..4 {
-            m[i] = a0.mul_add(b[i] - source.c[i], source.c[i]);
-        }
-        m
-    };
-    let k = (f_s - a_s) * a0;
-    let mut c = [0.0_f32; 4];
-    for i in 0..4 {
-        let ct = a_s.mul_add(blended[i], k * initial.c[i]);
-        c[i] = (1.0 - f_s).mul_add(accum.a * accum.c[i], ct) / ai;
-    }
-    // The spot planes, by the same recurrence (`Pass 239.0`). This wrote
-    // `[0.0; MAX_SPOTS]` until then -- the "knockout groups drop spot ink"
-    // approximation, silent because the initial backdrop carried no spot
-    // planes to notice the loss against. `blend_spots` already carries
-    // §11.7.4.2's rule that only separable, white-preserving modes reach a
-    // spot plane; here it is applied against the group's INITIAL backdrop
-    // exactly as the process channels are.
-    let blended_s = blend_spots(blend, initial, source, a0);
-    let mut sp = [0.0_f32; MAX_SPOTS];
-    for i in 0..MAX_SPOTS {
-        let st = a_s.mul_add(blended_s[i], k * initial.s[i]);
-        sp[i] = (1.0 - f_s).mul_add(accum.a * accum.s[i], st) / ai;
-    }
-    (PixelCmyk { c, s: sp, a: ai }, ag)
-}
-
-/// **§11.4.4's backdrop removal, in a subtractive space.**
-///
-/// The subtractive twin of [`remove_backdrop`]. Note it needs **no**
-/// complement: §11.4.4's correction is a linear extrapolation, and
-/// complementing both operands of `x + k·(x − y)` and complementing the
-/// result again is the identity. Only `B()` sits on the wrong side of the
-/// complement, which is §11.3.6's own observation and is why
-/// [`Blend::apply_subtractive`] is the only place the round trip happens.
-#[must_use]
-pub fn remove_backdrop_cmyk(group: PixelCmyk, initial: PixelCmyk, group_alpha: f32) -> [f32; 4] {
-    let a0 = initial.a.clamp(0.0, 1.0);
-    let agn = group_alpha.clamp(0.0, 1.0);
-    if a0 <= 0.0 || agn <= 0.0 {
-        return group.c;
-    }
-    let k = a0.mul_add(-1.0, a0 / agn);
-    let mut out = [0.0_f32; 4];
-    for ((o, &g), &b) in out.iter_mut().zip(&group.c).zip(&initial.c) {
-        *o = k.mul_add(g - b, g);
-    }
-    out
-}
-
 /// **§11.4.4's backdrop removal** — the correction that makes §11.4.3's
 /// *"the backdrop's contribution … shall be applied only once"* true.
 ///
@@ -1067,6 +515,7 @@ pub fn remove_backdrop(group: Pixel, initial: Pixel, group_alpha: f32) -> [f32; 
 )]
 mod tests {
     use super::*;
+    use pdfcer_ink::nonsep::NonSeparableBlend;
 
     const EPS: f32 = 1e-4;
 
@@ -1577,7 +1026,7 @@ mod tests {
             }
         };
         for blend in [Blend::Difference, Blend::Exclusion] {
-            let out = blend_spots(blend, px(0.3), px(0.2), 1.0);
+            let out = composite_element_cmyk(px(0.3), px(0.2), blend).s;
             assert!((out[0] - 0.2).abs() < EPS, "{blend:?}: {out:?}");
         }
     }

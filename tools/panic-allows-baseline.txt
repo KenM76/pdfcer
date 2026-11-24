@@ -25,8 +25,5 @@ crates/pdfcer-model/src/crypto/standard.rs | indexing_slicing | fn try_user_pass
 crates/pdfcer-pkix/src/asn1.rs | indexing_slicing | fn integer_bytes
 crates/pdfcer-pkix/src/asn1.rs | indexing_slicing | fn read
 crates/pdfcer-pkix/src/asn1.rs | indexing_slicing | fn string_value
-crates/pdfcer-render/src/blend_nonsep.rs | indexing_slicing | fn set_sat
-crates/pdfcer-render/src/compositor.rs | indexing_slicing | fn composite_element_cmyk
 crates/pdfcer-render/src/compositor.rs | indexing_slicing | fn composite_element_knockout
-crates/pdfcer-render/src/compositor.rs | indexing_slicing | fn composite_element_knockout_cmyk
 crates/pdfcer-render/src/svg.rs | indexing_slicing | fn base64

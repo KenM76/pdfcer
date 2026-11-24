@@ -58,6 +58,8 @@ paddle = ["pdfcer-core/paddle"]
 # Depends on pdfcer-core plus the CPU rasterizer. NOTHING here may pull a
 # GUI/windowing crate — see docs/ARCHITECTURE.md §3.
 pdfcer-core.workspace = true
+# pdfcer-ink: in-ink compositing and coverage rules (one definition, shared).
+pdfcer-ink.workspace = true
 # thiserror: error-type derive, same rationale + license (MIT OR Apache-2.0)
 # as pdfcer-core's entry.
 thiserror = "2"

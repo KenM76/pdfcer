@@ -262,7 +262,7 @@ pub(crate) fn paint_brush_coverage_into_cmyk(
     region: (u32, u32, u32, u32),
     brush: &BrushSpec,
 ) {
-    let blend = Blend::from_tiny_skia(brush.blend).unwrap_or(Blend::Normal);
+    let blend = crate::compositor::blend_from_tiny_skia(brush.blend).unwrap_or(Blend::Normal);
     match &brush.brush {
         Brush::Solid { rgba } => {
             let alpha = f32::from(rgba[3]) / 255.0;

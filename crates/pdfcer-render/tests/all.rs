@@ -75,6 +75,7 @@ mod page_budget_bounds_fan_out;
 mod page_budget_bounds_mesh;
 mod page_content_draws_like_the_stamp;
 mod page_overprint;
+mod plates_and_coverage_golden;
 mod preserve_calibrated_cmyk;
 mod preview_equals_saved;
 mod print_ready_copy;

@@ -1086,7 +1086,7 @@ impl<'a> Canvas<'a> {
                                     &pairs,
                                     region,
                                     1.0,
-                                    crate::compositor::Blend::from_tiny_skia(blend)
+                                    crate::compositor::blend_from_tiny_skia(blend)
                                         .unwrap_or(crate::compositor::Blend::Normal),
                                     spot_source,
                                 );
@@ -1132,7 +1132,7 @@ impl<'a> Canvas<'a> {
                             &[],
                             region,
                             1.0,
-                            crate::compositor::Blend::from_tiny_skia(blend)
+                            crate::compositor::blend_from_tiny_skia(blend)
                                 .unwrap_or(crate::compositor::Blend::Normal),
                             spot_source,
                         );
@@ -1168,7 +1168,7 @@ impl<'a> Canvas<'a> {
                             &scratch,
                             region,
                             1.0,
-                            crate::compositor::Blend::from_tiny_skia(blend)
+                            crate::compositor::blend_from_tiny_skia(blend)
                                 .unwrap_or(crate::compositor::Blend::Normal),
                             spot_source,
                         );
@@ -2260,7 +2260,7 @@ impl KnockoutTarget {
         // cost and costing what the page costs, times the element count.
         clear_region(&mut self.scratch, (x0, y0, x1, y1));
         paint_into(&mut self.scratch);
-        let blend = crate::compositor::Blend::from_tiny_skia(blend)
+        let blend = crate::compositor::blend_from_tiny_skia(blend)
             .unwrap_or(crate::compositor::Blend::Normal);
         self.accumulate((x0, y0, x1, y1), q_s, blend, |k, idx| {
             k.scratch.pixels().get(idx).map_or(([0.0; 3], 0.0), |&p| {
@@ -2614,7 +2614,7 @@ pub(crate) struct GroupOutcome<R> {
 fn layer_blend(paint: LayerPaint) -> crate::compositor::Blend {
     paint.nonseparable.map_or_else(
         || {
-            crate::compositor::Blend::from_tiny_skia(paint.blend)
+            crate::compositor::blend_from_tiny_skia(paint.blend)
                 .unwrap_or(crate::compositor::Blend::Normal)
         },
         crate::compositor::Blend::NonSeparable,

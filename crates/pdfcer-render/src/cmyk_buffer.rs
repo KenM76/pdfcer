@@ -1858,69 +1858,10 @@ impl CmykBuffer {
                 }
                 let t = c * alpha;
                 let before = self.pixel(idx);
-                let mut out = [0.0_f32; 4];
-                for (((o, rule), &b), &s) in out.iter_mut().zip(&rules).zip(&before.c).zip(&source)
-                {
-                    *o = rule.apply(b, s).clamp(0.0, 1.0);
-                }
-                // Interpolate between the backdrop and the overprint result
-                // by `t`, so partial coverage and partial alpha behave the
-                // way every other paint in the renderer does.
-                let mut mixed = [0.0_f32; 4];
-                for ((m, &o), &b) in mixed.iter_mut().zip(&out).zip(&before.c) {
-                    *m = t.mul_add(o - b, b);
-                }
-                // TABLE 149's SPOT RULE — and the DERIVATION below was wrong until
-                // 2026-09-02, though the behaviour was right.
-                //
-                // **§11.7.3 is the governing sentence**, and it is stronger
-                // than the "named / not named" framing this comment used to
-                // carry: *"every object paints every existing colour
-                // component, both process and spot. Where no value has been
-                // explicitly specified for a given component … a subtractive
-                // tint value of 0.0 shall be assumed."*
-                //
-                // So a source does not fail to address a spot colorant — it
-                // paints it, at tint `0.0`. Overprint's only job is deciding
-                // whether that `0.0` is written (`OP false`) or replaced by
-                // the backdrop (`OP true`). For "any process colour space ×
-                // spot colorant" the `OP true` answer is `c_b` in **both**
-                // overprint-mode columns, unconditionally — 1.7 Tables
-                // 148/149 and 2.0 Table 146 agree, with no edition delta.
-                //
-                // *"not named in source space"* is the **`Separation` /
-                // `DeviceN` rows'** phrasing. Lifting it onto a process-source
-                // row reaches the right cell by a route the tables do not
-                // take, which is the kind of comment that survives a rewrite
-                // and misleads the next reader. Adjudicated against the
-                // primaries by `pdfcer-spec-librarian`, 2026-09-02; see
-                // `iso32000__s__8.6.7.md`'s `UPDATE 2026-09-02`.
-                //
-                // `spots[i]` carries the distinction this function needs:
-                // `Some(tint)` where the source stated one, `None` where it
-                // did not and the backdrop therefore stands.
-                //
-                // The `None` half built a fresh `[0.0; MAX_SPOTS]` until the
-                // deposit landed. Harmless while no plane ever held ink; a
-                // defect the instant one did, because an overprinting grey
-                // then WIPED the spot backdrop it exists to preserve. Caught
-                // by `grey_overprint`'s four preservation tests. The sibling
-                // `composite_overprint_varying` was already correct, because
-                // it starts from `before` rather than constructing a pixel.
-                let mut spot_out = before.s;
-                for (slot, stated) in spot_out.iter_mut().zip(spots.iter()) {
-                    if let Some(tint) = *stated {
-                        // Same coverage-and-alpha weighting the process
-                        // channels get two blocks up: the rule decides WHICH
-                        // tint competes, `t` decides how much of it lands.
-                        *slot = t.mul_add(tint - *slot, *slot);
-                    }
-                }
-                let after = PixelCmyk {
-                    c: mixed,
-                    s: spot_out,
-                    a: t.mul_add(1.0 - before.a, before.a),
-                };
+                // Table 149's spot rule: §11.7.3 has every object paint every
+                // spot plane, at 0.0 where it states no tint; under `OP true`
+                // that 0.0 is replaced by the backdrop, so `None` keeps it.
+                let after = pdfcer_ink::pixel::overprint_pixel(before, rules, source, spots, t);
                 if after != before {
                     changed += 1;
                 }
@@ -2392,18 +2333,7 @@ impl CmykBuffer {
                 // group carried. `remove_backdrop_cmyk` is left on its four
                 // channels rather than widened, because its tests pin that
                 // arithmetic and the spot arm is one line.
-                let mut s = [0.0; crate::compositor::MAX_SPOTS];
-                {
-                    let a0 = backdrop.a.clamp(0.0, 1.0);
-                    let k = if a0 <= 0.0 {
-                        0.0
-                    } else {
-                        a0.mul_add(-1.0, a0 / agn)
-                    };
-                    for ((slot, &o), &b) in s.iter_mut().zip(&over.s).zip(&backdrop.s) {
-                        *slot = k.mul_add(o - b, o);
-                    }
-                }
+                let s = pdfcer_ink::pixel::remove_backdrop_spots(over, backdrop, agn);
                 let m = mask.map_or(1.0, |d| d.get(idx).map_or(1.0, |v| Chan::from(*v) / 255.0));
                 // Shape is the group's own `f_g`, unscaled by the outer
                 // constant alpha -- §11.4.5 scales alpha and leaves shape
@@ -2618,19 +2548,7 @@ impl CmykBuffer {
             // same `C_n + (C_n − C_0)·(α_0/α_gn − α_0)`, per plane. This
             // wrote `[0.0; MAX_SPOTS]` until then and threw away every spot
             // the group's elements had carried.
-            let mut s = [0.0; crate::compositor::MAX_SPOTS];
-            {
-                let a0 = initial.a.clamp(0.0, 1.0);
-                let agn = ag.clamp(0.0, 1.0);
-                let k = if a0 <= 0.0 || agn <= 0.0 {
-                    0.0
-                } else {
-                    a0.mul_add(-1.0, a0 / agn)
-                };
-                for ((slot, &n), &i0) in s.iter_mut().zip(&accum.s).zip(&initial.s) {
-                    *slot = k.mul_add(n - i0, n);
-                }
-            }
+            let s = pdfcer_ink::pixel::remove_backdrop_spots(accum, initial, ag);
             self.set_pixel(idx, PixelCmyk { c, s, a: ag });
         }
         self

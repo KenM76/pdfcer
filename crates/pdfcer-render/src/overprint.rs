@@ -334,56 +334,7 @@ pub enum Component {
     Spot(String),
 }
 
-/// The value `B(c_b, c_s)` selects, before it is applied.
-///
-/// Returned rather than a bare `f32` so a caller can *report* what overprint
-/// did without having to compare numbers and infer it — a paint that
-/// happens to leave a component unchanged because `c_s == c_b` is not the
-/// same event as one that deliberately preserved the backdrop, and rule 4's
-/// disclosure needs to tell them apart.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum ComponentRule {
-    /// Paint the source tint: `B = c_s`. The ordinary, non-overprint result.
-    Source,
-    /// Preserve the backdrop tint: `B = c_b`. This is overprint *acting* —
-    /// the component survives because the source did not claim it.
-    Backdrop,
-    /// Paint zero tint: `B = 0.0`. An explicit erase, not a no-op.
-    ///
-    /// This cell surprises people and is **not** a spec defect. `SP-N2` in
-    /// the consolidator records it as a confirmed negative result: a
-    /// `Separation` paint with overprint **off** *erases* the process
-    /// colorants it does not name, and the standard states this twice
-    /// (Table 148, and Table 149's `c_s (= 0.0)` notation). Recorded so it
-    /// is not "fixed" by a later reader who assumes it must be a typo.
-    Zero,
-}
-
-impl ComponentRule {
-    /// Resolve the rule to an actual tint value given the two operands.
-    ///
-    /// Kept separate from [`compatible_overprint`] so the *decision* can be
-    /// tested against Table 149 without threading sample values through
-    /// every case — the table specifies which operand wins, and that is the
-    /// part worth pinning.
-    #[must_use]
-    pub fn apply(self, backdrop: f32, source: f32) -> f32 {
-        match self {
-            Self::Source => source,
-            Self::Backdrop => backdrop,
-            Self::Zero => 0.0,
-        }
-    }
-
-    /// Whether this rule leaves the backdrop showing through.
-    ///
-    /// The predicate a caller uses to answer "did overprint change what the
-    /// operator sees here?" without re-deriving the table.
-    #[must_use]
-    pub const fn preserves_backdrop(self) -> bool {
-        matches!(self, Self::Backdrop)
-    }
-}
+pub use pdfcer_ink::overprint::ComponentRule;
 
 /// Evaluate Table 149 for one component.
 ///
@@ -538,13 +489,7 @@ pub fn compatible_overprint_cmyk(
             | SourceKind::OtherProcess
             | SourceKind::ProcessCmykIndirect,
             Component::Spot(_),
-        ) => {
-            if op {
-                ComponentRule::Backdrop
-            } else {
-                ComponentRule::Zero
-            }
-        }
+        ) => ComponentRule::unset(op),
 
         // --- Row 3: Separation / DeviceN.
         (
@@ -554,11 +499,7 @@ pub fn compatible_overprint_cmyk(
             // A process component under a Separation/DeviceN source. With
             // overprint OFF this is `c_s (= 0.0)` -- the erase that `SP-N2`
             // records as deliberate and twice-stated.
-            if op {
-                ComponentRule::Backdrop
-            } else {
-                ComponentRule::Zero
-            }
+            ComponentRule::unset(op)
         }
         (SourceKind::SeparationOrDeviceN { names }, Component::Spot(name)) => {
             // `/All` names every colorant by definition (§8.6.6.4), so it
@@ -580,10 +521,8 @@ pub fn compatible_overprint_cmyk(
                 // Named in the source space: painted normally in every
                 // column, overprint or not.
                 ComponentRule::Source
-            } else if op {
-                ComponentRule::Backdrop
             } else {
-                ComponentRule::Zero
+                ComponentRule::unset(op)
             }
         }
 

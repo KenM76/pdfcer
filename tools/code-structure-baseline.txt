@@ -85,7 +85,6 @@ file pdfcer-print/src/devmode.rs
 file pdfcer-print/src/imposition.rs
 file pdfcer-render/src/annot.rs
 file pdfcer-render/src/color.rs
-file pdfcer-render/src/compositor.rs
 file pdfcer-render/src/display_list.rs
 file pdfcer-emf/src/lib.rs
 file pdfcer-render/src/font/mod.rs

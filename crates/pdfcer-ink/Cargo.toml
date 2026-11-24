@@ -1,0 +1,25 @@
+[package]
+name = "pdfcer-ink"
+description = "pdfcer in-ink compositing: paints, overprint and transparency groups composited into process and spot colorant planes, with total-area-coverage and rich-black rules. Pure Rust arithmetic; no GUI, platform or network dependencies, builds for wasm32."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+publish = true
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+readme = "README.md"
+keywords = ["pdf", "separations", "overprint", "ink", "prepress"]
+categories = ["graphics", "rendering"]
+# One integration-test binary per crate (tests/all.rs); see
+# tools/check-tests-harnessed.py.
+autotests = false
+
+[dependencies]
+# thiserror: C-GOOD-ERR error derive. MIT OR Apache-2.0.
+thiserror = "2"
+
+[[test]]
+name = "all"
+path = "tests/all.rs"
