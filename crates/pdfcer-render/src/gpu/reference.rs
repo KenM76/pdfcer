@@ -39,7 +39,6 @@ struct Edge {
     first_y: i32,
     last_y: i32,
     winding: i32,
-    index: i32,
 }
 
 impl Edge {
@@ -51,7 +50,6 @@ impl Edge {
             first_y,
             last_y: w >> 1,
             winding: if w & 1 != 0 { 1 } else { -1 },
-            index,
         }
     }
 
@@ -61,18 +59,6 @@ impl Edge {
 
     fn active(&self, y: i32) -> bool {
         self.first_y <= y && y <= self.last_y
-    }
-
-    /// Whether the walk visits `self` before `o` on row `y`.
-    fn before(&self, o: &Self, y: i32) -> bool {
-        let (xa, xb) = (self.x_at(y), o.x_at(y));
-        if xa != xb {
-            return xa < xb;
-        }
-        if self.first_y != y && o.first_y != y && self.dx != o.dx {
-            return xa.wrapping_sub(self.dx) < xb.wrapping_sub(o.dx);
-        }
-        (self.first_y, self.index) < (o.first_y, o.index)
     }
 }
 
@@ -91,7 +77,7 @@ fn coverage(t: &Tex<'_>, h: i32, px: i32, py: i32) -> i32 {
     if c < 0 || r < 0 || c >= tcols || r >= trows {
         return 0;
     }
-    let [first, count, back, _] = t.at(h + table + r * tcols + c);
+    let [first, count, back, mask] = t.at(h + table + r * tcols + c);
     let (base, back) = (h + first, if back < 0 { back } else { h + back });
     let filled = |w: i32| if even_odd != 0 { w & 1 != 0 } else { w != 0 };
     if shift == 0 {
@@ -125,7 +111,7 @@ fn coverage(t: &Tex<'_>, h: i32, px: i32, py: i32) -> i32 {
         let n = winding.iter().filter(|w| filled(**w)).count() as i32;
         sum += if n < 4 {
             16 * n
-        } else if k == 3 && !split(t, (base, count), b, c0, y, filled) {
+        } else if k == 3 && !split(t, (h, mask), px, py) {
             63
         } else {
             64
@@ -154,43 +140,15 @@ fn aliased(
     if filled(w) { 255 } else { 0 }
 }
 
-/// Whether the walk ends a span inside the pixel whose first sample column
-/// is `c0` on fully covered row `y`: after some edge followed, in walk
-/// order, by another at the same rounded `x` inside the pixel, the winding
-/// is unfilled. Only listed edges can lie inside a pixel; `back` is the
-/// winding of every edge left of the tile.
-fn split(
-    t: &Tex<'_>,
-    (base, count): (i32, i32),
-    back: i32,
-    c0: i32,
-    y: i32,
-    filled: impl Fn(i32) -> bool,
-) -> bool {
-    for i in base..base + count {
-        let e = Edge::read(t, i);
-        let x = round(e.x_at(y));
-        if !e.active(y) || x <= c0 || x >= c0 + 4 {
-            continue;
-        }
-        let mut follower = false;
-        let mut w = back;
-        for j in base..base + count {
-            let f = Edge::read(t, j);
-            if !f.active(y) {
-                continue;
-            }
-            if j == i || f.before(&e, y) {
-                w += f.winding;
-            } else if round(f.x_at(y)) == x {
-                follower = true;
-            }
-        }
-        if follower && !filled(w) {
-            return true;
-        }
+/// Whether the walk ends a span inside pixel (`px`, `py`) on its last
+/// supersampled row: the tile's split bit for it (`mask`, relative to `h`,
+/// zero when the tile has none), packed at pixel `row * 16 + col`.
+fn split(t: &Tex<'_>, (h, mask): (i32, i32), px: i32, py: i32) -> bool {
+    if mask == 0 {
+        return false;
     }
-    false
+    let bit = (py & 3) * 16 + (px & 15);
+    (t.lane(((h + mask) << 2) + (bit >> 5)) >> (bit & 31)) & 1 != 0
 }
 
 /// Clip `clip`'s mask value at (`px`, `py`): its path's coverage times its

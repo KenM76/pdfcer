@@ -12,6 +12,7 @@
 //! their order the row before, so equal edges sort by their previous `x`,
 //! then the one active longer first, then build order.
 
+use super::bins::order;
 use super::bins::round;
 use super::fill_edges::{FillEdges, LineEdge, SHIFT};
 
@@ -86,19 +87,6 @@ fn split(edges: &FillEdges, c0: i32, y: i32) -> bool {
         }
     }
     false
-}
-
-/// The walk's order of two edges on row `y`.
-fn order(y: i32, (i, a): (usize, &LineEdge), (j, b): (usize, &LineEdge)) -> core::cmp::Ordering {
-    let (xa, xb) = (a.x_at(y), b.x_at(y));
-    if xa != xb {
-        return xa.cmp(&xb);
-    }
-    let (new_a, new_b) = (a.first_y == y, b.first_y == y);
-    if !new_a && !new_b && a.dx != b.dx {
-        return xa.wrapping_sub(a.dx).cmp(&xb.wrapping_sub(b.dx));
-    }
-    a.first_y.cmp(&b.first_y).then(i.cmp(&j))
 }
 
 #[cfg(test)]

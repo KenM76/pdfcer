@@ -33,39 +33,22 @@ ivec4 at(int i) { return texelFetch(u_scene, ivec3(i & 2047, (i >> 11) & 2047, i
 int lane(int e) { return at(e >> 2)[e & 3]; }
 int round16(int x) { return (x + 0x8000) >> 16; }
 
-struct Edge { int x; int dx; int first_y; int last_y; int winding; int index; };
+struct Edge { int x; int dx; int first_y; int last_y; int winding; };
 
 Edge edge(int i) {
   ivec4 t = at(i);
-  return Edge(t.x, t.y, t.z, t.w >> 1, (t.w & 1) != 0 ? 1 : -1, i);
+  return Edge(t.x, t.y, t.z, t.w >> 1, (t.w & 1) != 0 ? 1 : -1);
 }
 int x_at(Edge e, int y) { return e.x + e.dx * (y - e.first_y); }
 bool live(Edge e, int y) { return e.first_y <= y && y <= e.last_y; }
-bool before(Edge a, Edge b, int y) {
-  int xa = x_at(a, y), xb = x_at(b, y);
-  if (xa != xb) return xa < xb;
-  if (a.first_y != y && b.first_y != y && a.dx != b.dx) return xa - a.dx < xb - b.dx;
-  if (a.first_y != b.first_y) return a.first_y < b.first_y;
-  return a.index < b.index;
-}
 bool filled(int w, bool even_odd) { return even_odd ? (w & 1) != 0 : w != 0; }
 
-bool split(int base, int count, int back, int c0, int y, bool eo) {
-  for (int i = base; i < base + count; i++) {
-    Edge e = edge(i);
-    int x = round16(x_at(e, y));
-    if (!live(e, y) || x <= c0 || x >= c0 + 4) continue;
-    bool follower = false;
-    int w = back;
-    for (int j = base; j < base + count; j++) {
-      Edge f = edge(j);
-      if (!live(f, y)) continue;
-      if (j == i || before(f, e, y)) w += f.winding;
-      else if (round16(x_at(f, y)) == x) follower = true;
-    }
-    if (follower && !filled(w, eo)) return true;
-  }
-  return false;
+// Whether the walk ends a span inside the pixel on its last supersampled
+// row: the tile's split bit for it, packed at pixel `row * 16 + col`.
+bool split(ivec4 entry, int h, int px, int py) {
+  if (entry.w == 0) return false;
+  int bit = (py & 3) * 16 + (px & 15);
+  return ((lane(((h + entry.w) << 2) + (bit >> 5)) >> (bit & 31)) & 1) != 0;
 }
 
 int coverage(int h, int px, int py) {
@@ -107,7 +90,7 @@ int coverage(int h, int px, int py) {
     int n = 0;
     for (int j = 0; j < 4; j++) if (filled(w[j], eo)) n++;
     if (n < 4) sum += 16 * n;
-    else if (k == 3 && !split(entry.x, entry.y, b, c0, y, eo)) sum += 63;
+    else if (k == 3 && !split(entry, h, px, py)) sum += 63;
     else sum += 64;
   }
   return min(sum, 255);

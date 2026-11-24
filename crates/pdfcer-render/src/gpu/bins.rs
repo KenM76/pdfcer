@@ -8,7 +8,7 @@
 //! (counted in that row's backdrop) or wholly right of its last (counted
 //! nowhere). Listed edges keep build order, which the walk's tie order uses.
 
-use super::fill_edges::{FillEdges, SHIFT};
+use super::fill_edges::{FillEdges, LineEdge, SHIFT};
 
 /// Tile width, pixels.
 pub(crate) const TILE_W: i32 = 16;
@@ -26,6 +26,12 @@ pub(crate) struct TileEntry {
     /// Per supersampled row of the tile, the winding of unlisted edges
     /// left of its first sample column.
     pub backdrop: [i32; SUB_ROWS],
+    /// Per pixel, bit `row * TILE_W + col`: whether the walk over the
+    /// listed edges from the backdrop ends a span inside the pixel on its
+    /// last supersampled row ([`super::fill_coverage`]'s split test), so
+    /// the shader reads a bit instead of walking the edges against each
+    /// other. Zero for an aliased fill.
+    pub split: u64,
 }
 
 /// A fill's tiles over the tile rectangle covering its written pixels.
@@ -147,6 +153,73 @@ fn tile_row(
                 any = true;
             }
         }
-        out.push(any.then_some(TileEntry { edges, backdrop }));
+        let split = if fill.shift > 0 && any {
+            splits(fill, &edges, &backdrop, (y0, col0 + t as i32))
+        } else {
+            0
+        };
+        out.push(any.then_some(TileEntry {
+            edges,
+            backdrop,
+            split,
+        }));
     }
+}
+
+/// [`TileEntry::split`] for the tile at sample row `y0`, tile column `col`.
+fn splits(
+    fill: &FillEdges,
+    edges: &[u32],
+    backdrop: &[i32; SUB_ROWS],
+    (y0, col): (i32, i32),
+) -> u64 {
+    let filled = |w: i32| if fill.even_odd { w & 1 != 0 } else { w != 0 };
+    let step = 1 << fill.shift;
+    let x0 = col * (TILE_W << fill.shift);
+    let mut bits = 0u64;
+    let mut live: Vec<(usize, &LineEdge)> = Vec::with_capacity(edges.len());
+    for row in 0..TILE_H {
+        let s = (row << fill.shift) + step - 1;
+        let y = y0 + s;
+        if y < fill.start_y || y >= fill.stop_y {
+            continue;
+        }
+        live.clear();
+        live.extend(edges.iter().filter_map(|&i| {
+            let e = fill.edges.get(i as usize)?;
+            (e.first_y <= y && y <= e.last_y).then_some((i as usize, e))
+        }));
+        if live.len() < 2 {
+            continue;
+        }
+        live.sort_by(|a, b| order(y, *a, *b));
+        let mut w = backdrop.get(s as usize).copied().unwrap_or(0);
+        for (n, (_, e)) in live.iter().enumerate() {
+            w += e.winding;
+            let x = round(e.x_at(y));
+            let next = live.get(n + 1).map(|(_, f)| round(f.x_at(y)));
+            let pc = (x - x0) >> fill.shift;
+            if x & (step - 1) != 0 && next == Some(x) && !filled(w) && (0..TILE_W).contains(&pc) {
+                bits |= 1 << (row * TILE_W + pc);
+            }
+        }
+    }
+    bits
+}
+
+/// The walk's order of two edges on row `y`.
+pub(crate) fn order(
+    y: i32,
+    (i, a): (usize, &LineEdge),
+    (j, b): (usize, &LineEdge),
+) -> core::cmp::Ordering {
+    let (xa, xb) = (a.x_at(y), b.x_at(y));
+    if xa != xb {
+        return xa.cmp(&xb);
+    }
+    let (new_a, new_b) = (a.first_y == y, b.first_y == y);
+    if !new_a && !new_b && a.dx != b.dx {
+        return xa.wrapping_sub(a.dx).cmp(&xb.wrapping_sub(b.dx));
+    }
+    a.first_y.cmp(&b.first_y).then(i.cmp(&j))
 }

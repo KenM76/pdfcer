@@ -6,9 +6,10 @@
 //! `[tc0, tr0, tcols, trows]`, `[ox, oy, shift, 0]` (the `DrawTiler` tile's
 //! origin: the edges, area and tiles are in that tile's pixels, raster
 //! pixel `p` is tile pixel `p - o`; `shift` 0 is an aliased fill), then
-//! the tile table (per tile `[first_edge, count, backdrop or -1, 0]`,
-//! `[0, 0, -1, 0]` where empty), then the edges
-//! (`[x, dx, first_y, last_y << 1 | rising]`) and backdrops (4 texels).
+//! the tile table (per tile `[first_edge, count, backdrop or -1, split or
+//! 0]`, `[0, 0, -1, 0]` where empty), then the edges
+//! (`[x, dx, first_y, last_y << 1 | rising]`), backdrops (4 texels) and
+//! split masks (1 texel, [`super::bins::TileEntry::split`] low word first).
 
 use std::collections::HashMap;
 use std::hash::{BuildHasherDefault, Hasher};
@@ -175,8 +176,16 @@ pub(crate) fn build(edges: &FillEdges, tiles: FillTiles, origin: (i32, i32)) -> 
         if back >= 0 {
             last = Some((entry.backdrop, back));
         }
+        let split = if entry.split == 0 {
+            0
+        } else {
+            let at = t.len() as i32;
+            #[allow(clippy::cast_possible_truncation)] // the mask's two words
+            t.push([entry.split as i32, (entry.split >> 32) as i32, 0, 0]);
+            at
+        };
         if let Some(slot) = t.get_mut(HEAD + k) {
-            *slot = [first, entry.edges.len() as i32, back, 0];
+            *slot = [first, entry.edges.len() as i32, back, split];
         }
     }
     FillBlock {
