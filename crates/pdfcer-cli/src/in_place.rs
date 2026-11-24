@@ -200,6 +200,7 @@ pub(crate) const IN_PLACE_COMMANDS: &[&str] = &[
     "upscale-images",
     "alias-ink",
     "spot-to-process",
+    "convert-colours",
 ];
 
 const IN_PLACE_HELP: &str = "Write the result back over the input file instead of to --output. \

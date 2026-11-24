@@ -3435,6 +3435,30 @@ pub(crate) fn run() -> ExitCode {
             mode,
             verify_undo,
         } => cmd_spot_to_process(&input, &inks, &output, mode, verify_undo),
+        Command::ConvertColours {
+            input,
+            profile,
+            from,
+            intent,
+            convert_black,
+            no_bpc,
+            embed_intent,
+            pages,
+            output,
+            mode,
+            verify_undo,
+        } => {
+            let args = ConvertArgs {
+                profile: profile.as_deref(),
+                from: &from,
+                intent,
+                convert_black,
+                no_bpc,
+                embed_intent: embed_intent.as_deref(),
+                pages: &pages,
+            };
+            cmd_convert_colours(&input, &args, &output, mode, verify_undo)
+        }
         Command::FlattenTransparency {
             input,
             pages,

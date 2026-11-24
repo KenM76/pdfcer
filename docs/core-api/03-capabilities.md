@@ -6913,3 +6913,62 @@ Contract:
   the `PS` content operator is not scanned; both are disclosed.
 
 ⚠️ `PdfxLevel` and `PdfxReport` are `#[non_exhaustive]`; `PdfxVerdict` is closed.
+
+## 22. Convert colours — RGB, Lab, calibrated and grey to one profile (`Pass 748.4`)
+
+`pdfcer_core::prepress` (CLI: `pdfcer convert-colours`). The edit is
+`EditSession::convert_colours` (`02-editing-and-saving.md` §1.37). The
+preflight fixup target for "RGB in a CMYK job" and "Lab present"; the
+wiring is `Pass 748.9`.
+
+| Call | Returns |
+|---|---|
+| `ColourConversion::new(ColourDestination)` | RGB families and Lab on, grey off, `IntentChoice::Fixed(RelativeColorimetric)`, `keep_pure_black` on, `black_point_compensation` on, `embed_output_intent: None`; every field is `pub` |
+| `ColourDestination` | `Profile(Vec<u8>)` (ICC bytes), `OutputIntent` (the first `/OutputIntents` entry's `/DestOutputProfile`) |
+| `IntentChoice` | `Fixed(RenderingIntent)`, `ObjectsOwn` (`ri`, an `ExtGState /RI`, an image's `/Intent`, §8.6.5.8; `Indexed` lookups and shadings carry none and use relative colorimetric, disclosed) |
+| `ConvertScope` | `All`, `Pages(Vec<usize>)` (0-based) |
+| `ColourConverter::transform(&self, &ColourSource, destination: &[u8], RenderingIntent, bpc) -> Result<Box<dyn ColourTransform>, ConvertFailure>` | the injected engine. `ColourSource`: `DeviceRgb`, `DeviceGray`, `IccBased { profile, components }`, `Lab { white, range }`, `CalRgb { white, gamma, matrix }`, `CalGray { white, gamma }` |
+| `ColourTransform::convert(&self, &[f64]) -> Option<ConvertedColour { values, out_of_gamut }>`, `note() -> Option<String>` | input in the source's own ranges (Lab L 0..100); output clamped to 0..1 by core |
+| `ConvertColoursReport { changed, by_source: Vec<SourceCount>, out_of_gamut, images: Vec<ImageConversion>, unconverted: Vec<Unconverted>, output_intent: OutputIntentChange, disclosures }` | `is_empty()` |
+| `SourceCount { source: SourceFamily, paints, images, lookups, shadings, out_of_gamut }` | one per family converted. `SourceFamily`: `DeviceRgb`, `IccRgb`, `CalRgb`, `Lab`, `DeviceGray`, `IccGray`, `CalGray`; `name()` |
+| `ImageConversion { object, source, bits_before, filter_before, bytes_before, bytes_after }` | each re-encoded image, so a size change is visible |
+| `Unconverted { object: Option<ObjId>, reason }` | one sentence per thing left as it was |
+| `OutputIntentChange` | `Unchanged`, `Added`, `Replaced { previous }` (the old `/OutputConditionIdentifier`) |
+
+Contract:
+
+- **Sources** (ISO 32000-2 §8.6.4–§8.6.5): `DeviceRGB`, `ICCBased`
+  RGB, `Lab`, `CalRGB`, and when `grey` is set `DeviceGray`, `ICCBased` grey
+  and `CalGray`. A `/DefaultRGB`/`/DefaultGray` (§8.6.5.6) replaces the
+  device space it names.
+  `IcccerConverter` reads `DeviceRGB` as sRGB and `DeviceGray` as neutral
+  sRGB, and says so in a note.
+- **Written:** colour operators become the destination's `g`/`rg`/`k` (and
+  stroke twins; `cs`/`sc`/`scn` likewise, §8.6.8); image samples become
+  8-bit Flate in the destination's device space (§8.9.5), each listed
+  with its bytes before and after; `Indexed` lookups are converted in place
+  (§8.6.6.3); axial and radial shadings get a 64-segment stitching
+  function (§8.7.4.5.3, disclosed). Shared resources are converted once.
+- **Keep pure black:** a colour whose components are all zero (`0 0 0`
+  RGB, `0` grey, Lab `0 0 0`) becomes the destination's pure black — K only
+  in CMYK — instead of a rich black.
+- **BPC** is never applied under absolute colorimetric (§8.6.5.9).
+- **Out of gamut** is the converter's call: `IcccerConverter` compares the
+  source and the converted colour on screen (sRGB) by CIEDE2000, default
+  threshold `DEFAULT_GAMUT_TOLERANCE` 2.0 (`with_gamut_tolerance`). A colour
+  outside sRGB as well as the destination can be under-counted; its note
+  says so.
+- **Embed:** `embed_output_intent: Some(subtype)` writes the destination as
+  an `/OutputIntent` of that `/S` (§14.11.5); one of the same subtype is
+  replaced and the disclosure names it.
+- **Left, in `unconverted`, never guessed past:** inline images, mesh and
+  function-based shadings, uncoloured patterns, images with a `/Matte` soft
+  mask, spot inks (`Separation`/`DeviceN`, whatever their alternate),
+  undecodable images, a form drawn under two colour states (converted for
+  the first). Soft masks, Type 3 glyph procedures and annotation `/DA`
+  colours are not entered. A `Selection` scope is not offered.
+- Walked: page content, forms, tiling patterns, annotation `/AP` N/R/D.
+
+⚠️ `ColourSource`, `ColourConversion`, `ConvertedColour`, `ConvertFailure`,
+`SourceCount`, `ImageConversion`, `Unconverted`, `OutputIntentChange` and
+`ConvertColoursReport` are `#[non_exhaustive]`: construct with `new`.

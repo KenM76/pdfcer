@@ -230,6 +230,7 @@ pub(crate) mod cmyk_buffer;
 pub(crate) mod cmyk_paint;
 pub mod color;
 pub mod compositor;
+pub mod convert_colours;
 mod coverage_warning;
 pub(crate) mod device_clip;
 pub mod display_list;

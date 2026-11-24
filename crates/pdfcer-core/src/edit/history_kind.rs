@@ -262,6 +262,7 @@ kind_codec! {
     RemoveMetadata,
     AliasInk,
     SpotToProcess,
+    ConvertColours,
     PurgePasswordValues,
     PromoteInlineDrFonts,
     AddValidationMaterial,

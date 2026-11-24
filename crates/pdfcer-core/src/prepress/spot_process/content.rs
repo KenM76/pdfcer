@@ -13,10 +13,11 @@ use std::collections::BTreeMap;
 
 use crate::content::{ContentStream, ContentTokenKind, Operation};
 use crate::graph::ObjectGraph;
-use crate::object::{Dict, Name, ObjId, Object};
+use crate::object::{Dict, ObjId, Object};
 use crate::preflight::walk::first_operand;
 
-use super::super::inks::{InkPlan, Planned};
+use super::super::inks::InkPlan;
+use super::super::rewrite::{Edit, appearances, apply, colour_text, edit, flate_writes, resource};
 use super::Spaces;
 
 /// Forms, patterns and appearances nest at most this deep.
@@ -37,13 +38,6 @@ struct GState {
     op_fill: bool,
     /// `/OPM` is 1.
     opm1: bool,
-}
-
-/// One replacement in a decoded stream.
-struct Edit {
-    start: usize,
-    end: usize,
-    text: String,
 }
 
 struct Rewriter<'a, 'v, 'd> {
@@ -78,54 +72,7 @@ pub(super) fn rewrite_pages(spaces: &mut Spaces<'_, '_>, plan: &mut InkPlan) {
         }
     }
     let Rewriter { out, plan, .. } = r;
-    for (id, bytes) in out {
-        if let (Some(data), Some(Object::Stream(s))) = (bytes, view.graph().value(id)) {
-            let mut dict = s.dict.clone();
-            dict.insert(
-                Name::from(b"Filter"),
-                Object::Name(Name::from(b"FlateDecode")),
-            );
-            dict.remove(b"DecodeParms");
-            let data = crate::filters::flate::encode(&data);
-            plan.writes.insert(id, Planned::Stream { dict, data });
-        }
-    }
-}
-
-/// Every stream under an annotation's `/AP` `/N`, `/R` and `/D`.
-fn appearances(view: &crate::view::DocumentView<'_>, page: ObjId) -> Vec<ObjId> {
-    let resolve_dict = |o: &Object| view.resolve(o).as_dict().cloned();
-    let annots = view
-        .graph()
-        .value(page)
-        .and_then(Object::as_dict)
-        .and_then(|d| d.get(b"Annots"))
-        .and_then(|o| view.resolve(o).as_array().map(<[Object]>::to_vec))
-        .unwrap_or_default();
-    let mut out = Vec::new();
-    for annot in annots.iter().filter_map(&resolve_dict) {
-        let Some(ap) = annot.get(b"AP").and_then(resolve_dict) else {
-            continue;
-        };
-        for key in [b"N".as_slice(), b"R", b"D"] {
-            match ap.get(key) {
-                Some(Object::Reference(id))
-                    if matches!(view.graph().value(*id), Some(Object::Stream(_))) =>
-                {
-                    out.push(*id);
-                }
-                Some(o) => {
-                    if let Some(states) = resolve_dict(o) {
-                        out.extend(states.iter().filter_map(|(_, v)| v.as_reference()));
-                    }
-                }
-                None => {}
-            }
-        }
-    }
-    out.sort_unstable();
-    out.dedup();
-    out
+    flate_writes(view, out, &mut plan.writes);
 }
 
 impl Rewriter<'_, '_, '_> {
@@ -525,48 +472,7 @@ impl Rewriter<'_, '_, '_> {
     }
 }
 
-/// `resources/<category>/<name>`, unresolved.
-fn resource(
-    view: &crate::view::DocumentView<'_>,
-    resources: &Dict,
-    category: &[u8],
-    name: &[u8],
-) -> Option<Object> {
-    resources
-        .get(category)
-        .and_then(|o| view.resolve(o).as_dict())
-        .and_then(|d| d.get(name))
-        .cloned()
-}
-
 /// `c m y k k`, or `K` for a stroke.
 fn cmyk_text(cmyk: [f64; 4], stroke: bool) -> String {
-    let [c, m, y, k] = cmyk.map(crate::bates::number);
-    format!("{c} {m} {y} {k} {}", if stroke { "K" } else { "k" })
-}
-
-/// Replace a whole operation, operands included.
-fn edit(op: &Operation<'_>, text: String) -> Edit {
-    let end = op.operator.span.start + op.operator.span.len;
-    let start = op
-        .operands
-        .first()
-        .map_or(op.operator.span.start, |t| t.span.start);
-    Edit { start, end, text }
-}
-
-/// `buf` with `edits` applied, or `None` when there are none.
-fn apply(buf: &[u8], edits: &[Edit]) -> Option<Vec<u8>> {
-    if edits.is_empty() {
-        return None;
-    }
-    let mut out = Vec::with_capacity(buf.len() + edits.len() * 16);
-    let mut at = 0;
-    for e in edits {
-        out.extend_from_slice(buf.get(at..e.start).unwrap_or_default());
-        out.extend_from_slice(e.text.as_bytes());
-        at = e.end;
-    }
-    out.extend_from_slice(buf.get(at..).unwrap_or_default());
-    Some(out)
+    colour_text(&cmyk, if stroke { "K" } else { "k" })
 }

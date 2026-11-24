@@ -2,11 +2,19 @@
 //! page is drawn: does anything it draws ask for overprint, and which
 //! PDF/X level does it claim, and which inks it names.
 
+mod convert_colours;
 mod ink_alias;
 mod inks;
 mod pdfx;
+mod rewrite;
 mod spot_process;
 
+pub use convert_colours::{
+    ColourConversion, ColourConverter, ColourDestination, ColourSource, ColourTransform,
+    ConvertColoursReport, ConvertFailure, ConvertScope, ConvertedColour, ImageConversion,
+    IntentChoice, OutputIntentChange, SourceCount, SourceFamily, Unconverted,
+};
+pub(crate) use convert_colours::{ConvertPlan, PlanError, embed_writes, plan_convert_colours};
 pub(crate) use ink_alias::plan_alias;
 pub use inks::{InkEditReport, InkKind, InkRefusal, InkSelection, InkUse, inks};
 pub(crate) use inks::{InkPlan, Planned};

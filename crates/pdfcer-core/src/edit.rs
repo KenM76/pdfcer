@@ -139,6 +139,7 @@ pub use batch_transform::AnnotationBatchOutcome;
 mod block_text;
 mod button_icon;
 mod checkpoint;
+mod convert_colours;
 mod history_codec;
 mod history_kind;
 mod history_transfer;
@@ -846,6 +847,9 @@ pub enum CommandKind {
     AliasInk,
     /// [`EditSession::spot_to_process`] converted spot inks to process.
     SpotToProcess,
+    /// [`EditSession::convert_colours`] converted colours to a destination
+    /// profile.
+    ConvertColours,
     /// [`EditSession::purge_password_values`] — §12.7.4.3 Table 228 bit 14.
     PurgePasswordValues,
     /// [`EditSession::promote_inline_dr_fonts`] moved inline `/AcroForm /DR
@@ -10280,6 +10284,13 @@ pub enum EditError {
         name: String,
         /// One clause.
         reason: &'static str,
+    },
+    /// [`EditSession::convert_colours`] cannot run: no usable destination
+    /// profile, no output intent to take one from, or no source selected.
+    #[error("cannot convert colours: {reason}")]
+    ColourConversionRefused {
+        /// One sentence.
+        reason: String,
     },
     /// A 3D model that cannot be embedded
     /// ([`EditSession::add_3d_annotation`]).

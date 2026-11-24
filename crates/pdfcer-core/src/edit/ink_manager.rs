@@ -98,7 +98,8 @@ impl EditSession {
         Ok(self.commit_ink_plan(plan, CommandKind::SpotToProcess))
     }
 
-    fn check_ink_edit(&self) -> Result<(), EditError> {
+    /// Refuses an ink edit on a file whose permissions forbid modifying contents.
+    pub(super) fn check_ink_edit(&self) -> Result<(), EditError> {
         if crate::encryption_gate::forbids(&self.base, &[PermissionBit::ModifyContents]) {
             return Err(EditError::DocumentEncrypted);
         }
@@ -109,6 +110,17 @@ impl EditSession {
     /// Commit `plan`'s writes as one command; the report names them.
     fn commit_ink_plan(&mut self, plan: InkPlan, kind: CommandKind) -> InkEditReport {
         let InkPlan { writes, mut report } = plan;
+        let objects = self.planned_writes(writes);
+        report.changed.extend(objects.iter().map(|w| w.id));
+        self.commit_writes(kind, objects);
+        report
+    }
+
+    /// Stage planned writes: each new stream's data, with its `/Length`.
+    pub(super) fn planned_writes(
+        &mut self,
+        writes: std::collections::BTreeMap<crate::object::ObjId, Planned>,
+    ) -> Vec<ObjectWrite> {
         let mut objects = Vec::with_capacity(writes.len());
         for (id, planned) in writes {
             let after = match planned {
@@ -120,13 +132,17 @@ impl EditSession {
                     Object::Stream(Stream { dict, data_span })
                 }
             };
-            report.changed.push(id);
             objects.push(ObjectWrite {
                 id,
                 before: self.state.get(&id).cloned(),
                 after: Some(after),
             });
         }
+        objects
+    }
+
+    /// Commit `objects` as one command of `kind`, when there are any.
+    pub(super) fn commit_writes(&mut self, kind: CommandKind, objects: Vec<ObjectWrite>) {
         if !objects.is_empty() {
             self.commit(Command {
                 kind,
@@ -135,6 +151,5 @@ impl EditSession {
                 trailer: None,
             });
         }
-        report
     }
 }

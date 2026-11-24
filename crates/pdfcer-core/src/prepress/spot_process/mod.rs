@@ -22,9 +22,8 @@ use crate::optimize::objects::is_image;
 use crate::preflight::walk::is_spot_colorant;
 use crate::view::DocumentView;
 
-use super::inks::{
-    InkPlan, InkSelection, Planned, each_array, family_name, ink_space, live_ids, text,
-};
+use super::inks::{InkPlan, InkSelection, each_array, family_name, ink_space, live_ids, text};
+use super::rewrite::{SHADING_SEGMENTS, current, keep};
 
 /// Nesting followed inside one object.
 const MAX_NESTING: usize = 24;
@@ -167,7 +166,7 @@ pub(crate) fn plan_spot_to_process(view: &DocumentView<'_>, selection: &InkSelec
     }
     content::rewrite_pages(&mut spaces, &mut plan);
     for id in ids {
-        let Some(mut obj) = current(view, &plan, id) else {
+        let Some(mut obj) = current(view, &plan.writes, id) else {
             continue;
         };
         if let Object::Stream(s) = &obj
@@ -179,37 +178,16 @@ pub(crate) fn plan_spot_to_process(view: &DocumentView<'_>, selection: &InkSelec
             continue;
         }
         if objects(&mut spaces, &mut obj, Some(id), 0, &mut plan) {
-            let planned = match (plan.writes.remove(&id), obj) {
-                (Some(Planned::Stream { data, .. }), Object::Stream(s)) => {
-                    Planned::Stream { dict: s.dict, data }
-                }
-                (_, obj) => Planned::Object(obj),
-            };
-            plan.writes.insert(id, planned);
+            keep(&mut plan.writes, id, obj);
         }
     }
     if plan.report.shadings > 0 {
         plan.report.disclose(format!(
             "Converted shadings are sampled at {} points along their axis and joined linearly.",
-            samples::SHADING_SEGMENTS + 1
+            SHADING_SEGMENTS + 1
         ));
     }
     plan
-}
-
-/// An object's value with the plan's earlier writes applied.
-fn current(view: &DocumentView<'_>, plan: &InkPlan, id: ObjId) -> Option<Object> {
-    match plan.writes.get(&id) {
-        Some(Planned::Object(o)) => Some(o.clone()),
-        Some(Planned::Stream { dict, .. }) => match view.graph().value(id) {
-            Some(Object::Stream(s)) => Some(Object::Stream(crate::object::Stream {
-                dict: dict.clone(),
-                data_span: s.data_span,
-            })),
-            other => other.cloned(),
-        },
-        None => view.graph().value(id).cloned(),
-    }
 }
 
 /// Rewrite `Indexed` spaces and shadings inside `obj`; true when it changed.

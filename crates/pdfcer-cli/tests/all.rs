@@ -23,6 +23,7 @@ mod bookmarks;
 mod centre_geometry;
 mod compare_result;
 mod compare_visual;
+mod convert_colours;
 mod copy_page;
 mod copy_text;
 mod coverage_warning;

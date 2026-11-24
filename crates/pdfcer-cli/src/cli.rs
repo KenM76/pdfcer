@@ -11954,6 +11954,55 @@ pub(crate) enum Command {
         #[arg(long)]
         verify_undo: bool,
     },
+    /// Convert RGB, Lab, calibrated and grey colours to one ICC profile.
+    ///
+    /// Every colour drawn in a chosen source space becomes the destination
+    /// profile's device colour: content colours, images (re-encoded as 8-bit
+    /// Flate, each listed with its size before and after), indexed palettes
+    /// and axial and radial shadings. The destination is `--profile`, or the
+    /// document's output intent. DeviceRGB is read as sRGB. Inline images,
+    /// mesh shadings, uncoloured patterns and spot inks are left, each
+    /// printed as an `unconverted` line with its reason; soft masks are never
+    /// converted. Out-of-gamut counts compare each colour before and after
+    /// by CIEDE2000 (2.0 or more).
+    ConvertColours {
+        /// Input PDF.
+        input: PathBuf,
+        /// Destination ICC profile. Omit to use the document's output intent.
+        #[arg(long)]
+        profile: Option<PathBuf>,
+        /// Source spaces to convert, comma-separated. Default: rgb, icc-rgb,
+        /// lab and cal-rgb.
+        #[arg(long, value_enum, value_delimiter = ',')]
+        from: Vec<crate::convert_colours_cmd::ConvertSourceArg>,
+        /// Rendering intent, or `own` for each object's own.
+        #[arg(long, value_enum, default_value_t = crate::convert_colours_cmd::ConvertIntentArg::Relative)]
+        intent: crate::convert_colours_cmd::ConvertIntentArg,
+        /// Convert pure black too. By default black stays the destination's
+        /// pure black (K only in CMYK).
+        #[arg(long)]
+        convert_black: bool,
+        /// Turn off black point compensation.
+        #[arg(long)]
+        no_bpc: bool,
+        /// Embed the destination profile as an output intent of this
+        /// subtype (`GTS_PDFX`, `GTS_PDFA1`). One of the same subtype is
+        /// replaced.
+        #[arg(long, value_name = "SUBTYPE")]
+        embed_intent: Option<String>,
+        /// Pages: `all`, or a list such as `1,3-5`.
+        #[arg(long, default_value = "all")]
+        pages: String,
+        /// Output path.
+        #[arg(short, long)]
+        output: PathBuf,
+        /// Save mode.
+        #[arg(long, value_enum, default_value_t = SaveMode::Incremental)]
+        mode: SaveMode,
+        /// Reload and verify the edit undoes byte-identically.
+        #[arg(long)]
+        verify_undo: bool,
+    },
     /// Composite page transparency into opaque content.
     ///
     /// Constant alpha, blend modes, soft masks and transparency groups on

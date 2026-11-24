@@ -314,6 +314,11 @@ impl Conversion {
         }
     }
 
+    /// Whether black point compensation applies.
+    pub(crate) const fn bpc(&self) -> bool {
+        self.bpc
+    }
+
     /// This conversion with calibrated CMYK kept as authored when `on`.
     pub(crate) const fn preserving_cmyk(mut self, on: bool) -> Self {
         self.preserve_cmyk = on;
@@ -324,7 +329,7 @@ impl Conversion {
 /// Build a chain with `make`, adding black point compensation (ISO 18619,
 /// via icccer) when `conv` asks for it. A profile whose black point icccer
 /// cannot estimate converts without BPC rather than not at all.
-fn chain_for(
+pub(crate) fn chain_for(
     conv: Conversion,
     make: impl Fn(
         icccer_cmm::matrix_trc::Intent,
@@ -359,7 +364,7 @@ fn chain_for(
 /// ⇒ The transferable point: `#[non_exhaustive]` moves a compile-time
 /// guarantee to a runtime choice, and the choice then has to be *defended* in
 /// prose because no gate will ever check it again.
-fn to_icccer_intent(intent: RenderingIntent) -> icccer_cmm::matrix_trc::Intent {
+pub(crate) fn to_icccer_intent(intent: RenderingIntent) -> icccer_cmm::matrix_trc::Intent {
     use icccer_cmm::matrix_trc::Intent;
     match intent {
         RenderingIntent::Perceptual => Intent::Perceptual,
