@@ -107,6 +107,8 @@
 //! same pages twice produces byte-identical output, which is what makes
 //! the operations testable at all and keeps R41 satisfied.
 
+mod separation_copy;
+
 use std::collections::{BTreeMap, HashMap, HashSet};
 
 // NOTE: `crate::graph::ObjectGraph` is deliberately NOT imported here.
@@ -599,31 +601,36 @@ pub fn assemble(
         // `Pages` node as an orphan and count its `/Kids` as dangling.
         let mut unparented = page_dict.clone();
         unparented.remove(b"Parent");
+        // §14.11.4: `/SeparationInfo` names sibling plates, so it is held
+        // in place (a null the copy carries) and routed separately.
+        let held = unparented.contains_key(b"SeparationInfo");
+        if held {
+            unparented.insert(Name::from(b"SeparationInfo"), Object::Null);
+        }
         let mut copied = copier.copy_dict(view, source_index, &unparented, 0)?;
         copied.insert(
             Name::from(b"Parent"),
             Object::Reference(ObjId::new(root_num, 0)),
         );
-        // §14.11.4: this page may be one plate of a preseparated set whose
-        // other plates were not selected. The generic copy above has
-        // already done the generically-right thing and the specifically-
-        // wrong one — the `/Pages` array hit the barrier, refused as a
-        // whole, and took the Required `/Pages` entry with it. Rebuild it
-        // in output space. Done HERE rather than inside `copy_dict`
-        // because this is the only place that knows it is holding a page.
-        let per_page = separation::remap_copied(
-            view.graph(),
-            page_dict,
-            &mut copied,
-            |member| {
-                selected
-                    .iter()
-                    .position(|&(source, id)| source == source_index && id == member)
-                    .and_then(|at| page_numbers.get(at).copied())
-            },
-            options.separations,
-        )?;
-        separation::accumulate(&mut separations, &per_page);
+        if held {
+            let (info, per_page) = copier.copy_separation(
+                view,
+                source_index,
+                page_dict,
+                |member| {
+                    selected
+                        .iter()
+                        .position(|&(source, id)| source == source_index && id == member)
+                        .and_then(|at| page_numbers.get(at).copied())
+                },
+                options.separations,
+            )?;
+            match info {
+                Some(info) => copied.insert(Name::from(b"SeparationInfo"), info),
+                None => drop(copied.remove(b"SeparationInfo")),
+            }
+            separation::accumulate(&mut separations, &per_page);
+        }
         // §7.7.3.4: attributes the old ancestors supplied would be lost.
         for (key, value) in slot.inherited.materialize_for(page_dict) {
             let mapped = copier.copy_value(view, source_index, &value, 0)?;
@@ -1099,6 +1106,8 @@ pub struct Copier {
     struct_pages: HashMap<(usize, Option<ObjId>), Option<ObjId>>,
     /// The output's `/Info` object, if one is being carried.
     info: Option<u32>,
+    /// Per source, the separation sets already counted as split.
+    split_sets: HashMap<usize, HashSet<Vec<ObjId>>>,
 }
 
 impl Copier {
@@ -1115,6 +1124,7 @@ impl Copier {
             struct_links: (0, 0),
             struct_pages: HashMap::new(),
             info: None,
+            split_sets: HashMap::new(),
         }
     }
 

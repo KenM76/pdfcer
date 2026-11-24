@@ -147,7 +147,7 @@ use crate::object::{Dict, Name, ObjId, Object};
 ///
 /// See the module docs for why [`Self::Repair`] is the default and why
 /// this is a product policy rather than a spec ambiguity.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
 #[non_exhaustive]
 pub enum SeparationPolicy {
     /// Rewrite each surviving member's `/Pages` array to the surviving
@@ -406,6 +406,7 @@ pub fn plan_repair<G: ObjectGraph + ?Sized>(
     policy: SeparationPolicy,
 ) -> Result<SeparationPlan, SeparationSplitRefused> {
     let mut plan = SeparationPlan::default();
+    let mut split_sets = HashSet::new();
 
     for page_id in surviving {
         let Some(page) = graph.resolved(*page_id).as_dict() else {
@@ -470,7 +471,7 @@ pub fn plan_repair<G: ObjectGraph + ?Sized>(
             }
         }
 
-        plan.impact.sets_split += 1;
+        plan.impact.sets_split += usize::from(split_sets.insert(set_key(&separation)));
         plan.impact.pages_changed += 1;
         plan.impact.policy = policy;
         plan.rewrites.push(SeparationRewrite {
@@ -519,39 +520,114 @@ where
     G: ObjectGraph + ?Sized,
     F: Fn(ObjId) -> Option<u32>,
 {
-    let mut impact = SeparationImpact::default();
-
-    let Some(separation) = separation_of(graph, original) else {
+    let (plan, impact) = plan_copied(
+        graph,
+        original,
+        |member| map(member).map(|number| ObjId::new(number, 0)),
+        policy,
+        &mut HashSet::new(),
+    )?;
+    let CopiedSeparation::Members(kept) = plan else {
+        if plan == CopiedSeparation::Discard {
+            copied.remove(b"SeparationInfo");
+        }
         return Ok(impact);
     };
-    if separation.is_malformed() {
-        impact.malformed += 1;
-        return Ok(impact);
-    }
-
-    let mut kept: Vec<ObjId> = Vec::with_capacity(separation.members.len());
-    let mut lost: Vec<ObjId> = Vec::new();
-    for member in &separation.members {
-        match map(*member) {
-            Some(number) => kept.push(ObjId::new(number, 0)),
-            None => lost.push(*member),
-        }
-    }
-
-    if lost.is_empty() {
+    if impact.pages_changed == 0 {
         // The whole set came across. The copier's own mapping is already
         // correct and complete, so this page is left exactly as copied —
         // no rebuild, no diff, nothing to disclose.
         return Ok(impact);
     }
 
+    let Some((source, _)) = source_info(graph, original) else {
+        return Ok(impact);
+    };
+    // `/ColorSpace` and the like are taken from the COPIED dictionary when
+    // present: they may hold references the copier remapped. A source
+    // reference the copier did not map is dropped rather than carried
+    // into a document where it points at nothing.
+    let already = copied.get(b"SeparationInfo").and_then(Object::as_dict);
+    let mut info = Dict::new();
+    for (key, value) in source.iter() {
+        if key.as_bytes() == b"Pages" {
+            info.insert(key.clone(), references(&kept));
+        } else if let Some(mapped) = already.and_then(|d| d.get(key.as_bytes())) {
+            info.insert(key.clone(), mapped.clone());
+        } else if !matches!(value, Object::Reference(_)) {
+            info.insert(key.clone(), value.clone());
+        }
+    }
+    copied.insert(Name::from(b"SeparationInfo"), Object::Dict(info));
+    Ok(impact)
+}
+
+/// What a page copy writes for the copied page's `/SeparationInfo`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) enum CopiedSeparation {
+    /// Nothing to plan: no separation dictionary, or a malformed one
+    /// (counted), which the generic copy carries as it is.
+    Untouched,
+    /// Remove the entry ([`SeparationPolicy::Discard`] on a split set).
+    Discard,
+    /// A separation dictionary whose `/Pages` names these output pages: the
+    /// whole set, or under [`SeparationPolicy::Repair`] the members copied
+    /// in the same operation.
+    Members(Vec<ObjId>),
+}
+
+/// Plan one copied page's `/SeparationInfo`. `map` gives the output page a
+/// source member was copied to in this operation, `None` when it was not.
+/// `split_sets` holds the source sets this operation has already counted as
+/// split, so a set several copied plates share counts once.
+///
+/// The shared core of [`remap_copied`], `assemble` and the session page
+/// import: membership is by object identity, and a member `map` does not
+/// know is never followed.
+///
+/// # Errors
+///
+/// [`SeparationSplitRefused`] under [`SeparationPolicy::Refuse`] when the
+/// set loses a member.
+pub(crate) fn plan_copied<G, F>(
+    graph: &G,
+    original: &Dict,
+    map: F,
+    policy: SeparationPolicy,
+    split_sets: &mut HashSet<Vec<ObjId>>,
+) -> Result<(CopiedSeparation, SeparationImpact), SeparationSplitRefused>
+where
+    G: ObjectGraph + ?Sized,
+    F: Fn(ObjId) -> Option<ObjId>,
+{
+    let mut impact = SeparationImpact::default();
+    let Some(separation) = separation_of(graph, original) else {
+        return Ok((CopiedSeparation::Untouched, impact));
+    };
+    if separation.is_malformed() {
+        impact.malformed += 1;
+        return Ok((CopiedSeparation::Untouched, impact));
+    }
+    let (kept, lost): (Vec<Option<ObjId>>, Vec<Option<ObjId>>) = separation
+        .members
+        .iter()
+        .map(|member| map(*member).ok_or(*member))
+        .map(|mapped| match mapped {
+            Ok(out) => (Some(out), None),
+            Err(member) => (None, Some(member)),
+        })
+        .unzip();
+    let kept: Vec<ObjId> = kept.into_iter().flatten().collect();
+    let lost: Vec<ObjId> = lost.into_iter().flatten().collect();
+    if lost.is_empty() {
+        return Ok((CopiedSeparation::Members(kept), impact));
+    }
     if policy == SeparationPolicy::Refuse {
         return Err(SeparationSplitRefused {
             losing: lost.len(),
             total: separation.members.len(),
         });
     }
-
     for member in &lost {
         let colorant = graph
             .resolved(*member)
@@ -561,52 +637,48 @@ where
         impact.note_removed(colorant.as_ref());
     }
     impact.note_kept(separation.colorant.as_ref());
-
-    match policy {
-        SeparationPolicy::Discard => {
-            copied.remove(b"SeparationInfo");
-        }
-        SeparationPolicy::Repair | SeparationPolicy::Refuse => {
-            let source = original
-                .get(b"SeparationInfo")
-                .map(|value| graph.resolve(value))
-                .and_then(Object::as_dict);
-            let Some(source) = source else {
-                return Ok(impact);
-            };
-            // Rebuild from the source dictionary, carrying every entry the
-            // copier already validated except `/Pages`, which is replaced
-            // with output-space references. `/ColorSpace` is deliberately
-            // taken from the COPIED dictionary when present: it may hold
-            // references the copier remapped, and the source's version
-            // points into the source document.
-            let mut info = Dict::new();
-            for (key, value) in source.iter() {
-                if key.as_bytes() == b"Pages" {
-                    continue;
-                }
-                if let Some(already) = copied
-                    .get(b"SeparationInfo")
-                    .and_then(Object::as_dict)
-                    .and_then(|copied_info| copied_info.get(key.as_bytes()))
-                {
-                    info.insert(key.clone(), already.clone());
-                } else if !matches!(value, Object::Reference(_)) {
-                    // A direct value needs no remapping; an unmapped
-                    // reference is dropped rather than carried into a
-                    // document where it points at nothing.
-                    info.insert(key.clone(), value.clone());
-                }
-            }
-            info.insert(Name::from(b"Pages"), references(&kept));
-            copied.insert(Name::from(b"SeparationInfo"), Object::Dict(info));
-        }
-    }
-
-    impact.sets_split += 1;
+    impact.sets_split += usize::from(split_sets.insert(set_key(&separation)));
     impact.pages_changed += 1;
     impact.policy = policy;
-    Ok(impact)
+    let plan = match policy {
+        SeparationPolicy::Discard => CopiedSeparation::Discard,
+        _ => CopiedSeparation::Members(kept),
+    };
+    Ok((plan, impact))
+}
+
+/// A page's `/SeparationInfo` dictionary, with its object id when it is an
+/// indirect object (one dictionary several plates can share).
+pub(crate) fn source_info<'g, G: ObjectGraph + ?Sized>(
+    graph: &'g G,
+    page: &'g Dict,
+) -> Option<(&'g Dict, Option<ObjId>)> {
+    let value = page.get(b"SeparationInfo")?;
+    let dict = graph.resolve(value).as_dict()?;
+    Some((dict, value.as_reference()))
+}
+
+/// The separation dictionary a copied page carries: `source`'s entries in
+/// order, each passed through `copy` (an entry it refuses is dropped), with
+/// `/Pages` naming `members`.
+///
+/// # Errors
+///
+/// Whatever `copy` raises.
+pub(crate) fn rebuilt_info<E>(
+    source: &Dict,
+    members: &[ObjId],
+    mut copy: impl FnMut(&Object) -> Result<Option<Object>, E>,
+) -> Result<Dict, E> {
+    let mut info = Dict::new();
+    for (key, value) in source.iter() {
+        if key.as_bytes() == b"Pages" {
+            info.insert(key.clone(), references(members));
+        } else if let Some(copied) = copy(value)? {
+            info.insert(key.clone(), copied);
+        }
+    }
+    Ok(info)
 }
 
 /// Merge a per-page [`SeparationImpact`] into a running total.
@@ -632,6 +704,14 @@ pub fn accumulate(total: &mut SeparationImpact, part: &SeparationImpact) {
 }
 
 /// Build a `/Pages` array from object ids.
+/// A set's identity within one source: its members, in object order.
+fn set_key(separation: &SeparationDict) -> Vec<ObjId> {
+    let mut key = separation.members.clone();
+    key.sort_unstable();
+    key.dedup();
+    key
+}
+
 fn references(ids: &[ObjId]) -> Object {
     Object::Array(ids.iter().copied().map(Object::Reference).collect())
 }

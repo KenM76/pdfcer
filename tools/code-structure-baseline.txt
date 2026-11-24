@@ -177,7 +177,6 @@ fn pdfcer-cli/src/page_edit.rs::cmd_redact_mark
 fn pdfcer-cli/src/page_edit.rs::cmd_scale_pages
 fn pdfcer-cli/src/page_edit.rs::cmd_set_page_size
 fn pdfcer-cli/src/pages.rs::cmd_delete_pages
-fn pdfcer-cli/src/pages.rs::cmd_page_paste
 fn pdfcer-cli/src/pages.rs::cmd_split
 fn pdfcer-cli/src/print.rs::a_magnification_too_large_to_raster_whole_still_tiles
 fn pdfcer-cli/src/print.rs::cmd_print
@@ -371,7 +370,6 @@ fn pdfcer-core/src/pageops/assemble.rs::build_acroform
 fn pdfcer-core/src/pageops/assemble.rs::finish
 fn pdfcer-core/src/pageops/outline.rs::build
 fn pdfcer-core/src/pageops/separation.rs::plan_repair
-fn pdfcer-core/src/pageops/separation.rs::remap_copied
 fn pdfcer-core/src/redact.rs::apply_redactions_with
 fn pdfcer-core/src/redact.rs::build_overlay
 fn pdfcer-core/src/redact.rs::carrier_detect_disclose

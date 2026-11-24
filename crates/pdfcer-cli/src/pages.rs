@@ -727,39 +727,7 @@ pub(crate) fn cmd_page_paste(args: &PagePasteArgs<'_>) -> u8 {
         Err(err) => return report_edit_error(args.input, &err),
     };
 
-    // Off-canvas, on stderr. The widget counters are the ones that are
-    // invisible in the result: boxes that draw like form fields and that
-    // nothing can fill.
-    if pasted.orphaned_widgets > 0 {
-        eprintln!(
-            "pdfcer: {}: {} form-field box(es) arrived WITHOUT the field that owns them ({} field(s) had boxes on pages that were not pasted, so were not copied; {} box(es) cannot be adopted into a field afterwards, because the widget carries no name or type of its own). They draw like fields and nothing can fill them.",
-            args.input.display(),
-            pasted.orphaned_widgets,
-            pasted.fields_split,
-            pasted.orphaned_widgets_unrecoverable,
-        );
-    }
-    if pasted.fields_renamed > 0 {
-        eprintln!(
-            "pdfcer: {}: {} pasted form field(s) took a name already used in this document and were renamed with a numeric suffix.",
-            args.input.display(),
-            pasted.fields_renamed,
-        );
-    }
-    if pasted.source_outline_dropped {
-        eprintln!(
-            "pdfcer: {}: the copied pages' document had an outline (bookmarks); it did not travel. A bookmark tree describes a DOCUMENT, and half of one grafted into another is a claim nobody made.",
-            args.input.display()
-        );
-    }
-    if pasted.source_page_labels_dropped || pasted.page_labels_stale {
-        eprintln!(
-            "pdfcer: {}: page labels -- source_dropped={} this_document_now_stale={}.",
-            args.input.display(),
-            u32::from(pasted.source_page_labels_dropped),
-            u32::from(pasted.page_labels_stale),
-        );
-    }
+    report_page_paste(args.input, &pasted);
 
     let outcome = match save_edited(
         &mut session,
@@ -774,7 +742,7 @@ pub(crate) fn cmd_page_paste(args: &PagePasteArgs<'_>) -> u8 {
     };
     let r = &outcome.report;
     println!(
-        "page-paste {} clip={} at={} pages={} fields_carried={} fields_renamed={} fields_split={} orphaned_widgets={} orphaned_unrecoverable={} outline_dropped={} {} mode={} -> {}; changed={} objects={} appended={} out_bytes={}",
+        "page-paste {} clip={} at={} pages={} fields_carried={} fields_renamed={} fields_split={} orphaned_widgets={} orphaned_unrecoverable={} outline_dropped={} {} {} mode={} -> {}; changed={} objects={} appended={} out_bytes={}",
         args.input.display(),
         args.clip.display(),
         args.at,
@@ -785,6 +753,7 @@ pub(crate) fn cmd_page_paste(args: &PagePasteArgs<'_>) -> u8 {
         pasted.orphaned_widgets,
         pasted.orphaned_widgets_unrecoverable,
         u32::from(pasted.source_outline_dropped),
+        separation_metrics(&pasted.separations),
         crate::ce_dimension_report::CeCarry::from(&pasted).tokens(),
         args.mode.name(),
         args.output.display(),

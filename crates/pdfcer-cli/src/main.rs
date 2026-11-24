@@ -741,6 +741,8 @@ mod object_copy_cmd;
 use object_copy_cmd::*;
 mod object_transform_cmd;
 use object_transform_cmd::*;
+mod page_paste_report;
+use page_paste_report::report_page_paste;
 mod pages;
 use pages::*;
 mod stamp;

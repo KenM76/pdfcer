@@ -4480,7 +4480,7 @@ fn apply_markup_style(
 ///
 /// Following [`DeleteOutcome`]'s shape: the verb that can surprise you
 /// returns what happened, not just how much.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
 #[non_exhaustive]
 pub struct InsertOutcome {
     /// How many pages arrived.
@@ -4627,6 +4627,12 @@ pub struct InsertOutcome {
     /// source's sidecar, or this document's, was written by a newer pdfcer
     /// than this build reads.
     pub ce_dimension_sidecar_newer: bool,
+    /// Preseparated sets (ISO 32000-2 §14.11.4) the insert split: an
+    /// inserted plate whose sibling plates were not inserted with it, and
+    /// what the [`crate::pageops::InsertOptions::separations`] policy did to
+    /// it. A page inserted twice counts its repeat, whose set names only
+    /// that copy. Empty when no inserted page was a plate of a partial set.
+    pub separations: SeparationImpact,
 }
 
 /// How many of `source`'s ce dimensions `mapping` copied.
@@ -50038,7 +50044,7 @@ impl EditSession {
             mut mapping,
             new_page_ids,
             ..
-        }) = self.copy_and_splice(source, &all, position)?
+        }) = self.copy_and_splice(source, &all, position, SeparationPolicy::default())?
         else {
             return Ok(MergeOutcome::default());
         };
@@ -50724,6 +50730,7 @@ impl EditSession {
         source: &DocumentView<'_>,
         source_pages: &[usize],
         position: crate::pageops::InsertPosition,
+        separations: SeparationPolicy,
     ) -> Result<Option<PageSplice>, EditError> {
         if source_pages.is_empty() {
             return Ok(None);
@@ -50751,7 +50758,7 @@ impl EditSession {
 
         let mut scratch: BTreeMap<ObjId, Object> = BTreeMap::new();
         let mut mapping: BTreeMap<ObjId, ObjId> = BTreeMap::new();
-        self.begin_page_import(&source_slots, source_pages);
+        self.begin_page_import(&source_slots, source_pages, separations);
         let new_page_ids = self.import_pages(
             source,
             &source_slots,
@@ -50816,12 +50823,14 @@ impl EditSession {
         scratch: &mut BTreeMap<ObjId, Object>,
     ) -> Result<Vec<ObjId>, EditError> {
         let mut new_page_ids = Vec::with_capacity(source_pages.len());
+        let mut copies = Vec::with_capacity(source_pages.len());
         let mut seen = std::collections::BTreeSet::new();
         for index in source_pages {
             let Some(slot) = source_slots.get(*index) else {
                 continue;
             };
-            let new_id = if seen.insert(*index) {
+            let first = seen.insert(*index);
+            let new_id = if first {
                 self.import_object(source, slot.id, mapping, scratch)?
             } else {
                 self.import_object(source, slot.id, &mut BTreeMap::new(), scratch)?
@@ -50840,7 +50849,13 @@ impl EditSession {
                 scratch.insert(new_id, Object::Dict(page));
             }
             new_page_ids.push(new_id);
+            copies.push(page_import::PageCopy {
+                source: slot.id,
+                copy: new_id,
+                repeat: !first,
+            });
         }
+        self.import_separations(source, &copies, mapping, scratch)?;
         Ok(new_page_ids)
     }
 
@@ -51047,7 +51062,7 @@ impl EditSession {
             mut mapping,
             source_slots,
             new_page_ids,
-        }) = self.copy_and_splice(source, source_pages, position)?
+        }) = self.copy_and_splice(source, source_pages, position, opts.separations)?
         else {
             return Ok(InsertOutcome::default());
         };
@@ -51109,6 +51124,7 @@ impl EditSession {
             ce_dimension_groups_matched: dims.groups_matched,
             ce_dimension_groups_renamed: dims.groups_renamed,
             ce_dimension_sidecar_newer: dims.sidecar_newer,
+            separations: self.page_import_separations(),
         })
     }
 
@@ -51352,6 +51368,10 @@ impl EditSession {
             // a widget it does not claim is counted in
             // `InsertOutcome::orphaned_widgets`.
             if key.as_bytes() == b"Parent" {
+                continue;
+            }
+            if self.import_holds(dict, key) {
+                out.insert(key.clone(), Object::Null);
                 continue;
             }
             let Some(key) = self.import_key(dict, key) else {

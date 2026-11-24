@@ -280,10 +280,7 @@ fn the_delete_names_the_colorant_that_left() {
     let mut s = session(&source);
     let outcome = s.delete_pages(&[0]).expect("delete must succeed");
 
-    assert_eq!(
-        outcome.separations.sets_split, 3,
-        "three survivors repaired"
-    );
+    assert_eq!(outcome.separations.sets_split, 1, "one set split");
     assert_eq!(outcome.separations.pages_changed, 3);
     assert_eq!(
         outcome.separations.colorants_removed,

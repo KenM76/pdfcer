@@ -145,6 +145,7 @@ mod insert_pages_carries_fields;
 mod insert_pages_carry_outline;
 mod insert_pages_preserves_undo;
 mod insert_pages_repeated;
+mod insert_pages_separation_sets;
 mod insert_pages_struct_dest;
 mod layer_edit;
 mod layers;

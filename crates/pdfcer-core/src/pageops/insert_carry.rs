@@ -1,7 +1,7 @@
 //! What an in-session page insert carries besides the pages:
 //! `EditSession::insert_pages_with_options`'s options.
 
-use super::InsertedPageLabels;
+use super::{InsertedPageLabels, SeparationPolicy};
 
 /// What happens to the source's bookmarks (ISO 32000-1 §12.3.3) on an
 /// in-session insert.
@@ -51,6 +51,10 @@ pub struct InsertOptions {
     /// bookmarks that used a carried name are rewritten to its final key.
     /// Off by default.
     pub named_destinations: bool,
+    /// What happens to an inserted plate of a preseparated set (§14.11.4)
+    /// whose sibling plates are not inserted in the same call; the
+    /// default repairs its `/Pages` to the plates that did arrive.
+    pub separations: SeparationPolicy,
 }
 
 impl InsertOptions {
@@ -72,6 +76,13 @@ impl InsertOptions {
     #[must_use]
     pub fn with_named_destinations(mut self, carry: bool) -> Self {
         self.named_destinations = carry;
+        self
+    }
+
+    /// Set [`Self::separations`].
+    #[must_use]
+    pub fn with_separations(mut self, policy: SeparationPolicy) -> Self {
+        self.separations = policy;
         self
     }
 }
