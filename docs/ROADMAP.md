@@ -112,6 +112,13 @@ wherever it appears.*
 
 ## Shipped
 
+### `2fbc16e6` `chore`: v0.172.0 version bump, 2026-11-24 (1694th filing)
+
+Engineer-reported; no shell here, git, push, CI and the gates not run or checked from here. **Unreleased until v0.172.0 is tagged.** Tag, package and publication are a separate filing.
+- **`2fbc16e6` `chore: version 0.172.0`:** `Cargo.toml`, `Cargo.lock` and `fuzz/Cargo.lock` move from 0.171.0 to 0.172.0, the same shape as the 0.171.0 bump. `Cargo.toml` now has 18 version occurrences, up from 17 at the last bump; the extra one is the new `pdfcer-ink` crate (`Pass 747.0`). No code change.
+- **v0.172.0 carries, since v0.171.0:** `Pass 745.0` (`X109`, `3b1bf4eb`, 1687th); `748.0` (`95969afc`, 1688th); `747.0` (`X107`, `d9ad2e6c` plus `547571c5`, 1688th/1689th); `746.0` (`X108`, `8aa20670`, 1688th); `748.2` (`bc0273af`), `748.3` (`b76734ff`), `748.1` (`83317911`), all 1689th; `748.7` (`a4d41557`, 1690th); `748.5` (`a8e4da20`), `748.4` (`29888e43`), both 1691st; `748.6` (`63d0219b`), `748.8` (`debd0d63`), `729.0` (`c4cd74cc`), all 1692nd; `748.10` (`9e20681a`), `748.9` (`12333799`), both 1693rd.
+- **FEATURES:** no row changes. **Next:** push, CI, tag v0.172.0, release to OneDrive slot `pdfcer1`, publish the crates.
+
 ### `Pass 748.10`: total area coverage (TAC) as a preflight check (`pdfcer tac`), `9e20681a`, 2026-11-24 (1693rd filing)
 
 Engineer-reported; source `O458`; on `main`, unpushed; push, CI and backup not checked from here. **Unreleased** (release `v0.172.0`). Synthetic fixtures only.
