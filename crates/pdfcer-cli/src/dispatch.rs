@@ -3429,6 +3429,24 @@ pub(crate) fn run() -> ExitCode {
             mode,
             verify_undo,
         } => cmd_spot_to_process(&input, &inks, &output, mode, verify_undo),
+        Command::FlattenTransparency {
+            input,
+            pages,
+            outline_text,
+            outline_strokes,
+            ppi,
+            output,
+            mode,
+            verify_undo,
+        } => {
+            let args = FlattenArgs {
+                pages: &pages,
+                outline_text,
+                outline_strokes,
+                ppi,
+            };
+            cmd_flatten_transparency(&input, &args, &output, mode, verify_undo)
+        }
         Command::GroupLength {
             input,
             page,

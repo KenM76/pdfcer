@@ -85,6 +85,7 @@ pub(crate) const IN_PLACE_COMMANDS: &[&str] = &[
     "fix-hairlines",
     "flatten",
     "flatten-annotations",
+    "flatten-transparency",
     "format-text",
     "group-add",
     "group-delete",

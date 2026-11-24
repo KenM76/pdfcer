@@ -181,6 +181,10 @@ pub enum Check {
         /// The minimum printed width, in points; 0 finds width-0 strokes only.
         min_width_pt: f64,
     },
+    /// A page or annotation declares transparency: constant alpha below
+    /// 1, a non-`Normal` blend, a soft mask or a transparency group
+    /// (ISO 32000-2 §11; [`crate::transparency::has_transparency`]).
+    TransparencyUsed,
     /// The file is encrypted.
     Encrypted,
     /// The header version is above `max`.

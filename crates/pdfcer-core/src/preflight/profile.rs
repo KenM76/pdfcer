@@ -154,6 +154,7 @@ impl Profile {
     /// | `spot-not-allowed` | `allowed`: array of ink names |
     /// | `overprint-used` | none |
     /// | `stroke-below` | `min_width_pt`: number >= 0 |
+    /// | `transparency-used` | none |
     /// | `encrypted` | none |
     /// | `version-above` | `max`: `"1.7"`-style string |
     ///
@@ -241,6 +242,7 @@ fn parse_rule(item: &Json) -> Result<ProfileRule, ProfileError> {
             min_width_pt: number(item, "min_width_pt", |v| v >= 0.0)
                 .ok_or_else(|| bad("min_width_pt must be a number of at least 0"))?,
         },
+        "transparency-used" => Check::TransparencyUsed,
         "encrypted" => Check::Encrypted,
         "version-above" => {
             let max = item
@@ -306,6 +308,7 @@ fn rule_json(rule: &ProfileRule) -> String {
             "stroke-below",
             format!(", \"min_width_pt\": {min_width_pt}"),
         ),
+        Check::TransparencyUsed => ("transparency-used", String::new()),
         Check::Encrypted => ("encrypted", String::new()),
         Check::VersionAbove { max } => ("version-above", format!(", \"max\": \"{max}\"")),
     };

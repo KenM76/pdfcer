@@ -60,6 +60,7 @@ const fn is_page_level(check: &Check) -> bool {
             | Check::SpotNotAllowed { .. }
             | Check::OverprintUsed
             | Check::StrokeBelow { .. }
+            | Check::TransparencyUsed
     )
 }
 
@@ -183,6 +184,7 @@ pub(super) fn page(
     for rule in &profile.rules {
         match &rule.check {
             Check::NoTrimBox => no_trim_box(rule, page, number, sink),
+            Check::TransparencyUsed => transparency_used(rule, view, page, number, sink),
             Check::ImageBelowPpi { min_ppi } => {
                 let decomposed = objects
                     .get_or_insert_with(|| vector::decompose_page(view, page, Matrix::IDENTITY));
@@ -210,6 +212,49 @@ pub(super) fn page(
             check if uses_walk(check) => colour(rule, &events, number, sink),
             _ => {}
         }
+    }
+}
+
+/// One finding per place [`crate::transparency::scan_page`] reports,
+/// pointing at the annotation, graphics state or image that carries it.
+fn transparency_used(
+    rule: &ProfileRule,
+    view: &DocumentView<'_>,
+    page: &Page,
+    number: usize,
+    sink: &mut Sink,
+) {
+    use crate::transparency::{TransparencyHolder as H, TransparencyKind as K};
+    let found = crate::transparency::scan_page(view.graph(), page);
+    if found.too_deep > 0 {
+        sink.push(incomplete(
+            rule,
+            Some(number),
+            "resources nested deeper than the scan follows were not checked",
+        ));
+    }
+    for site in found.sites {
+        let what = match &site.kind {
+            K::StrokeAlpha(a) => format!("stroke alpha {a}"),
+            K::FillAlpha(a) => format!("fill alpha {a}"),
+            K::BlendMode(n) => format!("blend mode {}", String::from_utf8_lossy(n)),
+            K::SoftMask => "a soft mask".to_owned(),
+            K::Group => "a transparency group".to_owned(),
+            K::ImageSoftMask | K::ImageSoftMaskInData => "an image soft mask".to_owned(),
+        };
+        let (target, holder) = match site.holder {
+            H::Annotation(id) => (FindingTarget::Annotation(id), "An annotation"),
+            H::GraphicsState(Some(id)) => (FindingTarget::GraphicsState(id), "A graphics state"),
+            H::Image(id) => (FindingTarget::Image(id), "An image"),
+            H::Form(_) => (FindingTarget::Page, "A form XObject"),
+            _ => (FindingTarget::Page, "The page"),
+        };
+        let name = site
+            .resource_name
+            .map(|n| format!(" (/{})", String::from_utf8_lossy(&n)))
+            .unwrap_or_default();
+        let message = format!("{holder}{name} uses {what}.");
+        sink.push(finding(rule, Some(number), target, message));
     }
 }
 

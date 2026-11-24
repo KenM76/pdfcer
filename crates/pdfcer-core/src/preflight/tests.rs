@@ -4,14 +4,7 @@ use std::sync::atomic::AtomicBool;
 
 use super::*;
 use crate::document::Document;
-use crate::pageops::tests_support::build_pdf;
-
-fn stream(dict: &str, data: &str) -> String {
-    format!(
-        "<< {dict} /Length {} >>\nstream\n{data}\nendstream",
-        data.len()
-    )
-}
+use crate::pageops::tests_support::{build_pdf, stream};
 
 /// One page drawing `content` with `resources`; extra objects from 5.
 fn one_page(page_extra: &str, resources: &str, content: &str, extra: &[(u32, String)]) -> Document {

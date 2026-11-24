@@ -118,6 +118,7 @@ mod bitmap;
 mod gradient;
 mod painted;
 mod patch;
+mod pdf_flatten;
 mod plates;
 mod print;
 mod text;
@@ -126,6 +127,7 @@ mod vector_census;
 mod vector_geom;
 pub use gradient::EmfShadings;
 pub use patch::EmfPatches;
+pub use pdf_flatten::RecordingFlattener;
 pub use plates::{
     EmfPlate, EmfPlateOutcome, EmfPlates, PlateMetafileError, PlatePatches, PlateRaster,
     export_emf_plates, export_emf_plates_strict, export_emf_plates_view,

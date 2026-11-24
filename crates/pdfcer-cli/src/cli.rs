@@ -11927,6 +11927,44 @@ pub(crate) enum Command {
         #[arg(long)]
         verify_undo: bool,
     },
+    /// Composite page transparency into opaque content.
+    ///
+    /// Constant alpha, blend modes, soft masks and transparency groups on
+    /// the chosen pages are flattened: where flat colours composite, the
+    /// result is drawn as opaque vector regions; what cannot be computed
+    /// that way (images, shadings, unresolved groups) is rasterised at
+    /// `--ppi`. Text and strokes outside the flattened area stay as they
+    /// are. Pages whose content uses no transparency are left untouched,
+    /// and so are annotations (each one left is counted).
+    ///
+    /// Prints one line per page, one per rasterised area with its reason,
+    /// and a `note:` line for everything inferred: what was rasterised,
+    /// text outlined, spot inks redrawn in process colour.
+    FlattenTransparency {
+        /// Input PDF.
+        input: PathBuf,
+        /// Pages: `all`, or a list such as `1,3-5`.
+        #[arg(long, default_value = "all")]
+        pages: String,
+        /// Redraw each whole page, every text run as outlines.
+        #[arg(long)]
+        outline_text: bool,
+        /// Draw redrawn strokes as filled outlines.
+        #[arg(long)]
+        outline_strokes: bool,
+        /// Raster resolution, 36 to 2400.
+        #[arg(long, default_value_t = 300.0)]
+        ppi: f64,
+        /// Output path.
+        #[arg(short, long)]
+        output: PathBuf,
+        /// Save mode.
+        #[arg(long, value_enum, default_value_t = SaveMode::Incremental)]
+        mode: SaveMode,
+        /// Reload and verify the edit undoes byte-identically.
+        #[arg(long)]
+        verify_undo: bool,
+    },
     /// Convert lengths to and from a ce dimension group's scale on one page.
     ///
     /// `--typed` reads a length as it would be typed into a box showing the

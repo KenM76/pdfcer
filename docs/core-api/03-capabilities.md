@@ -6703,7 +6703,7 @@ Fixups are separate verbs on the edit session; nothing here writes.
 | `Profile::builtin(name) -> Option<Profile>` / `Profile::BUILTIN_NAMES` | built-ins by name; today `digital-printing` (`Profile::digital_printing()`) |
 | `Profile::from_json(&[u8]) -> Result<Profile, ProfileError>` / `Profile::to_json() -> String` | the saved form of an edited profile; check names and parameters are tabled on `from_json` |
 | `Profile { name, description, rules: Vec<ProfileRule> }`, `ProfileRule { id, check: Check, severity: Severity }` | rules run in order; ids are unique |
-| `Check` | `ImageBelowPpi { min_ppi }`, `FontNotEmbedded`, `NoOutputIntent`, `NoTrimBox`, `ColourSpaceUsed { families: Vec<ColourFamily> }`, `SpotNotAllowed { allowed: Vec<String> }`, `OverprintUsed`, `StrokeBelow { min_width_pt }` (JSON `stroke-below`, Pass 748.2), `Encrypted`, `VersionAbove { max: PdfVersion }` |
+| `Check` | `ImageBelowPpi { min_ppi }`, `FontNotEmbedded`, `NoOutputIntent`, `NoTrimBox`, `ColourSpaceUsed { families: Vec<ColourFamily> }`, `SpotNotAllowed { allowed: Vec<String> }`, `OverprintUsed`, `StrokeBelow { min_width_pt }` (JSON `stroke-below`, Pass 748.2), `TransparencyUsed` (`Pass 748.1`, §19), `Encrypted`, `VersionAbove { max: PdfVersion }` |
 | `PreflightReport { findings, dropped, pages_checked, page_count, cancelled }` | `fails()` = an `Error` finding or `dropped > 0`; `is_clean()`; `needs_person()` |
 | `Finding { rule_id, severity, kind, page: Option<usize>, target, rect: Option<Rect>, message, measured: Option<Measure> }` | `page` 1-based, `None` for document-level; `Measure { value, limit, unit: MeasureUnit }` for measuring checks |
 | `preflight::hairlines(&DocumentView, &Page, min_width_pt) -> Result<Vec<Hairline>, ContentError>` | every stroke printing below `min_width_pt` on its thinnest axis, or of width 0; `Hairline { target, line_width, axis_scale, width_pt, zero_width, rect }`, `width_for(min)` the user-space width that prints `min` |
@@ -6784,3 +6784,35 @@ Contract:
   Type 3 glyph procedures and soft masks are not entered.
 
 ⚠️ `InkUse`, `InkRefusal` and `InkEditReport` are `#[non_exhaustive]`.
+
+## 19. Transparency — where it is used, and flattening it (`Pass 748.1`)
+
+`pdfcer_core::transparency`. The scan is read-only; flattening is an edit
+verb (`02-editing-and-saving.md`). ISO 32000-2 §11.
+
+| Call | Returns |
+|---|---|
+| `has_transparency(&DocumentView, page: usize) -> Result<TransparencyUse, TransparencyScanError>` | every place page `page` (0-based) uses transparency; `PageOutOfRange { index, count }`, `PageTree` |
+| `TransparencyUse { sites: Vec<TransparencySite>, too_deep: usize }` | `is_empty()`; `in_page_content()` (any site not under an annotation); `annotations()` (the annotations with a site, in order) |
+| `TransparencySite { kind, holder, resource_name: Option<Vec<u8>> }` | `resource_name` is the `/ExtGState` or `/XObject` key it was reached by |
+| `TransparencyKind` | `StrokeAlpha(f64)` (`/CA` < 1), `FillAlpha(f64)` (`/ca` < 1), `BlendMode(Vec<u8>)` (first `/BM` entry not `Normal`/`Compatible`), `SoftMask` (`/SMask` not `/None`), `Group` (a `/Group` with `/S /Transparency`), `ImageSoftMask`, `ImageSoftMaskInData` (non-zero) |
+| `TransparencyHolder` | `Page` (its `/Group`), `GraphicsState(Option<ObjId>)` (`None` = direct), `Form(ObjId)`, `Image(ObjId)`, `Annotation(ObjId)` (the annotation's own `/CA`/`/ca`/`/BM`, and everything in its `/AP /N` streams) |
+| `MAX_DEPTH` (32) | form / pattern nesting the scan follows; deeper is counted in `too_deep`, never guessed |
+
+Contract:
+
+- **Walks resources, not content.** `/ExtGState`, `/XObject`, `/Pattern`
+  (a shading pattern's `/ExtGState`, a tiling pattern's resources) and Type 3
+  fonts' resources, recursively, each object once. A transparent state that
+  is declared but never set by `gs` is still reported: this answers "could
+  this page composite", the question print preflight asks.
+- **Annotations are attributed to themselves.** A site inside an
+  annotation's appearance has `holder = Annotation(id)`, so a shell can tell
+  page content from markup.
+- **Preflight** `Check::TransparencyUsed` (JSON `transparency-used`): one
+  finding per site, `FindingTarget::GraphicsState` / `Image` / `Annotation`
+  / `Page`; `too_deep > 0` is an `Incomplete` finding. Not in the
+  `digital-printing` built-in.
+
+⚠️ `TransparencyKind`, `TransparencyHolder`, `TransparencySite`,
+`TransparencyUse` and `TransparencyScanError` are `#[non_exhaustive]`.

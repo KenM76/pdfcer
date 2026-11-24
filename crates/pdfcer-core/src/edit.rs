@@ -125,6 +125,7 @@
 mod annot_burn;
 mod annot_restyle;
 mod bake_appearances;
+mod flatten_transparency;
 mod text_capability;
 pub use bake_appearances::{BakeAppearancesOutcome, BakedAppearance, SkippedAppearance};
 mod batch;
@@ -903,6 +904,12 @@ pub enum CommandKind {
     FlattenAnnotations {
         /// How many annotations were flattened.
         count: usize,
+    },
+    /// Transparency was flattened on pages
+    /// ([`EditSession::flatten_transparency`]). One undo entry.
+    FlattenTransparency {
+        /// How many pages were rewritten.
+        pages: usize,
     },
     /// One `/Redact` **mark** was removed from a page before it was ever
     /// applied (Pass 8.1 review surface, R52).
@@ -9387,6 +9394,26 @@ pub enum EditError {
         id: ObjId,
         /// Why it is refused.
         reason: AnnotFlattenRefusalReason,
+    },
+    /// [`EditSession::flatten_transparency`] was given a raster resolution
+    /// outside the accepted range, or not a number.
+    #[error("raster resolution {ppi} ppi is outside {min}..={max}")]
+    FlattenPpiOutOfRange {
+        /// The resolution asked for.
+        ppi: f64,
+        /// The lowest accepted.
+        min: f64,
+        /// The highest accepted.
+        max: f64,
+    },
+    /// [`EditSession::flatten_transparency`] could not flatten a page;
+    /// nothing was written.
+    #[error("page {} could not be flattened: {reason}", page + 1)]
+    TransparencyFlattenFailed {
+        /// The 0-based page.
+        page: usize,
+        /// What went wrong.
+        reason: String,
     },
     /// [`EditSession::delete_annotation`] was given a `/Widget`.
     ///

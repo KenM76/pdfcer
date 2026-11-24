@@ -800,6 +800,14 @@ pub(crate) mod tests_support {
         Document::from_bytes(build_pdf_bytes(objects)).expect("fixture must load")
     }
 
+    /// A stream object's body: `dict` plus `/Length`, then `data`.
+    pub fn stream(dict: &str, data: &str) -> String {
+        format!(
+            "<< {dict} /Length {} >>\nstream\n{data}\nendstream",
+            data.len()
+        )
+    }
+
     /// As [`build_pdf`], but returning the raw bytes.
     pub fn build_pdf_bytes(objects: &[(u32, &str)]) -> Vec<u8> {
         let mut buf = b"%PDF-1.7\n%\xE2\xE3\xCF\xD3\n".to_vec();

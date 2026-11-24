@@ -130,6 +130,7 @@ pub mod svg_import;
 pub mod table_detect;
 pub mod text_edit;
 pub mod threed;
+pub mod transparency;
 mod tst_info;
 pub mod vector;
 pub mod widget_draw;

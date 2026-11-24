@@ -15,6 +15,7 @@ mod export_emf_shading_bands;
 mod export_emf_spot;
 mod export_emf_vector;
 mod external_tools;
+mod flatten_transparency;
 mod iccbased_cmyk_lut_source;
 mod minimal_pdf;
 mod spot_overprint_routes;

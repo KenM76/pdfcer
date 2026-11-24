@@ -273,6 +273,7 @@ kind_codec! {
     BakeAppearances { count: usize },
     FlattenFields { count: usize },
     FlattenAnnotations { count: usize },
+    FlattenTransparency { pages: usize },
     DeleteRedactionMark,
     DeleteAnnotation,
     EditText,

@@ -63,6 +63,7 @@ mod fill_rich_text;
 mod find_text;
 mod fix_hairlines;
 mod flatten_annotations;
+mod flatten_transparency;
 mod font_licence_notice;
 mod font_preflight;
 mod format_decoration_flags;
