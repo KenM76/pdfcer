@@ -6675,6 +6675,8 @@ Read-only; no edit session. `pdfcer_core::prepress` (CLI: `pdfcer inspect`).
 | `PdfxClaim.output_intents: Vec<String>` | `/OutputConditionIdentifier` of each `/S /GTS_PDFX` output intent |
 | `PdfxClaim::carriers_agree() / is_recognised() / has_output_intent() -> bool` | XMP and Info do not disagree; `level` is a registered value; a `/GTS_PDFX` intent exists |
 | `prepress::pdfx_output_intents(&DocumentView) -> Vec<String>` | the same `/GTS_PDFX` intent list, with or without a claim; for a shell that counts an intent alone as PDF/X |
+| `prepress::output_intent(&DocumentView) -> Option<DocumentOutputIntent>` (`Pass 757.0`) | the output intent pdfcer uses: the first `/OutputIntents` entry whose `/DestOutputProfile` is a stream with an integer `/N` that decodes (`/S` not consulted); `None` when there is none. The renderer's blending space, soft proofing and `ColourDestination::OutputIntent` read this same choice |
+| `DocumentOutputIntent { profile: Arc<[u8]>, components: i64, subtype, condition_identifier, condition, registry_name, info: Option<String> }` | the decoded profile bytes, its `/N`, `/S`, `/OutputConditionIdentifier`, `/OutputCondition`, `/RegistryName` and `/Info` (ISO 32000-2 §14.11.5, Table 365); `#[non_exhaustive]` |
 
 Contract:
 
@@ -6998,6 +7000,7 @@ composes parts 18, 19, 22 and 21 and adds the claim.
 | Call | Returns |
 |---|---|
 | `PdfxOutputIntent::new(profile: Vec<u8>)`, `with_condition`, `with_registry_name`, `with_info` | the printing condition; `None` entries keep what the embedded intent says (the profile's description) |
+| `PdfxOutputIntent::from_document(&DocumentView) -> Option<PdfxOutputIntent>` | the document's own intent (`prepress::output_intent`) as the destination: its profile, `/OutputConditionIdentifier`, `/RegistryName` and `/Info`; `None` when it has no usable intent |
 | `PdfxConversion::new(PdfxOutputIntent)` | `title: None`, `at: None` (unix seconds; core never reads the clock), `trapped: None`, `spot_to_process: None`, `FlattenOptions::default()`, relative colorimetric, `infer_trim_boxes: true`, `require_conforms: false`, `keep_partial: false`; a `with_` setter per field |
 | `PdfxConversionReport { level, before, after, claimed, kept_partial, flatten, spot_to_process, colours, trim_boxes, steps, disclosures, validation: PdfxReport }` | `before`/`after` are `PdfxVerdict`s; `validation` is the converted document with the claim written: on a refusal, what remains |
 

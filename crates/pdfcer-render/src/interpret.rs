@@ -141,7 +141,6 @@ use pdfcer_core::content::{
 };
 // decision 018: read paths take a `DocumentView` (graph + byte source), so
 // the same code renders a loaded file or an editing session's unsaved state.
-use pdfcer_core::filters;
 use pdfcer_core::graph::ObjectGraph;
 use pdfcer_core::object::{Dict, ObjId, Object, Stream};
 use pdfcer_core::span::ByteSpan;
@@ -2380,39 +2379,12 @@ fn image_source_is_iccbased(doc: &DocumentView<'_>, dict: &Dict, resources: &Dic
 }
 
 /// The output intent the renderer uses: its component count and its decoded
-/// destination profile (§14.11.5, Table 365).
-///
-/// # Which intent, when there are several
-///
-/// ISO 32000 gives no selector (`OI-A1` in the spec corpus: the choice is
-/// "a matter for agreement" out of band). pdfcer takes the first entry whose
-/// `/DestOutputProfile` is a stream with an integer `/N` (Table 66) that
-/// DECODES, so a broken intent listed ahead of a good one does not switch
-/// colour management off. Both consumers — [`output_intent_blend_space`] and
-/// [`output_intent_profile`] — read this one choice, so the page's blending
-/// space and the profile paints convert toward always come from the same
-/// intent.
-///
-/// An intent naming a registered condition with no profile is skipped:
-/// resolving the name needs a registry pdfcer does not ship and the engine
-/// must not fetch (`ARCHITECTURE.md` §1.1).
+/// destination profile. The choice among several intents is
+/// [`pdfcer_core::prepress::output_intent`]'s, shared with colour conversion,
+/// so the page's blending space, the profile paints convert toward and the
+/// engine's `ColourDestination::OutputIntent` all come from the same intent.
 fn chosen_output_intent(doc: &DocumentView<'_>) -> Option<(i64, std::sync::Arc<[u8]>)> {
-    let catalog = doc
-        .catalog_id()
-        .and_then(|id| doc.value(id))
-        .and_then(Object::as_dict)?;
-    let entry = catalog.get(b"OutputIntents")?;
-    let items = doc.resolve(entry).as_array().map(<[Object]>::to_vec)?;
-    items.iter().find_map(|item| {
-        let intent = doc.resolve(item).as_dict()?.clone();
-        let Object::Stream(st) = doc.resolve(intent.get(b"DestOutputProfile")?) else {
-            return None;
-        };
-        let n = st.dict.get(b"N").map(|o| doc.resolve(o))?.as_int()?;
-        let raw = doc.slice(st.data_span)?;
-        let profile = filters::decode_stream(&st.dict, raw).ok()?;
-        Some((n, std::sync::Arc::from(profile)))
-    })
+    pdfcer_core::prepress::output_intent(doc).map(|i| (i.components, i.profile))
 }
 
 /// The chosen output intent's decoded destination profile

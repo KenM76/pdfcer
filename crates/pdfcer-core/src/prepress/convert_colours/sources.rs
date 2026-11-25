@@ -409,22 +409,8 @@ fn cal_gray(view: &DocumentView<'_>, d: &Dict) -> Source {
     }
 }
 
-/// The first `/OutputIntents` entry's `/DestOutputProfile` bytes that
-/// decode (ISO 32000-2 §14.11.5, Table 365).
+/// The document's chosen output intent's decoded profile
+/// ([`crate::prepress::output_intent`]), the one the renderer also uses.
 pub(crate) fn output_intent_profile(view: &DocumentView<'_>) -> Option<Vec<u8>> {
-    let catalog = view
-        .trailer_entry(b"Root")
-        .map(|o| view.resolve(o))
-        .and_then(Object::as_dict)?;
-    let intents = catalog
-        .get(b"OutputIntents")
-        .and_then(|o| view.resolve(o).as_array())?;
-    intents.iter().find_map(|i| {
-        let d = view.resolve(i).as_dict()?;
-        let Object::Stream(s) = view.resolve(d.get(b"DestOutputProfile")?) else {
-            return None;
-        };
-        view.slice(s.data_span)
-            .and_then(|raw| crate::filters::decode_stream(&s.dict, raw).ok())
-    })
+    crate::prepress::output_intent(view).map(|i| i.profile.to_vec())
 }

@@ -198,6 +198,7 @@ mod outline_clipboard;
 mod outline_edit;
 mod outline_launch_targets;
 mod outline_move;
+mod output_intent;
 mod page_bbox_skips_clips;
 mod page_clipboard;
 mod page_labels_set;
