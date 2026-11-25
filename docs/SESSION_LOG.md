@@ -4,6 +4,19 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-11-25 (1707th filing) — `Pass 773.0` SHIPPED (image `/StructParent`, `X117`)
+
+**Filed (engineer-reported; no shell here, git, push, CI and the gates not checked from here; operator commits):**
+- `Pass 773.0` `58f8dc86` (`X117`): an image XObject with `/StructParent` is a structure content item (ISO 32000-1 section 14.7.4.3, Table 89), as a form is. The artifact planner (`preflight/pdfua/artifact.rs`), `FormCensus::walk` and the PDF/UA tagged-content check (`preflight/pdfua/content.rs`, PUI-01-005) all honoured the key on forms only; each now checks it before the subtype split. No public change. On `main` after the `v0.174.0` tag; next release `v0.175.0`. Never filed as Planned; filed here as Shipped.
+- `937566fe` `docs(readme)`: README now says 273 working subcommands (`dimension-circle` from `766.0`, `dimension-centre-mark` from `767.0`). Chore commit between filings; filed here.
+- `FEATURES.md`: a `773.0` clause on the PDF/UA fixup (artifact) row and the PDF/UA validation row. `ROADMAP.md`: Shipped entry. `NEXT_SESSION.md`: one line.
+
+**Tests (engineer-reported, merged main):** core lib 2567, integration 3492, doctests 320, all green; fmt, clippy `-D warnings` and code-structure clean; two new tests fail with the fix removed.
+
+**Decisions made:** none.
+
+**Next:** the worker's `769.0`-`772.0`; release `v0.175.0` writes OneDrive `pdfcer2`.
+
 ## 2026-11-25 (1706th filing) — `Pass 765.0`-`768.0` SHIPPED (ce dimensions)
 
 **Filed (engineer-reported; no shell here, git, push, CI and the gates not checked from here; operator commits):**

@@ -112,6 +112,16 @@ wherever it appears.*
 
 ## Shipped
 
+### `Pass 773.0`: an image with `/StructParent` is structure content (`X117`); `58f8dc86`, 2026-11-25 (1707th filing)
+
+Engineer-reported; no shell here, git, push, CI and the gates not run or checked from here. Never filed as Planned: the request arrived and shipped in one round, and this filing is its only filing. **Unreleased: on `main` after the `v0.174.0` tag; shipped in the next release, `v0.175.0`.** Reasoning is in the commit message.
+- **`773.0` `58f8dc86` (`X117`, operator request from the crates consumer):** an image XObject with `/StructParent` is a structure content item (ISO 32000-1 section 14.7.4.3, Table 89), as a form is. Three XObject classifiers honoured the key on forms only; each now checks `/StructParent` before the subtype split. (1) The untagged-as-artifact page planner (`preflight/pdfua/artifact.rs`) wrapped such an image in `/Artifact`. (2) `FormCensus::walk` counted it untagged. (3) The PDF/UA tagged-content check (`preflight/pdfua/content.rs`, PUI-01-005) counted it untagged. No public change. core (fix to existing behaviour; cli and gui unchanged).
+- **Tests:** `artifacts_never_wrap_an_image_that_has_a_struct_parent`, `an_image_with_a_struct_parent_is_not_untagged_content`; both fail with the fix removed (sabotage-checked, engineer-reported).
+- **Tests (merged main, engineer-reported, all green):** core lib 2567, integration 3492, doctests 320. `cargo fmt` and `clippy -D warnings` clean; code-structure gate clean.
+- **Invariants:** no manifest change, so `cargo tree` is unchanged (rule 2 unaffected).
+- **Channel:** request `open/request_X117_struct_parent_images.md`; reply `open/reply_X117_struct_parent_images_SHIPPED.md`, both under `D:\Dev\FeatureRequests\pdfce_FeatureRequests\`.
+- **FEATURES:** clauses on the PDF/UA fixup (artifact) row and the PDF/UA validation row; no new row.
+
 ### `Pass 765.0`-`768.0`: ce dimension circle snap targets (`G328`), circle as its own part (`G329`), set a centre mark (`G330`), move a centre line's ends (`G335`); `4bc1908a`, `a2869ef4`, `aa5e03db`, `986f03fb`, 2026-11-25 (1706th filing)
 
 Engineer-reported; no shell here, git, push, CI and the gates not run or checked from here. Filed Planned/in progress at the 1705th. **Unreleased: on `main` after the `v0.174.0` tag; shipped in the next release, `v0.175.0`.** Reasoning is in each commit message. All four are ce dimensions (pdfcer-authored).
