@@ -4,6 +4,22 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-11-25 (1706th filing) — `Pass 765.0`-`768.0` SHIPPED (ce dimensions)
+
+**Filed (engineer-reported; no shell here, git, push, CI and the gates not checked from here; operator commits):**
+- `Pass 765.0` `4bc1908a` (`G328`): `SnapKind::RimNearest`/`Quadrant`/`Tangent` on ce dimension circles and a centre mark's fitted circle; `SnapConfig::from`/`with_from`, `SnapCandidate::ce_dimension`, `SnapGeometry::dimension()`. Breaking. cli `—` (snapping is interactive).
+- `Pass 766.0` `a2869ef4` (`G329`): `set_circular_circle_shown`, `Circular::show_circle`, `PartStroke` as `circle` on four style tiers, sidecar version 7; cli `dimension-circle`, `--circle-dash/-width/-color`.
+- `Pass 767.0` `aa5e03db` (`G330`): `set_centre_mark`, `centre_mark_host`, `CommandKind::SetCentreMark`, `CentreMarkRequired`, `NotACentreMarkHost`; non-finite centre-mark angle refused everywhere; cli `dimension-centre-mark`.
+- `Pass 768.0` `986f03fb` (`G335`): `move_dimension_vertex`/`vertex_edit_preview` accept a centre line's two ends; insert/remove and coincident ends refused; `vertex_edited_kind` moved, baseline entry deleted. `extend_centre_line` deliberately not added.
+- `0119b0dc`: core-api recount (454 verbs, 214 `EditError` variants, 264 clauses), merge conflict marker removed. All on `main` after the `v0.174.0` tag; next release `v0.175.0`. Channel SHIPPED replies for `G328`, `G329`, `G330`, `G335`.
+- `FEATURES.md`: four Implemented rows under *ce dimensions* (core `[x]`, gui `[ ]`), the four Planned rows removed; `769.0`-`772.0` rows now say in progress. `ROADMAP.md`: Shipped entry; Next up banner keeps `769.0`-`772.0`, in progress.
+
+**Tests (engineer-reported, merged main):** core lib 2565, integration 3492, doctests 320; CLI binary 134, CLI integration 1176; all green; fmt and clippy `-D warnings` clean; `check-core-api-verbs` PASS; no manifest change.
+
+**Decisions made:** none new; decision 225 applied.
+
+**Next:** a worker implements `772.0`, `771.0`, `769.0`, `770.0`, in that order; release `v0.175.0` writes OneDrive `pdfcer2`.
+
 ## 2026-11-25 (1705th filing) — `v0.174.0` PUBLISHED; `Pass 763.0`, `764.0` shipped; `Pass 765.0`-`772.0` filed
 
 **Filed (engineer-reported; no shell here, git, push, CI and the gates not checked from here; operator commits):**
