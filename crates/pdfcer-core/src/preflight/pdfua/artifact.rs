@@ -45,6 +45,9 @@ pub(crate) struct ArtifactPlan {
     /// Forms holding tagged content beside untagged content; a wrap cannot
     /// reach inside them, so their untagged content is left.
     pub(crate) mixed_forms: Vec<ObjId>,
+    /// Forms whose content, or a form they draw, could not be read in
+    /// full; never wrapped, so untagged content may remain inside them.
+    pub(crate) unread_forms: Vec<ObjId>,
 }
 
 /// Every `(page, MCID)` the structure tree claims, or `None` when the
@@ -256,6 +259,12 @@ impl Reader<'_, '_, '_> {
             Some(b"Form") => {
                 let mut census = FormCensus::default();
                 census.walk(self.view, id, self.resources, 0, &mut Vec::new());
+                if census.unread {
+                    if !self.plan.unread_forms.contains(&id) {
+                        self.plan.unread_forms.push(id);
+                    }
+                    return Leaf::Barrier;
+                }
                 if !census.tagged {
                     return if census.untagged > 0 {
                         Leaf::Item
@@ -378,6 +387,9 @@ struct FormCensus {
     tagged: bool,
     /// Items neither inside an `/MCID` sequence nor an artifact.
     untagged: usize,
+    /// Its content, or a form it draws, could not be read in full (past
+    /// the depth cap, or malformed): never wrap what cannot be seen.
+    unread: bool,
 }
 
 impl FormCensus {
@@ -394,8 +406,7 @@ impl FormCensus {
             return;
         }
         if depth >= MAX_DEPTH {
-            // Too deep to read: never wrap what cannot be seen.
-            self.tagged = true;
+            self.unread = true;
             return;
         }
         let Some(Object::Stream(s)) = view.graph().value(id) else {
@@ -409,8 +420,7 @@ impl FormCensus {
             .cloned();
         let resources = own.as_ref().unwrap_or(outer);
         let Ok(stream) = ContentStream::from_form(view, id) else {
-            // Unreadable: never wrap what cannot be seen.
-            self.tagged = true;
+            self.unread = true;
             return;
         };
         active.push(id);
@@ -466,6 +476,7 @@ impl FormCensus {
                 let mut inner = Self::default();
                 inner.walk(view, id, resources, depth + 1, active);
                 self.tagged |= inner.tagged;
+                self.unread |= inner.unread;
             }
             _ => {}
         }

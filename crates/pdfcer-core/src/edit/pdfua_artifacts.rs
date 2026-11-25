@@ -127,6 +127,12 @@ impl EditSession {
                  untagged content was left, since a wrap around the form would enclose its tags."
             ));
         }
+        if !plan.unread_forms.is_empty() {
+            report.disclosures.push(format!(
+                "Page {n}: left {} form XObject(s) that could not be read in full; untagged                  content may remain inside them.",
+                plan.unread_forms.len()
+            ));
+        }
         if plan.sequences == 0 {
             return Ok(());
         }

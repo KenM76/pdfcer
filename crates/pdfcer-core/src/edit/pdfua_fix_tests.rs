@@ -393,6 +393,13 @@ fn artifacts_never_wrap_a_form_chain_too_deep_to_read() {
     let mut s = session("/F Do", &over);
     let report = s.mark_untagged_as_artifacts(&[]).unwrap();
     assert_eq!(report.sequences, 0, "{report:?}");
+    assert!(
+        report
+            .disclosures
+            .iter()
+            .any(|d| d.contains("read in full")),
+        "{report:?}"
+    );
     let d = saved(&s);
     let text = page_content(&d);
     assert!(!text.contains("/Artifact"), "{text}");
@@ -434,6 +441,31 @@ fn artifacts_never_wrap_an_image_that_has_a_struct_parent() {
         assert_eq!(report.sequences, 1, "{content}: {report:?}");
         assert!(page_content(&saved(&s)).contains("/Artifact"), "{content}");
     }
+}
+
+/// A form the census cannot read is left alone and disclosed; a readable
+/// form of untagged content is wrapped with no such note.
+#[test]
+fn artifacts_disclose_a_form_they_could_not_read() {
+    let page = "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792]                 /Resources << /XObject << /F 10 0 R >> >> /Contents 4 0 R /StructParents 0 >>";
+    let content = format!("{TAGGED} /F Do");
+    let form = |body: &str| stream("/Type /XObject /Subtype /Form /BBox [0 0 10 10]", body);
+    let unread = |r: &crate::edit::ArtifactMarkReport| {
+        r.disclosures.iter().any(|d| d.contains("read in full"))
+    };
+    let over = [
+        (3, page.to_owned()),
+        (10, form("0 0 1 1 re f (unterminated")),
+    ];
+    let mut s = session(&content, &over);
+    let report = s.mark_untagged_as_artifacts(&[]).unwrap();
+    assert_eq!(report.sequences, 0, "{report:?}");
+    assert!(unread(&report), "{report:?}");
+    let over = [(3, page.to_owned()), (10, form("0 0 1 1 re f"))];
+    let mut s = session(&content, &over);
+    let report = s.mark_untagged_as_artifacts(&[]).unwrap();
+    assert_eq!(report.sequences, 1, "{report:?}");
+    assert!(!unread(&report), "{report:?}");
 }
 
 #[test]
