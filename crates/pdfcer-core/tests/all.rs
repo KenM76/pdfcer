@@ -38,6 +38,7 @@ mod button_redraw_honesty;
 mod button_rotation_bakes;
 mod caret_annotation;
 mod ce_dimension_centre_line_ends;
+mod ce_dimension_centre_mark_reach;
 mod ce_dimension_centre_stroke;
 mod ce_dimension_circle_stroke;
 mod ce_dimension_rim_snap;

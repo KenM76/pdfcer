@@ -284,11 +284,16 @@ fn dot(p: Point, q: Point) -> f64 {
     p.x.mul_add(q.x, p.y * q.y)
 }
 
-/// The stroked segments of a centre mark on `fit`, arm length `arm`: the two
-/// cross arms, then (with `extension_lines`, and only where the rim lies
-/// beyond the gap) four extension lines.
+/// The stroked segments of a centre mark on `fit` under `style`: the two
+/// cross arms, then (with `extension_lines`, and only where the rim plus
+/// the extension lies beyond the arm plus the gap) four extension lines.
 #[must_use]
-pub(crate) fn mark_segments(fit: FitCircle, spec: CentreMarkSpec, arm: f64) -> Vec<(Point, Point)> {
+pub(crate) fn mark_segments(
+    fit: FitCircle,
+    spec: CentreMarkSpec,
+    style: DimensionStyle,
+) -> Vec<(Point, Point)> {
+    let arm = style.centre_mark_arm();
     let c = fit.center;
     let ray = |deg: f64, r: f64| {
         let (s, co) = deg.to_radians().sin_cos();
@@ -298,7 +303,10 @@ pub(crate) fn mark_segments(fit: FitCircle, spec: CentreMarkSpec, arm: f64) -> V
         (ray(spec.angle, arm), ray(spec.angle + 180.0, arm)),
         (ray(spec.angle + 90.0, arm), ray(spec.angle + 270.0, arm)),
     ];
-    let (from, to) = (2.0 * arm, fit.radius + arm);
+    let (from, to) = (
+        arm + style.centre_mark_gap(),
+        fit.radius + style.centre_mark_extension(),
+    );
     if spec.extension_lines && to > from {
         for q in 0..4 {
             let deg = f64::from(q).mul_add(90.0, spec.angle);
@@ -367,12 +375,12 @@ impl DimensionKind {
     pub fn centre_snap_segments(&self, style: DimensionStyle) -> Vec<(Point, Point)> {
         match *self {
             Self::CentreLine { a, b } => vec![(a, b)],
-            Self::CentreMark { fit, mark } => mark_segments(fit, mark, style.centre_mark_arm()),
+            Self::CentreMark { fit, mark } => mark_segments(fit, mark, style),
             Self::Circular {
                 fit,
                 centre_mark: Some(mark),
                 ..
-            } => mark_segments(fit, mark, style.centre_mark_arm()),
+            } => mark_segments(fit, mark, style),
             _ => Vec::new(),
         }
     }

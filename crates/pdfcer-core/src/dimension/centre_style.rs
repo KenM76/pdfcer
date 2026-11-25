@@ -3,6 +3,7 @@
 //! and which style properties each kind of ce dimension reads.
 
 use super::author::DimensionStyle;
+use super::centre::CentreMarkSize;
 use super::dash::DimDash;
 use super::group::DimensionKind;
 use super::part_stroke::{PartStroke, ResolvedStroke};
@@ -18,6 +19,12 @@ use super::part_stroke::{PartStroke, ResolvedStroke};
 /// |---|---|---|
 /// | `line` (centre line) | the standard's long-short-long centre pattern ([`DimensionStyle::centre_line_dash`]) | the ce dimension's `line_width` / `color` |
 /// | `mark` (centre mark, standalone or on a radius/diameter) | solid | the ce dimension's `line_width` / `color` |
+///
+/// A centre mark's extension lines (request G333) start `mark_gap` past the
+/// arm's end and run `mark_extension` past the rim; both default to the arm
+/// length ([`DimensionStyle::centre_mark_arm`]). With `mark_line_font` on
+/// they are drawn in the centre line's dash, fitted per line, in the mark's
+/// width and colour; the cross arms keep the mark's own dash.
 ///
 /// The ce dimension's own `dash` is never read by centre geometry: a group
 /// that dashes its measurements does not turn its centre lines into hidden
@@ -41,6 +48,13 @@ pub struct CentreStyle {
     pub line: PartStroke,
     /// A centre mark's stroke (the cross and its extension lines).
     pub mark: PartStroke,
+    /// Space between a cross arm's end and the start of its extension line.
+    /// Unset, the arm length.
+    pub mark_gap: Option<CentreMarkSize>,
+    /// How far an extension line runs past the rim. Unset, the arm length.
+    pub mark_extension: Option<CentreMarkSize>,
+    /// Draw the extension lines in the centre-line dash. Unset, off.
+    pub mark_line_font: Option<bool>,
 }
 
 impl CentreStyle {
@@ -48,6 +62,9 @@ impl CentreStyle {
     pub const INHERIT: Self = Self {
         line: PartStroke::FOLLOW,
         mark: PartStroke::FOLLOW,
+        mark_gap: None,
+        mark_extension: None,
+        mark_line_font: None,
     };
 
     /// Builder: the centre line's stroke.
@@ -64,6 +81,27 @@ impl CentreStyle {
         self
     }
 
+    /// Builder: the gap between a cross arm and its extension line.
+    #[must_use]
+    pub const fn with_mark_gap(mut self, gap: Option<CentreMarkSize>) -> Self {
+        self.mark_gap = gap;
+        self
+    }
+
+    /// Builder: how far extension lines run past the rim.
+    #[must_use]
+    pub const fn with_mark_extension(mut self, extension: Option<CentreMarkSize>) -> Self {
+        self.mark_extension = extension;
+        self
+    }
+
+    /// Builder: whether extension lines take the centre-line dash.
+    #[must_use]
+    pub const fn with_mark_line_font(mut self, on: Option<bool>) -> Self {
+        self.mark_line_font = on;
+        self
+    }
+
     /// Whether every field inherits.
     #[must_use]
     pub fn is_inherit(&self) -> bool {
@@ -73,7 +111,17 @@ impl CentreStyle {
     /// How many fields are set.
     #[must_use]
     pub fn count(&self) -> usize {
-        self.line.count() + self.mark.count()
+        self.line.count()
+            + self.mark.count()
+            + usize::from(self.mark_gap.is_some())
+            + usize::from(self.mark_extension.is_some())
+            + usize::from(self.mark_line_font.is_some())
+    }
+
+    /// Whether a gap, extension or line font is set: the fields sidecar
+    /// version 9 added.
+    pub(crate) const fn sets_mark_reach(&self) -> bool {
+        self.mark_gap.is_some() || self.mark_extension.is_some() || self.mark_line_font.is_some()
     }
 
     /// Per field, this tier's value, else `lower`'s.
@@ -82,6 +130,9 @@ impl CentreStyle {
         Self {
             line: self.line.or(lower.line),
             mark: self.mark.or(lower.mark),
+            mark_gap: self.mark_gap.or(lower.mark_gap),
+            mark_extension: self.mark_extension.or(lower.mark_extension),
+            mark_line_font: self.mark_line_font.or(lower.mark_line_font),
         }
     }
 }
@@ -114,6 +165,28 @@ impl DimensionStyle {
             self.line_width,
             self.color,
         ))
+    }
+
+    /// The gap between a cross arm's end and its extension line, in points.
+    #[must_use]
+    pub fn centre_mark_gap(&self) -> f64 {
+        self.centre
+            .mark_gap
+            .map_or_else(|| self.centre_mark_arm(), |g| g.arm(self.text_height))
+    }
+
+    /// How far an extension line runs past the rim, in points.
+    #[must_use]
+    pub fn centre_mark_extension(&self) -> f64 {
+        self.centre
+            .mark_extension
+            .map_or_else(|| self.centre_mark_arm(), |g| g.arm(self.text_height))
+    }
+
+    /// Whether extension lines are drawn in the centre-line dash.
+    #[must_use]
+    pub fn centre_mark_line_font(&self) -> bool {
+        self.centre.mark_line_font.unwrap_or(false)
     }
 }
 
@@ -184,6 +257,25 @@ impl DimensionKind {
         Some(fit_dash(style.centre_line_stroke().dash, length).1)
     }
 
+    /// Whether a centre mark's extension lines are drawn under `style`:
+    /// `Some(false)` when they are asked for but the gap leaves no room
+    /// before the rim plus the extension, the outcome a shell must state.
+    /// `None` when this kind carries no mark or its mark asks for none.
+    #[must_use]
+    pub fn centre_mark_extension_lines_drawn(&self, style: DimensionStyle) -> Option<bool> {
+        let (fit, mark) = match *self {
+            Self::CentreMark { fit, mark } => (fit, mark),
+            Self::Circular {
+                fit,
+                centre_mark: Some(mark),
+                ..
+            } => (fit, mark),
+            _ => return None,
+        };
+        mark.extension_lines
+            .then(|| super::centre::mark_segments(fit, mark, style).len() > 2)
+    }
+
     /// Whether this kind's drawing depends on the style property `name`,
     /// spelled as in [`super::StyleProvenance::each`]. A shell hides the
     /// override rows this returns `false` for, which change nothing on this
@@ -218,6 +310,9 @@ impl DimensionKind {
             "centre-mark-dash",
             "centre-mark-width",
             "centre-mark-color",
+            "centre-mark-gap",
+            "centre-mark-extension",
+            "centre-mark-line-font",
         ];
         const CIRCLE: &[&str] = &["circle-dash", "circle-width", "circle-color"];
         const LINE: &[&str] = &[

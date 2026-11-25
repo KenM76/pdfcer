@@ -114,7 +114,15 @@ use crate::annot_author::Color;
 ///   centre-mark strokes (pdfcer-gui request G334). An older build drops it
 ///   and re-bakes centre geometry in the factory strokes. Emitted per
 ///   document, only when some centre style is set.
-pub const SIDECAR_VERSION: i64 = 8;
+/// - **9** — `/MarkGap`, `/MarkExtension` and `/MarkLineFont` in `/Centre`
+///   (pdfcer-gui request G333). An older build drops them and re-bakes the
+///   extension lines at the arm length, solid. Emitted per document, only
+///   when one is set.
+pub const SIDECAR_VERSION: i64 = 9;
+
+/// The schema version a document needs when a centre stroke is set but no
+/// centre-mark gap, extension or line font.
+const SIDECAR_VERSION_PRE_MARK_REACH: i64 = 8;
 
 /// The schema version a document needs when some circle is hidden or
 /// restyled but no centre style is set.
@@ -166,8 +174,15 @@ fn model_sidecar_version(model: &DimensionModel) -> i64 {
         });
     let centre_styles = model.groups().iter().any(|g| !g.style.centre.is_inherit())
         || dims.iter().any(|d| !d.style.centre.is_inherit());
-    if centre_styles {
+    let mark_reach = model
+        .groups()
+        .iter()
+        .any(|g| g.style.centre.sets_mark_reach())
+        || dims.iter().any(|d| d.style.centre.sets_mark_reach());
+    if mark_reach {
         SIDECAR_VERSION
+    } else if centre_styles {
+        SIDECAR_VERSION_PRE_MARK_REACH
     } else if part_strokes {
         SIDECAR_VERSION_PRE_CENTRE_STYLE
     } else if dims
@@ -1035,12 +1050,7 @@ fn put_style_keys(d: &mut Dict, k: StyleKeys) {
         d.insert(Name::from(b"Opacity"), Object::Real(v));
     }
     if let Some(size) = k.centre_mark_size {
-        let (kind, v): (&[u8], f64) = match size {
-            CentreMarkSize::TextHeight(v) => (b"text", v),
-            CentreMarkSize::Fixed(v) => (b"fixed", v),
-        };
-        d.insert(Name::from(b"MarkSizeKind"), Object::Name(Name::from(kind)));
-        d.insert(Name::from(b"MarkSize"), Object::Real(v));
+        super::sidecar_centre::put_mark_size(d, b"MarkSize", size);
     }
     if !k.circle.is_follow() {
         d.insert(Name::from(b"Circle"), put_part_stroke(k.circle));
@@ -1121,13 +1131,7 @@ fn read_style_keys(d: &Dict) -> StyleKeys {
             .get(b"Opacity")
             .and_then(Object::as_number)
             .filter(|v| super::dash::opacity_in_range(*v)),
-        centre_mark_size: positive_of(d.get(b"MarkSize")).and_then(|v| {
-            match name_of(d.get(b"MarkSizeKind")).as_deref() {
-                Some(b"text") => Some(CentreMarkSize::TextHeight(v)),
-                Some(b"fixed") => Some(CentreMarkSize::Fixed(v)),
-                _ => None,
-            }
-        }),
+        centre_mark_size: super::sidecar_centre::read_mark_size(d, b"MarkSize"),
         circle: read_part_stroke(d, b"Circle"),
         centre: super::sidecar_centre::read_centre(d),
     }
@@ -1241,7 +1245,7 @@ fn read_override_fraction(d: &Dict) -> Option<FractionMode> {
 /// The bound is [`MAX_PAGE_VALUE`] for the same reason the geometry guard uses
 /// it: a text height of 1e9 points is not a preference, and letting it reach
 /// the writer produces a `/Rect` that breaks every reader downstream.
-fn positive_of(obj: Option<&Object>) -> Option<f64> {
+pub(super) fn positive_of(obj: Option<&Object>) -> Option<f64> {
     let v = obj.and_then(Object::as_number)?;
     (v.is_finite() && v > 0.0 && v <= MAX_PAGE_VALUE).then_some(v)
 }
@@ -1752,7 +1756,7 @@ mod style_sidecar_tests {
         assert!(back.dimension(first).unwrap().style.circle.width.is_none());
         assert_eq!(
             sidecar_version(&serialize_model(&model)),
-            Some(SIDECAR_VERSION)
+            Some(SIDECAR_VERSION_PRE_MARK_REACH)
         );
     }
 

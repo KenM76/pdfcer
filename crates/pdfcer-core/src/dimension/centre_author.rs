@@ -129,10 +129,11 @@ pub(super) fn draw_mark(
     style: DimensionStyle,
     state: ResolvedStroke,
 ) -> Vec<(Point, Point)> {
-    let strokes = mark_segments(fit, mark, style.centre_mark_arm());
+    let strokes = mark_segments(fit, mark, style);
     let part = style.centre_mark_stroke();
     let reset_dash = part.dash != state.dash || (part.dash.is_solid() && !style.dash.is_solid());
-    let wrap = reset_dash || part.width != state.width || part.color != state.color;
+    let line_font = style.centre_mark_line_font() && strokes.len() > 2;
+    let wrap = reset_dash || line_font || part.width != state.width || part.color != state.color;
     if wrap {
         b.save_state();
         if part.color != state.color {
@@ -145,15 +146,37 @@ pub(super) fn draw_mark(
             b.set_dash(part.dash.pattern(), 0.0);
         }
     }
-    for &(p, q) in &strokes {
+    let (arms, extensions) = strokes.split_at(if line_font { 2 } else { strokes.len() });
+    for &(p, q) in arms {
         b.move_to(p.x, p.y);
         b.line_to(q.x, q.y);
         bounds.add(p);
         bounds.add(q);
     }
     b.paint(Paint::Stroke);
+    stroke_in_line_font(b, bounds, extensions, style);
     if wrap {
         b.restore_state();
     }
     strokes
+}
+
+/// Stroke each extension line on its own, in the centre-line dash fitted to
+/// its length (solid when too short). Nothing for an empty slice.
+fn stroke_in_line_font(
+    b: &mut ContentBuilder,
+    bounds: &mut BoundsAcc,
+    extensions: &[(Point, Point)],
+    style: DimensionStyle,
+) {
+    let nominal = style.centre_line_stroke().dash;
+    for &(p, q) in extensions {
+        let (dash, _) = fit_dash(nominal, (q.x - p.x).hypot(q.y - p.y));
+        b.set_dash(&dash, 0.0);
+        b.move_to(p.x, p.y);
+        b.line_to(q.x, q.y);
+        b.paint(Paint::Stroke);
+        bounds.add(p);
+        bounds.add(q);
+    }
 }

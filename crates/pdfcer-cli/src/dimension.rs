@@ -1800,6 +1800,12 @@ pub(crate) enum StylePropArg {
     CentreMarkWidth,
     /// A centre mark's colour.
     CentreMarkColor,
+    /// The gap before a centre mark's extension lines.
+    CentreMarkGap,
+    /// How far a centre mark's extension lines run past the circle.
+    CentreMarkExtension,
+    /// Whether extension lines take the centre-line dash.
+    CentreMarkLineFont,
 }
 
 /// The terminator forms, mirrored from `pdfcer_core::dimension::ArrowForm`.
@@ -2015,7 +2021,10 @@ pub(crate) fn cmd_group_style(args: &GroupStyleArgs<'_>) -> u8 {
             | StylePropArg::CentreLineColor
             | StylePropArg::CentreMarkDash
             | StylePropArg::CentreMarkWidth
-            | StylePropArg::CentreMarkColor) => clear_centre(*p, &mut style.centre),
+            | StylePropArg::CentreMarkColor
+            | StylePropArg::CentreMarkGap
+            | StylePropArg::CentreMarkExtension
+            | StylePropArg::CentreMarkLineFont) => clear_centre(*p, &mut style.centre),
             // Named so the refusal says WHICH property and WHY, rather than
             // ignoring the flag and leaving the operator to discover from the
             // saved file that nothing happened.
@@ -2323,7 +2332,10 @@ pub(crate) fn cmd_dimension_style(args: &DimensionStyleArgs<'_>) -> u8 {
             | StylePropArg::CentreLineColor
             | StylePropArg::CentreMarkDash
             | StylePropArg::CentreMarkWidth
-            | StylePropArg::CentreMarkColor) => clear_centre(*p, &mut style.centre),
+            | StylePropArg::CentreMarkColor
+            | StylePropArg::CentreMarkGap
+            | StylePropArg::CentreMarkExtension
+            | StylePropArg::CentreMarkLineFont) => clear_centre(*p, &mut style.centre),
         }
     }
     if let Some(token) = args.unit {
@@ -2565,6 +2577,7 @@ pub(crate) fn cmd_dimension_list(input: &Path, show_style: bool) -> u8 {
                 }
                 if let Some(m) = centre_mark {
                     s.push_str(&format_mark(m));
+                    s.push_str(&extension_lines_suffix(&model, d));
                 }
                 s
             }
@@ -2577,11 +2590,12 @@ pub(crate) fn cmd_dimension_list(input: &Path, show_style: bool) -> u8 {
                 dash_fit_suffix(&model, d)
             ),
             DimensionKind::CentreMark { fit, mark } => format!(
-                " centre={},{} radius={}{}",
+                " centre={},{} radius={}{}{}",
                 fit.center.x,
                 fit.center.y,
                 fit.radius,
-                format_mark(mark)
+                format_mark(mark),
+                extension_lines_suffix(&model, d)
             ),
             // An angular ce dimension's placement is a radius and a position
             // along the arc — the same one-drag pair as a linear one, in the
@@ -2641,8 +2655,8 @@ pub(crate) fn cmd_dimension_list(input: &Path, show_style: bool) -> u8 {
             };
             let resolved = pdfcer_core::dimension::resolve_style(group, &d.style);
             let prov = pdfcer_core::dimension::style_provenance(group, &d.style);
-            let [c0, c1, c2, c3, c4, c5] = centre_style_values(&resolved);
-            let values: [(&str, String); 23] = [
+            let [c0, c1, c2, c3, c4, c5, c6, c7, c8] = centre_style_values(&resolved);
+            let values: [(&str, String); 26] = [
                 ("unit", resolved.format.unit.token().to_owned()),
                 ("fraction", format_fraction(resolved.format.fraction)),
                 (
@@ -2678,6 +2692,9 @@ pub(crate) fn cmd_dimension_list(input: &Path, show_style: bool) -> u8 {
                 c3,
                 c4,
                 c5,
+                c6,
+                c7,
+                c8,
             ];
             // Paired positionally against `StyleProvenance::each`, whose own
             // doc comment explains why it returns a fixed-size array: a

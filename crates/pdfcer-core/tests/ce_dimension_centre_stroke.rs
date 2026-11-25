@@ -257,7 +257,7 @@ fn centre_styles_survive_save_with_provenance_and_version_8() {
     assert_eq!(p.centre_line_dash, StyleSource::Dimension);
     assert_eq!(p.centre_mark_width, StyleSource::Group);
     assert_eq!(p.centre_line_width, StyleSource::Factory);
-    assert_eq!(p.each().len(), 23);
+    assert_eq!(p.each().len(), 26);
     let private = pdfcer_core::dimension::serialize_model(&back);
     assert_eq!(sidecar_version(&private), Some(8));
 }

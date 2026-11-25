@@ -344,6 +344,35 @@ designing anything in this area; do not re-derive it.
     --centre-mark-width --centre-mark-color`, `--clear centre-line-dash,…`;
     `dimension-list` prints `dash_fit=` on a centre line and `--style` the
     six values; `centre-line` prints the fit before its save line.
+- **A centre mark's extension lines have a gap, a reach and a line font**
+  (`Pass 771.0`, G333). `CentreStyle` gains `mark_gap`,
+  `mark_extension: Option<CentreMarkSize>` and `mark_line_font:
+  Option<bool>` (builders `with_mark_gap`, `with_mark_extension`,
+  `with_mark_line_font`), cascading like the strokes.
+  - An extension line runs from `arm + gap` to `radius + extension` along
+    each arm. Unset, both are the arm length, so existing marks bake
+    byte-identical. Resolved values: `DimensionStyle::centre_mark_gap()`,
+    `centre_mark_extension()` (points), `centre_mark_line_font()`.
+  - Line font on: each extension line is stroked on its own in the
+    centre-line dash (`centre_line_stroke().dash`) fitted to its length,
+    in the mark's width and colour, inside the mark's `q … Q`; the cross
+    keeps the mark's dash.
+  - **★ Disclose** `DimensionKind::centre_mark_extension_lines_drawn(style)
+    -> Option<bool>`: `Some(false)` when extension lines are asked for but
+    the gap reaches past the rim plus the extension, so none are drawn;
+    `None` when the kind has no mark or its mark asks for none. Snaps
+    (`ExtensionEnd`) and `/InkList` follow the drawn geometry.
+  - Sidecar `/MarkGap`, `/MarkGapKind`, `/MarkExtension`,
+    `/MarkExtensionKind`, `/MarkLineFont` inside `/Centre`; a document with
+    one writes **sidecar version 9** (8 for strokes only).
+  - `StyleProvenance` gains `centre_mark_gap`, `centre_mark_extension`,
+    `centre_mark_line_font`; `each()` returns **26**. ⚠️ **Breaking** for
+    code sized to 23.
+  - CLI: `--centre-mark-gap fixed:3|text:0.5`, `--centre-mark-extension`,
+    `--centre-mark-line-font true|false` on `dimension-style` /
+    `group-style`, `--clear` for each; `dimension-list` prints
+    `extension_lines_drawn=` on every mark asking for extension lines, and
+    `centre-mark` prints it when `false`.
 - Reposition (drag or numeric), toggle the group's layer, delete
   (annotation + `/AP` + sidecar record together).
 
@@ -561,7 +590,7 @@ fn style_rows(session: &pdfcer_core::edit::EditSession, dim: pdfcer_core::dimens
     let resolved = resolve_style(group, &record.style);   // the VALUES the /AP is drawn with
     let prov = style_provenance(group, &record.style);    // WHICH TIER supplied each
 
-    for (name, source) in prov.each() {                   // fixed-size [_; 23]
+    for (name, source) in prov.each() {                   // fixed-size [_; 26]
         let checkbox_ticked = source == StyleSource::Dimension;
         let will_move_on_a_group_edit = source.follows_group(); // TRUE for Factory too
         let _ = (name, checkbox_ticked, will_move_on_a_group_edit, &resolved);
@@ -672,14 +701,14 @@ Four further points a panel gets wrong if it guesses:
   (`style.rs`). Saying "factory" for them "would be a lie an operator
   could act on."
 - **`StyleProvenance::each()` returns a fixed-size `[(&'static str,
-  StyleSource); 23]`** (`style.rs`) so a loop gets a **compile error**,
-  not a silently short list, when a twenty-fourth property lands.
+  StyleSource); 26]`** (`style.rs`) so a loop gets a **compile error**,
+  not a silently short list, when a twenty-seventh property lands.
   ⚠️ `docs/ui_specs/…-ce-dimension-properties.md` **Amendment B §B.2 says
   "nine"** — that text predates `Pass 69.1` adding `tolerance` and
   `tolerance_places`, and `Pass 541.0` adding `dash` and `opacity`, and `Pass 740.0` adding
   `centre_mark_size`, and `Pass 766.0` adding the three circle-stroke fields, and `Pass 772.0`
-  adding the six centre-stroke fields.
-  The code at `style.rs` is authoritative: **twenty-three**.
+  adding the six centre-stroke fields, and `Pass 771.0` the three centre-mark reach fields.
+  The code at `style.rs` is authoritative: **twenty-six**.
   Same for §B.4's "the same nine properties".
 - **Clearing an override restores inheritance**, live and in both
   directions — deliberately unlike the reference tool, whose `DeleteStyle`

@@ -493,6 +493,13 @@ pub struct StyleProvenance {
     pub centre_mark_width: StyleSource,
     /// Source of a centre mark's colour (`Factory`: follows `color`).
     pub centre_mark_color: StyleSource,
+    /// Source of a centre mark's extension-line gap (`Factory`: the arm).
+    pub centre_mark_gap: StyleSource,
+    /// Source of a centre mark's extension past the rim (`Factory`: the arm).
+    pub centre_mark_extension: StyleSource,
+    /// Source of whether extension lines take the centre-line dash
+    /// (`Factory`: off).
+    pub centre_mark_line_font: StyleSource,
 }
 
 impl StyleProvenance {
@@ -503,7 +510,7 @@ impl StyleProvenance {
     /// gets a compile error, not a silently shorter listing, when a property
     /// is added and this method is not extended.
     #[must_use]
-    pub const fn each(&self) -> [(&'static str, StyleSource); 23] {
+    pub const fn each(&self) -> [(&'static str, StyleSource); 26] {
         [
             ("unit", self.unit),
             ("fraction", self.fraction),
@@ -528,6 +535,9 @@ impl StyleProvenance {
             ("centre-mark-dash", self.centre_mark_dash),
             ("centre-mark-width", self.centre_mark_width),
             ("centre-mark-color", self.centre_mark_color),
+            ("centre-mark-gap", self.centre_mark_gap),
+            ("centre-mark-extension", self.centre_mark_extension),
+            ("centre-mark-line-font", self.centre_mark_line_font),
         ]
     }
 }
@@ -698,6 +708,9 @@ pub fn style_provenance(group: &Group, over: &StyleOverrides) -> StyleProvenance
         centre_mark_dash: three(cd.mark.dash.is_some(), cg.mark.dash.is_some()),
         centre_mark_width: three(cd.mark.width.is_some(), cg.mark.width.is_some()),
         centre_mark_color: three(cd.mark.color.is_some(), cg.mark.color.is_some()),
+        centre_mark_gap: three(cd.mark_gap.is_some(), cg.mark_gap.is_some()),
+        centre_mark_extension: three(cd.mark_extension.is_some(), cg.mark_extension.is_some()),
+        centre_mark_line_font: three(cd.mark_line_font.is_some(), cg.mark_line_font.is_some()),
     }
 }
 

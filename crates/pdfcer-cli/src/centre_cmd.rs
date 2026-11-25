@@ -236,8 +236,14 @@ fn author_and_report(verb: &str, t: &CentreTarget<'_>, kind: DimensionKind) -> u
     let model = session.dimension_model();
     if let Some(d) = model.dimension(dim_id) {
         let fit = dash_fit_suffix(&model, d);
-        if !fit.is_empty() {
-            println!("  {verb}{fit}");
+        let reach = extension_lines_suffix(&model, d);
+        let reach = if reach.ends_with("=false") {
+            reach
+        } else {
+            String::new()
+        };
+        if !fit.is_empty() || !reach.is_empty() {
+            println!("  {verb}{fit}{reach}");
         }
     }
     let outcome = match save_edited(
