@@ -173,6 +173,7 @@ mod page_import;
 mod print_content;
 mod print_decoration;
 mod print_ready;
+mod snapshot;
 pub use print_ready::{
     PrintReadyCopy, PrintReadyError, PrintReadyLoss, PrintReadyReport, check_print_permission,
 };

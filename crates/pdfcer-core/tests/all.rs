@@ -254,6 +254,7 @@ mod search_rotated;
 mod separation_sets;
 mod session_graph_resolution;
 mod session_overlay_skew;
+mod session_snapshot;
 mod set_font_new_resource;
 mod set_page_tabs;
 mod shared_page_content_edit;
