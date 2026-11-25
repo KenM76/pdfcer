@@ -17,11 +17,12 @@ use std::collections::BTreeSet;
 use super::decompose::PageObjects;
 use super::geometry::{Bounds, Point};
 use super::snap::{self, SnapCandidate, SnapConfig, SnapKind};
-use super::snap_source::SnapSource;
+use super::snap_source::{CeDimensionTarget, SnapSource};
 use crate::annot::{Annotation, oc_is_hidden, page_annotations};
 use crate::annot_author::{
     inset_by_rect_differences, read_border_effect, read_border_width, read_numbers,
 };
+use crate::dimension::DimensionId;
 use crate::graph::ObjectGraph;
 use crate::object::{Dict, ObjId, Object};
 use crate::page_tree::Rect;
@@ -43,6 +44,16 @@ pub(crate) enum OutlineKind {
     Smooth,
     /// The two points alone; the segment between them is not drawn.
     EndsOnly,
+}
+
+/// A circle whose rim gives exact targets: nearest point, quadrants and
+/// tangents ([`SnapKind::RimNearest`], [`SnapKind::Quadrant`],
+/// [`SnapKind::Tangent`]).
+#[derive(Debug, Clone, Copy, PartialEq)]
+struct RimCircle {
+    center: Point,
+    radius: f64,
+    drawn: bool,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -67,6 +78,8 @@ pub struct SnapGeometry {
     outlines: Vec<Outline>,
     nodes: Vec<Point>,
     centers: Vec<Point>,
+    circles: Vec<RimCircle>,
+    dimension: Option<DimensionId>,
     bounds: Bounds,
 }
 
@@ -100,6 +113,13 @@ impl SnapGeometry {
         self.bounds
     }
 
+    /// The ce dimension these targets belong to; `None` for every other
+    /// source.
+    #[must_use]
+    pub const fn dimension(&self) -> Option<DimensionId> {
+        self.dimension
+    }
+
     /// An empty geometry from `source`, naming its annotation or object.
     pub(crate) fn new(
         source: SnapSource,
@@ -113,8 +133,34 @@ impl SnapGeometry {
             outlines: Vec::new(),
             nodes: Vec::new(),
             centers: Vec::new(),
+            circles: Vec::new(),
+            dimension: None,
             bounds: Bounds::EMPTY,
         }
+    }
+
+    /// Name the ce dimension these targets belong to.
+    pub(crate) fn set_dimension(&mut self, id: DimensionId) {
+        self.dimension = Some(id);
+    }
+
+    /// A circle whose rim gives exact nearest, quadrant and tangent targets;
+    /// `drawn` is `false` for a circle the object does not stroke. A
+    /// non-finite centre or a radius that is not positive gives nothing.
+    pub(crate) fn push_circle(&mut self, center: Point, radius: f64, drawn: bool) {
+        if !center.is_finite() || !(radius.is_finite() && radius > 0.0) {
+            return;
+        }
+        self.circles.push(RimCircle {
+            center,
+            radius,
+            drawn,
+        });
+        let corner = |sx: f64| Point::new(center.x + sx * radius, center.y + sx * radius);
+        self.bounds = self
+            .bounds
+            .union_point(corner(-1.0))
+            .union_point(corner(1.0));
     }
 
     fn point_count(&self) -> usize {
@@ -199,7 +245,10 @@ impl SnapGeometry {
 
     /// Whether no target was pushed, so the geometry can be dropped.
     pub(crate) fn is_empty(&self) -> bool {
-        self.outlines.is_empty() && self.nodes.is_empty() && self.centers.is_empty()
+        self.outlines.is_empty()
+            && self.nodes.is_empty()
+            && self.centers.is_empty()
+            && self.circles.is_empty()
     }
 }
 
@@ -349,6 +398,14 @@ fn pairs(nums: &[f64]) -> Vec<(f64, f64)> {
 /// nearest point on an edge [`SnapKind::SegmentCenterline`]. An ellipse gives
 /// its four axis ends as nodes.
 ///
+/// A radius/diameter ce dimension's circle, and the circle a centre mark was
+/// fitted to, give exact rim targets instead: [`SnapKind::RimNearest`], the
+/// four [`SnapKind::Quadrant`] points in page axes and, when
+/// [`SnapConfig::from`] lies outside the circle, its two
+/// [`SnapKind::Tangent`] points. Every candidate of a ce dimension carries
+/// [`SnapCandidate::ce_dimension`], whose `drawn` is `false` on a circle that
+/// is not drawn. Markup ellipses keep their sampled ring.
+///
 /// `model` is `None` for a page with no content of its own. Intersections
 /// (when [`SnapConfig::intersections`] is on) are found between page paths
 /// only, never with a markup edge.
@@ -409,34 +466,86 @@ pub fn snap_candidates_skipping(
     let Some(mut out) = snap::collect_candidates(query, config, model, skip) else {
         return Vec::new();
     };
-    let tol = config.tolerance;
     for m in markups {
-        if !m.bounds.inflate(tol).contains(query) {
-            continue;
-        }
-        let mut push = |point: Point, kind: SnapKind| {
-            if point.is_finite() && point.distance(query) <= tol {
-                out.push(SnapCandidate {
-                    point,
-                    kind,
-                    source_object: m.object,
-                    source_annotation: m.annotation,
-                    source: m.source,
-                });
-            }
-        };
-        for &c in &m.centers {
-            push(c, SnapKind::Center);
-        }
-        for &n in &m.nodes {
-            push(n, SnapKind::Node);
-        }
-        for o in &m.outlines {
-            outline_targets(o, query, &mut push);
-        }
+        geometry_targets(m, query, config, &mut out);
     }
     snap::finalize(out, query)
 }
+
+fn geometry_targets(
+    m: &SnapGeometry,
+    query: Point,
+    config: &SnapConfig,
+    out: &mut Vec<SnapCandidate>,
+) {
+    let tol = config.tolerance;
+    if !m.bounds.inflate(tol).contains(query) {
+        return;
+    }
+    let mut push_on = |point: Point, kind: SnapKind, drawn: bool| {
+        if point.is_finite() && point.distance(query) <= tol {
+            out.push(SnapCandidate {
+                point,
+                kind,
+                source_object: m.object,
+                source_annotation: m.annotation,
+                source: m.source,
+                ce_dimension: m.dimension.map(|id| CeDimensionTarget::new(id, drawn)),
+            });
+        }
+    };
+    for c in &m.circles {
+        rim_targets(c, query, config.from, &mut |p, k| push_on(p, k, c.drawn));
+    }
+    let mut push = |point: Point, kind: SnapKind| push_on(point, kind, true);
+    for &c in &m.centers {
+        push(c, SnapKind::Center);
+    }
+    for &n in &m.nodes {
+        push(n, SnapKind::Node);
+    }
+    for o in &m.outlines {
+        outline_targets(o, query, &mut push);
+    }
+}
+
+/// The exact rim targets of `c`: the nearest point to `query`, the four
+/// quadrant points and, from a point outside the circle, the two tangent
+/// points (each at `c + r·rot(±acos(r/d))·(from − c)/d`).
+fn rim_targets(
+    c: &RimCircle,
+    query: Point,
+    from: Option<Point>,
+    push: &mut impl FnMut(Point, SnapKind),
+) {
+    let (cx, cy, r) = (c.center.x, c.center.y, c.radius);
+    let toward = |p: Point| {
+        let (dx, dy) = (p.x - cx, p.y - cy);
+        let d = dx.hypot(dy);
+        (d > 0.0).then(|| (dx / d, dy / d, d))
+    };
+    if let Some((ux, uy, _)) = toward(query) {
+        push(Point::new(cx + r * ux, cy + r * uy), SnapKind::RimNearest);
+    }
+    for (x, y) in [(cx + r, cy), (cx, cy + r), (cx - r, cy), (cx, cy - r)] {
+        push(Point::new(x, y), SnapKind::Quadrant);
+    }
+    if let Some((ux, uy, d)) = from.and_then(toward)
+        && d > r * (1.0 + TANGENT_EPSILON)
+    {
+        let a = (r / d).acos();
+        for s in [a, -a] {
+            let (sin, cos) = s.sin_cos();
+            let (tx, ty) = (ux * cos - uy * sin, ux * sin + uy * cos);
+            push(Point::new(cx + r * tx, cy + r * ty), SnapKind::Tangent);
+        }
+    }
+}
+
+/// How far outside a circle, as a fraction of its radius, [`SnapConfig::from`]
+/// must lie for tangents to be offered: on the rim the two tangent points
+/// collapse onto the point itself.
+const TANGENT_EPSILON: f64 = 1e-9;
 
 fn outline_targets(o: &Outline, query: Point, push: &mut impl FnMut(Point, SnapKind)) {
     let n = o.points.len();

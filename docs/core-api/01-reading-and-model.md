@@ -2707,10 +2707,14 @@ use pdfcer_core::vector::{snap_candidates, SnapConfig, SnapKind, SnapCandidate,
 let cfg = SnapConfig::new(tol_in_page_units)      // snap.rs
     .with_intersections(true)                      // snap.rs — default FALSE, costs perf
     .with_grid(grid)                               // snap.rs
-    .with_axes(true);                              // snap.rs
+    .with_axes(true)                               // snap.rs
+    .with_from(Some(first_pick));                  // snap.rs — tangent targets; default None
 let cands: Vec<SnapCandidate> = snap_candidates(query_point, &cfg, &model); // snap.rs
-// SnapCandidate: snap.rs — {point (page space), kind, source_object, source_annotation, source}
-// SnapKind: snap.rs variants; priority() (0 = highest);
+// SnapCandidate: snap.rs — {point (page space), kind, source_object, source_annotation, source,
+//                            ce_dimension: Option<CeDimensionTarget>}
+// SnapKind: snap.rs variants, in priority order (0 = highest): Node, Endpoint, Center,
+//           Quadrant, Tangent, Midpoint, Intersection, DerivedCenterline,
+//           SegmentCenterline, RimNearest, Axis. SnapKind::all() lists them.
 //           is_derived() — TRUE only for DerivedCenterline.
 
 // Axis constraint for a second pick (Shift-drag):
@@ -2788,9 +2792,26 @@ public field `source`**; a struct literal must name it.
 | `Markup` | the seven shape markups | as above |
 | `TextMarkup` | `/Highlight` `/Underline` `/StrikeOut` `/Squiggly` | each `/QuadPoints` quad (any corner order) as a closed outline plus its centroid; no usable quads = `/Rect` |
 | `FormField` | `/Widget` | `/Rect` corners, edge middles, centre, nearest edge point |
-| `CeDimension` | ce dimensions | linear: dimension line ends, middle, nearest point, and each drawn extension line's two ends; circular: centre; angular: apex; perimeter: its points |
+| `CeDimension` | ce dimensions | linear: dimension line ends, middle, nearest point, and each drawn extension line's two ends; circular: centre and its circle's rim; angular: apex; perimeter: its points; centre line: ends and middle; centre mark: centre, arm and extension ends, and the rim of its fitted circle |
 | `Annotation` | any other subtype (stamp, note, link, attachment) | its `/Rect` as for `FormField` |
 
+- **Rim of a ce dimension's circle** (request G328), for a radius/diameter
+  ce dimension and for a centre mark's fitted circle: `RimNearest` is the
+  exact projection `c + r·(q − c)/|q − c|` (not a chord ring, so no sagitta
+  error reaches a measurement); `Quadrant` the four rim points at 0°, 90°,
+  180° and 270° in page axes; `Tangent` the two points where a line from
+  `SnapConfig::from` touches the rim, offered only when `from` lies outside
+  the circle. Markup `/Circle`s keep their sampled ring and give no tangent.
+- **Which ce dimension, and is it drawn.** Every `CeDimension` candidate
+  carries `ce_dimension: Some(CeDimensionTarget { id: DimensionId, drawn })`
+  (`vector/snap_source.rs`, `#[non_exhaustive]`, build with
+  `CeDimensionTarget::new`); every other source `None`. `drawn` is `false`
+  on a centre mark's fitted circle, which is not stroked: the snap is
+  offered and the shell owes a word that the rim is not visible (rule 4).
+  `SnapGeometry::dimension()` gives the same id per geometry. ⚠️ **Breaking:**
+  `SnapCandidate` gained the public field `ce_dimension` and `SnapConfig`
+  the public field `from` (struct literals must name them), and `SnapKind`
+  gained three variants (exhaustive `match`es need arms).
 - Images and text come from `PageObjects::objects` (`source_object:
   Some(index)`) and from form-XObject leaves (`source_object: None`).
   `model: None` leaves them out. Paths stay `snap_candidates`' own.

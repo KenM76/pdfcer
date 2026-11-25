@@ -173,6 +173,14 @@ pub enum SnapKind {
     /// is the Pass 12.M2 upgrade; the kind is the same so a 12.M2 fit slots in
     /// without changing the snap surface.
     Center,
+    /// A quadrant point of a ce dimension's circle: its rim at 0°, 90°, 180°
+    /// or 270° in page axes, the four points CAD drafting packages offer on
+    /// every circle. Ranked just below [`Self::Center`].
+    Quadrant,
+    /// A tangent point on a ce dimension's circle from
+    /// [`SnapConfig::from`]: where a line from that point touches the rim.
+    /// Exact geometry, not an inference. Ranked above [`Self::Midpoint`].
+    Tangent,
     /// The midpoint of a straight segment — an `l` edge or a subpath's closing
     /// edge (decision 011 priority 4, "segment midpoints"). Cubic-segment
     /// midpoints are a fast-follow (a Bézier's "midpoint" is ambiguous; the
@@ -196,6 +204,11 @@ pub enum SnapKind {
     /// a stroked path's geometry IS its centerline (the stroke straddles it
     /// ±w/2), so this is a deterministic fact, not a derivation.
     SegmentCenterline,
+    /// The exact nearest point on a ce dimension's circle,
+    /// `c + r·(q − c)/|q − c|` — not a chord of a flattened ring, so a
+    /// measurement taken from it carries no sagitta error. Ranked just below
+    /// [`Self::SegmentCenterline`], the same target on a straight edge.
+    RimNearest,
     /// A page coordinate axis (`x = 0` / `y = 0`) or, if a grid is configured,
     /// a grid line / intersection (decision 011 priority 7, "page-axis /
     /// optional grid"). The lowest-priority fallback.
@@ -207,8 +220,9 @@ impl SnapKind {
     /// §2.2's high→low list). Ties within a rank are then broken by distance
     /// to the query (nearest wins) — see [`snap_candidates`].
     ///
-    /// The order (0 = highest): `Node` < `Endpoint` < `Center` < `Midpoint`
-    /// < `Intersection` < `DerivedCenterline` < `SegmentCenterline` < `Axis`.
+    /// The order (0 = highest): `Node` < `Endpoint` < `Center` < `Quadrant`
+    /// < `Tangent` < `Midpoint` < `Intersection` < `DerivedCenterline`
+    /// < `SegmentCenterline` < `RimNearest` < `Axis`.
     /// `DerivedCenterline` sits just above `SegmentCenterline` (ui-spec §2.4:
     /// "just above segment-centerline, since it is a MORE specific inference
     /// about the SAME kind of geometry") but carries its confirm step
@@ -219,16 +233,19 @@ impl SnapKind {
             SnapKind::Node => 0,
             SnapKind::Endpoint => 1,
             SnapKind::Center => 2,
-            SnapKind::Midpoint => 3,
-            SnapKind::Intersection => 4,
-            SnapKind::DerivedCenterline => 5,
-            SnapKind::SegmentCenterline => 6,
-            SnapKind::Axis => 7,
+            SnapKind::Quadrant => 3,
+            SnapKind::Tangent => 4,
+            SnapKind::Midpoint => 5,
+            SnapKind::Intersection => 6,
+            SnapKind::DerivedCenterline => 7,
+            SnapKind::SegmentCenterline => 8,
+            SnapKind::RimNearest => 9,
+            SnapKind::Axis => 10,
         }
     }
 
     /// Every kind, in priority order (highest first) — the list
-    /// [`SnapKind::priority`] ranks, as data rather than as eight separate
+    /// [`SnapKind::priority`] ranks, as data rather than as separate
     /// integer literals a reader has to reassemble.
     ///
     /// Added by `Pass 301.1` because the test that checks the priority
@@ -249,10 +266,13 @@ impl SnapKind {
             SnapKind::Node,
             SnapKind::Endpoint,
             SnapKind::Center,
+            SnapKind::Quadrant,
+            SnapKind::Tangent,
             SnapKind::Midpoint,
             SnapKind::Intersection,
             SnapKind::DerivedCenterline,
             SnapKind::SegmentCenterline,
+            SnapKind::RimNearest,
             SnapKind::Axis,
         ]
     }
@@ -294,6 +314,9 @@ pub struct SnapCandidate {
     /// What kind of object the candidate came from, for the shell to name
     /// ("an image", "a form field", "a ce dimension").
     pub source: super::SnapSource,
+    /// The ce dimension this candidate came from, and whether the geometry
+    /// it lies on is drawn; `None` for every other source.
+    pub ce_dimension: Option<super::CeDimensionTarget>,
 }
 
 /// The engine's per-query configuration — everything the fixed target list
@@ -321,6 +344,10 @@ pub struct SnapConfig {
     /// it is the cheapest possible target and the lowest priority, so it never
     /// masks a real geometry hit.
     pub axes: bool,
+    /// The previous pick of the measurement being authored, for
+    /// [`SnapKind::Tangent`] targets on ce dimension circles. `None`
+    /// (default) offers no tangent; so does a point on or inside a circle.
+    pub from: Option<Point>,
 }
 
 impl SnapConfig {
@@ -333,6 +360,7 @@ impl SnapConfig {
             intersections: false,
             grid: None,
             axes: true,
+            from: None,
         }
     }
 
@@ -355,6 +383,14 @@ impl SnapConfig {
     #[must_use]
     pub fn with_axes(mut self, on: bool) -> Self {
         self.axes = on;
+        self
+    }
+
+    /// Builder: set the previous pick tangent targets are taken from
+    /// ([`Self::from`]).
+    #[must_use]
+    pub fn with_from(mut self, from: Option<Point>) -> Self {
+        self.from = from;
         self
     }
 
@@ -829,6 +865,7 @@ fn project_cubic(
             source_object: Some(obj_index),
             source_annotation: None,
             source: super::SnapSource::Path,
+            ce_dimension: None,
         });
     }
 }
@@ -900,6 +937,7 @@ fn collect_intersections(
                     source_object: source,
                     source_annotation: None,
                     source: super::SnapSource::Path,
+                    ce_dimension: None,
                 });
             }
         }
@@ -1028,6 +1066,7 @@ fn push_if_near(
             } else {
                 super::SnapSource::Page
             },
+            ce_dimension: None,
         });
     }
 }
@@ -1172,10 +1211,13 @@ mod tests {
                 SnapKind::Node
                 | SnapKind::Endpoint
                 | SnapKind::Center
+                | SnapKind::Quadrant
+                | SnapKind::Tangent
                 | SnapKind::Midpoint
                 | SnapKind::Intersection
                 | SnapKind::DerivedCenterline
                 | SnapKind::SegmentCenterline
+                | SnapKind::RimNearest
                 | SnapKind::Axis => k,
             };
             assert!(

@@ -54,9 +54,14 @@ impl EditSession {
     /// A ce dimension ([`SnapSource::CeDimension`]) gives what is drawn and
     /// what it measured: a linear one its dimension line (both ends, the
     /// middle, the nearest point on it) and each extension line it draws
-    /// (both ends); a circular one its centre; an angular one its apex; a
-    /// perimeter one its measured points. One whose group is hidden is left
-    /// out, as is one on a hidden layer.
+    /// (both ends); a circular one its centre and its circle's rim; an
+    /// angular one its apex; a perimeter one its measured points; a centre
+    /// mark its centre, its strokes and the rim of the circle it was fitted
+    /// to. Each candidate names the ce dimension in
+    /// [`SnapCandidate::ce_dimension`](crate::vector::SnapCandidate::ce_dimension);
+    /// a rim that is not drawn (a centre mark's) is offered with `drawn`
+    /// `false`. One whose group is hidden is left out, as is one on a hidden
+    /// layer.
     ///
     /// `model` is the page's decomposition, as passed to the query; `None`
     /// leaves images and text out. Paths stay the query's own, from `model`.
@@ -144,6 +149,7 @@ fn group_shown<G: crate::graph::ObjectGraph + ?Sized>(
 /// extension lines, whose drawn extent depends on it.
 fn ce_dimension_geometry(d: &DimensionRecord, style: Option<DimensionStyle>) -> SnapGeometry {
     let mut g = SnapGeometry::new(SnapSource::CeDimension, d.annot, None);
+    g.set_dimension(d.id);
     match &d.kind {
         DimensionKind::Linear { .. } => {
             if let Some((dim_a, dim_b, _, _)) = d.kind.linear_geometry() {
@@ -154,7 +160,10 @@ fn ce_dimension_geometry(d: &DimensionRecord, style: Option<DimensionStyle>) -> 
                 g.push_points(&[start, end], false, OutlineKind::EndsOnly);
             }
         }
-        DimensionKind::Circular { fit, .. } => g.push_center_point(fit.center),
+        DimensionKind::Circular { fit, .. } => {
+            g.push_center_point(fit.center);
+            g.push_circle(fit.center, fit.radius, true);
+        }
         DimensionKind::Angular { apex, .. } => g.push_node(*apex),
         DimensionKind::Perimeter { points, .. } => {
             g.push_points(points, false, OutlineKind::EndsOnly);
@@ -162,7 +171,10 @@ fn ce_dimension_geometry(d: &DimensionRecord, style: Option<DimensionStyle>) -> 
         DimensionKind::CentreLine { a, b } => {
             g.push_points(&[*a, *b], false, OutlineKind::Polygonal);
         }
-        DimensionKind::CentreMark { fit, .. } => g.push_center_point(fit.center),
+        DimensionKind::CentreMark { fit, .. } => {
+            g.push_center_point(fit.center);
+            g.push_circle(fit.center, fit.radius, false);
+        }
     }
     // A centre mark's cross arms and extension lines, standalone or on a
     // radius/diameter; their length depends on the style.

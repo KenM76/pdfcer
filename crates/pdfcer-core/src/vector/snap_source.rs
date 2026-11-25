@@ -34,3 +34,39 @@ pub enum SnapSource {
     /// file attachment.
     Annotation,
 }
+
+/// Which ce dimension a [`SnapCandidate`](super::SnapCandidate) came from,
+/// carried in [`SnapCandidate::ce_dimension`](super::SnapCandidate::ce_dimension)
+/// so a shell can bind to the object without mapping a point back to it.
+///
+/// `drawn` is `false` for a target on geometry the ce dimension does not
+/// draw: the circle a centre mark was fitted to, or the circle of a
+/// radius/diameter ce dimension that hides it. Such a target is offered, and
+/// the shell owes the operator a word that it is not visible (CLAUDE.md
+/// rule 4).
+///
+/// # Examples
+///
+/// ```
+/// use pdfcer_core::dimension::DimensionId;
+/// use pdfcer_core::vector::CeDimensionTarget;
+///
+/// let t = CeDimensionTarget::new(DimensionId(3), false);
+/// assert_eq!((t.id, t.drawn), (DimensionId(3), false));
+/// ```
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[non_exhaustive]
+pub struct CeDimensionTarget {
+    /// The ce dimension.
+    pub id: crate::dimension::DimensionId,
+    /// Whether the geometry the target lies on is drawn.
+    pub drawn: bool,
+}
+
+impl CeDimensionTarget {
+    /// A target on ce dimension `id`; `drawn` as the field says.
+    #[must_use]
+    pub const fn new(id: crate::dimension::DimensionId, drawn: bool) -> Self {
+        Self { id, drawn }
+    }
+}

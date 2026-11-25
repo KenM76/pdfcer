@@ -133,7 +133,7 @@ pub use snap_annot::{
 };
 pub(crate) use snap_page::is_hidden as annotation_is_hidden;
 pub use snap_page::{annotation_snap_geometry, content_snap_geometry, hidden_objects};
-pub use snap_source::SnapSource;
+pub use snap_source::{CeDimensionTarget, SnapSource};
 pub use stroke_style::{Dash, StrokeStyle, StrokeUnits};
 pub use text_inherited::TextInherited;
 pub use text_locate::{TextRunRef, locate_text_run, locate_text_runs};
