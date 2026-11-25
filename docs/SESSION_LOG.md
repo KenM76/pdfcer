@@ -4,6 +4,20 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-11-25 (1705th filing) — `v0.174.0` PUBLISHED; `Pass 763.0`, `764.0` shipped; `Pass 765.0`-`772.0` filed
+
+**Filed (engineer-reported; no shell here, git, push, CI and the gates not checked from here; operator commits):**
+- Release `v0.174.0`: tag on `92522c88` (bump `f3f7306a`), CI green at the tag (run 45649976138); 8 assets (zip 33,534,343 bytes); `gh-release` PASS; 17 crates published; OneDrive `pdfcer1` written, `pdfcer2` keeps 0.173.0, **the next release writes `pdfcer2`**. Fresh-folder smoke passed (`validate-pdfua` `verdict=`, `preflight --report-format json`, `inks` `complete=1`). `verify-release` fails only "working tree clean" (agent-memory files); its CI items ran before CI finished. Carries `Pass 756.0`-`762.0`. Notice: `open/notice_2026-11-25_release_v0.174.0.md`.
+- `Pass 763.0` `43b5d1ac` (`X116`): a form at the depth cap counts as possibly tagged (never wrapped as an artifact), and the PDF/UA validator records a form past its cap unread (PUI-01-005 incomplete, not passed). `Pass 764.0` `82797597` (`G327`): `edit::ReservedInfoKey::{from_key, key, all}`, used by `set_info_entry`. On `main` after the tag; next release `v0.175.0`. Never filed as Planned; filed here as Shipped.
+- `Pass 765.0`-`772.0` filed under *Next up* from `G328`-`G335` (ce dimensions; operator request `O461`): `765.0`-`768.0` in progress by a worker, `769.0`-`772.0` planned. `G328`->765.0, `G329`->766.0, `G330`->767.0, `G335`->768.0, `G331`->769.0, `G332`->770.0, `G333`->771.0, `G334`->772.0. IDs grep-checked unused in `docs/`.
+- `FEATURES.md`: seven "shipped after v0.173.0, in the next release" clauses now read "shipped in v0.174.0"; clauses for `763.0` (two rows) and `764.0` (`/Info` row); eight new Planned rows. `ROADMAP.md`: the 1703rd entry and the 1702nd banner now say released.
+
+**Tests (engineer-reported, merged main):** core lib 2564, integration 3466, doctests 318, all green; fmt and clippy clean; `check-core-api-verbs` PASS; no manifest change.
+
+**Decisions made:** none new; decision 225 applied to the new wording. **Open:** `DimensionStyle::centre_line_dash` ignores `style.dash` while `docs/core-api/03-capabilities.md` says otherwise (in `772.0`).
+
+**Next:** the worker's `765.0`-`768.0`, then `769.0`-`772.0`; release `v0.175.0` writes OneDrive `pdfcer2`.
+
 ## 2026-11-25 (1704th filing) — v0.174.0 version bump (`f3f7306a`)
 
 **Filed (engineer-reported; no shell here, git, push, CI and the gates not checked from here):**

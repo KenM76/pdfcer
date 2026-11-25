@@ -112,6 +112,28 @@ wherever it appears.*
 
 ## Shipped
 
+### `Pass 763.0` and `764.0`: form depth cap never wraps or passes a form (`X116`); `ReservedInfoKey::from_key` (`G327`); `43b5d1ac`, `82797597`, 2026-11-25 (1705th filing)
+
+Engineer-reported; no shell here, git, push, CI and the gates not run or checked from here. Both were never filed as Planned: the requests arrived and shipped in one round, and this filing is their only filing. **Unreleased: on `main` after the `v0.174.0` tag; shipped in the next release, `v0.175.0`.** Reasoning is in each commit message.
+- **`763.0` `43b5d1ac` (`X116`):** `FormCensus::walk` (`crates/pdfcer-core/src/preflight/pdfua/artifact.rs`) now splits the cycle check from the depth cap: a form at `MAX_DEPTH` counts as possibly tagged, so the untagged-as-artifact fixup never wraps it. The same flaw is fixed in the PDF/UA validator (`preflight/pdfua/content.rs`, `form()`): a form past its depth cap is recorded unread, so PUI-01-005 reports incomplete instead of passing. Tests: `artifacts_never_wrap_a_form_chain_too_deep_to_read` (33 nested forms; failed before the fix), `a_form_chain_too_deep_to_read_is_incomplete_not_passed`. No public change. core.
+- **`764.0` `82797597` (`G327`):** `edit::ReservedInfoKey::from_key(&[u8]) -> Option<Self>`, `key()` and `all()`; `set_info_entry` now uses `from_key`, so the GUI asks the engine which `/Info` keys are refused instead of keeping a copy. Test: `the_reserved_key_lookup_agrees_with_set_info_entry`. `docs/core-api` section 1.7 updated. core only (cli `[ ]`, gui `[ ]`).
+- **Tests (merged main, engineer-reported, all green):** core lib 2564, integration 3466, doctests 318. `cargo fmt` and `clippy` clean; `check-core-api-verbs` PASS.
+- **Invariants:** no manifest change, so `cargo tree` is unchanged (rule 2 unaffected).
+- **FEATURES:** clauses on the PDF/UA fixup (artifact) row, the PDF/UA validation row and the document `/Info` row; no new Implemented row.
+
+### `v0.174.0` PUBLISHED, tag on `92522c88` (bump `f3f7306a`, the 1704th filing), 2026-11-25 (1705th filing)
+
+Engineer-reported (the engineer checked these with a shell); this filing had no shell, so none of it is checked from here. This is the publication of the release whose bump was filed 1704th.
+- **Tag:** `v0.174.0` on `92522c88` (the 1704th filing commit). CI green at the tag (run 45649976138).
+- **GitHub release `pdfcer v0.174.0`:** 8 assets, each zip with a `.sha256`: `pdfcer-v0.174.0-windows-x64.zip` (33,534,343 bytes) and the three OCR add-on zips; `gh-release` PASS.
+- **Smoke test (fresh folder):** `pdfcer --version` 0.174.0, revision `v0.174.0`; `validate-pdfua` prints `verdict=`; `preflight --help` lists `--report-format json`; `inks` prints `complete=1`.
+- **OneDrive:** slot `pdfcer1` written; `pdfcer2` keeps 0.173.0, so **the next release writes `pdfcer2`**.
+- **crates.io:** all 17 crates at 0.174.0 published.
+- **`verify-release.py`:** OneDrive checks ok; "working tree clean" fails on the usual uncommitted agent-memory files; the CI items were run before CI finished (CI is now green).
+- **Contents:** `Pass 756.0`-`762.0` (filed 1703rd) and the bump `f3f7306a` (1704th). Their entries say "Unreleased"; that was true when filed and they shipped here.
+- **Channel:** release notice `open/notice_2026-11-25_release_v0.174.0.md`.
+- **FEATURES:** the seven "shipped after v0.173.0, in the next release" clauses now read "shipped in v0.174.0". **Next:** release `v0.175.0` carries `763.0` and `764.0` (above) and the in-progress `765.0`-`768.0`.
+
 ### `f3f7306a` `chore`: v0.174.0 version bump, 2026-11-25 (1704th filing)
 
 Engineer-reported; no shell here, git, push, CI and the gates not run or checked from here. **Unreleased until v0.174.0 is tagged.** Tag, package and publication are a separate filing.
@@ -121,7 +143,7 @@ Engineer-reported; no shell here, git, push, CI and the gates not run or checked
 
 ### `Pass 756.0`-`762.0`: snapshot, output intent, PDF/UA verdict, preflight JSON, version-floor and ink-list corrections, hex glyph names; `53c8bdbe`..`8d180e9c`, 2026-11-25 (1703rd filing)
 
-Engineer-reported; no shell here, git, push, CI and the gates not run or checked from here. **Unreleased: since `v0.173.0`; shipped in the next release, `v0.174.0` (OneDrive `pdfcer1`).** Seven Passes, all on `main`, unpushed until this filing lands. Reasoning is in each commit message.
+Engineer-reported; no shell here, git, push, CI and the gates not run or checked from here. **Shipped in `v0.174.0` (tag on `92522c88`, OneDrive `pdfcer1`; see the 1705th-filing entry above).** Seven Passes, all on `main`, unpushed until this filing lands. Reasoning is in each commit message.
 - **`756.0` `53c8bdbe`:** `EditSession::snapshot()` is an independent copy of the current view (unsaved edits included, empty history, original untouched); `fork_for_print` calls it. Core only (GUI request `O458`). Tests: isolation in both directions.
 - **`757.0` `6f69f6be`:** `prepress::output_intent(&DocumentView) -> Option<DocumentOutputIntent>` (decoded `/DestOutputProfile`, `/N`, `/S`, condition identifier, condition, registry, `/Info`) and `PdfxOutputIntent::from_document`. The renderer and convert-colours share the one reader (first intent whose profile is a stream with an integer `/N` that decodes). **Behaviour change:** convert-colours now skips a first intent with no integer `/N`. core only; `convert-pdfx` defaulting to it is not built. 2 fixture tests.
 - **`758.0` `8fd70ad6`:** `PdfuaVerdict` and `PdfuaReport::verdict()` (fails / unconfirmed / conforms): any Error fails; a needs-a-person row, warning, `not_checked` requirement or unexamined page is unconfirmed. CLI `validate-pdfua` header ends `verdict=<word>`; JSON has `"verdict"`. core + cli.
@@ -133,7 +155,7 @@ Engineer-reported; no shell here, git, push, CI and the gates not run or checked
 - **Tests (merged main, `cargo test -p pdfcer-core -p pdfcer-cli -p pdfcer-render -p pdfcer-text --no-fail-fast`, all green, engineer-reported):** core lib 2562, integration 3465, doctests 317; CLI bin 134, integration 1168; render 579 / 707 / 42; text 44 / 83 / 19. `cargo fmt` and `clippy -D warnings` clean; `check-core-api-verbs` PASS; 35-check audit loop green except commits-filed (pending this filing).
 - **Invariants:** `cargo tree`: no manifest change, no new dependency (rule 2 unaffected).
 - **FEATURES:** the `757.0`, `758.0`, `759.0` Planned rows moved to Implemented with their boxes (gui `[ ]` throughout); new row for `756.0`; the ink list, version-floor and hex-glyph rows gained a clause each.
-- **GUI must adapt:** `inks()` returns `InkList` (read `.inks`). **Next:** release `v0.174.0`.
+- **GUI must adapt:** `inks()` returns `InkList` (read `.inks`). **Next:** release `v0.174.0` (done, 1705th filing).
 
 ### `v0.173.0` PUBLISHED, tag on `e4dd17e8` (bump `40e23b16`, the 1699th filing), 2026-11-24 (1700th filing)
 
@@ -28945,7 +28967,19 @@ closes out the *prior* filing's business rather than opening this one's.
 
 ## Next up
 
-> **`Pass 756.0`-`762.0` SHIPPED (1703rd filing, `53c8bdbe`, `6f69f6be`, `8fd70ad6`, `b06d39b9`, `ec4b8240`, `cb4989b5`, `8d180e9c`); see *Shipped*. Release `v0.174.0` is next.** Their bullets below are kept as filed. Filed 2026-11-25 (1702nd filing) as seven consumer requests (no shell here). IDs `756.0`-`762.0` grep-checked unused across `docs/` before filing. Requests live in `D:\Dev\FeatureRequests\pdfce_FeatureRequests\` (root or `open/`) and are cited by filename; read the request for its full acceptance text.
+> **`Pass 765.0`-`772.0` FILED 2026-11-25 (1705th filing), eight `pdfcer-gui` requests about ce dimensions (pdfcer-authored), operator request `O461`: `765.0`-`768.0` are IN PROGRESS (a worker is implementing them), `769.0`-`772.0` are PLANNED.** IDs grep-checked unused across `docs/` first. Requests are at the channel root `D:\Dev\FeatureRequests\pdfce_FeatureRequests\` and cited by filename; read the request for its full acceptance text. All are core work; cli and gui halves are not yet decided.
+>
+> - **`Pass 765.0` (in progress) snap to the rim of a radius or diameter ce dimension's circle (`G328`).** `request_G328_snap_to_the_rim_of_a_ce_dimension_circle.md`. `edit::markup_snap`'s `ce_dimension_geometry` gives a `Circular` only its centre; it should push the nearest rim point, the four quadrant points and a tangent from the previous pick, as `SnapGeometry::push_ellipse` does for a drawn circle. Tier 1.
+> - **`Pass 766.0` (in progress) the circle of a radius or diameter ce dimension is its own part (`G329`).** `request_G329_a_circular_ce_dimensions_circle_has_its_own_stroke.md`. `show_circle` on `DimensionKind::Circular` (absent reads `true`), a verb `set_circular_circle_shown`, and a per-part stroke in the style cascade (line type, weight, colour) so the circle no longer shares the leader's stroke. Tier 1.
+> - **`Pass 767.0` (in progress) add, change or remove a centre mark on an existing ce dimension (`G330`).** `request_G330_set_a_centre_mark_after_authoring.md`. `EditSession::set_centre_mark(id, Option<CentreMarkSpec>)`; today the mark is chosen only at authoring. Tier 2.
+> - **`Pass 768.0` (in progress) move a centre line's ends (`G335`).** `request_G335_move_a_centre_lines_ends.md`. `move_dimension_vertex` accepts a centre line at index 0 and 1; insert and remove refuse it; coincident ends are refused before mutating. Tier 3.
+> - **`Pass 769.0` (planned) named drafting line types for ce dimensions (`G331`).** `request_G331_named_line_types_for_ce_dimensions.md`. Continuous, hidden, center, phantom, chain, chain-thick, stitch, per standard, with a scale, read back by name; replaces the GUI's own pattern table. Tier 2.
+> - **`Pass 770.0` (planned) ce dimensions attached to centre lines, centre marks and circles (`G332`).** `request_G332_ce_dimensions_attached_to_centre_geometry.md`. An anchor (`target`, `role`) on a measured point so the ce dimension follows and re-measures (centre, nearest, farthest). Large. Tier 2.
+> - **`Pass 771.0` (planned) centre mark gap, extension past the rim and centre-line font (`G333`).** `request_G333_centre_mark_gap_extension_and_centre_line_font.md`. Style fields `centre_mark_gap` and `centre_mark_extension` in the cascade; the extended lines may use the centre-line font. Tier 3.
+> - **`Pass 772.0` (planned) a centre line and a centre mark have their own line type, weight and colour (`G334`).** `request_G334_centre_line_and_centre_mark_have_their_own_stroke.md`. Reuses `766.0`'s per-part stroke and `769.0`'s line type. **Open question for the engineer:** `DimensionStyle::centre_line_dash` never reads `style.dash`, while `docs/core-api/03-capabilities.md` says it does; settle which is wrong. Also asks for a way to ask which `StyleOverrides` fields a kind reads. Tier 3.
+> - *FEATURES:* eight new Planned rows, all `[ ]`.
+
+> **`Pass 756.0`-`762.0` SHIPPED (1703rd filing, `53c8bdbe`, `6f69f6be`, `8fd70ad6`, `b06d39b9`, `ec4b8240`, `cb4989b5`, `8d180e9c`); see *Shipped*. Released as `v0.174.0` (1705th filing).** Their bullets below are kept as filed. Filed 2026-11-25 (1702nd filing) as seven consumer requests (no shell here). IDs `756.0`-`762.0` grep-checked unused across `docs/` before filing. Requests live in `D:\Dev\FeatureRequests\pdfce_FeatureRequests\` (root or `open/`) and are cited by filename; read the request for its full acceptance text.
 >
 > - **`Pass 756.0` `EditSession::snapshot()`, a general read-only fork for a worker thread.** Source: `open/request_O458_snapshot_session_for_a_worker.md` (`pdfcer-gui`, O458). Same contract as `fork_for_print` today (shares the parsed base, copies the overlay, empty history, `self` untouched), under a name that does not say print; `fork_for_print` becomes a caller of it. Doc and `docs/core-api/` say it is the supported route for any second reader (preflight, comparison, export). Acceptance: edits made on the original while a snapshot is held on another thread are neither refused nor visible in the snapshot; `fork_for_print` output unchanged. **core only.**
 > - **`Pass 757.0` the document's output intent, readable.** Source: root `request_output_intent_profile_bytes.md`. Make public the chosen intent's decoded `/DestOutputProfile` bytes plus its `/OutputConditionIdentifier` (today `pdfcer_render::interpret::output_intent_profile` is `pub(crate)`; only `SoftProof::from_output_intent` is public and it consumes the bytes). Either shape serves, the engineer's call: a public reader, or `PdfxOutputIntent::from_document()` / a `PdfxConversion` variant "keep the existing intent" that keeps the bytes engine-side. Goal: `convert_to_pdfx` can default to the document's own intent. Rule 2 applies: check which crate may own the reader (`cargo tree`). **core, cli if natural** (e.g. `convert-pdfx` defaulting to the existing intent, disclosed in its report). No shell-side re-parse of `/OutputIntents`.
