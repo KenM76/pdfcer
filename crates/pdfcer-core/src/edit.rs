@@ -154,7 +154,9 @@ pub use history_transfer::{HistoryError, HistoryImport};
 pub use regroup::WidgetRegroup;
 mod content_mark;
 mod decoration_refresh;
+mod dimension_centre_mark;
 mod dimension_circle;
+pub use dimension_centre_mark::{CentreMarkHost, CentreMarkOutcome};
 mod dimension_merge;
 mod dimension_unit;
 mod editable_source;
@@ -1159,6 +1161,13 @@ pub enum CommandKind {
     SetCircularCircleShown {
         /// The resulting state: `true` ⇒ the circle is drawn.
         shown: bool,
+    },
+    /// A ce dimension's centre mark set, replaced or cleared, and its `/AP`
+    /// (and a standalone mark's `/InkList`) regenerated. ONE undoable
+    /// command. See [`EditSession::set_centre_mark`].
+    SetCentreMark {
+        /// Whether a mark is present afterwards.
+        present: bool,
     },
     /// A closed perimeter ce dimension switched between reporting its
     /// perimeter and its enclosed area, and its `/AP`, `/Contents` and
@@ -5349,6 +5358,11 @@ fn check_centre_kind(kind: &DimensionKind) -> Result<(), EditError> {
         } if !(fit.center.is_finite() && fit.radius.is_finite() && fit.radius > 0.0) => {
             "the circle needs a finite centre and a positive radius"
         }
+        DimensionKind::CentreMark { mark, .. }
+        | DimensionKind::Circular {
+            centre_mark: Some(mark),
+            ..
+        } if !mark.angle.is_finite() => "the centre mark's angle is not finite",
         _ => return Ok(()),
     };
     Err(EditError::CentreGeometryDegenerate { reason })
@@ -8227,7 +8241,7 @@ pub enum EditError {
     /// for the flag to select between. Refused by name rather than ignored: a
     /// caller that aimed the verb at the wrong kind should learn that, not
     /// watch a control appear to do nothing.
-    #[error("ce dimension {id} is linear, and only a circular one has a radius/diameter display")]
+    #[error("ce dimension {id} is not a radius/diameter ce dimension, so it has no circle")]
     NotACircularDimension {
         /// The dimension id.
         id: u32,
@@ -8268,9 +8282,30 @@ pub enum EditError {
         /// The dimension id.
         id: u32,
     },
-    /// A centre line with coincident or non-finite ends, or a centre mark on
-    /// a circle whose radius is not a positive finite length, was handed to
-    /// [`EditSession::add_dimension`].
+    /// [`EditSession::set_centre_mark`] was asked to clear the mark of a
+    /// standalone centre mark, which is nothing without it; removing one is
+    /// [`EditSession::delete_dimension`].
+    #[error(
+        "ce dimension {id} is a standalone centre mark; it cannot lose its mark, delete the ce dimension instead"
+    )]
+    CentreMarkRequired {
+        /// The dimension id.
+        id: u32,
+    },
+    /// [`EditSession::set_centre_mark`] named a ce dimension that carries no
+    /// centre mark: only a radius/diameter ce dimension or a standalone
+    /// centre mark does.
+    #[error(
+        "ce dimension {id} has no centre to mark; only a radius/diameter ce dimension or a standalone centre mark carries one"
+    )]
+    NotACentreMarkHost {
+        /// The dimension id.
+        id: u32,
+    },
+    /// A centre line with coincident or non-finite ends, a centre mark on a
+    /// circle whose radius is not a positive finite length, or a centre mark
+    /// whose angle is not finite, was handed to
+    /// [`EditSession::add_dimension`] or [`EditSession::set_centre_mark`].
     #[error("that centre line or centre mark is degenerate: {reason}")]
     CentreGeometryDegenerate {
         /// What is wrong with it.

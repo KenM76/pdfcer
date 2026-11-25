@@ -300,6 +300,7 @@ kind_codec! {
     SetDimensionExtensionGap { end: DimensionEnd, cleared: bool },
     SetDimensionDisplay { show_diameter: bool },
     SetCircularCircleShown { shown: bool },
+    SetCentreMark { present: bool },
     SetDimensionArea { area: bool },
     SetGroupStandard { members: usize },
     SetGroupStyle { members: usize },

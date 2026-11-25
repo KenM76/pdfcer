@@ -39,6 +39,7 @@ mod button_rotation_bakes;
 mod caret_annotation;
 mod ce_dimension_circle_stroke;
 mod ce_dimension_rim_snap;
+mod ce_dimension_set_centre_mark;
 mod cell_block_model;
 mod check_styles;
 mod choice_default_selections;

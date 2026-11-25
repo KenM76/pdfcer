@@ -12866,6 +12866,42 @@ pub(crate) enum Command {
         #[arg(long)]
         verify_undo: bool,
     },
+    /// **Set, replace or remove the centre mark of a placed ce dimension.**
+    ///
+    /// A radius/diameter ce dimension gains, changes or (with --clear) loses
+    /// its mark; a standalone centre mark is replaced, and --clear is refused
+    /// for it (delete the ce dimension instead). The id, group, fit and
+    /// placement are kept. The mark's size is a style property
+    /// (`dimension-style --centre-mark-size`).
+    ///
+    /// A radius/diameter ce dimension with no stored text distance moves its
+    /// label outside the rim while it carries a mark; when that happens the
+    /// output says label_moved=1 and prints the disclosure.
+    DimensionCentreMark {
+        /// Input PDF.
+        input: PathBuf,
+        /// The ce dimension id, as printed by `dimension-list`.
+        #[arg(long)]
+        dimension: u32,
+        /// Remove the mark (radius/diameter ce dimensions only).
+        #[arg(long, conflicts_with_all = ["extension_lines", "angle"])]
+        clear: bool,
+        /// Draw extension lines from the cross out past the rim.
+        #[arg(long)]
+        extension_lines: bool,
+        /// Direction of the first arm, degrees counter-clockwise from page +x.
+        #[arg(long, default_value_t = 0.0, allow_hyphen_values = true)]
+        angle: f64,
+        /// Output path.
+        #[arg(short, long)]
+        output: PathBuf,
+        /// Save mode.
+        #[arg(long, value_enum, default_value_t = SaveMode::Incremental)]
+        mode: SaveMode,
+        /// Reload and verify the edit undoes byte-identically.
+        #[arg(long)]
+        verify_undo: bool,
+    },
     /// **Show or hide a radius/diameter ce dimension's circle.**
     ///
     /// The leader, label and any centre mark stay; the fit and the value do

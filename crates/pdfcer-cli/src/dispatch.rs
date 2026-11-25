@@ -3789,6 +3789,26 @@ pub(crate) fn run() -> ExitCode {
             mode,
             verify_undo,
         } => cmd_dimension_display(&input, dimension, show, &output, mode, verify_undo),
+        Command::DimensionCentreMark {
+            input,
+            dimension,
+            clear,
+            extension_lines,
+            angle,
+            output,
+            mode,
+            verify_undo,
+        } => cmd_dimension_centre_mark(&CentreMarkEdit {
+            input: &input,
+            dimension,
+            mark: (!clear).then_some(pdfcer_core::dimension::CentreMarkSpec {
+                extension_lines,
+                angle,
+            }),
+            output: &output,
+            mode,
+            verify_undo,
+        }),
         Command::DimensionCircle {
             input,
             dimension,

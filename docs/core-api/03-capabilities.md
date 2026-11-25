@@ -288,6 +288,16 @@ designing anything in this area; do not re-derive it.
     0.35 --circle-color 0,0,1`, `--clear circle-dash,circle-width,circle-color`;
     `dimension-list` prints `circle=hidden`, and `--style` lists the three
     resolved values with their source.
+- **A placed ce dimension's centre mark is editable** (`Pass 767.0`, G330).
+  `EditSession::set_centre_mark(id, Option<CentreMarkSpec>) ->
+  Result<CentreMarkOutcome, EditError>` sets or clears a `Circular`'s
+  `centre_mark` and replaces a standalone `CentreMark`'s `mark`, keeping the
+  id, group, fit, style and placement; clearing a standalone mark is refused
+  (`CentreMarkRequired`), any other kind is `NotACentreMarkHost`. Preflight
+  `centre_mark_host(id) -> Option<CentreMarkHost>`. `CentreMarkOutcome {
+  label_moved }` reports a `Circular` label that moved outside or back inside
+  the rim (only when no `text_distance` is stored). Detail and refusals: 02's
+  verb row. CLI: `pdfcer dimension-centre-mark`.
 - Reposition (drag or numeric), toggle the group's layer, delete
   (annotation + `/AP` + sidecar record together).
 
@@ -337,6 +347,8 @@ document. Every persistent change goes through an `EditSession` verb below.
 | `set_dimension_style(dimension, style: StyleOverrides)` | `Result<usize, EditError>` — always this one member |
 | `set_dimension_display(dimension, show_diameter: bool)` | `Result<(), EditError>` — circular only |
 | `set_circular_circle_shown(dimension, shown: bool)` | `Result<(), EditError>` — circular only; commits on a no-op |
+| `set_centre_mark(dimension, mark: Option<CentreMarkSpec>)` | `Result<CentreMarkOutcome, EditError>` — circular or standalone mark; commits on a no-op |
+| `centre_mark_host(dimension)` | `Option<CentreMarkHost>` — preflight for the above |
 | `set_dimension_area(dimension, area: bool)` | `Result<(), EditError>` — closed perimeter, ≥3 vertices |
 | `place_dimension(dimension, offset: f64, text_along: f64)` | `Result<(), EditError>` |
 | `set_dimension_extension_gap(dimension, end: DimensionEnd, gap: Option<f64>)` | `Result<(), EditError>` — linear only; `None` = the standard's gap |

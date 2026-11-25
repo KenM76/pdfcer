@@ -1,6 +1,7 @@
-//! Reading toggles on a placed ce dimension: `dimension-area` (a closed
-//! perimeter's perimeter or enclosed area) and `dimension-circle` (a
-//! radius/diameter ce dimension's circle shown or hidden).
+//! Display edits on a placed ce dimension: `dimension-area` (a closed
+//! perimeter's perimeter or enclosed area), `dimension-circle` (a
+//! radius/diameter ce dimension's circle shown or hidden) and
+//! `dimension-centre-mark` (its centre mark set, replaced or removed).
 
 use super::*;
 
@@ -141,5 +142,70 @@ pub(crate) fn cmd_dimension_circle(
         u32::from(outcome.undo_verified),
         u32::from(outcome.undo_identical),
     );
+    finish_edit(input, &outcome)
+}
+
+/// The arguments of `dimension-centre-mark`; `mark: None` is `--clear`.
+pub(crate) struct CentreMarkEdit<'a> {
+    pub(crate) input: &'a Path,
+    pub(crate) dimension: u32,
+    pub(crate) mark: Option<pdfcer_core::dimension::CentreMarkSpec>,
+    pub(crate) output: &'a Path,
+    pub(crate) mode: SaveMode,
+    pub(crate) verify_undo: bool,
+}
+
+/// `dimension-centre-mark` — set, replace or clear a ce dimension's centre
+/// mark, disclosing a label the change moved.
+pub(crate) fn cmd_dimension_centre_mark(args: &CentreMarkEdit<'_>) -> u8 {
+    let input = args.input;
+    let (source, mut session) = match open_for_edit(input) {
+        Ok(pair) => pair,
+        Err(code) => return code,
+    };
+    let id = pdfcer_core::dimension::DimensionId(args.dimension);
+    let moved = match session.set_centre_mark(id, args.mark) {
+        Ok(outcome) => outcome.label_moved,
+        Err(err) => return report_edit_error(input, &err),
+    };
+    let outcome = match save_edited(
+        &mut session,
+        &source,
+        args.output,
+        args.mode,
+        ProducerArg::Preserve,
+        args.verify_undo,
+    ) {
+        Ok(outcome) => outcome,
+        Err(code) => return code,
+    };
+    let mark = args.mark.map_or_else(
+        || "none".to_owned(),
+        |m| {
+            format!(
+                "on extension_lines={} mark_angle={}",
+                if m.extension_lines { "on" } else { "off" },
+                m.angle
+            )
+        },
+    );
+    let r = &outcome.report;
+    println!(
+        "dimension-centre-mark {} dimension={} centre_mark={mark} label_moved={} mode={} -> {}; changed={} objects={} appended={} out_bytes={} undo_verified={} undo_identical={}",
+        input.display(),
+        args.dimension,
+        u32::from(moved),
+        args.mode.name(),
+        args.output.display(),
+        outcome.changed,
+        r.objects_written,
+        r.bytes_appended,
+        r.bytes_written,
+        u32::from(outcome.undo_verified),
+        u32::from(outcome.undo_identical),
+    );
+    if moved {
+        println!("  note: label moved outside the rim to clear the centre mark");
+    }
     finish_edit(input, &outcome)
 }

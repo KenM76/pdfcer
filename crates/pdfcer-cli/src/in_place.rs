@@ -65,6 +65,7 @@ pub(crate) const IN_PLACE_COMMANDS: &[&str] = &[
     "dimension-add",
     "dimension-area",
     "dimension-circle",
+    "dimension-centre-mark",
     "dimension-delete",
     "dimension-display",
     "dimension-extension-gap",
