@@ -5,7 +5,10 @@
 //! output carries), with no `/ToUnicode`. The AGL has no entry for such a
 //! name, so §9.10.2 ends at rung 4 and the page copies as U+FFFD. pdfcer
 //! reads the hex as a code in the font's base encoding (WinAnsi when the
-//! font names none, the driver's own code page), counted as
+//! font names none, the driver's own code page), but only when the hex
+//! equals the code the glyph sits at: the driver names each glyph after its
+//! own slot, so a `/G41` at code 0x01 is some other producer's naming and
+//! says nothing about the text. Counted as
 //! [`super::LadderRung::HexGlyphName`]: an inference, never sourced text.
 //! pdf.js recovers these names the same way.
 
@@ -26,9 +29,10 @@ pub(super) fn code(name: &str) -> Option<u8> {
     u8::from_str_radix(hex, 16).ok()
 }
 
-/// The text a hex glyph name stands for, read through `base`.
-pub(super) fn text(name: &str, base: BaseEncoding) -> Option<String> {
-    let glyph = fontdata::encoding_glyph_name(base, code(name)?)?;
+/// The text a hex glyph name at code `slot` stands for, read through
+/// `base`; `None` unless the name spells `slot`.
+pub(super) fn text(name: &str, slot: u8, base: BaseEncoding) -> Option<String> {
+    let glyph = fontdata::encoding_glyph_name(base, code(name).filter(|&c| c == slot)?)?;
     fontdata::glyph_name_to_unicode_string(glyph)
 }
 
@@ -66,13 +70,28 @@ mod tests {
 
     #[test]
     fn the_code_is_read_through_the_base_encoding() {
-        assert_eq!(text("G41", BaseEncoding::WinAnsi).as_deref(), Some("A"));
-        assert_eq!(text("G20", BaseEncoding::WinAnsi).as_deref(), Some(" "));
+        assert_eq!(
+            text("G41", 0x41, BaseEncoding::WinAnsi).as_deref(),
+            Some("A")
+        );
+        assert_eq!(
+            text("G20", 0x20, BaseEncoding::WinAnsi).as_deref(),
+            Some(" ")
+        );
         // 0x92 is a curly apostrophe in WinAnsi, not U+0092.
         assert_eq!(
-            text("G92", BaseEncoding::WinAnsi).as_deref(),
+            text("G92", 0x92, BaseEncoding::WinAnsi).as_deref(),
             Some("\u{2019}")
         );
-        assert_eq!(text("G8A", BaseEncoding::MacRoman).as_deref(), Some("ä"));
+        assert_eq!(
+            text("G8A", 0x8A, BaseEncoding::MacRoman).as_deref(),
+            Some("ä")
+        );
+    }
+
+    #[test]
+    fn a_name_that_does_not_spell_its_own_slot_gives_nothing() {
+        assert_eq!(text("G41", 0x01, BaseEncoding::WinAnsi), None);
+        assert_eq!(text("G41", 0x42, BaseEncoding::WinAnsi), None);
     }
 }

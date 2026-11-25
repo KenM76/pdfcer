@@ -757,7 +757,8 @@ impl ExtractFont {
         // pdfcer's inference: a name that spells its code in hex.
         if let Some(names) = &self.glyph_names
             && let Some(Some(name)) = usize::try_from(code).ok().and_then(|i| names.get(i))
-            && let Some(text) = super::hex_name::text(name, self.hex_base)
+            && let Ok(slot) = u8::try_from(code)
+            && let Some(text) = super::hex_name::text(name, slot, self.hex_base)
         {
             return (text, LadderRung::HexGlyphName);
         }
