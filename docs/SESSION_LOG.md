@@ -4,6 +4,23 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-11-25 (1709th filing) — `Pass 769.0`-`772.0` SHIPPED (ce dimensions), `0121cd63` fix
+
+**Filed (engineer-reported; no shell here, git, push, CI and the gates not checked from here; operator commits):**
+- `Pass 772.0` `06dfa82a` (`G334`): `CentreStyle { line, mark }` in the style cascade, `centre_line_dash_fit`, `reads_style_field`, sidecar v8, cli `--centre-line-*`/`--centre-mark-*`. The core-api doc, not the code, was wrong about a centre line following the dash; doc corrected.
+- `Pass 771.0` `a50d4220` (`G333`): centre mark gap, extension and line font, `centre_mark_extension_lines_drawn`, sidecar v9, cli flags; factory output byte-identical.
+- `Pass 769.0` `35c6b75e` (`G331`): `LineType`/`LineTypeRef`, `line_type_scale`, sidecar v10, `MAX_DASH_RUNS` 8, cli `--dash NAME`. Breaking dash field types.
+- `Pass 770.0` `4213f457` (`G332`): associative anchors, five verbs, 5 new `EditError` (220), cli `dimension-anchor`, sidecar v11, breaking `DimensionRecord.anchors` and three `*_anchors_detached` counters. Defaults chosen: rim snap implies `Rim(Min)`, `LineAxis` infinite, dragging an anchored vertex detaches, locked dependent still re-solved, cross-page refused.
+- `0121cd63` (`774.0` fix): disclosure string with an 18-space gap rejoined (`check-string-gaps.sh`).
+- All four were filed Planned at the 1705th; moved. **Not done, minted `Pass 770.1`:** page transforms, copy and paste, `set_centre_mark` do not re-solve or keep anchors. README: 274 subcommands.
+- `FEATURES.md`: three Implemented rows (line types; centre stroke/gap/extension/font; anchors), four Planned rows replaced by one `770.1` row. `ROADMAP.md`: Shipped entry, Next up banner rewritten. `ARCHITECTURE.md` §3: stale `main.rs` line count corrected.
+
+**Tests (engineer-reported, merged main):** core lib 2572, integration 3533, CLI 1190, CLI lib 134, doctests 325, all green; fmt, clippy `-D warnings` and every project check clean.
+
+**Decisions made:** none new (the defaults above are recorded in the commit and the channel reply, not a decision doc). **Flag:** `crates/pdfcer-cli/src/main.rs` is 1,154 lines by `Grep` count, over the 800-line production limit unless mostly tests; engineer to check the structure baseline.
+
+**Next:** `Pass 770.1`; release `v0.175.0` writes OneDrive `pdfcer2`; the GUI has consumed none of `765.0`-`772.0`.
+
 ## 2026-11-25 (1708th filing) — `Pass 774.0` SHIPPED (unreadable form disclosed, `X118`)
 
 **Filed (engineer-reported; no shell here, git, push, CI and the gates not checked from here; operator commits):**

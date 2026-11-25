@@ -2638,7 +2638,9 @@ D:\Dev\pdfcer\
                                    **`src/` layout (`Pass 325.0` step 5, 2026-09-25,
                                    `0fe973a2`):** `main.rs` holds only module docs,
                                    `main`, `mod exit`, `build_banner`, `plain_help`
-                                   and scrub helpers (917 lines, from ~46,000).
+                                   and scrub helpers (917 lines at that Pass, from
+                                   ~46,000; 1,154 lines by `Grep` count on
+                                   2026-11-25, 1709th filing).
                                    `cli.rs` carries the clap `Cli`/`Command` surface;
                                    `dispatch.rs` carries `run()`; the remaining 26
                                    files are one subcommand group each (`annot_edit`,

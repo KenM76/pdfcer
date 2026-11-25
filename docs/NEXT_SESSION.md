@@ -5,7 +5,9 @@ Engineer-owned; replaced each session. The previous long-form handoff (mesh
 failure classes, probe recipes, release recipe detail) is in git:
 `git show 40e7d1d7:docs/NEXT_SESSION.md`. Grep it; do not re-adopt it wholesale.
 
-**2026-11-25 update (Pass 774.0, newest; filed 1708th).** Pass 774.0 (`269185bd`, X118) is on `main`, unreleased (next release v0.175.0): `mark_untagged_as_artifacts` now discloses, per page, a form it could not read.
+**2026-11-25 update (Passes 769.0-772.0 + 0121cd63, newest; filed 1709th).** On `main`, unreleased (next release v0.175.0): 772.0 `06dfa82a` (G334 centre line/mark own stroke), 771.0 `a50d4220` (G333 mark gap/extension/font), 769.0 `35c6b75e` (G331 named line types), 770.0 `4213f457` (G332 anchors, sidecar v11), `0121cd63` (string-gap fix). **Open:** `Pass 770.1` (anchors vs page transforms, copy and paste, `set_centre_mark`). README says 274 subcommands. The GUI has consumed none of 765.0-772.0. Check `crates/pdfcer-cli/src/main.rs` size (1,154 lines by `Grep` count) against the structure baseline.
+
+**2026-11-25 update (Pass 774.0, previous; filed 1708th).** Pass 774.0 (`269185bd`, X118) is on `main`, unreleased (next release v0.175.0): `mark_untagged_as_artifacts` now discloses, per page, a form it could not read.
 
 **2026-11-25 update (Pass 773.0, previous; filed 1707th).** Pass 773.0 (`58f8dc86`, X117) is on `main`, unreleased (next release v0.175.0): an image with `/StructParent` counts as tagged in the artifact planner, `FormCensus::walk` and PUI-01-005. README says 273 subcommands (`937566fe`).
 
