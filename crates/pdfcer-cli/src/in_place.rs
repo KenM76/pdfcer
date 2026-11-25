@@ -63,6 +63,7 @@ pub(crate) const IN_PLACE_COMMANDS: &[&str] = &[
     "deskew",
     "detach-file",
     "dimension-add",
+    "dimension-anchor",
     "dimension-area",
     "dimension-circle",
     "dimension-centre-mark",

@@ -3312,6 +3312,7 @@ pub(crate) fn run() -> ExitCode {
             offset,
             treat_as_parallel,
             text_along,
+            anchors,
             output,
             mode,
             verify_undo,
@@ -3325,6 +3326,7 @@ pub(crate) fn run() -> ExitCode {
             offset,
             treat_as_parallel,
             text_along,
+            anchors: &anchors,
             output: &output,
             mode,
             verify_undo,
@@ -3389,6 +3391,30 @@ pub(crate) fn run() -> ExitCode {
             mode,
             verify_undo,
         } => cmd_dimension_delete(&input, dimension, &output, mode, verify_undo),
+        Command::DimensionAnchor {
+            input,
+            dimension,
+            point,
+            target,
+            role,
+            clear: _,
+            output,
+            mode,
+            verify_undo,
+        } => cmd_dimension_anchor(&AnchorEdit {
+            input: &input,
+            dimension,
+            point,
+            anchor: target.zip(role).map(|(t, r)| {
+                pdfcer_core::dimension::Anchor::new(
+                    pdfcer_core::dimension::DimensionId(t),
+                    r.role(),
+                )
+            }),
+            output: &output,
+            mode,
+            verify_undo,
+        }),
         Command::GroupSetStandard {
             input,
             group,

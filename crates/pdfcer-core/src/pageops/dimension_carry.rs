@@ -85,6 +85,7 @@ pub(super) fn carry(
         subset.insert_dimension(record);
         report.ce_dimensions_carried += 1;
     }
+    report.ce_dimension_anchors_detached += subset.detach_missing_targets();
 
     let mut out = Dict::new();
     if let Some(stamp) = data.get(b"LastModified")
@@ -173,6 +174,7 @@ fn carry_all(
         report.ce_dimension_groups_carried += out.groups_carried;
         report.ce_dimension_groups_matched += out.groups_matched;
         report.ce_dimension_groups_renamed += out.groups_renamed;
+        report.ce_dimension_anchors_detached += out.anchors_detached;
         for (annot, layer) in out.relayer {
             relayer(copier, annot, layer);
         }

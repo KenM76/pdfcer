@@ -28,6 +28,8 @@ pub(super) struct DimensionCarry {
     pub groups_matched: usize,
     /// Of `groups_carried`, those given a suffixed name.
     pub groups_renamed: usize,
+    /// Anchors cleared because their target was not copied.
+    pub anchors_detached: usize,
     /// Whether a sidecar from a newer pdfcer, on either side, is why
     /// `as_lines` is not zero.
     pub sidecar_newer: bool,
@@ -80,6 +82,7 @@ impl EditSession {
         out.groups_carried = combined.groups_carried;
         out.groups_matched = combined.groups_matched;
         out.groups_renamed = combined.groups_renamed;
+        out.anchors_detached = combined.anchors_detached;
         if combined.carried == 0 {
             return out;
         }

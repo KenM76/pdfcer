@@ -1256,6 +1256,10 @@ pub struct DimensionRecord {
     /// session state would silently revert on the next open and the operator
     /// would have no way to tell an expired override from one that never took.
     pub label_override: Option<String>,
+    /// Measured points bound to another ce dimension's centre geometry, as
+    /// `(point index, anchor)` sorted by index; see [`super::anchor`]. The
+    /// points in [`Self::kind`] are the last solved positions.
+    pub anchors: Vec<(usize, super::anchor::Anchor)>,
 }
 
 /// The authoritative dimensioning model — the whole `/PieceInfo` sidecar's
@@ -1436,8 +1440,14 @@ impl DimensionModel {
             // dimension they can already see — there is no defensible way to
             // guess one at draw time (decision 097).
             label_override: None,
+            anchors: Vec::new(),
         });
         id
+    }
+
+    /// The id [`Self::add_dimension`] will hand out next.
+    pub(crate) const fn next_dimension_id(&self) -> DimensionId {
+        DimensionId(self.next_dim)
     }
 
     /// Insert a dimension with a caller-supplied record (sidecar

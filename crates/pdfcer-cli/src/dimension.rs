@@ -1,5 +1,8 @@
 use super::*;
 
+mod anchor_cmd;
+pub(crate) use anchor_cmd::*;
+
 /// Parse a `x,y x,y ...` (space/`;`-separated) point list into page-space
 /// points. `None` on any malformed token or an empty list.
 pub(crate) fn parse_dim_points(s: &str) -> Option<Vec<pdfcer_core::vector::Point>> {
@@ -32,6 +35,8 @@ pub(crate) struct DimensionAddArgs<'a> {
     /// Force the parallel reading for `--kind two-lines` (operator override).
     pub(crate) treat_as_parallel: bool,
     pub(crate) text_along: f64,
+    /// `--anchor POINT:TARGET:ROLE`, unparsed.
+    pub(crate) anchors: &'a [String],
     pub(crate) output: &'a Path,
     pub(crate) mode: SaveMode,
     pub(crate) verify_undo: bool,
@@ -50,10 +55,18 @@ pub(crate) fn cmd_dimension_add(args: &DimensionAddArgs<'_>) -> u8 {
         offset,
         treat_as_parallel,
         text_along,
+        anchors,
         output,
         mode,
         verify_undo,
     } = args;
+    let anchors = match parse_anchor_specs(anchors) {
+        Ok(a) => a,
+        Err(msg) => {
+            eprintln!("pdfcer: {}: {msg}", input.display());
+            return exit::EDIT_REFUSED;
+        }
+    };
 
     // The operator's own near-parallel threshold. Read from the store rather
     // than defaulted here, so the CLI and the GUI slider cannot disagree
@@ -272,7 +285,8 @@ pub(crate) fn cmd_dimension_add(args: &DimensionAddArgs<'_>) -> u8 {
         );
         return exit::EDIT_REFUSED;
     };
-    let (annot_id, dim_id) = match session.add_dimension(page_index, GroupId(group), dk) {
+    let added = session.add_dimension_anchored(page_index, GroupId(group), dk, &anchors);
+    let (annot_id, dim_id) = match added {
         Ok(v) => v,
         Err(err) => return report_edit_error(input, &err),
     };
@@ -1339,6 +1353,7 @@ pub(crate) fn cmd_dimension_vertex(args: &DimensionVertexArgs<'_>) -> u8 {
         Ok(o) => o,
         Err(err) => return report_edit_error(args.input, &err),
     };
+    let followed = session.last_anchor_resolutions().to_vec();
 
     let outcome = match save_edited(
         &mut session,
@@ -1371,6 +1386,7 @@ pub(crate) fn cmd_dimension_vertex(args: &DimensionVertexArgs<'_>) -> u8 {
         u32::from(outcome.undo_verified),
         u32::from(outcome.undo_identical),
     );
+    print_anchor_report(&followed);
     finish_edit(args.input, &outcome)
 }
 
@@ -1402,6 +1418,7 @@ pub(crate) fn cmd_dimension_rotate(
         Ok(o) => o,
         Err(err) => return report_edit_error(input, &err),
     };
+    let followed = session.last_anchor_resolutions().to_vec();
 
     if out.constraint_relaxed {
         eprintln!(
@@ -1445,6 +1462,7 @@ pub(crate) fn cmd_dimension_rotate(
         "  value={after:?} (unchanged, by construction) constraint_relaxed={}",
         out.constraint_relaxed
     );
+    print_anchor_report(&followed);
     finish_edit(input, &saved)
 }
 
@@ -1719,6 +1737,7 @@ pub(crate) fn cmd_dimension_delete(
     if let Err(err) = session.delete_dimension(pdfcer_core::dimension::DimensionId(dimension)) {
         return report_edit_error(input, &err);
     }
+    let detached: Vec<_> = session.last_anchor_resolutions().to_vec();
     let outcome = match save_edited(
         &mut session,
         &source,
@@ -1743,6 +1762,7 @@ pub(crate) fn cmd_dimension_delete(
         u32::from(outcome.undo_verified),
         u32::from(outcome.undo_identical),
     );
+    print_anchor_report(&detached);
     finish_edit(input, &outcome)
 }
 
@@ -2676,6 +2696,7 @@ pub(crate) fn cmd_dimension_list(input: &Path, show_style: bool) -> u8 {
             d.group.0,
             d.style.count()
         );
+        print_anchor_lines(&session, d.id);
         if show_style {
             let Some(group) = model.group(d.group) else {
                 continue;

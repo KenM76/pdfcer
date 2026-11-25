@@ -11565,6 +11565,14 @@ pub(crate) enum Command {
         /// its midpoint (Pass 27.1). 0 is centred.
         #[arg(long, default_value_t = 0.0, allow_hyphen_values = true)]
         text_along: f64,
+        /// Attach a measured point to a centre mark, centre line or circle,
+        /// as POINT:TARGET:ROLE (repeatable): POINT is the point index (0 and
+        /// 1 for a linear ce dimension), TARGET a ce dimension id from
+        /// `dimension-list`, ROLE as `dimension-anchor --role` names it. The
+        /// ce dimension is placed already solved, and follows its target from
+        /// then on. One undo step with the placement.
+        #[arg(long = "anchor", value_name = "POINT:TARGET:ROLE")]
+        anchors: Vec<String>,
         /// Output path.
         #[arg(short, long)]
         output: PathBuf,
@@ -13050,6 +13058,55 @@ pub(crate) enum Command {
         text: Option<String>,
         /// Clear the override and restore the measured caption.
         #[arg(long, conflicts_with = "text")]
+        clear: bool,
+        /// Output path.
+        #[arg(short, long)]
+        output: PathBuf,
+        /// Save mode.
+        #[arg(long, value_enum, default_value_t = SaveMode::Incremental)]
+        mode: SaveMode,
+        /// Reload and verify the edit undoes byte-identically.
+        #[arg(long)]
+        verify_undo: bool,
+    },
+    /// **Attach a ce dimension's point to a centre mark, centre line or
+    /// circle, or detach it.**
+    ///
+    /// The point is re-solved at once, and from then on it follows the
+    /// target: moving, rotating or reshaping the target re-measures this ce
+    /// dimension in the same undo step, and that command prints a
+    /// `followed dimension=` line for it. Deleting the target detaches it
+    /// (`detached dimension=`); nothing moves.
+    ///
+    /// Roles: mark-centre (a centre mark's or radius/diameter's centre);
+    /// line-end-a, line-end-b, line-midpoint (a centre line); line-axis
+    /// (the foot of the perpendicular from the other end onto the centre
+    /// line); rim-centre, rim-min, rim-max (a circle: its centre, or the rim
+    /// point nearest or farthest from the other end). line-axis, rim-min and
+    /// rim-max need a linear ce dimension. `dimension-list` prints each
+    /// anchor and whether it solved.
+    ///
+    /// Refused, with nothing written: a target that is not a centre mark,
+    /// centre line or circle of the role; a target on another page; a point
+    /// index the ce dimension does not have.
+    DimensionAnchor {
+        /// Input PDF.
+        input: PathBuf,
+        /// The ce dimension whose point is attached.
+        #[arg(long)]
+        dimension: u32,
+        /// The point index (0 and 1 for a linear ce dimension, 0 for an
+        /// angular one's apex, the vertex index for a perimeter).
+        #[arg(long)]
+        point: usize,
+        /// The target ce dimension id.
+        #[arg(long, required_unless_present = "clear", requires = "role")]
+        target: Option<u32>,
+        /// What on the target the point follows.
+        #[arg(long, value_enum, requires = "target")]
+        role: Option<AnchorRoleArg>,
+        /// Detach the point; it stays where it is.
+        #[arg(long, conflicts_with_all = ["target", "role"])]
         clear: bool,
         /// Output path.
         #[arg(short, long)]

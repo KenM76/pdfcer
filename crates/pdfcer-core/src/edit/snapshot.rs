@@ -26,6 +26,7 @@ impl EditSession {
             next_number: self.next_number,
             staging: self.staging.clone(),
             structure_notes: Vec::new(),
+            anchor_report: Vec::new(),
             undo: Vec::new(),
             redo: Vec::new(),
             session_serial: super::checkpoint::next_serial(),

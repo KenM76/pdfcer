@@ -150,6 +150,13 @@ fn group_shown<G: crate::graph::ObjectGraph + ?Sized>(
 fn ce_dimension_geometry(d: &DimensionRecord, style: Option<DimensionStyle>) -> SnapGeometry {
     let mut g = SnapGeometry::new(SnapSource::CeDimension, d.annot, None);
     g.set_dimension(d.id);
+    g.set_anchor_targets(
+        match &d.kind {
+            DimensionKind::CentreLine { a, b } => Some((*a, *b)),
+            _ => None,
+        },
+        d.kind.centre_mark_centre().is_some() || matches!(d.kind, DimensionKind::Circular { .. }),
+    );
     match &d.kind {
         DimensionKind::Linear { .. } => {
             if let Some((dim_a, dim_b, _, _)) = d.kind.linear_geometry() {

@@ -488,6 +488,10 @@ pub struct AssembleReport {
     /// Of [`Self::ce_dimension_groups_carried`], those whose name was taken
     /// by a group of other settings and so carry a ` (2)`-style suffix.
     pub ce_dimension_groups_renamed: usize,
+    /// Anchors of carried ce dimensions whose target ce dimension was not
+    /// carried: cleared, with the points left where they were last solved,
+    /// so those ce dimensions no longer follow anything. A shell says so.
+    pub ce_dimension_anchors_detached: usize,
 }
 
 /// One page to place in the assembled document: which source, and which

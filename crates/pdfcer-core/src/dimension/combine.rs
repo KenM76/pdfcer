@@ -10,7 +10,7 @@
 
 use std::collections::BTreeMap;
 
-use super::group::{DEFAULT_GROUP_ID, DimensionModel, Group, GroupId};
+use super::group::{DEFAULT_GROUP_ID, DimensionId, DimensionModel, Group, GroupId};
 use super::units::Unit;
 use crate::object::ObjId;
 
@@ -34,6 +34,9 @@ pub(crate) struct Combined {
     /// Copied layers no carried ce dimension uses any more, because their
     /// group joined a destination group that has its own layer.
     pub retired_layers: Vec<ObjId>,
+    /// Anchors of carried ce dimensions whose target was not carried; they
+    /// were cleared and the points kept where they were last solved.
+    pub anchors_detached: usize,
 }
 
 /// Whether two groups print a measurement the same way. The name, layer and
@@ -64,6 +67,7 @@ pub(crate) fn combine(
     }
 
     let mut homes: BTreeMap<GroupId, GroupId> = BTreeMap::new();
+    let mut ids: BTreeMap<DimensionId, DimensionId> = BTreeMap::new();
     if dest.group(DEFAULT_GROUP_ID).is_none() {
         seed_default(dest, source, mapped, &mut homes, &mut out);
     }
@@ -79,6 +83,7 @@ pub(crate) fn combine(
             }
         };
         let id = dest.add_dimension(home, record.kind.clone());
+        ids.insert(record.id, id);
         if let Some(added) = dest.dimension_mut(id) {
             added.annot = Some(annot);
             added.ap = record.ap.and_then(mapped);
@@ -97,7 +102,36 @@ pub(crate) fn combine(
         }
         out.carried += 1;
     }
+    remap_anchors(dest, source, &ids, &mut out);
     out
+}
+
+/// Give each carried ce dimension its source anchors with the targets
+/// renumbered; an anchor whose target was not carried is dropped.
+fn remap_anchors(
+    dest: &mut DimensionModel,
+    source: &DimensionModel,
+    ids: &BTreeMap<DimensionId, DimensionId>,
+    out: &mut Combined,
+) {
+    for (from, to) in ids {
+        let Some(record) = source.dimension(*from) else {
+            continue;
+        };
+        let mut anchors = record.anchors.clone();
+        let before = anchors.len();
+        anchors.retain_mut(|(_, a)| match ids.get(&a.target) {
+            Some(t) => {
+                a.target = *t;
+                true
+            }
+            None => false,
+        });
+        out.anchors_detached += before - anchors.len();
+        if let Some(added) = dest.dimension_mut(*to) {
+            added.anchors = anchors;
+        }
+    }
 }
 
 /// Give a group-less `dest` its default group: the source's, when it has

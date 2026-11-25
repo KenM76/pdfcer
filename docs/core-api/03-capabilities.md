@@ -308,6 +308,29 @@ designing anything in this area; do not re-derive it.
   `move_dimension_vertex` at index 0 (`a`) or 1 (`b`), with empty labels;
   insert/remove refuse (`DimensionVertexCountFixed`) and coincident ends
   refuse (`CentreGeometryDegenerate`). CLI: `pdfcer dimension-vertex`.
+- **A ce dimension's point can follow centre geometry** (`Pass 770.0`,
+  G332). `DimensionRecord.anchors: Vec<(usize, Anchor)>` binds a measured
+  point to a centre mark's or circle's centre, a centre line's end,
+  midpoint or axis, or a circle's rim (`AnchorRole`, `ArcCondition`).
+  Moving, rotating or reshaping the target re-solves every dependent in the
+  same undo entry; deleting it detaches them (points stay). Verbs, refusals
+  and the follow rules: 02's `set_dimension_anchor` row.
+  - ★ **Disclose** `last_anchor_resolutions()` after every move, rotate,
+    vertex or delete: each `Resolved` is a ce dimension whose value changed
+    (or which stopped following) without being named. Show an
+    `AnchorState::Unsolvable` reason on the dependent's properties.
+  - Snap: `CeDimensionTarget.anchor: Option<Anchor>` (`with_anchor(role)`)
+    is the anchor a snap onto centre geometry implies — a centre line's
+    end/midpoint/axis, a circle target's centre (`MarkCentre`) or rim
+    (`Rim(Min)`, the safe default; offer Max). Tangent and arm snaps carry
+    none. Pass it to `add_dimension_anchored`.
+  - Carry: insert, merge and assemble renumber anchor targets with their ce
+    dimensions; an anchor whose target was not brought across is cleared and
+    counted (`InsertOutcome` / `MergeOutcome` /
+    `AssembleReport.ce_dimension_anchors_detached`) — disclose the count.
+  - Sidecar **version 11** when any anchor is stored (`/Anchors`); without
+    one the version is unchanged. ⚠️ **Breaking**: a `DimensionRecord`
+    literal must add `anchors`.
 - **Centre lines and centre marks have their own stroke** (`Pass 772.0`,
   G334). `centre: CentreStyle { line: PartStroke, mark: PartStroke }` on
   `StyleDefaults` (factory `CentreStyle::INHERIT`), `GroupStyle`,
@@ -472,6 +495,11 @@ document. Every persistent change goes through an `EditSession` verb below.
 | `set_circular_circle_shown(dimension, shown: bool)` | `Result<(), EditError>` — circular only; commits on a no-op |
 | `set_centre_mark(dimension, mark: Option<CentreMarkSpec>)` | `Result<CentreMarkOutcome, EditError>` — circular or standalone mark; commits on a no-op |
 | `centre_mark_host(dimension)` | `Option<CentreMarkHost>` — preflight for the above |
+| `set_dimension_anchor(dimension, point, anchor: Option<Anchor>)` | `Result<AnchorOutcome, EditError>` — one point, set or cleared, solved at once |
+| `add_dimension_anchored(page_index, group, kind, anchors: &[(usize, Anchor)])` | `Result<(ObjId, DimensionId), EditError>` — placed solved, one undo entry |
+| `dimension_anchors(&self, dimension)` | `Vec<(usize, Anchor, AnchorState)>` — read-only |
+| `anchor_dependents(&self, target)` | `Vec<DimensionId>` — read-only |
+| `last_anchor_resolutions(&self)` | `&[Resolved]` — what the last command re-solved or detached |
 | `set_dimension_area(dimension, area: bool)` | `Result<(), EditError>` — closed perimeter, ≥3 vertices |
 | `place_dimension(dimension, offset: f64, text_along: f64)` | `Result<(), EditError>` |
 | `set_dimension_extension_gap(dimension, end: DimensionEnd, gap: Option<f64>)` | `Result<(), EditError>` — linear only; `None` = the standard's gap |

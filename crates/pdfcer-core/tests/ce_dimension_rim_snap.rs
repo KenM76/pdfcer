@@ -3,6 +3,7 @@
 //! one names.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use pdfcer_core::dimension::{AnchorRole, ArcCondition};
 use pdfcer_core::dimension::{
     CentreMarkSpec, DEFAULT_GROUP_ID, DimensionId, DimensionKind, FitCircle,
 };
@@ -72,7 +73,11 @@ fn the_nearest_rim_point_lies_exactly_on_the_circle() {
     let hit = rim.first().expect("a rim target");
     assert!((hit.point.distance(C) - R).abs() < 1e-9, "{hit:?}");
     assert!((hit.point.x - (C.x + R * t.cos())).abs() < 1e-9);
-    assert_eq!(hit.ce_dimension, Some(CeDimensionTarget::new(id, true)));
+    let rim_min = AnchorRole::Rim(ArcCondition::Min);
+    assert_eq!(
+        hit.ce_dimension,
+        Some(CeDimensionTarget::new(id, true).with_anchor(rim_min))
+    );
 }
 
 #[test]
@@ -130,13 +135,17 @@ fn a_centre_marks_fitted_circle_snaps_but_is_tagged_not_drawn() {
     let q = Point::new(C.x + (R + 1.0) * t.cos(), C.y + (R + 1.0) * t.sin());
     let c = near(&mut s, q, None);
     let rim = of(&c, SnapKind::RimNearest);
-    assert_eq!(rim[0].ce_dimension, Some(CeDimensionTarget::new(id, false)));
+    let rim_min = AnchorRole::Rim(ArcCondition::Min);
+    assert_eq!(
+        rim[0].ce_dimension,
+        Some(CeDimensionTarget::new(id, false).with_anchor(rim_min))
+    );
     // Its drawn centre is still drawn.
     let c = near(&mut s, Point::new(C.x + 0.5, C.y), None);
     let centre = of(&c, SnapKind::Center);
     assert_eq!(
         centre[0].ce_dimension,
-        Some(CeDimensionTarget::new(id, true))
+        Some(CeDimensionTarget::new(id, true).with_anchor(AnchorRole::MarkCentre))
     );
 }
 
@@ -171,5 +180,9 @@ fn a_hidden_circular_circle_snaps_but_is_tagged_not_drawn() {
     let q = Point::new(C.x + (R + 1.0) * t.cos(), C.y + (R + 1.0) * t.sin());
     let c = near(&mut s, q, None);
     let rim = of(&c, SnapKind::RimNearest);
-    assert_eq!(rim[0].ce_dimension, Some(CeDimensionTarget::new(id, false)));
+    let rim_min = AnchorRole::Rim(ArcCondition::Min);
+    assert_eq!(
+        rim[0].ce_dimension,
+        Some(CeDimensionTarget::new(id, false).with_anchor(rim_min))
+    );
 }

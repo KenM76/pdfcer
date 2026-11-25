@@ -30,6 +30,7 @@ mod copy_text;
 mod coverage_warning;
 mod create_digital_id;
 mod deskew;
+mod dimension_anchor;
 mod dimension_area;
 mod dimension_centre_mark_edit;
 mod dimension_centre_mark_reach;

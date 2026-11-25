@@ -154,6 +154,7 @@ pub use history_transfer::{HistoryError, HistoryImport};
 pub use regroup::WidgetRegroup;
 mod content_mark;
 mod decoration_refresh;
+mod dimension_anchor;
 mod dimension_centre_mark;
 mod dimension_circle;
 mod dimension_vertex_kind;
@@ -1170,6 +1171,13 @@ pub enum CommandKind {
     SetCentreMark {
         /// Whether a mark is present afterwards.
         present: bool,
+    },
+    /// A ce dimension's point anchored to another ce dimension, or its
+    /// anchor cleared, and its `/AP` regenerated. ONE undoable command. See
+    /// [`EditSession::set_dimension_anchor`].
+    SetDimensionAnchor {
+        /// Whether an anchor is set afterwards.
+        attached: bool,
     },
     /// A closed perimeter ce dimension switched between reporting its
     /// perimeter and its enclosed area, and its `/AP`, `/Contents` and
@@ -4700,6 +4708,10 @@ pub struct InsertOutcome {
     /// here by a group of other settings, and so carry a ` (2)`-style
     /// suffix. A shell says so.
     pub ce_dimension_groups_renamed: usize,
+    /// Anchors of arriving ce dimensions whose target ce dimension did not
+    /// arrive: cleared, with the points left where they were last solved.
+    /// A shell says so.
+    pub ce_dimension_anchors_detached: usize,
     /// Whether [`Self::ce_dimensions_as_lines`] is not zero because the
     /// source's sidecar, or this document's, was written by a newer pdfcer
     /// than this build reads.
@@ -4742,6 +4754,10 @@ pub struct MergeOutcome {
     /// here by a group of other settings, and so carry a ` (2)`-style
     /// suffix. A shell says so.
     pub ce_dimension_groups_renamed: usize,
+    /// Anchors of arriving ce dimensions whose target ce dimension did not
+    /// arrive: cleared, with the points left where they were last solved.
+    /// A shell says so.
+    pub ce_dimension_anchors_detached: usize,
     /// Whether [`Self::ce_dimensions_as_lines`] is not zero because the
     /// source's sidecar, or this document's, was written by a newer pdfcer
     /// than this build reads.
@@ -9114,6 +9130,58 @@ pub enum EditError {
         /// The value the caller supplied.
         value: f64,
     },
+    /// An anchor would make a ce dimension follow itself, directly or
+    /// through other anchors (pdfcer-gui request G332).
+    #[error(
+        "ce dimension {id} cannot follow ce dimension {target}: {target} already follows {id}; nothing was changed"
+    )]
+    AnchorCycle {
+        /// The ce dimension being anchored.
+        id: u32,
+        /// The target that already depends on it.
+        target: u32,
+    },
+    /// The anchored point index is past the ce dimension's anchorable
+    /// points (see [`crate::dimension::DimensionKind::anchor_point_count`]).
+    #[error(
+        "ce dimension {id} has {count} anchorable point(s); point {point} does not exist; nothing was changed"
+    )]
+    AnchorPointOutOfRange {
+        /// The ce dimension.
+        id: u32,
+        /// The point index supplied.
+        point: usize,
+        /// How many anchorable points it has.
+        count: usize,
+    },
+    /// The target has no point of the requested role: centre-line roles need
+    /// a centre line, centre and rim roles a centre mark or a
+    /// radius/diameter ce dimension.
+    #[error("ce dimension {target} has no point of that kind to anchor to; nothing was changed")]
+    AnchorRoleNotOnTarget {
+        /// The target.
+        target: u32,
+    },
+    /// A nearest or farthest rim anchor on a ce dimension that has no other
+    /// end to measure from; only a linear ce dimension has one.
+    #[error(
+        "ce dimension {id} is not linear, so a nearest or farthest rim point is not defined; anchor it to the rim's centre instead; nothing was changed"
+    )]
+    AnchorConditionNeedsLinear {
+        /// The ce dimension.
+        id: u32,
+    },
+    /// The ce dimension and its target are on different pages, so their
+    /// coordinates do not share a space.
+    #[error(
+        "ce dimension {id} and ce dimension {target} are on different pages and cannot be anchored; nothing was changed"
+    )]
+    AnchorAcrossPages {
+        /// The ce dimension.
+        id: u32,
+        /// The target.
+        target: u32,
+    },
     /// A cloudy border effect `/BE /I` was given an intensity outside the
     /// range the standard defines.
     ///
@@ -10610,6 +10678,9 @@ pub struct EditSession {
     /// What the last commit's decoration sync could not record in the
     /// structure tree; drained into the verb's report.
     structure_notes: Vec<String>,
+    /// The ce dimensions the last command re-solved or detached through
+    /// their anchors; see [`EditSession::last_anchor_resolutions`].
+    anchor_report: Vec<crate::dimension::Resolved>,
     undo: Vec<Entry>,
     redo: Vec<Entry>,
     /// Identifies this session to a [`Checkpoint`].
@@ -10847,6 +10918,7 @@ impl EditSession {
             next_number,
             staging: Vec::new(),
             structure_notes: Vec::new(),
+            anchor_report: Vec::new(),
             undo: Vec::new(),
             redo: Vec::new(),
             session_serial: checkpoint::next_serial(),
@@ -11331,6 +11403,7 @@ impl EditSession {
     /// restores read-through to the base or — for a created object —
     /// makes it not exist again.
     pub fn undo(&mut self) -> Option<CommandKind> {
+        self.anchor_report.clear();
         let entry = self.revert_last()?;
         let kind = entry.kind;
         self.redo.push(entry);
@@ -11356,6 +11429,7 @@ impl EditSession {
 
     /// Redo the most recently undone command, returning what was redone.
     pub fn redo(&mut self) -> Option<CommandKind> {
+        self.anchor_report.clear();
         let command = self.redo.pop()?;
         for write in &command.objects {
             self.put_state(write.id, write.after.clone());
@@ -20891,6 +20965,7 @@ impl EditSession {
     }
 
     fn commit(&mut self, mut command: Command) {
+        self.anchor_report.clear();
         for write in &command.objects {
             self.put_state(write.id, write.after.clone());
         }
@@ -50135,6 +50210,7 @@ impl EditSession {
             ce_dimension_groups_carried: dims.groups_carried,
             ce_dimension_groups_matched: dims.groups_matched,
             ce_dimension_groups_renamed: dims.groups_renamed,
+            ce_dimension_anchors_detached: dims.anchors_detached,
             ce_dimension_sidecar_newer: dims.sidecar_newer,
         })
     }
@@ -51098,7 +51174,6 @@ impl EditSession {
         position: crate::pageops::InsertPosition,
         opts: &crate::pageops::InsertOptions,
     ) -> Result<InsertOutcome, EditError> {
-        let labels = opts.labels;
         let target_count = self.page_slots()?.len();
         let at = position.slot(target_count);
         let Some(PageSplice {
@@ -51121,7 +51196,7 @@ impl EditSession {
         let outline =
             self.carry_inserted_outline(source, opts, &new_page_ids, &mut mapping, &mut scratch)?;
         let source_outline_dropped = outline.from_source == 0 && catalog_has(source, b"Outlines");
-        let source_page_labels_dropped = labels
+        let source_page_labels_dropped = opts.labels
             == crate::pageops::InsertedPageLabels::ContinueRange
             && catalog_has(source, b"PageLabels");
         let page_label_ranges = self.insert_page_labels(
@@ -51130,7 +51205,7 @@ impl EditSession {
             source_slots.len(),
             target_count,
             at,
-            labels,
+            opts.labels,
             &mut scratch,
         );
 
@@ -51167,6 +51242,7 @@ impl EditSession {
             ce_dimension_groups_carried: dims.groups_carried,
             ce_dimension_groups_matched: dims.groups_matched,
             ce_dimension_groups_renamed: dims.groups_renamed,
+            ce_dimension_anchors_detached: dims.anchors_detached,
             ce_dimension_sidecar_newer: dims.sidecar_newer,
             separations: self.page_import_separations(),
         })
@@ -57405,6 +57481,7 @@ impl EditSession {
             None => objects.push(self.page_write(page_id, updated)),
         }
 
+        let detached = self.detach_for_delete(&mut model, dimension);
         model.remove_dimension(dimension);
         objects.push(self.catalog_dimension_write(&model)?);
 
@@ -57425,6 +57502,7 @@ impl EditSession {
             removals,
             trailer: None,
         });
+        self.anchor_report = detached;
         Ok(())
     }
 
@@ -58004,7 +58082,8 @@ impl EditSession {
             d.kind = moved;
         }
 
-        let mut objects = self.regenerate_dimension_writes(&model, &[dimension])?;
+        let (ids, followed) = self.follow_anchors(&mut model, dimension);
+        let mut objects = self.regenerate_dimension_writes(&model, &ids)?;
         objects.push(self.catalog_dimension_write(&model)?);
         self.commit(Command {
             kind: CommandKind::MoveDimension,
@@ -58012,6 +58091,7 @@ impl EditSession {
             removals: Vec::new(),
             trailer: None,
         });
+        self.anchor_report = followed;
         Ok(())
     }
 
@@ -58104,7 +58184,8 @@ impl EditSession {
             d.kind = rotated;
         }
 
-        let mut objects = self.regenerate_dimension_writes(&model, &[dimension])?;
+        let (ids, followed) = self.follow_anchors(&mut model, dimension);
+        let mut objects = self.regenerate_dimension_writes(&model, &ids)?;
         objects.push(self.catalog_dimension_write(&model)?);
         self.commit(Command {
             kind: CommandKind::RotateDimension,
@@ -58112,6 +58193,7 @@ impl EditSession {
             removals: Vec::new(),
             trailer: None,
         });
+        self.anchor_report = followed;
 
         Ok(DimensionRotate {
             dimension,
@@ -58321,8 +58403,10 @@ impl EditSession {
         let mut model = self.read_dimension_model();
         if let Some(d) = model.dimension_mut(dimension) {
             d.kind = kind;
+            dimension_anchor::reindex_anchors(&mut d.anchors, edit);
         }
-        let mut objects = self.regenerate_dimension_writes(&model, &[dimension])?;
+        let (ids, followed) = self.follow_anchors(&mut model, dimension);
+        let mut objects = self.regenerate_dimension_writes(&model, &ids)?;
         objects.push(self.catalog_dimension_write(&model)?);
         self.commit(Command {
             kind: CommandKind::EditDimensionVertex {
@@ -58333,6 +58417,7 @@ impl EditSession {
             removals: Vec::new(),
             trailer: None,
         });
+        self.anchor_report = followed;
         Ok(outcome)
     }
 

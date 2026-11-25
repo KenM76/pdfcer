@@ -61,12 +61,30 @@ pub struct CeDimensionTarget {
     pub id: crate::dimension::DimensionId,
     /// Whether the geometry the target lies on is drawn.
     pub drawn: bool,
+    /// The anchor a ce dimension placed on this target should carry to
+    /// follow it ([`crate::edit::EditSession::add_dimension_anchored`]):
+    /// a centre, a centre-line end, midpoint or axis, or a rim point (as
+    /// `Rim(Min)`; a shell offers `Rim(Max)` or `Rim(Centre)` itself).
+    /// `None` on geometry that moves with the style (arm and extension
+    /// ends) and on a tangent.
+    pub anchor: Option<crate::dimension::Anchor>,
 }
 
 impl CeDimensionTarget {
-    /// A target on ce dimension `id`; `drawn` as the field says.
+    /// A target on ce dimension `id`; `drawn` as the field says; no anchor.
     #[must_use]
     pub const fn new(id: crate::dimension::DimensionId, drawn: bool) -> Self {
-        Self { id, drawn }
+        Self {
+            id,
+            drawn,
+            anchor: None,
+        }
+    }
+
+    /// This target with an anchor to `role` of its own ce dimension.
+    #[must_use]
+    pub const fn with_anchor(mut self, role: crate::dimension::AnchorRole) -> Self {
+        self.anchor = Some(crate::dimension::Anchor::new(self.id, role));
+        self
     }
 }

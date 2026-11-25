@@ -14,6 +14,7 @@ pub(crate) struct CeCarry {
     groups_carried: usize,
     groups_matched: usize,
     groups_renamed: usize,
+    anchors_detached: usize,
     newer: bool,
 }
 
@@ -25,6 +26,7 @@ impl From<&MergeOutcome> for CeCarry {
             groups_carried: o.ce_dimension_groups_carried,
             groups_matched: o.ce_dimension_groups_matched,
             groups_renamed: o.ce_dimension_groups_renamed,
+            anchors_detached: o.ce_dimension_anchors_detached,
             newer: o.ce_dimension_sidecar_newer,
         }
     }
@@ -38,6 +40,7 @@ impl From<&InsertOutcome> for CeCarry {
             groups_carried: o.ce_dimension_groups_carried,
             groups_matched: o.ce_dimension_groups_matched,
             groups_renamed: o.ce_dimension_groups_renamed,
+            anchors_detached: o.ce_dimension_anchors_detached,
             newer: o.ce_dimension_sidecar_newer,
         }
     }
@@ -51,6 +54,7 @@ impl From<&AssembleReport> for CeCarry {
             groups_carried: r.ce_dimension_groups_carried,
             groups_matched: r.ce_dimension_groups_matched,
             groups_renamed: r.ce_dimension_groups_renamed,
+            anchors_detached: r.ce_dimension_anchors_detached,
             newer: r.ce_dimension_sidecar_newer,
         }
     }
@@ -90,6 +94,12 @@ impl CeCarry {
             eprintln!(
                 "pdfcer: {path}: {} dimension group(s) were renamed with a numbered suffix such as \"Arch (2)\": a group of that name with different settings was already there.",
                 self.groups_renamed
+            );
+        }
+        if self.anchors_detached > 0 {
+            eprintln!(
+                "pdfcer: {path}: {} ce dimension anchor(s) were detached: the centre mark, centre line or circle they followed was not brought across, so those ce dimensions keep their last measurement and no longer follow anything.",
+                self.anchors_detached
             );
         }
         if self.as_lines == 0 {

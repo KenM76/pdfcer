@@ -123,7 +123,14 @@ use crate::annot_author::Color;
 ///   run array) and `/LineTypeScale` (pdfcer-gui request G331). An older
 ///   build reads the name as unset and drops the scale, so the line follows
 ///   its group. Emitted per document, only when one is used.
-pub const SIDECAR_VERSION: i64 = 10;
+/// - **11** — `/Anchors` on a ce dimension (pdfcer-gui request G332). An
+///   older build drops them and keeps the last solved points, so the ce
+///   dimension stops following its target. Emitted only when one is set.
+pub const SIDECAR_VERSION: i64 = 11;
+
+/// The schema version a document needs when a named line type or line-type
+/// scale is used but no anchor.
+const SIDECAR_VERSION_PRE_ANCHORS: i64 = 10;
 
 /// The schema version a document needs when a centre-mark gap, extension or
 /// line font is set but no named line type or line-type scale.
@@ -195,8 +202,10 @@ fn model_sidecar_version(model: &DimensionModel) -> i64 {
         let s = &d.style;
         tier_uses_line_types(s.dash, s.line_type_scale, s.circle, s.centre)
     });
-    if line_types {
+    if dims.iter().any(|d| !d.anchors.is_empty()) {
         SIDECAR_VERSION
+    } else if line_types {
+        SIDECAR_VERSION_PRE_ANCHORS
     } else if mark_reach {
         SIDECAR_VERSION_PRE_LINE_TYPES
     } else if centre_styles {
@@ -515,6 +524,7 @@ pub(crate) fn serialize_overrides(style: &StyleOverrides) -> Object {
         // through this throwaway record, because a reader of THIS function
         // would have no reason to look for it here.
         label_override: None,
+        anchors: Vec::new(),
         // Any kind will do; the caller reads only the style keys back, and
         // reusing the real encoder is the point.
         kind: DimensionKind::Linear {
@@ -570,6 +580,7 @@ pub(crate) fn serialize_kind(kind: &DimensionKind) -> Object {
         // The GEOMETRY encoder. The text override is not geometry and rides
         // its own clip field — see `serialize_overrides` above.
         label_override: None,
+        anchors: Vec::new(),
         style: crate::dimension::style::StyleOverrides::default(),
     })
 }
@@ -793,6 +804,7 @@ fn serialize_dimension(dim: &DimensionRecord) -> Object {
         );
     }
     put_override_keys(&mut d, &dim.style);
+    super::anchor::put_anchor_keys(&mut d, &dim.anchors);
     put_style_keys(
         &mut d,
         StyleKeys {
@@ -881,6 +893,7 @@ fn deserialize_dimension(obj: &Object) -> Option<DimensionRecord> {
         id,
         group,
         kind,
+        anchors: super::anchor::read_anchor_keys(d),
         annot: d.get(b"Annot").and_then(Object::as_reference),
         ap: d.get(b"Ap").and_then(Object::as_reference),
         // Absent ⇒ this ce dimension prints its measurement, which is what
@@ -1803,9 +1816,10 @@ mod style_sidecar_tests {
         );
         assert!(back.dimension(first).unwrap().style.line_width.is_none());
         assert!(back.dimension(first).unwrap().style.circle.width.is_none());
+        // Styles without an anchor need the version just below anchors.
         assert_eq!(
             sidecar_version(&serialize_model(&model)),
-            Some(SIDECAR_VERSION)
+            Some(SIDECAR_VERSION_PRE_ANCHORS)
         );
     }
 

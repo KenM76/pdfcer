@@ -301,6 +301,7 @@ kind_codec! {
     SetDimensionDisplay { show_diameter: bool },
     SetCircularCircleShown { shown: bool },
     SetCentreMark { present: bool },
+    SetDimensionAnchor { attached: bool },
     SetDimensionArea { area: bool },
     SetGroupStandard { members: usize },
     SetGroupStyle { members: usize },

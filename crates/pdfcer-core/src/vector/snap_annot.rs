@@ -22,7 +22,7 @@ use crate::annot::{Annotation, oc_is_hidden, page_annotations};
 use crate::annot_author::{
     inset_by_rect_differences, read_border_effect, read_border_width, read_numbers,
 };
-use crate::dimension::DimensionId;
+use crate::dimension::{AnchorRole, ArcCondition, DimensionEnd, DimensionId};
 use crate::graph::ObjectGraph;
 use crate::object::{Dict, ObjId, Object};
 use crate::page_tree::Rect;
@@ -80,6 +80,8 @@ pub struct SnapGeometry {
     centers: Vec<Point>,
     circles: Vec<RimCircle>,
     dimension: Option<DimensionId>,
+    anchor_line: Option<(Point, Point)>,
+    anchor_circle: bool,
     bounds: Bounds,
 }
 
@@ -135,6 +137,8 @@ impl SnapGeometry {
             centers: Vec::new(),
             circles: Vec::new(),
             dimension: None,
+            anchor_line: None,
+            anchor_circle: false,
             bounds: Bounds::EMPTY,
         }
     }
@@ -142,6 +146,37 @@ impl SnapGeometry {
     /// Name the ce dimension these targets belong to.
     pub(crate) fn set_dimension(&mut self, id: DimensionId) {
         self.dimension = Some(id);
+    }
+
+    /// Which targets carry an anchor role: the ends, midpoint and axis of
+    /// centre line `line`, or the centre and rim when `circle`.
+    pub(crate) const fn set_anchor_targets(&mut self, line: Option<(Point, Point)>, circle: bool) {
+        self.anchor_line = line;
+        self.anchor_circle = circle;
+    }
+
+    /// The anchor role a target of `kind` at `point` takes, if any.
+    fn anchor_role(&self, point: Point, kind: SnapKind) -> Option<AnchorRole> {
+        if let Some((a, b)) = self.anchor_line {
+            let at = |q: Point| point.distance(q) < 1e-9;
+            return match kind {
+                SnapKind::Endpoint | SnapKind::Node if at(a) => {
+                    Some(AnchorRole::LineEnd(DimensionEnd::A))
+                }
+                SnapKind::Endpoint | SnapKind::Node if at(b) => {
+                    Some(AnchorRole::LineEnd(DimensionEnd::B))
+                }
+                SnapKind::Midpoint => Some(AnchorRole::LineMidpoint),
+                SnapKind::SegmentCenterline => Some(AnchorRole::LineAxis),
+                _ => None,
+            };
+        }
+        match kind {
+            _ if !self.anchor_circle => None,
+            SnapKind::Center => Some(AnchorRole::MarkCentre),
+            SnapKind::RimNearest | SnapKind::Quadrant => Some(AnchorRole::Rim(ArcCondition::Min)),
+            _ => None,
+        }
     }
 
     /// A circle whose rim gives exact nearest, quadrant and tangent targets;
@@ -490,7 +525,10 @@ fn geometry_targets(
                 source_object: m.object,
                 source_annotation: m.annotation,
                 source: m.source,
-                ce_dimension: m.dimension.map(|id| CeDimensionTarget::new(id, drawn)),
+                ce_dimension: m.dimension.map(|id| {
+                    let t = CeDimensionTarget::new(id, drawn);
+                    m.anchor_role(point, kind).map_or(t, |r| t.with_anchor(r))
+                }),
             });
         }
     };
