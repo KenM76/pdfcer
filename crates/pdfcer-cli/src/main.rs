@@ -566,6 +566,7 @@ use pdfcer_core::signature::{SaveMode as CoreSaveMode, SignatureImpact};
 mod cli;
 mod clipboard;
 mod clipboard_read;
+mod closed_stdout;
 mod copy_text;
 use copy_text::{RichFormat, cmd_copy_text};
 mod ocr_program;
@@ -794,7 +795,6 @@ mod optimize_fonts;
 mod optimize_image_table;
 mod optimize_removals_report;
 mod optimize_report;
-/// `optimize --visual-diff`.
 mod optimize_visual_diff;
 use compare_cmd::*;
 use optimize_cmd::*;
@@ -984,16 +984,11 @@ fn build_banner() -> &'static str {
     Box::leak(text.into_boxed_str())
 }
 
-/// Run the CLI on a worker thread with a generous stack.
-///
-/// clap's **debug-build** argument-tree validation (`debug_assert`, compiled
-/// only under `debug_assertions`) recurses deeply enough that, for a command
-/// tree this size, it overflows the small default **main-thread** stack on
-/// Windows/MSVC (~1 MB) — a release build is unaffected (no `debug_assert`,
-/// and optimized frames). Running the whole program on a spawned thread with
-/// a 64 MB stack (reserved, not committed) sidesteps it portably; on failure to spawn, we fall back to
-/// the main thread rather than aborting.
+/// Run the CLI on a 64 MB worker thread: clap's debug-build argument checks
+/// overflow the ~1 MB Windows main-thread stack for a command tree this size.
+/// If the thread cannot be spawned, run on the main thread instead.
 fn main() -> ExitCode {
+    closed_stdout::install();
     match std::thread::Builder::new()
         .stack_size(64 * 1024 * 1024)
         .spawn(run)

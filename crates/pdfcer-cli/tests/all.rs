@@ -21,6 +21,7 @@ mod bake_appearances;
 mod bates_stamp;
 mod bookmarks;
 mod centre_geometry;
+mod closed_stdout;
 mod compare_result;
 mod compare_visual;
 mod convert_colours;
