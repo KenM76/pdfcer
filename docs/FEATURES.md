@@ -813,6 +813,9 @@ the model or verb exists and only the named shell is missing. The
 
 | core | cli | gui | Acrobat | Feature |
 |:----:|:---:|:---:|:-------:|---------|
+| [ ] | [ ] | [ ] | ? | **Convert to PDF/X defaults to the document's own output intent** — the intent's profile bytes and condition identifier become readable, so the conversion can keep what the file already carries. `Pass 757.0`. |
+| [ ] | [ ] | [ ] | ? | **PDF/UA verdict: conforms / fails / cannot tell** — the PDF/UA report gets the same three-way word as PDF/X and PDF/A; unchecked rows never read as conforms. `Pass 758.0`. |
+| [ ] | [ ] | [ ] | ? | **Preflight report as JSON** — a structured form of the report (verdict, pages checked of N, per-finding rule, severity, page, target, measured value and limit) beside the text report; `preflight --report-format json`. `Pass 759.0`. |
 | [ ] | [ ] | [ ] | ? | **Join two open path ends; close an open path** — the two node-editing verbs `Pass 722.0` did not ship. `Pass 722.2` (Backlog). |
 | [ ] | [ ] | [ ] | ? | **Dynamic XFA, page-background fields bind per page** — each page instance of a `pageArea` is its own form node, so a value typed on page 3 stays on page 3; `match="global"` or an explicit `bind ref` stays one shared value. `Pass 647.3g` (OPEN; `X016` item 1; not gating `v0.156.0`). |
 | [ ] | [ ] | [ ] | ? | **Rich-text (`/RC` plus `/DS`) authoring for text-box (FreeText) annotations** — full formatting control for markup text boxes. Needs an operator ruling on scope before it is scoped. `Pass 722.1` (Backlog). |

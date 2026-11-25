@@ -4,6 +4,19 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-11-25 (1702nd filing) — `Pass 756.0`-`762.0` FILED (seven consumer requests)
+
+**Filed (no shell here; git, CI and the gates not checked from here; operator commits):**
+- `Pass 756.0` `EditSession::snapshot()` (`open/request_O458_snapshot_session_for_a_worker.md`); `757.0` output-intent profile bytes (`request_output_intent_profile_bytes.md`); `758.0` `PdfuaReport::verdict()` (`request_pdfua_verdict.md`); `759.0` `preflight::report_json` + CLI JSON format (`request_preflight_report_structured.md`); `760.0` version-floor follow-ups, X112; `761.0` ink list and alias, X113 + X114 + X115; `762.0` `/Gxx` glyph names read only at the code they spell (`open/note_hex_glyph_name_checked.md`, optional, taken).
+- Filed as one `>` banner at the head of *Next up* (no `###` heading, entry-size gate). IDs `756.0`-`762.0` grep-checked unused across `docs/` first. Each request was read for its acceptance text; the banner cites it by filename.
+- `FEATURES.md`: three new *Planned* rows (`757.0`, `758.0`, `759.0`), all `[ ]`. No row for `756.0` (internal API), `760.0`/`761.0` (corrections to shipped rows), `762.0` (existing text-extraction row).
+
+**Decisions made:** none new. `Pass 761.0` notes the "Ink Manager" naming question stays open under decision 225; no rename filed.
+
+**Open for the engineer:** `757.0` crate placement of the reader (the existing one is in `pdfcer-render`; rule 2); `758.0` whether needs-a-person findings make a PDF/UA report "cannot tell"; order of the seven.
+
+**Next free:** `Pass` 763.0 grepped only in `docs/` this filing; decision `226`; `R` ceiling not re-read.
+
 ## 2026-11-25 (1701st filing) — decision 225: no Adobe-only names for pdfcer's own features
 
 **Filed (engineer-reported; no shell here, git, CI and the gates not checked from here):**
