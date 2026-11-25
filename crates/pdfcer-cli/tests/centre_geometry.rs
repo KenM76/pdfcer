@@ -143,3 +143,43 @@ fn a_bad_centre_mark_size_is_refused_by_name() {
     let err = String::from_utf8_lossy(&r.stderr);
     assert!(err.contains("text:<multiple of the text height>"), "{err}");
 }
+
+/// `dimension-vertex` drags a centre line's end (pdfcer-gui request G335).
+#[test]
+fn a_centre_line_end_moves_through_dimension_vertex() {
+    let (code, _, err, path) = run(
+        "centre-line",
+        "vertex-src.pdf",
+        &["--points", "100,100 300,100  150,140 350,140"],
+    );
+    assert_eq!(code, 0, "{err}");
+    let out = temp_out("vertex-moved.pdf");
+    let vertex = |extra: &[&str], to: &Path| {
+        Command::new(BIN)
+            .arg("dimension-vertex")
+            .arg(&path)
+            .args(["--dimension", "0", "--index", "1"])
+            .args(extra)
+            .arg("-o")
+            .arg(to)
+            .output()
+            .expect("pdfcer runs")
+    };
+    let r = vertex(&["--op", "move", "--dx", "20", "--verify-undo"], &out);
+    let stdout = String::from_utf8_lossy(&r.stdout);
+    assert_eq!(r.status.code(), Some(0), "{stdout}");
+    assert!(
+        stdout.contains(r#"before="" after="""#) && stdout.contains("undo_identical=1"),
+        "{stdout}"
+    );
+    assert!(
+        listed(&out).contains("from=141,120 to=329,120"),
+        "{}",
+        listed(&out)
+    );
+
+    let refused = temp_out("vertex-refused.pdf");
+    let r = vertex(&["--op", "remove"], &refused);
+    assert_eq!(r.status.code(), Some(EDIT_REFUSED));
+    assert!(!refused.exists());
+}

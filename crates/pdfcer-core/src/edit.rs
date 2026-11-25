@@ -156,7 +156,9 @@ mod content_mark;
 mod decoration_refresh;
 mod dimension_centre_mark;
 mod dimension_circle;
+mod dimension_vertex_kind;
 pub use dimension_centre_mark::{CentreMarkHost, CentreMarkOutcome};
+use dimension_vertex_kind::vertex_edited_kind;
 mod dimension_merge;
 mod dimension_unit;
 mod editable_source;
@@ -5307,15 +5309,19 @@ pub struct TransformOutcome {
 pub struct VertexOutcome {
     /// How many vertices the ce dimension has AFTER the edit.
     ///
-    /// Always 2 for a linear ce dimension, whose count is structural.
+    /// Always 2 for a linear ce dimension or a centre line, whose count is
+    /// structural.
     pub vertices: usize,
     /// Whether the shape closes. Always `false` for a linear ce dimension.
     pub closed: bool,
     /// The displayed value after the edit, formatted through the group's
     /// scale, unit and number format — the same single producer the baked
     /// `/AP` uses, so this string and the one in the file are the same string.
+    ///
+    /// **Empty for a centre line**, which measures nothing and draws no label.
     pub label: String,
-    /// The displayed value before the edit, for the same reason.
+    /// The displayed value before the edit, for the same reason; empty for a
+    /// centre line.
     pub previous_label: String,
 }
 
@@ -5366,170 +5372,6 @@ fn check_centre_kind(kind: &DimensionKind) -> Result<(), EditError> {
         _ => return Ok(()),
     };
     Err(EditError::CentreGeometryDegenerate { reason })
-}
-
-/// Apply a [`VertexEdit`] to a [`DimensionKind`](crate::dimension::DimensionKind),
-/// or say precisely why it cannot be applied (`Pass 107.0`).
-///
-/// # Why this is a free function and not a method on the enum
-///
-/// It has to name a [`DimensionId`] in its refusals, and a `DimensionId` is a
-/// property of the RECORD, not of the geometry — [`DimensionKind`] deliberately
-/// knows nothing about which ce dimension it belongs to. Putting this on the
-/// enum would mean either threading an id into a type that has no business
-/// holding one, or returning refusals that cannot say what they are about.
-///
-/// Pure: no session, no document, no side effects. That is what lets
-/// [`EditSession::vertex_edit_preview`] and the three mutating verbs share it
-/// exactly rather than approximately.
-///
-/// # The minimum vertex counts, and why they differ
-///
-/// An OPEN path needs **two** vertices, because one vertex has no segment and
-/// therefore no length. A CLOSED one needs **three**, because two closed
-/// vertices trace a line there and back: it draws as a single stroke and
-/// prints twice the distance between two points, which is a number no operator
-/// asked for attached to a shape that does not look like it.
-///
-/// # Errors
-///
-/// [`EditError::DimensionHasNoVertices`] for a circular or angular ce
-/// dimension; [`EditError::DimensionVertexCountFixed`] for insert/remove on a
-/// linear one; [`EditError::VertexIndexOutOfRange`];
-/// [`EditError::VertexNotPlaceable`] for a non-finite or absurd coordinate;
-/// [`EditError::PerimeterWouldBeDegenerate`] for a removal that would go below
-/// the minimum.
-fn vertex_edited_kind(
-    id: DimensionId,
-    kind: &DimensionKind,
-    edit: VertexEdit,
-) -> Result<DimensionKind, EditError> {
-    // The guard every coordinate this function can write must pass, applied
-    // once, here, before anything is built. `usable_page_value` is the sidecar
-    // reader's own test — deliberately the same function rather than the same
-    // rule written twice (R92): a coordinate the reader would reject must not
-    // be one the writer accepts.
-    let placeable = |p: Point| -> Result<Point, EditError> {
-        if crate::dimension::sidecar::usable_page_value(p.x)
-            && crate::dimension::sidecar::usable_page_value(p.y)
-        {
-            Ok(p)
-        } else {
-            Err(EditError::VertexNotPlaceable {
-                id: id.0,
-                x: p.x,
-                y: p.y,
-            })
-        }
-    };
-
-    match kind {
-        DimensionKind::Perimeter {
-            points,
-            closed,
-            area,
-            offset,
-            text_along,
-        } => {
-            let mut points = points.clone();
-            match edit {
-                VertexEdit::Move { index, dx, dy } => {
-                    let count = points.len();
-                    let slot = points
-                        .get_mut(index)
-                        .ok_or(EditError::VertexIndexOutOfRange {
-                            id: id.0,
-                            index,
-                            count,
-                        })?;
-                    *slot = placeable(Point::new(slot.x + dx, slot.y + dy))?;
-                }
-                VertexEdit::Insert { after, at } => {
-                    let count = points.len();
-                    if after >= count {
-                        return Err(EditError::VertexIndexOutOfRange {
-                            id: id.0,
-                            index: after,
-                            count,
-                        });
-                    }
-                    points.insert(after + 1, placeable(at)?);
-                }
-                VertexEdit::Remove { index } => {
-                    let count = points.len();
-                    if index >= count {
-                        return Err(EditError::VertexIndexOutOfRange {
-                            id: id.0,
-                            index,
-                            count,
-                        });
-                    }
-                    let minimum = if *closed { 3 } else { 2 };
-                    if count - 1 < minimum {
-                        return Err(EditError::PerimeterWouldBeDegenerate {
-                            id: id.0,
-                            shape: if *closed { "closed" } else { "open" },
-                            remaining: count - 1,
-                            minimum,
-                        });
-                    }
-                    points.remove(index);
-                }
-            }
-            Ok(DimensionKind::Perimeter {
-                points,
-                closed: *closed,
-                area: *area,
-                offset: *offset,
-                text_along: *text_along,
-            })
-        }
-        DimensionKind::Linear {
-            a,
-            b,
-            constraint,
-            offset,
-            text_along,
-            extension_gap,
-        } => match edit {
-            VertexEdit::Move { index, dx, dy } => {
-                // Index 0 is `a`, index 1 is `b` — the pick order, which is
-                // also the order `linear_geometry` reads them in, so a shell
-                // that draws handles in vertex order draws them where the
-                // operator clicked.
-                let (na, nb) = match index {
-                    0 => (placeable(Point::new(a.x + dx, a.y + dy))?, *b),
-                    1 => (*a, placeable(Point::new(b.x + dx, b.y + dy))?),
-                    _ => {
-                        return Err(EditError::VertexIndexOutOfRange {
-                            id: id.0,
-                            index,
-                            count: 2,
-                        });
-                    }
-                };
-                Ok(DimensionKind::Linear {
-                    a: na,
-                    b: nb,
-                    // Untouched: the constraint is a decision the operator
-                    // made when they placed the ce dimension, and a drag of
-                    // one end is not a request to revoke it. A Horizontal
-                    // dimension stays horizontal and re-measures its span.
-                    constraint: *constraint,
-                    offset: *offset,
-                    text_along: *text_along,
-                    extension_gap: *extension_gap,
-                })
-            }
-            VertexEdit::Insert { .. } | VertexEdit::Remove { .. } => {
-                Err(EditError::DimensionVertexCountFixed { id: id.0, count: 2 })
-            }
-        },
-        DimensionKind::Circular { .. }
-        | DimensionKind::Angular { .. }
-        | DimensionKind::CentreLine { .. }
-        | DimensionKind::CentreMark { .. } => Err(EditError::DimensionHasNoVertices { id: id.0 }),
-    }
 }
 
 /// What [`EditSession::adopt_widget`] did — returned rather than inferred,
@@ -58297,7 +58139,10 @@ impl EditSession {
     /// So the only refusals are structural — an unknown id, a kind with no
     /// vertices, an index that names nothing, a coordinate that is not a
     /// usable page value — and every one of them is knowable BEFORE the drag
-    /// starts. **The drag preview may always be drawn.**
+    /// starts. **The drag preview may always be drawn.** The one exception is
+    /// a centre line, whose ends may not coincide
+    /// ([`EditError::CentreGeometryDegenerate`]): a zero-length centre line
+    /// has no direction to draw along.
     ///
     /// # Which kinds accept it, and one that was NOT asked for
     ///
@@ -58320,11 +58165,18 @@ impl EditSession {
     /// horizontal — the constraint is the operator's earlier decision, and a
     /// drag is not a request to revoke it.
     ///
+    /// **[`DimensionKind::CentreLine`](crate::dimension::DimensionKind::CentreLine)**
+    /// too (`Pass 768.0`), at index 0 (`a`) or 1 (`b`), with its labels
+    /// empty. A standalone centre mark has no vertices; it is edited through
+    /// [`Self::set_centre_mark`].
+    ///
     /// # Errors
     ///
     /// [`EditError::DimensionNotFound`], [`EditError::DimensionHasNoVertices`]
-    /// (circular/angular), [`EditError::VertexIndexOutOfRange`],
-    /// [`EditError::VertexNotPlaceable`], plus the encryption,
+    /// (circular/angular/centre mark), [`EditError::VertexIndexOutOfRange`],
+    /// [`EditError::VertexNotPlaceable`],
+    /// [`EditError::CentreGeometryDegenerate`] (a centre line's ends would
+    /// coincide), plus the encryption,
     /// enforced-certification and newer-sidecar guards every ce-dimension
     /// mutation carries. Every refusal happens before any mutation.
     pub fn move_dimension_vertex(
@@ -58358,8 +58210,9 @@ impl EditSession {
     /// # Errors
     ///
     /// [`EditError::DimensionNotFound`],
-    /// [`EditError::DimensionVertexCountFixed`] (a linear ce dimension is
-    /// structurally two points), [`EditError::DimensionHasNoVertices`],
+    /// [`EditError::DimensionVertexCountFixed`] (a linear ce dimension or a
+    /// centre line is structurally two points),
+    /// [`EditError::DimensionHasNoVertices`],
     /// [`EditError::VertexIndexOutOfRange`],
     /// [`EditError::VertexNotPlaceable`], plus the usual guards.
     pub fn insert_dimension_vertex(
@@ -58493,10 +58346,17 @@ impl EditSession {
         // cannot disagree about what the ce dimension used to say.
         let style = crate::dimension::resolve_style(group, &record.style)
             .on_user_unit(self.dimension_user_unit(record));
-        let previous_label = record
-            .kind
-            .display_on(style.user_unit, style.scale, style.format)
-            .text;
+        // Centre geometry measures nothing; `display_on` would still format
+        // its length, which no shell should show as a before/after.
+        let label_of = |kind: &DimensionKind| {
+            if kind.is_centre_geometry() {
+                String::new()
+            } else {
+                kind.display_on(style.user_unit, style.scale, style.format)
+                    .text
+            }
+        };
+        let previous_label = label_of(&record.kind);
 
         let after = vertex_edited_kind(dimension, &record.kind, edit)?;
         let (vertices, closed) = after
@@ -58505,9 +58365,7 @@ impl EditSession {
             // closed. Reported rather than refused so a shell can drive one
             // handle model over both kinds.
             .map_or((2, false), |(p, c)| (p.len(), c));
-        let label = after
-            .display_on(style.user_unit, style.scale, style.format)
-            .text;
+        let label = label_of(&after);
         Ok((
             VertexOutcome {
                 vertices,

@@ -298,6 +298,10 @@ designing anything in this area; do not re-derive it.
   label_moved }` reports a `Circular` label that moved outside or back inside
   the rim (only when no `text_distance` is stored). Detail and refusals: 02's
   verb row. CLI: `pdfcer dimension-centre-mark`.
+- **A placed centre line's ends are draggable** (`Pass 768.0`, G335) through
+  `move_dimension_vertex` at index 0 (`a`) or 1 (`b`), with empty labels;
+  insert/remove refuse (`DimensionVertexCountFixed`) and coincident ends
+  refuse (`CentreGeometryDegenerate`). CLI: `pdfcer dimension-vertex`.
 - Reposition (drag or numeric), toggle the group's layer, delete
   (annotation + `/AP` + sidecar record together).
 
