@@ -110,8 +110,8 @@ fn a_fresh_ce_dimension_reports_every_property_as_inherited() {
     let s = styles(&doc);
     assert_eq!(
         s.len(),
-        17,
-        "all seventeen properties must be disclosed: {s:?}"
+        23,
+        "all twenty-three properties must be disclosed: {s:?}"
     );
     assert_eq!(prop(&s, "line-width").1, "0.75", "the factory stroke width");
     assert_eq!(prop(&s, "line-width").2, "factory");

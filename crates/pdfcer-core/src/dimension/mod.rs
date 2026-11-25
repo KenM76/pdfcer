@@ -67,6 +67,9 @@ pub mod author;
 /// Centre lines and centre marks (`Pass 739.0`, `Pass 740.0`).
 pub mod centre;
 pub(crate) mod centre_author;
+/// A centre line's and centre mark's own stroke, and which style fields each
+/// kind reads.
+pub mod centre_style;
 /// Folding one ce-dimension model into another, for merge and insert.
 pub(crate) mod combine;
 /// A ce dimension's stroke dash pattern (`Pass 541.0`).
@@ -83,6 +86,7 @@ pub mod measurement_parse;
 /// field.
 pub mod part_stroke;
 pub mod sidecar;
+mod sidecar_centre;
 /// The factory -> group -> ce-dimension STYLE CASCADE (`Pass 69.0`): the
 /// per-property override model behind the operator's group-default-plus-
 /// override-checkbox request.
@@ -105,6 +109,7 @@ pub use centre::{
     CentreLineAuthoring, CentreLineRefusal, CentreMarkSize, CentreMarkSpec, CentreSnapPoint,
     CentreSnapRole, DEFAULT_CENTRE_LINE_OVERSHOOT, author_centre_line,
 };
+pub use centre_style::{CentreStyle, DashFit};
 pub use dash::{DimDash, MAX_DASH_RUNS, opacity_in_range};
 pub use fit::{FitCircle, fit_circle_taubin, fit_circle_taubin_refined};
 pub use group::{

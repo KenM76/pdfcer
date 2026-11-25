@@ -31,6 +31,7 @@ use crate::object::{Dict, Name, Object};
 use crate::vector::{AxisConstraint, Point};
 
 use super::centre::{CentreMarkSize, CentreMarkSpec};
+use super::centre_style::CentreStyle;
 use super::dash::DimDash;
 use super::fit::FitCircle;
 use super::group::{
@@ -109,7 +110,15 @@ use crate::annot_author::Color;
 ///   stroke on a group or ce dimension (pdfcer-gui request G329). An older
 ///   build drops both and re-bakes the circle drawn, in the leader's stroke.
 ///   Emitted per document, only when some circle is hidden or restyled.
-pub const SIDECAR_VERSION: i64 = 7;
+/// - **8** — a `/Centre` dict on a group or ce dimension: centre-line and
+///   centre-mark strokes (pdfcer-gui request G334). An older build drops it
+///   and re-bakes centre geometry in the factory strokes. Emitted per
+///   document, only when some centre style is set.
+pub const SIDECAR_VERSION: i64 = 8;
+
+/// The schema version a document needs when some circle is hidden or
+/// restyled but no centre style is set.
+const SIDECAR_VERSION_PRE_CENTRE_STYLE: i64 = 7;
 
 /// The schema version a document needs when it draws centre geometry but no
 /// circle is hidden or restyled.
@@ -155,8 +164,12 @@ fn model_sidecar_version(model: &DimensionModel) -> i64 {
                     }
                 )
         });
-    if part_strokes {
+    let centre_styles = model.groups().iter().any(|g| !g.style.centre.is_inherit())
+        || dims.iter().any(|d| !d.style.centre.is_inherit());
+    if centre_styles {
         SIDECAR_VERSION
+    } else if part_strokes {
+        SIDECAR_VERSION_PRE_CENTRE_STYLE
     } else if dims
         .iter()
         .any(|d| d.kind.is_centre_geometry() || d.kind.centre_mark_centre().is_some())
@@ -338,6 +351,7 @@ fn group_style_keys(s: &GroupStyle) -> StyleKeys {
         opacity: s.opacity,
         centre_mark_size: s.centre_mark_size,
         circle: s.circle,
+        centre: s.centre,
     }
 }
 
@@ -404,6 +418,7 @@ fn deserialize_group(obj: &Object) -> Option<Group> {
                 opacity: k.opacity,
                 centre_mark_size: k.centre_mark_size,
                 circle: k.circle,
+                centre: k.centre,
             }
         },
     })
@@ -757,6 +772,7 @@ fn serialize_dimension(dim: &DimensionRecord) -> Object {
             opacity: dim.style.opacity,
             centre_mark_size: dim.style.centre_mark_size,
             circle: dim.style.circle,
+            centre: dim.style.centre,
         },
     );
     Object::Dict(d)
@@ -869,6 +885,7 @@ fn deserialize_dimension(obj: &Object) -> Option<DimensionRecord> {
             opacity: appearance.opacity,
             centre_mark_size: appearance.centre_mark_size,
             circle: appearance.circle,
+            centre: appearance.centre,
         },
     })
 }
@@ -958,6 +975,7 @@ struct StyleKeys {
     opacity: Option<f64>,
     centre_mark_size: Option<CentreMarkSize>,
     circle: PartStroke,
+    centre: CentreStyle,
 }
 
 /// Write the appearance keys that are actually set. Absent = inherit.
@@ -1027,11 +1045,12 @@ fn put_style_keys(d: &mut Dict, k: StyleKeys) {
     if !k.circle.is_follow() {
         d.insert(Name::from(b"Circle"), put_part_stroke(k.circle));
     }
+    super::sidecar_centre::put_centre(d, k.centre);
 }
 
 /// A part stroke as a dict of its set fields: `/Dash`, `/LineWidth`,
 /// `/Color`, encoded as on the ce dimension itself.
-fn put_part_stroke(p: PartStroke) -> Object {
+pub(super) fn put_part_stroke(p: PartStroke) -> Object {
     let mut d = Dict::new();
     if let Some(dash) = p.dash {
         d.insert(Name::from(b"Dash"), dash_array(dash));
@@ -1047,7 +1066,7 @@ fn put_part_stroke(p: PartStroke) -> Object {
 
 /// The part stroke under `key`; absent, malformed or out-of-range fields
 /// follow the ce dimension.
-fn read_part_stroke(d: &Dict, key: &[u8]) -> PartStroke {
+pub(super) fn read_part_stroke(d: &Dict, key: &[u8]) -> PartStroke {
     let Some(p) = d.get(key).and_then(Object::as_dict) else {
         return PartStroke::FOLLOW;
     };
@@ -1110,6 +1129,7 @@ fn read_style_keys(d: &Dict) -> StyleKeys {
             }
         }),
         circle: read_part_stroke(d, b"Circle"),
+        centre: super::sidecar_centre::read_centre(d),
     }
 }
 
@@ -1676,6 +1696,7 @@ mod style_sidecar_tests {
             circle: PartStroke::FOLLOW
                 .with_dash(DimDash::new(&[6.0, 2.0, 1.0, 2.0]))
                 .with_width(Some(0.35)),
+            centre: CentreStyle::INHERIT.with_mark(PartStroke::FOLLOW.with_width(Some(0.2))),
         };
         let first = model.dimensions()[0].id;
         model.dimension_mut(first).unwrap().style = StyleOverrides {
@@ -1705,6 +1726,8 @@ mod style_sidecar_tests {
             circle: PartStroke::FOLLOW
                 .with_dash(Some(DimDash::SOLID))
                 .with_color(Some(Color::Rgb(0.0, 0.0, 1.0))),
+            centre: CentreStyle::INHERIT
+                .with_line(PartStroke::FOLLOW.with_dash(Some(DimDash::SOLID))),
         };
 
         let back = deserialize_model(&serialize_model(&model)).expect("round trip");

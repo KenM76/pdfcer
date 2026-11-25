@@ -177,11 +177,14 @@ designing anything in this area; do not re-derive it.
   - `DimensionKind::CentreLine { a: Point, b: Point }` — a plain `/Line`
     with **no `/IT` and no `/Measure`** (ISO 32000-1 §12.5.6.7 Table 175
     allows only LineArrow/LineDimension for `/IT`), `/Contents` "Centre
-    line", stroked with `DimensionStyle::centre_line_dash()` (§8.4.3.6):
-    the group's own dash when it sets one, else the long-short-long
-    centre-line pattern of the group's standard (ANSI `[54 9 9 9]`, ISO
-    `[24w 3w w 3w]`), stretched so both ends are long dashes; solid when
-    the line is shorter than one long dash. Lists as `kind=centre-line`.
+    line", stroked with `DimensionStyle::centre_line_stroke()` (§8.4.3.6).
+    **The ce dimension's own `dash` is never read**: a group that dashes its
+    measurements does not turn its centre lines into hidden lines. The dash
+    is `centre.line.dash` when a tier sets one, else the long-short-long
+    centre-line pattern of the group's standard (`centre_line_dash()`: ANSI
+    `[54 9 9 9]`, ISO `[24w 3w w 3w]`), either one stretched so both ends
+    are long dashes; solid when the line is shorter than one cycle plus a
+    long dash. Lists as `kind=centre-line`.
   - `DimensionKind::CentreMark { fit: FitCircle, mark: CentreMarkSpec }` —
     a standalone cross, an `/Ink` annotation (§12.5.6.13 Table 182) whose
     `/InkList` is the drawn strokes, `/Contents` "Centre mark". Lists as
@@ -302,6 +305,45 @@ designing anything in this area; do not re-derive it.
   `move_dimension_vertex` at index 0 (`a`) or 1 (`b`), with empty labels;
   insert/remove refuse (`DimensionVertexCountFixed`) and coincident ends
   refuse (`CentreGeometryDegenerate`). CLI: `pdfcer dimension-vertex`.
+- **Centre lines and centre marks have their own stroke** (`Pass 772.0`,
+  G334). `centre: CentreStyle { line: PartStroke, mark: PartStroke }` on
+  `StyleDefaults` (factory `CentreStyle::INHERIT`), `GroupStyle`,
+  `StyleOverrides` and the resolved `DimensionStyle`; each field cascades
+  ce dimension → group → factory (`CentreStyle::or`). `#[non_exhaustive]`:
+  build with `CentreStyle::INHERIT.with_line(..).with_mark(..)`;
+  `is_inherit()`, `count()`.
+  - Unset fields: width and colour follow the lines'. An unset **line**
+    dash is the standard's centre pattern; an unset **mark** dash is solid.
+    Neither ever follows `dash`, so `None` here means "the factory centre
+    pattern", not "follow the lines" as it does for `circle`.
+  - Read the drawn strokes from `DimensionStyle::centre_line_stroke()` and
+    `centre_mark_stroke() -> ResolvedStroke`. The mark stroke covers the
+    cross and its extension lines, standalone or inside a `Circular`.
+  - `/C` of a centre line or standalone mark is its own colour.
+  - Bake: unset everywhere is byte-identical to before (including the
+    `q [] 0 d … Q` a mark always got under a dashed group). A mark inside
+    a `Circular` that differs from the lines strokes in its own `q … Q`.
+  - **Dash fit disclosure**: `DimensionKind::centre_line_dash_fit(style) ->
+    Option<DashFit>` (`None` for any other kind); `DashFit::{Nominal,
+    Stretched, SolidTooShort}` (`#[non_exhaustive]`), `token()` gives
+    `"nominal"`, `"stretched"`, `"solid-too-short"`. Any even-length pattern
+    fits (odd ones are doubled, §8.4.3.6).
+  - `DimensionKind::reads_style_field(name) -> bool` says whether a kind's
+    bake reads a style field named as `StyleProvenance::each()` names it,
+    so a properties panel can grey out the rows that cannot change it.
+  - Sidecar `/Centre << /Line <<..>> /Mark <<..>> >>`, written only when a
+    field is set; a document with one writes **sidecar version 8** (7 when
+    only a circle is styled).
+  - `StyleProvenance` gains `centre_line_dash`, `centre_line_width`,
+    `centre_line_color`, `centre_mark_dash`, `centre_mark_width`,
+    `centre_mark_color`; `each()` returns **23**. ⚠️ **Breaking** for a
+    literal of any of the four style types (add `centre`) and code sized
+    to 17.
+  - CLI: `dimension-style` / `group-style --centre-line-dash 12,3
+    --centre-line-width 0.25 --centre-line-color 0,0,1 --centre-mark-dash
+    --centre-mark-width --centre-mark-color`, `--clear centre-line-dash,…`;
+    `dimension-list` prints `dash_fit=` on a centre line and `--style` the
+    six values; `centre-line` prints the fit before its save line.
 - Reposition (drag or numeric), toggle the group's layer, delete
   (annotation + `/AP` + sidecar record together).
 
@@ -519,7 +561,7 @@ fn style_rows(session: &pdfcer_core::edit::EditSession, dim: pdfcer_core::dimens
     let resolved = resolve_style(group, &record.style);   // the VALUES the /AP is drawn with
     let prov = style_provenance(group, &record.style);    // WHICH TIER supplied each
 
-    for (name, source) in prov.each() {                   // fixed-size [_; 13]
+    for (name, source) in prov.each() {                   // fixed-size [_; 23]
         let checkbox_ticked = source == StyleSource::Dimension;
         let will_move_on_a_group_edit = source.follows_group(); // TRUE for Factory too
         let _ = (name, checkbox_ticked, will_move_on_a_group_edit, &resolved);
@@ -630,13 +672,14 @@ Four further points a panel gets wrong if it guesses:
   (`style.rs`). Saying "factory" for them "would be a lie an operator
   could act on."
 - **`StyleProvenance::each()` returns a fixed-size `[(&'static str,
-  StyleSource); 17]`** (`style.rs`) so a loop gets a **compile error**,
-  not a silently short list, when an eighteenth property lands.
+  StyleSource); 23]`** (`style.rs`) so a loop gets a **compile error**,
+  not a silently short list, when a twenty-fourth property lands.
   ⚠️ `docs/ui_specs/…-ce-dimension-properties.md` **Amendment B §B.2 says
   "nine"** — that text predates `Pass 69.1` adding `tolerance` and
   `tolerance_places`, and `Pass 541.0` adding `dash` and `opacity`, and `Pass 740.0` adding
-  `centre_mark_size`, and `Pass 766.0` adding the three circle-stroke fields.
-  The code at `style.rs` is authoritative: **seventeen**.
+  `centre_mark_size`, and `Pass 766.0` adding the three circle-stroke fields, and `Pass 772.0`
+  adding the six centre-stroke fields.
+  The code at `style.rs` is authoritative: **twenty-three**.
   Same for §B.4's "the same nine properties".
 - **Clearing an override restores inheritance**, live and in both
   directions — deliberately unlike the reference tool, whose `DeleteStyle`

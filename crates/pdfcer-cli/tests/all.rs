@@ -32,6 +32,7 @@ mod create_digital_id;
 mod deskew;
 mod dimension_area;
 mod dimension_centre_mark_edit;
+mod dimension_centre_stroke;
 mod dimension_circle;
 mod dimension_circular_placement;
 mod dimension_extension_gap;

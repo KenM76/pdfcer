@@ -14,10 +14,14 @@ use crate::writer::content::{ContentBuilder, Paint};
 
 use super::author::{
     AuthoredDimension, BoundsAcc, DimensionStyle, ap_form_dict, begin_strokes, rect_array,
+    stroke_paint,
 };
-use super::centre::{CentreMarkSpec, fitted_centre_dash, mark_segments};
+use super::centre::{CentreMarkSpec, mark_segments};
+use super::centre_style::fit_dash;
+use super::dash::DimDash;
 use super::fit::FitCircle;
 use super::group::DimensionKind;
+use super::part_stroke::ResolvedStroke;
 
 /// `/Contents` of a centre line: its §12.5.2 alternate description.
 const CENTRE_LINE_CONTENTS: &str = "Centre line";
@@ -33,12 +37,22 @@ pub(super) fn author_centre_geometry(
 ) -> AuthoredDimension {
     let mut b = ContentBuilder::new();
     let mut bounds = BoundsAcc::new();
-    begin_strokes(&mut b, style);
+    let own = match kind {
+        DimensionKind::CentreMark { .. } => style.centre_mark_stroke(),
+        _ => style.centre_line_stroke(),
+    };
+    let state = ResolvedStroke::new(DimDash::SOLID, own.width, own.color);
+    let style_drawn = DimensionStyle {
+        line_width: own.width,
+        color: own.color,
+        ..style
+    };
+    begin_strokes(&mut b, style_drawn);
     let mut annot = Dict::new();
     annot.insert(Name::from(b"Type"), Object::Name(Name::from(b"Annot")));
     let (label, at) = match *kind {
         DimensionKind::CentreMark { fit, mark } => {
-            let strokes = draw_mark(&mut b, &mut bounds, fit, mark, style);
+            let strokes = draw_mark(&mut b, &mut bounds, (fit, mark), style, state);
             annot.insert(Name::from(b"Subtype"), Object::Name(Name::from(b"Ink")));
             let ink = strokes
                 .iter()
@@ -61,7 +75,7 @@ pub(super) fn author_centre_geometry(
     };
     let rect = bounds.into_rect();
     annot.insert(Name::from(b"Rect"), rect_array(rect));
-    annot.insert(Name::from(b"C"), style.color.to_array());
+    annot.insert(Name::from(b"C"), own.color.to_array());
     if style.opacity < 1.0 {
         annot.insert(Name::from(b"CA"), Object::Real(style.opacity));
     }
@@ -80,8 +94,9 @@ pub(super) fn author_centre_geometry(
     }
 }
 
-/// Stroke a centre line with the long-short-long dash fitted to its length,
-/// solid when it is too short for one cycle.
+/// Stroke a centre line in [`DimensionStyle::centre_line_stroke`], its dash
+/// fitted to its length, solid when it is too short for one cycle. The width
+/// and colour were set by [`begin_strokes`].
 fn draw_centre_line(
     b: &mut ContentBuilder,
     bounds: &mut BoundsAcc,
@@ -90,7 +105,8 @@ fn draw_centre_line(
     style: DimensionStyle,
 ) {
     let length = (q.x - p.x).hypot(q.y - p.y);
-    if let Some(dash) = fitted_centre_dash(style.centre_line_dash(), length) {
+    let (dash, _) = fit_dash(style.centre_line_stroke().dash, length);
+    if !dash.is_empty() {
         b.set_dash(&dash, 0.0);
     }
     b.move_to(p.x, p.y);
@@ -100,20 +116,34 @@ fn draw_centre_line(
     bounds.add(q);
 }
 
-/// Stroke a centre mark, always solid: inside a dashed circular ce dimension
-/// the mark is wrapped in `q [] 0 d … Q`. Returns the strokes drawn.
+/// Stroke a centre mark in [`DimensionStyle::centre_mark_stroke`]. `state`
+/// is the stroke already in the graphics state: the ce dimension's lines
+/// inside a radius/diameter ce dimension, the mark's own width and colour
+/// for a standalone mark. Fields that differ are set inside `q … Q`; a solid
+/// mark under dashed lines always resets the dash there. Returns the
+/// strokes drawn.
 pub(super) fn draw_mark(
     b: &mut ContentBuilder,
     bounds: &mut BoundsAcc,
-    fit: FitCircle,
-    mark: CentreMarkSpec,
+    (fit, mark): (FitCircle, CentreMarkSpec),
     style: DimensionStyle,
+    state: ResolvedStroke,
 ) -> Vec<(Point, Point)> {
     let strokes = mark_segments(fit, mark, style.centre_mark_arm());
-    let dashed = !style.dash.is_solid();
-    if dashed {
+    let part = style.centre_mark_stroke();
+    let reset_dash = part.dash != state.dash || (part.dash.is_solid() && !style.dash.is_solid());
+    let wrap = reset_dash || part.width != state.width || part.color != state.color;
+    if wrap {
         b.save_state();
-        b.set_dash(&[], 0.0);
+        if part.color != state.color {
+            stroke_paint(part.color).apply_stroke(b);
+        }
+        if part.width != state.width {
+            b.set_line_width(part.width);
+        }
+        if reset_dash {
+            b.set_dash(part.dash.pattern(), 0.0);
+        }
     }
     for &(p, q) in &strokes {
         b.move_to(p.x, p.y);
@@ -122,7 +152,7 @@ pub(super) fn draw_mark(
         bounds.add(q);
     }
     b.paint(Paint::Stroke);
-    if dashed {
+    if wrap {
         b.restore_state();
     }
     strokes

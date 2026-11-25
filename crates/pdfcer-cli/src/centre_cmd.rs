@@ -2,6 +2,9 @@
 
 use super::*;
 
+mod style;
+pub(crate) use style::*;
+
 use pdfcer_core::dimension::{CentreMarkSpec, DimensionKind, FitCircle, GroupId};
 use pdfcer_core::vector::Point;
 
@@ -230,6 +233,13 @@ fn author_and_report(verb: &str, t: &CentreTarget<'_>, kind: DimensionKind) -> u
         Ok(v) => v,
         Err(err) => return report_edit_error(t.input, &err),
     };
+    let model = session.dimension_model();
+    if let Some(d) = model.dimension(dim_id) {
+        let fit = dash_fit_suffix(&model, d);
+        if !fit.is_empty() {
+            println!("  {verb}{fit}");
+        }
+    }
     let outcome = match save_edited(
         &mut session,
         &source,

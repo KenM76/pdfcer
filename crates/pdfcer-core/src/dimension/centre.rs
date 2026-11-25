@@ -313,7 +313,9 @@ impl DimensionStyle {
     /// standard, in points: ANSI after the `CENTER2` linetype
     /// (`[54 9 9 9]`, 3/4 in long), ISO-style after ISO 128's proportions to
     /// the line width (`[24w 3w w 3w]`; ISO's short dash of `0.5w` is drawn
-    /// at `w` so it stays visible).
+    /// at `w` so it stays visible). The factory centre-line pattern
+    /// [`Self::centre_line_stroke`] uses when `centre.line.dash` is unset; it
+    /// never reads `dash`.
     #[must_use]
     pub fn centre_line_dash(self) -> DimDash {
         let w = self.line_width;
@@ -329,22 +331,6 @@ impl DimensionStyle {
     pub fn centre_mark_arm(self) -> f64 {
         self.centre_mark_size.arm(self.text_height)
     }
-}
-
-/// The centre-line dash stretched so a line of `length` starts and ends on a
-/// long dash (drafting practice), or `None` (solid) when it is too short for
-/// one full cycle plus a closing long dash.
-pub(crate) fn fitted_centre_dash(nominal: DimDash, length: f64) -> Option<[f64; 4]> {
-    let &[long, g1, short, g2] = nominal.pattern() else {
-        return None;
-    };
-    let cycle = long + g1 + short + g2;
-    let cycles = ((length - long) / cycle).round();
-    if !(cycles >= 1.0 && length.is_finite()) {
-        return None;
-    }
-    let k = length / cycles.mul_add(cycle, long);
-    Some([long * k, g1 * k, short * k, g2 * k])
 }
 
 /// What a snap point on a centre line or centre mark is.

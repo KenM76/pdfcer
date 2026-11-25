@@ -427,7 +427,7 @@ pub enum DimensionKind {
     /// The resolved ends are stored, not the two source lines, for the reason
     /// [`Self::Angular`] stores rays: the overlap and overshoot were decided
     /// at pick time, and re-deriving them later could draw a different line.
-    /// Drawn with [`super::DimensionStyle::centre_line_dash`].
+    /// Drawn with [`super::DimensionStyle::centre_line_stroke`].
     CentreLine {
         /// First end, page space, points.
         a: Point,

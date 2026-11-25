@@ -131,6 +131,10 @@ pub struct DimensionStyle {
     /// cascade's result, still `None` where the circle follows these lines.
     /// Read the drawn stroke from [`Self::circle_stroke`].
     pub circle: super::part_stroke::PartStroke,
+    /// Centre-line and centre-mark strokes, still `None` where they inherit.
+    /// Read the drawn strokes from [`Self::centre_line_stroke`] and
+    /// [`Self::centre_mark_stroke`].
+    pub centre: super::centre_style::CentreStyle,
 }
 
 impl DimensionStyle {
@@ -171,6 +175,7 @@ impl DimensionStyle {
             user_unit: 1.0,
             centre_mark_size: f.centre_mark_size,
             circle: f.circle,
+            centre: f.centre,
         }
     }
 
@@ -635,7 +640,13 @@ pub fn author_dimension_with_label(
                 ..
             } = *kind
             {
-                super::centre_author::draw_mark(&mut b, &mut bounds, fit, mark, style);
+                super::centre_author::draw_mark(
+                    &mut b,
+                    &mut bounds,
+                    (fit, mark),
+                    style,
+                    style.line_stroke(),
+                );
             }
         }
         DimensionKind::Angular {
@@ -916,7 +927,7 @@ pub(super) fn begin_strokes(b: &mut ContentBuilder, style: DimensionStyle) {
 
 /// `color` as the operators [`begin_strokes`] writes it: a pure grey RGB as
 /// `g`/`G`, everything else in its own space.
-fn stroke_paint(color: crate::annot_author::Color) -> crate::annot_author::Color {
+pub(super) fn stroke_paint(color: crate::annot_author::Color) -> crate::annot_author::Color {
     match color {
         // Exact equality is the intent: only an untouched/explicitly-grey
         // colour takes the legacy path.

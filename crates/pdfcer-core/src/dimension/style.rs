@@ -87,6 +87,7 @@ use crate::annot_author::Color;
 
 use super::author::DimensionStyle;
 use super::centre::CentreMarkSize;
+use super::centre_style::CentreStyle;
 use super::dash::DimDash;
 use super::group::{DimStandard, Group};
 use super::part_stroke::PartStroke;
@@ -212,6 +213,9 @@ pub struct StyleDefaults {
     /// A radius/diameter ce dimension's circle stroke; the factory follows
     /// the ce dimension in every field.
     pub circle: PartStroke,
+    /// Centre-line and centre-mark strokes; the factory inherits every field
+    /// (see [`CentreStyle`] for what that draws).
+    pub centre: CentreStyle,
 }
 
 impl StyleDefaults {
@@ -231,6 +235,7 @@ impl StyleDefaults {
         opacity: 1.0,
         centre_mark_size: CentreMarkSize::TextHeight(0.5),
         circle: PartStroke::FOLLOW,
+        centre: CentreStyle::INHERIT,
     };
 }
 
@@ -281,6 +286,9 @@ pub struct GroupStyle {
     /// The circle stroke of the group's radius/diameter ce dimensions; each
     /// `None` field ⇒ factory.
     pub circle: PartStroke,
+    /// The group's centre-line and centre-mark strokes; each `None` field ⇒
+    /// factory.
+    pub centre: CentreStyle,
 }
 
 impl GroupStyle {
@@ -348,6 +356,9 @@ pub struct StyleOverrides {
     /// This radius/diameter ce dimension's circle stroke; each `None` field
     /// ⇒ the group's, then factory, then this ce dimension's own lines.
     pub circle: PartStroke,
+    /// This centre line's or centre mark's stroke; each `None` field ⇒ the
+    /// group's, then factory.
+    pub centre: CentreStyle,
 }
 
 impl StyleOverrides {
@@ -379,6 +390,7 @@ impl StyleOverrides {
             + usize::from(self.opacity.is_some())
             + usize::from(self.centre_mark_size.is_some())
             + self.circle.count()
+            + self.centre.count()
     }
 }
 
@@ -468,6 +480,19 @@ pub struct StyleProvenance {
     pub circle_width: StyleSource,
     /// Source of the circle's colour (`Factory`: follows `color`).
     pub circle_color: StyleSource,
+    /// Source of a centre line's dash (`Factory`: the standard's centre
+    /// pattern).
+    pub centre_line_dash: StyleSource,
+    /// Source of a centre line's width (`Factory`: follows `line_width`).
+    pub centre_line_width: StyleSource,
+    /// Source of a centre line's colour (`Factory`: follows `color`).
+    pub centre_line_color: StyleSource,
+    /// Source of a centre mark's dash (`Factory`: solid).
+    pub centre_mark_dash: StyleSource,
+    /// Source of a centre mark's width (`Factory`: follows `line_width`).
+    pub centre_mark_width: StyleSource,
+    /// Source of a centre mark's colour (`Factory`: follows `color`).
+    pub centre_mark_color: StyleSource,
 }
 
 impl StyleProvenance {
@@ -478,7 +503,7 @@ impl StyleProvenance {
     /// gets a compile error, not a silently shorter listing, when a property
     /// is added and this method is not extended.
     #[must_use]
-    pub const fn each(&self) -> [(&'static str, StyleSource); 17] {
+    pub const fn each(&self) -> [(&'static str, StyleSource); 23] {
         [
             ("unit", self.unit),
             ("fraction", self.fraction),
@@ -497,6 +522,12 @@ impl StyleProvenance {
             ("circle-dash", self.circle_dash),
             ("circle-width", self.circle_width),
             ("circle-color", self.circle_color),
+            ("centre-line-dash", self.centre_line_dash),
+            ("centre-line-width", self.centre_line_width),
+            ("centre-line-color", self.centre_line_color),
+            ("centre-mark-dash", self.centre_mark_dash),
+            ("centre-mark-width", self.centre_mark_width),
+            ("centre-mark-color", self.centre_mark_color),
         ]
     }
 }
@@ -585,6 +616,7 @@ pub fn resolve_style(group: &Group, over: &StyleOverrides) -> DimensionStyle {
             .or(group.style.centre_mark_size)
             .unwrap_or(f.centre_mark_size),
         circle: over.circle.or(group.style.circle).or(f.circle),
+        centre: over.centre.or(group.style.centre).or(f.centre),
         user_unit: 1.0,
     }
 }
@@ -620,6 +652,7 @@ pub fn style_provenance(group: &Group, over: &StyleOverrides) -> StyleProvenance
             StyleSource::Factory
         }
     };
+    let (cd, cg) = (over.centre, group.style.centre);
     StyleProvenance {
         unit: two(over.unit.is_some()),
         fraction: two(over.fraction.is_some()),
@@ -659,6 +692,12 @@ pub fn style_provenance(group: &Group, over: &StyleOverrides) -> StyleProvenance
             over.circle.color.is_some(),
             group.style.circle.color.is_some(),
         ),
+        centre_line_dash: three(cd.line.dash.is_some(), cg.line.dash.is_some()),
+        centre_line_width: three(cd.line.width.is_some(), cg.line.width.is_some()),
+        centre_line_color: three(cd.line.color.is_some(), cg.line.color.is_some()),
+        centre_mark_dash: three(cd.mark.dash.is_some(), cg.mark.dash.is_some()),
+        centre_mark_width: three(cd.mark.width.is_some(), cg.mark.width.is_some()),
+        centre_mark_color: three(cd.mark.color.is_some(), cg.mark.color.is_some()),
     }
 }
 
@@ -724,7 +763,7 @@ mod tests {
         // A property whose group tier is a concrete field never reports
         // Factory — the group always has an answer for it.
         assert_eq!(p.standard, StyleSource::Group);
-        assert_eq!(p.each().len(), 17);
+        assert_eq!(p.each().len(), 23);
         assert_eq!(p.centre_mark_size, StyleSource::Factory);
         assert_eq!(p.circle_width, StyleSource::Factory);
     }

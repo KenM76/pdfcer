@@ -11580,7 +11580,10 @@ pub(crate) enum Command {
     /// Two parallel lines get their midline; two lines at an angle get the
     /// bisector of the angle the picks select. Either way the centre line runs
     /// over the length the two lines share and a little past each end, drawn
-    /// with a long-short-long centre-line dash in the group's style.
+    /// with the group's centre-line stroke (`--centre-line-dash` on
+    /// group-style; unset, the standard's long-short-long pattern; never
+    /// `--dash`), stretched to start and end on a long dash. How it fitted
+    /// prints as dash_fit=nominal, stretched or solid-too-short.
     ///
     /// It is stored as a ce dimension that measures nothing: it lists as
     /// kind=centre-line in dimension-list, moves with dimension-rotate and
@@ -12358,6 +12361,8 @@ pub(crate) enum Command {
         /// colour. Opacity is annotation-wide and stays `--opacity`.
         #[arg(long)]
         circle_color: Option<String>,
+        #[command(flatten)]
+        centre: CentreStyleFlags,
         /// Clear a property back to the factory default (repeatable, or
         /// comma-separated). Property names are the ones
         /// `dimension-list --style` prints.
@@ -12461,6 +12466,8 @@ pub(crate) enum Command {
         /// colour. Opacity is annotation-wide and stays `--opacity`.
         #[arg(long)]
         circle_color: Option<String>,
+        #[command(flatten)]
+        centre: CentreStyleFlags,
         /// Clear an override, returning that property to inheritance
         /// (repeatable, or comma-separated).
         #[arg(long, value_enum, value_delimiter = ',')]

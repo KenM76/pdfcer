@@ -1788,6 +1788,18 @@ pub(crate) enum StylePropArg {
     CircleWidth,
     /// The circle's colour.
     CircleColor,
+    /// A centre line's dash.
+    CentreLineDash,
+    /// A centre line's stroke width.
+    CentreLineWidth,
+    /// A centre line's colour.
+    CentreLineColor,
+    /// A centre mark's dash.
+    CentreMarkDash,
+    /// A centre mark's stroke width.
+    CentreMarkWidth,
+    /// A centre mark's colour.
+    CentreMarkColor,
 }
 
 /// The terminator forms, mirrored from `pdfcer_core::dimension::ArrowForm`.
@@ -1853,6 +1865,7 @@ pub(crate) struct AppearanceArgs {
     pub(crate) circle_dash: Option<String>,
     pub(crate) circle_width: Option<f64>,
     pub(crate) circle_color: Option<String>,
+    pub(crate) centre: CentreStyleFlags,
 }
 
 pub(crate) struct GroupStyleArgs<'a> {
@@ -1997,6 +2010,12 @@ pub(crate) fn cmd_group_style(args: &GroupStyleArgs<'_>) -> u8 {
             StylePropArg::CircleDash => style.circle.dash = None,
             StylePropArg::CircleWidth => style.circle.width = None,
             StylePropArg::CircleColor => style.circle.color = None,
+            p @ (StylePropArg::CentreLineDash
+            | StylePropArg::CentreLineWidth
+            | StylePropArg::CentreLineColor
+            | StylePropArg::CentreMarkDash
+            | StylePropArg::CentreMarkWidth
+            | StylePropArg::CentreMarkColor) => clear_centre(*p, &mut style.centre),
             // Named so the refusal says WHICH property and WHY, rather than
             // ignoring the flag and leaving the operator to discover from the
             // saved file that nothing happened.
@@ -2044,6 +2063,7 @@ pub(crate) fn cmd_group_style(args: &GroupStyleArgs<'_>) -> u8 {
                 style.centre_mark_size = Some(v);
             }
             style.circle = a.circle.or(style.circle);
+            style.centre = a.centre.or(style.centre);
         }
         Err(msg) => {
             eprintln!("pdfcer: {}: {msg}", args.input.display());
@@ -2097,6 +2117,8 @@ pub(crate) struct ResolvedAppearance {
     pub(crate) centre_mark_size: Option<pdfcer_core::dimension::CentreMarkSize>,
     /// The circle-stroke fields given; unset ones leave the tier's alone.
     pub(crate) circle: pdfcer_core::dimension::PartStroke,
+    /// The centre-stroke fields given; unset ones leave the tier's alone.
+    pub(crate) centre: pdfcer_core::dimension::CentreStyle,
 }
 
 /// Validate the appearance flags and convert them to core types.
@@ -2149,6 +2171,7 @@ pub(crate) fn apply_appearance(a: &AppearanceArgs) -> Result<ResolvedAppearance,
                     .map(parse_device_color)
                     .transpose()?,
             ),
+        centre: a.centre.parse()?,
     })
 }
 
@@ -2295,6 +2318,12 @@ pub(crate) fn cmd_dimension_style(args: &DimensionStyleArgs<'_>) -> u8 {
             StylePropArg::CircleDash => style.circle.dash = None,
             StylePropArg::CircleWidth => style.circle.width = None,
             StylePropArg::CircleColor => style.circle.color = None,
+            p @ (StylePropArg::CentreLineDash
+            | StylePropArg::CentreLineWidth
+            | StylePropArg::CentreLineColor
+            | StylePropArg::CentreMarkDash
+            | StylePropArg::CentreMarkWidth
+            | StylePropArg::CentreMarkColor) => clear_centre(*p, &mut style.centre),
         }
     }
     if let Some(token) = args.unit {
@@ -2369,6 +2398,7 @@ pub(crate) fn cmd_dimension_style(args: &DimensionStyleArgs<'_>) -> u8 {
                 style.centre_mark_size = Some(v);
             }
             style.circle = a.circle.or(style.circle);
+            style.centre = a.centre.or(style.centre);
         }
         Err(msg) => {
             eprintln!("pdfcer: {}: {msg}", args.input.display());
@@ -2538,9 +2568,14 @@ pub(crate) fn cmd_dimension_list(input: &Path, show_style: bool) -> u8 {
                 }
                 s
             }
-            DimensionKind::CentreLine { a, b } => {
-                format!(" from={},{} to={},{}", a.x, a.y, b.x, b.y)
-            }
+            DimensionKind::CentreLine { a, b } => format!(
+                " from={},{} to={},{}{}",
+                a.x,
+                a.y,
+                b.x,
+                b.y,
+                dash_fit_suffix(&model, d)
+            ),
             DimensionKind::CentreMark { fit, mark } => format!(
                 " centre={},{} radius={}{}",
                 fit.center.x,
@@ -2606,7 +2641,8 @@ pub(crate) fn cmd_dimension_list(input: &Path, show_style: bool) -> u8 {
             };
             let resolved = pdfcer_core::dimension::resolve_style(group, &d.style);
             let prov = pdfcer_core::dimension::style_provenance(group, &d.style);
-            let values: [(&str, String); 17] = [
+            let [c0, c1, c2, c3, c4, c5] = centre_style_values(&resolved);
+            let values: [(&str, String); 23] = [
                 ("unit", resolved.format.unit.token().to_owned()),
                 ("fraction", format_fraction(resolved.format.fraction)),
                 (
@@ -2636,6 +2672,12 @@ pub(crate) fn cmd_dimension_list(input: &Path, show_style: bool) -> u8 {
                 ("circle-dash", format_dash(resolved.circle_stroke().dash)),
                 ("circle-width", fmt_num(resolved.circle_stroke().width)),
                 ("circle-color", fmt_color(resolved.circle_stroke().color)),
+                c0,
+                c1,
+                c2,
+                c3,
+                c4,
+                c5,
             ];
             // Paired positionally against `StyleProvenance::each`, whose own
             // doc comment explains why it returns a fixed-size array: a
