@@ -13871,3 +13871,18 @@ Full record: `docs/decisions/224-indirect-light-and-reflections.md` (autonomous-
 **Body-section effect.** None (no body section describes indirect light yet; §10 is cited by the record). **Decision ceiling.** Fills `224`; next free decision `225`. **New standing rule.** None.
 
 **Amended 2026-11-11 (1500th filing, `8dbbcfc7`, `Pass 705.0` partial):** the two default flips are now decided on corpus measurements: reflections default to `Finishes` (fires), bounce stays `ModelLights` (does not fire). Figures and the added `705.2` acceptance item are in the decision record's "Default flips" section. Decision text above is unchanged.
+
+### 2026-11-25 (1701st filing) — decision 225: pdfcer's own names must not be Adobe-only names; generic industry vocabulary is fine
+
+Operator ruling (Ken, 2026-11-25). Engineer-reported; no `docs/decisions/225-*.md` (this entry is the record). It replaced a proposed sweeping rename, which the operator declined.
+
+**Decides.**
+1. **Forbidden:** naming a pdfcer feature, CLI verb, module, crate item or doc heading with a name that appears **only** in Adobe products.
+2. **Allowed:** generic industry vocabulary that other software also uses (examples: preflight, output preview, edit PDF, prepare form, fix hairlines).
+3. **Allowed:** naming Acrobat in a comparison ("Acrobat parity", "unlike Acrobat...") and quoting an Adobe-only name when describing what Acrobat does (example: "Acrobat's Action Wizard", `ARCHITECTURE.md` line 23).
+4. **Nothing is renamed under this ruling.** No existing name changes; it governs names coined from now on, and a later rename needs its own ruling.
+5. **Separate from** the standing rule that the licensed print-suite name is never written; this ruling neither widens nor relaxes it.
+
+**Open item (pending the operator's answer).** Whether "Ink Manager" (`Pass 748.3`; CLI verbs `inks`, `alias-ink`, `spot-to-process`) is an Adobe-only name. Until answered, no rename and no ruling either way; the librarian files the answer as an amendment here.
+
+**Body-section effect.** None. **Decision ceiling.** Fills `225`; next free decision `226`. **New standing rule.** None (a decision, not an `R` number; the engineer may promote it).

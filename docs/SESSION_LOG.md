@@ -4,6 +4,15 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-11-25 (1701st filing) — decision 225: no Adobe-only names for pdfcer's own features
+
+**Filed (engineer-reported; no shell here, git, CI and the gates not checked from here):**
+- Decision 225, `ARCHITECTURE.md` §12: operator ruling (Ken, 2026-11-25). pdfcer's own features, verbs, modules and doc headings must not carry names that exist only in Adobe products; generic industry vocabulary (preflight, output preview, edit PDF, prepare form, fix hairlines) is fine; naming Acrobat in comparisons, or quoting an Adobe-only name to describe Acrobat, is fine.
+- Replaces a proposed sweeping rename that Ken declined. No existing name is renamed.
+- Open: whether "Ink Manager" (`Pass 748.3`; `inks`, `alias-ink`, `spot-to-process`) is Adobe-only; pending Ken. Separate from the never-write-the-print-suite-name rule.
+
+**Next free:** decision `226`; `Pass` and `R` ceilings not re-read this filing.
+
 ## 2026-11-24 (1700th filing) — `v0.173.0` PUBLISHED
 
 **Filed (engineer-reported, checked by the engineer with a shell; nothing here checked from this filing's side):**
