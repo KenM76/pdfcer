@@ -401,6 +401,41 @@ fn artifacts_never_wrap_a_form_chain_too_deep_to_read() {
     assert!(claimed.contains(&(page_id, 0)));
 }
 
+/// An image XObject with `/StructParent` is a structure content item in
+/// its own right, drawn directly or from a form; one without it is not.
+#[test]
+fn artifacts_never_wrap_an_image_that_has_a_struct_parent() {
+    let image = |sp: &str| {
+        stream(
+            &format!(
+                "/Type /XObject /Subtype /Image /Width 1 /Height 1                  /ColorSpace /DeviceGray /BitsPerComponent 8 {sp}"
+            ),
+            "x",
+        )
+    };
+    let page = "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792]                 /Resources << /XObject << /Im1 10 0 R /F 11 0 R >> >> /Contents 4 0 R                 /StructParents 0 >>";
+    let form = stream(
+        "/Type /XObject /Subtype /Form /BBox [0 0 10 10] /Resources << /XObject << /Im1 10 0 R >> >>",
+        "/Im1 Do",
+    );
+    for content in [format!("{TAGGED} /Im1 Do"), format!("{TAGGED} /F Do")] {
+        let over = [
+            (3, page.to_owned()),
+            (10, image("/StructParent 1")),
+            (11, form.clone()),
+        ];
+        let mut s = session(&content, &over);
+        let report = s.mark_untagged_as_artifacts(&[]).unwrap();
+        assert_eq!(report.sequences, 0, "{content}: {report:?}");
+        assert!(!page_content(&saved(&s)).contains("/Artifact"), "{content}");
+        let over = [(3, page.to_owned()), (10, image("")), (11, form.clone())];
+        let mut s = session(&content, &over);
+        let report = s.mark_untagged_as_artifacts(&[]).unwrap();
+        assert_eq!(report.sequences, 1, "{content}: {report:?}");
+        assert!(page_content(&saved(&s)).contains("/Artifact"), "{content}");
+    }
+}
+
 #[test]
 fn tab_order_sets_structure_order_on_annotated_pages_only() {
     let page = "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << >> \

@@ -249,8 +249,10 @@ impl Reader<'_, '_, '_> {
             return Leaf::Neutral;
         };
         match name_of(self.view, x.dict.get(b"Subtype")) {
+            // An image or form with `/StructParent` is itself a structure
+            // content item (ISO 32000-1 14.7.4.3, Tables 89 and 95).
+            Some(b"Image" | b"Form") if x.dict.contains_key(b"StructParent") => Leaf::Barrier,
             Some(b"Image") => Leaf::Item,
-            Some(b"Form") if x.dict.contains_key(b"StructParent") => Leaf::Barrier,
             Some(b"Form") => {
                 let mut census = FormCensus::default();
                 census.walk(self.view, id, self.resources, 0, &mut Vec::new());
@@ -457,8 +459,8 @@ impl FormCensus {
             return;
         };
         match name_of(view, x.dict.get(b"Subtype")) {
+            Some(b"Image" | b"Form") if x.dict.contains_key(b"StructParent") => self.tagged = true,
             Some(b"Image") => self.untagged += usize::from(!inside),
-            Some(b"Form") if x.dict.contains_key(b"StructParent") => self.tagged = true,
             Some(b"Form") if !inside => self.walk(view, id, resources, depth + 1, active),
             Some(b"Form") => {
                 let mut inner = Self::default();

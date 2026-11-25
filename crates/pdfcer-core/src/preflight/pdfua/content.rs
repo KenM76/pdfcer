@@ -231,7 +231,11 @@ impl Walker<'_, '_> {
             return;
         };
         match name_of(self.view, x.dict.get(b"Subtype")) {
-            Some(b"Image") => self.item(ctx, false),
+            Some(b"Image") => {
+                let mut own = ctx;
+                own.tagged |= x.dict.contains_key(b"StructParent");
+                self.item(own, false);
+            }
             Some(b"Form") => {
                 if x.dict.contains_key(b"Ref") {
                     self.counts.reference_forms.push(id);

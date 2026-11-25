@@ -228,6 +228,33 @@ fn untagged_content_and_misnested_artifacts_are_found() {
     assert!(v.iter().any(|x| x == "PUI-01-005"), "{v:?}");
 }
 
+/// An image with `/StructParent` is tagged content, not untagged content.
+#[test]
+fn an_image_with_a_struct_parent_is_not_untagged_content() {
+    let page = "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792]                 /Resources << /XObject << /Im1 10 0 R >> >> /Contents 4 0 R /StructParents 0                 /Tabs /S >>";
+    let image = |sp: &str| {
+        stream(
+            &format!(
+                "/Type /XObject /Subtype /Image /Width 1 /Height 1                  /ColorSpace /DeviceGray /BitsPerComponent 8 {sp}"
+            ),
+            "x",
+        )
+    };
+    let content = stream("", "/Figure << /MCID 0 >> BDC 0 0 10 10 re f EMC /Im1 Do");
+    let tagged = doc(
+        1,
+        &[
+            (3, page.to_owned()),
+            (4, content.clone()),
+            (10, image("/StructParent 1")),
+        ],
+    );
+    let v = violations(&tagged, 1);
+    assert!(!v.iter().any(|x| x == "PUI-01-005"), "{v:?}");
+    let loose = doc(1, &[(3, page.to_owned()), (4, content), (10, image(""))]);
+    assert_has(&loose, 1, "PUI-01-005");
+}
+
 /// A form past the depth cap is not read; the validator says so rather
 /// than passing content it never saw.
 #[test]
