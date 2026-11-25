@@ -129,7 +129,7 @@ impl EditSession {
         }
         if !plan.unread_forms.is_empty() {
             report.disclosures.push(format!(
-                "Page {n}: left {} form XObject(s) that could not be read in full; untagged                  content may remain inside them.",
+                "Page {n}: left {} form XObject(s) that could not be read in full; untagged content may remain inside them.",
                 plan.unread_forms.len()
             ));
         }
