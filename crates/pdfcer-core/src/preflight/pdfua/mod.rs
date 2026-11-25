@@ -116,6 +116,34 @@ pub struct Requirement {
     pub sourced: bool,
 }
 
+/// The overall answer of [`validate_pdfua`], from [`PdfuaReport::verdict`].
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum PdfuaVerdict {
+    /// A requirement was violated or could not be read: the file is not
+    /// this part.
+    Fails,
+    /// Nothing failed, but a person must still decide something, a
+    /// requirement was not checked, a finding warned, or not every page was
+    /// examined. Every run today ends here at best, because the
+    /// person-decided requirements are always listed.
+    Unconfirmed,
+    /// Every requirement was checked by machine and passed.
+    Conforms,
+}
+
+impl PdfuaVerdict {
+    /// `fails`, `unconfirmed` or `conforms`, as [`super::PdfxVerdict`] and
+    /// [`super::PdfaVerdict`] spell them.
+    #[must_use]
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::Fails => "fails",
+            Self::Unconfirmed => "unconfirmed",
+            Self::Conforms => "conforms",
+        }
+    }
+}
+
 /// Everything one PDF/UA run found.
 #[derive(Debug, Clone, PartialEq)]
 #[non_exhaustive]
@@ -136,6 +164,32 @@ pub struct PdfuaReport {
 }
 
 impl PdfuaReport {
+    /// The overall answer, in the same three words as PDF/X and PDF/A.
+    ///
+    /// * [`PdfuaVerdict::Fails`] when any finding is `Error` severity
+    ///   ([`Self::fails`]: a violation, or a requirement that could not be
+    ///   read).
+    /// * Otherwise [`PdfuaVerdict::Unconfirmed`] when any finding remains (a
+    ///   needs-a-person finding or a warning), [`Self::not_checked`] is not
+    ///   empty, or fewer pages were examined than the document has.
+    /// * Otherwise [`PdfuaVerdict::Conforms`].
+    ///
+    /// Needs-a-person findings never fail a file and never let it conform:
+    /// they are what a person must still decide.
+    #[must_use]
+    pub fn verdict(&self) -> PdfuaVerdict {
+        if self.fails() {
+            PdfuaVerdict::Fails
+        } else if self.findings.is_empty()
+            && self.not_checked.is_empty()
+            && self.pages_checked == self.page_count
+        {
+            PdfuaVerdict::Conforms
+        } else {
+            PdfuaVerdict::Unconfirmed
+        }
+    }
+
     /// True when any requirement was violated or could not be read.
     /// Needs-a-person findings alone do not fail a report; they say a
     /// person must still look.

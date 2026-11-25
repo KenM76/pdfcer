@@ -436,3 +436,41 @@ fn part_numbers_round_trip() {
     assert_eq!(requirements(PdfuaPart::Ua1).len(), 143);
     assert_eq!(requirements(PdfuaPart::Ua2).len(), 139);
 }
+
+#[test]
+fn a_violation_fails_the_verdict() {
+    let d = doc(1, &[(1, "<< /Type /Catalog /Pages 2 0 R >>".into())]);
+    let report = validate_pdfua(&d.view(), PdfuaPart::Ua1);
+    assert_eq!(report.verdict(), PdfuaVerdict::Fails);
+    assert_eq!(report.verdict().as_str(), "fails");
+}
+
+#[test]
+fn needs_a_person_or_not_checked_leaves_the_verdict_unconfirmed() {
+    for n in [1, 2] {
+        let report = validate_pdfua(&doc(n, &[]).view(), part_of(n));
+        assert!(!report.fails());
+        assert_eq!(report.verdict(), PdfuaVerdict::Unconfirmed, "UA-{n}");
+
+        let mut people_only = report.clone();
+        people_only.not_checked.clear();
+        assert!(people_only.needs_person().count() > 0);
+        assert_eq!(people_only.verdict(), PdfuaVerdict::Unconfirmed);
+
+        let mut unlisted_only = report.clone();
+        unlisted_only.findings.clear();
+        assert!(!unlisted_only.not_checked.is_empty());
+        assert_eq!(unlisted_only.verdict(), PdfuaVerdict::Unconfirmed);
+    }
+}
+
+#[test]
+fn nothing_left_to_decide_conforms_unless_pages_went_unexamined() {
+    let mut report = validate_pdfua(&doc(1, &[]).view(), PdfuaPart::Ua1);
+    report.findings.clear();
+    report.not_checked.clear();
+    assert_eq!(report.verdict(), PdfuaVerdict::Conforms);
+    assert_eq!(report.verdict().as_str(), "conforms");
+    report.pages_checked = 0;
+    assert_eq!(report.verdict(), PdfuaVerdict::Unconfirmed);
+}

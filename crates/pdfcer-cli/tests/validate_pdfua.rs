@@ -31,6 +31,10 @@ fn an_untagged_file_fails_part_1_with_clause_level_findings() {
     assert!(out.starts_with("validate-pdfua "), "{out}");
     assert!(out.lines().next().unwrap().contains(" part=1 "), "{out}");
     assert!(
+        out.lines().next().unwrap().ends_with(" verdict=fails"),
+        "{out}"
+    );
+    assert!(
         out.lines()
             .any(|l| l.starts_with("error violation rule=PUI-V-7.1-11 page=- target=document")),
         "{out}"
@@ -51,6 +55,7 @@ fn json_names_the_clause_and_matterhorn_checkpoint() {
     let (code, out) = run(&[hello().to_str().unwrap(), "--part", "2", "--json"]);
     assert_eq!(code, 18, "{out}");
     assert!(out.contains("\"part\": 2"), "{out}");
+    assert!(out.contains("\"verdict\": \"fails\""), "{out}");
     assert!(out.contains("\"rule\": \"PUI2-8.2.1-1\""), "{out}");
     assert!(out.contains("\"clause\": \"ISO 14289-2"), "{out}");
     assert!(out.contains("\"not_checked\": ["), "{out}");

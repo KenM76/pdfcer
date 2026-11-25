@@ -12190,8 +12190,10 @@ pub(crate) enum Command {
     /// `preflight` line format, then a `not-checked` line for each
     /// requirement no check covers yet.
     ///
-    /// A `needs-person` finding is not a pass. Exits 18 when any violation or
-    /// incomplete is found.
+    /// The header's verdict is `fails` (a violation or incomplete; exit 18),
+    /// `unconfirmed` (no error, but a `needs-person` finding, a warning, an
+    /// unchecked requirement or an unexamined page remains; exit 0) or
+    /// `conforms`. A `needs-person` finding is not a pass.
     ValidatePdfua {
         /// Input PDF.
         input: PathBuf,

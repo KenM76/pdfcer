@@ -6845,6 +6845,7 @@ pdfua-1|pdfua-2`). Fixups: §24.
 | `validate_pdfua(&DocumentView, PdfuaPart) -> PdfuaReport` | every finding for the part |
 | `PdfuaPart` | `Ua1`, `Ua2`; `number()` (1, 2), `from_number(u8)`, `standard()` (`"ISO 14289-1"`) |
 | `PdfuaReport { part, findings: Vec<Finding>, not_checked: Vec<&'static Requirement>, page_count, pages_checked }` | `fails()` = any `Error` finding; `violations()`, `needs_person()` iterators |
+| `PdfuaReport::verdict() -> PdfuaVerdict` (`Pass 758.0`) | `Fails` when `fails()`; else `Unconfirmed` when any finding remains (needs-a-person or warning), `not_checked` is not empty, or `pages_checked < page_count`; else `Conforms`. Needs-a-person findings never fail and never conform. `as_str()` gives `fails` / `unconfirmed` / `conforms`, the PDF/X and PDF/A spellings; `PdfuaVerdict` is closed. CLI: `validate-pdfua` header `verdict=`, JSON `"verdict"` |
 | `requirements(PdfuaPart) -> &'static [Requirement]` / `requirement(id) -> Option<&'static Requirement>` | the inventory: 143 UA-1 rows, 139 UA-2 rows |
 | `Requirement { id, part, clause, matterhorn, verapdf, decided_by: DecidedBy, sourced }` | `id` is `PUI-<Matterhorn or V-veraPDF>` (UA-1) or `PUI2-<veraPDF>` (UA-2); `clause` e.g. `"ISO 14289-1 §7.18.3"`; `DecidedBy::{Machine, Person, NoTest}` |
 

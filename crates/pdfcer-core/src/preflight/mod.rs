@@ -40,7 +40,8 @@ pub(crate) use hairlines::hairlines_in;
 pub use hairlines::{HAIRLINES_NOT_COVERED, Hairline, hairlines};
 pub use pdfa::{PdfaLevel, PdfaReport, PdfaVerdict, validate_pdfa, validate_pdfa_with};
 pub use pdfua::{
-    DecidedBy, PdfuaPart, PdfuaReport, Requirement, requirement, requirements, validate_pdfua,
+    DecidedBy, PdfuaPart, PdfuaReport, PdfuaVerdict, Requirement, requirement, requirements,
+    validate_pdfua,
 };
 pub(crate) use pdfua::{
     claimed_mcids, has_title as xmp_has_title, header_ok as pdfua_header_ok, lang_well_formed,

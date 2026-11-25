@@ -15,13 +15,17 @@ use crate::preflight::{finding_line, target};
 ///
 /// - Text: one header line,
 ///   `validate-pdfua <input> part=<1|2> pages=<checked>/<count> violations=<v>
-///   incomplete=<i> needs-person=<p> not-checked=<n>`, then one line per
-///   finding in the `preflight` line format, then one
+///   incomplete=<i> needs-person=<p> not-checked=<n> verdict=<verdict>`,
+///   where `<verdict>` is `fails`, `unconfirmed` or `conforms`
+///   (`PdfuaReport::verdict`: any error fails; otherwise any finding,
+///   unchecked requirement or unexamined page leaves it unconfirmed), then
+///   one line per finding in the `preflight` line format, then one
 ///   `not-checked rule=<id> "<clause>"` line per requirement no check covers.
 /// - `--json`: one object with `input`, `part`, `pages_checked`,
-///   `page_count`, `findings` (each with `rule`, `kind`, `severity`, `page`,
-///   `target`, `clause`, `matterhorn`, `message`) and `not_checked` (each
-///   with `rule`, `clause`, `matterhorn`, `decided_by`).
+///   `page_count`, `verdict` (as in the text header), `findings` (each with
+///   `rule`, `kind`, `severity`, `page`, `target`, `clause`, `matterhorn`,
+///   `message`) and `not_checked` (each with `rule`, `clause`, `matterhorn`,
+///   `decided_by`).
 /// - Exit `PREFLIGHT_FAILED` (18) when any violation or incomplete is found;
 ///   needs-a-person findings alone do not fail. The usual read codes for an
 ///   unreadable input.
@@ -54,7 +58,7 @@ fn count(report: &PdfuaReport, kind: FindingKind) -> usize {
 fn print_text(input: &Path, report: &PdfuaReport) {
     println!(
         "validate-pdfua {} part={} pages={}/{} violations={} incomplete={} needs-person={} \
-         not-checked={}",
+         not-checked={} verdict={}",
         input.display(),
         report.part.number(),
         report.pages_checked,
@@ -62,7 +66,8 @@ fn print_text(input: &Path, report: &PdfuaReport) {
         count(report, FindingKind::Violation),
         count(report, FindingKind::Incomplete),
         count(report, FindingKind::NeedsPerson),
-        report.not_checked.len()
+        report.not_checked.len(),
+        report.verdict().as_str()
     );
     for f in &report.findings {
         println!("{}", finding_line(f));
@@ -120,11 +125,13 @@ fn report_json(input: &Path, report: &PdfuaReport) -> String {
         .collect();
     format!(
         "{{\n  \"input\": \"{}\",\n  \"part\": {},\n  \"pages_checked\": {},\n  \
-         \"page_count\": {},\n  \"findings\": [\n    {}\n  ],\n  \"not_checked\": [\n    {}\n  ]\n}}\n",
+         \"page_count\": {},\n  \"verdict\": \"{}\",\n  \"findings\": [\n    {}\n  ],\n  \
+         \"not_checked\": [\n    {}\n  ]\n}}\n",
         json_escape(&input.display().to_string()),
         report.part.number(),
         report.pages_checked,
         report.page_count,
+        report.verdict().as_str(),
         findings.join(",\n    "),
         skipped.join(",\n    ")
     )
