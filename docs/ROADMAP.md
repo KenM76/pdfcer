@@ -112,6 +112,13 @@ wherever it appears.*
 
 ## Shipped
 
+### `f3f7306a` `chore`: v0.174.0 version bump, 2026-11-25 (1704th filing)
+
+Engineer-reported; no shell here, git, push, CI and the gates not run or checked from here. **Unreleased until v0.174.0 is tagged.** Tag, package and publication are a separate filing.
+- **`f3f7306a` `chore: version 0.174.0`:** `Cargo.toml` (18 occurrences), `Cargo.lock` (21) and `fuzz/Cargo.lock` (17) move from 0.173.0 to 0.174.0, the same shape as the 0.173.0 bump (`40e23b16`). No code change.
+- **v0.174.0 carries, since v0.173.0:** `Pass 756.0` (`53c8bdbe`); `757.0` (`6f69f6be`); `758.0` (`8fd70ad6`); `759.0` (`b06d39b9`); `760.0` (`ec4b8240`); `761.0` (`cb4989b5`); `762.0` (`8d180e9c`); and the docs commit `159b73f3`; all filed 1703rd (`e8a3f0de`, pushed).
+- **FEATURES:** no row changes. **Next:** tag v0.174.0, release to OneDrive slot `pdfcer1`, publish the crates.
+
 ### `Pass 756.0`-`762.0`: snapshot, output intent, PDF/UA verdict, preflight JSON, version-floor and ink-list corrections, hex glyph names; `53c8bdbe`..`8d180e9c`, 2026-11-25 (1703rd filing)
 
 Engineer-reported; no shell here, git, push, CI and the gates not run or checked from here. **Unreleased: since `v0.173.0`; shipped in the next release, `v0.174.0` (OneDrive `pdfcer1`).** Seven Passes, all on `main`, unpushed until this filing lands. Reasoning is in each commit message.
