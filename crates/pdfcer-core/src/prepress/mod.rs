@@ -17,7 +17,9 @@ pub use convert_colours::{
 };
 pub(crate) use convert_colours::{ConvertPlan, PlanError, embed_writes, plan_convert_colours};
 pub(crate) use ink_alias::plan_alias;
-pub use inks::{InkEditReport, InkKind, InkRefusal, InkSelection, InkUse, inks};
+pub use inks::{
+    InkEditReport, InkKind, InkList, InkRefusal, InkSelection, InkUse, ink_name_bytes, inks,
+};
 pub(crate) use inks::{InkPlan, Planned};
 pub(crate) use inks::{each_array, live_ids};
 pub use pdfx::{PdfxClaim, pdfx_claim, pdfx_output_intents};

@@ -11978,6 +11978,11 @@ pub(crate) enum Command {
     /// every Separation or DeviceN space naming it (more than one means
     /// the definitions disagree), the pages that draw with it and how many
     /// distinct uses they make. `All` and `None` are not inks.
+    ///
+    /// A name is printed as UTF-8, with `#` and any byte that is not UTF-8
+    /// written as `#XX`; `alias-ink` and `spot-to-process --ink` take it as
+    /// printed. At most 32 colorants are read from one DeviceN space; when
+    /// one names more, the header says `complete=0` and a note follows.
     Inks {
         /// Input PDF.
         input: PathBuf,
@@ -11988,8 +11993,11 @@ pub(crate) enum Command {
     /// in DeviceN colorant and mixing-hint entries, so it prints on the
     /// `--to` plate. `--to` may be a process ink (`Black`) or another spot.
     /// Each space keeps its own appearance on screen. A DeviceN space that
-    /// already names `--to` is left as it was and listed as refused. Unlike
-    /// Acrobat, which aliases only at output time, this changes the file.
+    /// already names `--to` is left as it was and listed as refused; if a
+    /// rename would change an object that space shares, or the search was
+    /// cut short, nothing is changed. Names longer than 127 bytes are
+    /// refused. Unlike Acrobat, which aliases only at output time, this
+    /// changes the file.
     AliasInk {
         /// Input PDF.
         input: PathBuf,

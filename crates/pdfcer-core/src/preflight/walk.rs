@@ -477,6 +477,7 @@ fn classify_array(view: &DocumentView<'_>, items: &[Object], depth: usize) -> Op
                 .unwrap_or_default();
             let names = names
                 .iter()
+                .take(MAX_COLORANTS)
                 .filter_map(|o| view.resolve(o).as_name())
                 .map(|n| n.as_bytes())
                 .collect();
@@ -484,6 +485,33 @@ fn classify_array(view: &DocumentView<'_>, items: &[Object], depth: usize) -> Op
         }
         _ => None,
     }
+}
+
+/// Colorants read from one `DeviceN` space: the most a reader has to
+/// accept (ISO 32000-1 Annex C, Table C.1). Past it the rest of the names
+/// array is not read, so a shared array costs each space at most this many.
+pub(crate) const MAX_COLORANTS: usize = 32;
+
+/// A name's bytes as text that keeps distinct names distinct: UTF-8 as is,
+/// `#` and any byte that is not UTF-8 as `#XX`, the escape ISO 32000-1
+/// §7.3.5 uses in a written name. Reversed by
+/// [`crate::prepress::ink_name_bytes`].
+pub(crate) fn name_text(name: &[u8]) -> String {
+    use std::fmt::Write as _;
+    let mut out = String::with_capacity(name.len());
+    for chunk in name.utf8_chunks() {
+        for c in chunk.valid().chars() {
+            if c == '#' {
+                out.push_str("#23");
+            } else {
+                out.push(c);
+            }
+        }
+        for b in chunk.invalid() {
+            let _ = write!(out, "#{b:02X}");
+        }
+    }
+    out
 }
 
 /// Whether a colorant name is a spot: not `All` or `None` (§8.6.6.4), and
@@ -499,10 +527,7 @@ fn colorant_names<'a>(
     names: impl Iterator<Item = &'a [u8]>,
     keep: impl Fn(&[u8]) -> bool,
 ) -> Vec<String> {
-    let mut out: Vec<String> = names
-        .filter(|n| keep(n))
-        .map(|n| String::from_utf8_lossy(n).into_owned())
-        .collect();
+    let mut out: Vec<String> = names.filter(|n| keep(n)).map(name_text).collect();
     out.sort();
     out.dedup();
     out

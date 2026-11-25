@@ -10364,6 +10364,14 @@ pub enum EditError {
         /// One clause.
         reason: &'static str,
     },
+    /// [`EditSession::alias_ink`] could not alias safely, and changed
+    /// nothing: its search was cut short, or a rename would change an
+    /// object a refused `DeviceN` space shares.
+    #[error("cannot alias the ink: {reason}")]
+    InkAliasRefused {
+        /// One sentence.
+        reason: String,
+    },
     /// [`EditSession::convert_colours`] cannot run: no usable destination
     /// profile, no output intent to take one from, or no source selected.
     #[error("cannot convert colours: {reason}")]

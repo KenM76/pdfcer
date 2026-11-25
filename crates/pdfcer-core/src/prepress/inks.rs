@@ -6,7 +6,7 @@ use std::collections::{BTreeMap, BTreeSet, HashSet};
 
 use crate::graph::ObjectGraph;
 use crate::object::{Dict, ObjId, Object};
-use crate::preflight::walk::{self, Event};
+use crate::preflight::walk::{self, Event, MAX_COLORANTS, name_text};
 use crate::view::DocumentView;
 
 /// Nesting followed inside one object when looking for colour spaces.
@@ -21,11 +21,29 @@ pub enum InkKind {
     Spot,
 }
 
+/// Every ink a document names, from [`inks`].
+#[derive(Debug, Clone, PartialEq, Eq)]
+#[non_exhaustive]
+pub struct InkList {
+    /// The inks, process first in `Cyan`, `Magenta`, `Yellow`, `Black`
+    /// order, then spots by name.
+    pub inks: Vec<InkUse>,
+    /// False when inks may be missing: a `DeviceN` space names more than 32
+    /// colorants, the most read from one space (ISO 32000-1 Annex C,
+    /// Table C.1), or a space sits deeper inside one object than the walk
+    /// follows. A shell says so beside the list.
+    pub complete: bool,
+}
+
 /// One ink a document names, from [`inks`].
 #[derive(Debug, Clone, PartialEq, Eq)]
 #[non_exhaustive]
 pub struct InkUse {
-    /// The colorant name, as written.
+    /// The colorant name as text that keeps distinct names distinct: UTF-8
+    /// as is, `#` and any byte that is not UTF-8 as `#XX` (the escape of
+    /// ISO 32000-1 §7.3.5), so `Spot#80` is byte 0x80 and `Spot#2380` the
+    /// literal `Spot#80`. [`crate::edit::EditSession::alias_ink`] and
+    /// [`InkSelection`] take this spelling; [`ink_name_bytes`] reverses it.
     pub name: String,
     /// Process or spot.
     pub kind: InkKind,
@@ -46,7 +64,9 @@ pub struct InkUse {
 pub enum InkSelection {
     /// Every spot ink.
     All,
-    /// These spot inks, compared exactly.
+    /// These spot inks, spelled as [`InkUse::name`] spells them and
+    /// compared exactly; a spelling [`ink_name_bytes`] cannot read selects
+    /// nothing.
     Only(Vec<String>),
 }
 
@@ -56,7 +76,9 @@ impl InkSelection {
     pub fn selects(&self, name: &[u8]) -> bool {
         match self {
             Self::All => true,
-            Self::Only(names) => names.iter().any(|n| n.as_bytes() == name),
+            Self::Only(names) => names
+                .iter()
+                .any(|n| ink_name_bytes(n).is_some_and(|b| b == name)),
         }
     }
 }
@@ -146,8 +168,10 @@ pub(crate) struct InkPlan {
 pub(crate) struct InkSpace<'a> {
     /// `Separation` rather than `DeviceN`.
     pub(crate) separation: bool,
-    /// The colorant names, in component order.
+    /// The colorant names, in component order; at most [`MAX_COLORANTS`].
     pub(crate) names: Vec<Vec<u8>>,
+    /// A `DeviceN` names array longer than [`MAX_COLORANTS`], not all read.
+    pub(crate) capped: bool,
     /// The alternate space, unresolved.
     pub(crate) alternate: &'a Object,
     /// The tint transform, unresolved.
@@ -163,37 +187,75 @@ pub(crate) fn ink_space<'a>(view: &DocumentView<'_>, items: &'a [Object]) -> Opt
         b"DeviceN" => false,
         _ => return None,
     };
-    let names = if separation {
-        vec![view.resolve(items.get(1)?).as_name()?.as_bytes().to_vec()]
+    let (names, capped) = if separation {
+        let name = view.resolve(items.get(1)?).as_name()?;
+        (vec![name.as_bytes().to_vec()], false)
     } else {
-        view.resolve(items.get(1)?)
-            .as_array()?
+        let all = view.resolve(items.get(1)?).as_array()?;
+        let names = all
             .iter()
+            .take(MAX_COLORANTS)
             .filter_map(|o| view.resolve(o).as_name())
             .map(|n| n.as_bytes().to_vec())
-            .collect()
+            .collect();
+        (names, all.len() > MAX_COLORANTS)
     };
     Some(InkSpace {
         separation,
         names,
+        capped,
         alternate: items.get(2)?,
         tint: items.get(3)?,
     })
 }
 
-/// The family name of a colour space: its name, or its array's head.
-pub(crate) fn family_name(view: &DocumentView<'_>, cs: &Object) -> String {
+/// The family name of a colour space: its name, or its array's head;
+/// `None` when neither can be read.
+pub(crate) fn family_name(view: &DocumentView<'_>, cs: &Object) -> Option<String> {
     let named = match view.resolve(cs) {
         Object::Name(n) => Some(n),
         Object::Array(a) => a.first().and_then(|o| view.resolve(o).as_name()),
         _ => None,
-    };
-    named.map_or_else(|| "an unreadable space".to_owned(), |n| text(n.as_bytes()))
+    }?;
+    Some(text(named.as_bytes()))
 }
 
-/// Bytes as text, lossily.
+/// A name's bytes as text, spelled as [`InkUse::name`] is.
 pub(crate) fn text(bytes: &[u8]) -> String {
-    String::from_utf8_lossy(bytes).into_owned()
+    name_text(bytes)
+}
+
+/// The bytes of ink name `name`, spelled as [`InkUse::name`] is: `#` and
+/// two hex digits is one byte (ISO 32000-1 §7.3.5), anything else is
+/// itself. `None` when a `#` is not followed by two hex digits.
+///
+/// # Examples
+///
+/// ```
+/// use pdfcer_core::prepress::ink_name_bytes;
+///
+/// assert_eq!(ink_name_bytes("Spot#80"), Some(b"Spot\x80".to_vec()));
+/// assert_eq!(ink_name_bytes("No#232"), Some(b"No#2".to_vec()));
+/// assert_eq!(ink_name_bytes("Gold#2"), None);
+/// ```
+#[must_use]
+pub fn ink_name_bytes(name: &str) -> Option<Vec<u8>> {
+    let mut out = Vec::with_capacity(name.len());
+    let mut rest = name.as_bytes();
+    while let Some((&b, tail)) = rest.split_first() {
+        if b == b'#' {
+            let hex = tail
+                .get(..2)
+                .filter(|h| h.iter().all(u8::is_ascii_hexdigit))?;
+            let hex = std::str::from_utf8(hex).ok()?;
+            out.push(u8::from_str_radix(hex, 16).ok()?);
+            rest = tail.get(2..).unwrap_or_default();
+        } else {
+            out.push(b);
+            rest = tail;
+        }
+    }
+    Some(out)
 }
 
 /// Every object reachable from the trailer's `/Root` and `/Info`, ascending.
@@ -210,21 +272,32 @@ pub(crate) fn live_ids(view: &DocumentView<'_>) -> Vec<ObjId> {
 }
 
 /// Call `f` on every array inside `obj`, itself included, without
-/// following references.
-pub(crate) fn each_array(obj: &Object, depth: usize, f: &mut dyn FnMut(&[Object])) {
-    if depth > MAX_NESTING {
-        return;
+/// following references. False when nesting deeper than [`MAX_NESTING`]
+/// was left unvisited.
+pub(crate) fn each_array(obj: &Object, depth: usize, f: &mut dyn FnMut(&[Object])) -> bool {
+    let is_container = matches!(obj, Object::Array(_) | Object::Dict(_) | Object::Stream(_));
+    if !is_container {
+        return true;
     }
+    if depth > MAX_NESTING {
+        return false;
+    }
+    let deeper = depth + 1;
     match obj {
         Object::Array(items) => {
             f(items);
-            for item in items {
-                each_array(item, depth + 1, f);
-            }
+            items
+                .iter()
+                .fold(true, |ok, i| each_array(i, deeper, f) & ok)
         }
-        Object::Dict(d) => d.iter().for_each(|(_, v)| each_array(v, depth + 1, f)),
-        Object::Stream(s) => s.dict.iter().for_each(|(_, v)| each_array(v, depth + 1, f)),
-        _ => {}
+        Object::Dict(d) => d
+            .iter()
+            .fold(true, |ok, (_, v)| each_array(v, deeper, f) & ok),
+        Object::Stream(s) => s
+            .dict
+            .iter()
+            .fold(true, |ok, (_, v)| each_array(v, deeper, f) & ok),
+        _ => true,
     }
 }
 
@@ -238,6 +311,10 @@ pub(crate) fn each_array(obj: &Object, depth: usize, f: &mut dyn FnMut(&[Object]
 /// appearances. Type 3 glyph procedures and soft masks are not entered, so
 /// an ink drawn only there is listed with no pages.
 ///
+/// At most 32 colorants are read from one `DeviceN` space (ISO 32000-1
+/// Annex C); past that, or past the walk's nesting limit,
+/// [`InkList::complete`] is false and the list may be missing inks.
+///
 /// # Examples
 ///
 /// ```
@@ -248,40 +325,17 @@ pub(crate) fn each_array(obj: &Object, depth: usize, f: &mut dyn FnMut(&[Object]
 /// let doc = Document::from_bytes(
 ///     include_bytes!("../../../../fixtures/synthetic/hello.pdf").to_vec(),
 /// )?;
-/// assert!(inks(&doc.view()).is_empty());
+/// let list = inks(&doc.view());
+/// assert!(list.inks.is_empty() && list.complete);
 /// # Ok(())
 /// # }
 /// ```
 #[must_use]
-pub fn inks(view: &DocumentView<'_>) -> Vec<InkUse> {
-    let mut found: BTreeMap<Vec<u8>, (BTreeSet<String>, BTreeSet<usize>, usize)> = BTreeMap::new();
-    for id in live_ids(view) {
-        let Some(value) = view.graph().value(id) else {
-            continue;
-        };
-        each_array(value, 0, &mut |items| {
-            if let Some(space) = ink_space(view, items) {
-                let alternate = family_name(view, space.alternate);
-                for name in space.names.iter().filter(|n| is_ink(n)) {
-                    let entry = found.entry(name.clone()).or_default();
-                    entry.0.insert(alternate.clone());
-                }
-            }
-        });
-    }
-    if let Ok(pages) = crate::page_tree::pages_in(view.graph()) {
-        for (i, page) in pages.iter().enumerate() {
-            for (_, event) in walk::page_events(view, page) {
-                let Event::Colour(u) = event else { continue };
-                for name in &u.colorants {
-                    let entry = found.entry(name.as_bytes().to_vec()).or_default();
-                    entry.1.insert(i + 1);
-                    entry.2 += 1;
-                }
-            }
-        }
-    }
-    let mut out: Vec<InkUse> = found
+pub fn inks(view: &DocumentView<'_>) -> InkList {
+    let mut found = Found::new();
+    let complete = defined(view, &mut found);
+    drawn(view, &mut found);
+    let mut inks: Vec<InkUse> = found
         .into_iter()
         .map(|(name, (alternates, pages, uses))| InkUse {
             kind: kind_of(&name),
@@ -291,8 +345,54 @@ pub fn inks(view: &DocumentView<'_>) -> Vec<InkUse> {
             uses,
         })
         .collect();
-    out.sort_by_key(|u| (u.kind, process_rank(&u.name), u.name.clone()));
-    out
+    inks.sort_by_key(|u| (u.kind, process_rank(&u.name), u.name.clone()));
+    InkList { inks, complete }
+}
+
+/// Inks by their bytes: alternate families, 1-based pages, uses.
+type Found = BTreeMap<Vec<u8>, (BTreeSet<String>, BTreeSet<usize>, usize)>;
+
+/// Every ink a space defines, with its alternate's family when that can be
+/// read. False when a space may have been missed or not read in full.
+fn defined(view: &DocumentView<'_>, found: &mut Found) -> bool {
+    let mut complete = true;
+    for id in live_ids(view) {
+        let Some(value) = view.graph().value(id) else {
+            continue;
+        };
+        let mut capped = false;
+        complete &= each_array(value, 0, &mut |items| {
+            let Some(space) = ink_space(view, items) else {
+                return;
+            };
+            capped |= space.capped;
+            let alternate = family_name(view, space.alternate);
+            for name in space.names.iter().filter(|n| is_ink(n)) {
+                let entry = found.entry(name.clone()).or_default();
+                entry.0.extend(alternate.clone());
+            }
+        });
+        complete &= !capped;
+    }
+    complete
+}
+
+/// Where pages draw with each ink.
+fn drawn(view: &DocumentView<'_>, found: &mut Found) {
+    let Ok(pages) = crate::page_tree::pages_in(view.graph()) else {
+        return;
+    };
+    for (i, page) in pages.iter().enumerate() {
+        for (_, event) in walk::page_events(view, page) {
+            let Event::Colour(u) = event else { continue };
+            for name in &u.colorants {
+                let bytes = ink_name_bytes(name).unwrap_or_else(|| name.as_bytes().to_vec());
+                let entry = found.entry(bytes).or_default();
+                entry.1.insert(i + 1);
+                entry.2 = entry.2.saturating_add(1);
+            }
+        }
+    }
 }
 
 /// Not `All` or `None`.

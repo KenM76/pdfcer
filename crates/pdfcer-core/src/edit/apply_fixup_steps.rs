@@ -115,6 +115,7 @@ impl EditSession {
     fn step_spot(&mut self, step: FixupStep, keep: &[String]) -> FixupStep {
         let converted: Vec<String> = self
             .inks()
+            .inks
             .into_iter()
             .filter(|i| i.kind == crate::prepress::InkKind::Spot && !keep.contains(&i.name))
             .map(|i| i.name)

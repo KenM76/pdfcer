@@ -2,11 +2,17 @@
 //! and `DeviceN` space that names it (ISO 32000-2 §8.6.6.4, §8.6.6.5), the
 //! `DeviceN` attributes keyed by it (Table 72, Table 73) and a page's
 //! `/SeparationInfo /DeviceColorant` (§14.11.4).
+//!
+//! A reference that names the ink is replaced by the new name, so no
+//! indirect name object is ever rewritten for one space and seen changed by
+//! another. A refused `DeviceN` protects every object it reaches; the alias
+//! is refused when it would write one, and when the walk was cut short.
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, HashSet};
 
 use crate::graph::ObjectGraph;
 use crate::object::{Name, ObjId, Object};
+use crate::preflight::walk::MAX_COLORANTS;
 use crate::view::DocumentView;
 
 use super::inks::{InkPlan, InkUse, Planned, ink_space, inks, live_ids, text};
@@ -14,10 +20,23 @@ use super::inks::{InkPlan, InkUse, Planned, ink_space, inks, live_ids, text};
 /// Nesting followed inside one object.
 const MAX_NESTING: usize = 24;
 
+/// Values one alias looks at in total, across every object.
+const MAX_VISITS: usize = 1 << 22;
+
 /// Work out renaming `from` to `to` everywhere. Names are not validated
 /// here; the session does that.
-pub(crate) fn plan_alias(view: &DocumentView<'_>, from: &[u8], to: &[u8]) -> InkPlan {
-    let listed = inks(view);
+///
+/// `Err` (one sentence) when the walk was cut short by nesting, the visit
+/// allowance or a `DeviceN` space with more than [`MAX_COLORANTS`] names,
+/// or when a write would change an object a refused `DeviceN` reaches.
+/// Both are checked after the whole walk, so the answer does not depend on
+/// the order objects are visited in.
+pub(crate) fn plan_alias(
+    view: &DocumentView<'_>,
+    from: &[u8],
+    to: &[u8],
+) -> Result<InkPlan, String> {
+    let listed = inks(view).inks;
     let mut r = Renamer {
         view,
         from,
@@ -25,6 +44,9 @@ pub(crate) fn plan_alias(view: &DocumentView<'_>, from: &[u8], to: &[u8]) -> Ink
         at: None,
         work: BTreeMap::new(),
         plan: InkPlan::default(),
+        visits: MAX_VISITS,
+        complete: true,
+        protected: HashSet::new(),
     };
     for id in live_ids(view) {
         r.at = Some(id);
@@ -35,6 +57,15 @@ pub(crate) fn plan_alias(view: &DocumentView<'_>, from: &[u8], to: &[u8]) -> Ink
             r.work.insert(id, obj);
         }
     }
+    if !r.complete {
+        return Err(format!(
+            "the search for \"{}\" stopped short (an object nested deeper than {MAX_NESTING} levels, more than {MAX_VISITS} values, or a DeviceN space naming more than {MAX_COLORANTS} colorants), so a space naming it could be missed; nothing was changed",
+            text(from)
+        ));
+    }
+    if r.work.keys().any(|id| r.protected.contains(id)) {
+        return Err("a DeviceN space naming both inks shares objects with a space being renamed, so renaming would change it; nothing was changed".to_owned());
+    }
     let mut plan = r.plan;
     plan.writes = r
         .work
@@ -42,13 +73,16 @@ pub(crate) fn plan_alias(view: &DocumentView<'_>, from: &[u8], to: &[u8]) -> Ink
         .map(|(id, o)| (id, Planned::Object(o)))
         .collect();
     disclose_merge(&listed, from, to, &mut plan);
-    plan
+    Ok(plan)
 }
 
 /// Say when the two names' definitions disagree, since each space keeps
 /// its own alternate and tint transform.
 fn disclose_merge(listed: &[InkUse], from: &[u8], to: &[u8], plan: &mut InkPlan) {
-    let find = |n: &[u8]| listed.iter().find(|u| u.name.as_bytes() == n);
+    let find = |n: &[u8]| {
+        let spelled = text(n);
+        listed.iter().find(|u| u.name == spelled)
+    };
     if plan.writes.is_empty() {
         plan.report
             .disclose(format!("No colour space names \"{}\".", text(from)));
@@ -76,6 +110,16 @@ struct Renamer<'v, 'd> {
     /// Objects rewritten so far.
     work: BTreeMap<ObjId, Object>,
     plan: InkPlan,
+    /// Values still allowed to be looked at.
+    visits: usize,
+    /// False once a limit left something unvisited.
+    complete: bool,
+    /// Objects a refused `DeviceN` reaches through its names or attributes.
+    protected: HashSet<ObjId>,
+}
+
+fn is_container(obj: &Object) -> bool {
+    matches!(obj, Object::Array(_) | Object::Dict(_) | Object::Stream(_))
 }
 
 impl Renamer<'_, '_> {
@@ -85,6 +129,30 @@ impl Renamer<'_, '_> {
             .get(&id)
             .cloned()
             .or_else(|| self.view.graph().value(id).cloned())
+    }
+
+    /// Take one visit from the allowance; false (and incomplete) when none
+    /// is left.
+    fn spend(&mut self) -> bool {
+        let Some(left) = self.visits.checked_sub(1) else {
+            self.complete = false;
+            return false;
+        };
+        self.visits = left;
+        true
+    }
+
+    /// Whether a container at `depth` may be entered; clears `complete`
+    /// when it may not.
+    fn enter(&mut self, obj: &Object, depth: usize) -> bool {
+        if !self.spend() || !is_container(obj) {
+            return false;
+        }
+        if depth > MAX_NESTING {
+            self.complete = false;
+            return false;
+        }
+        true
     }
 
     /// Apply `f` to `obj`, or, when it is a reference, to the object it
@@ -98,7 +166,8 @@ impl Renamer<'_, '_> {
             return f(self, obj);
         };
         let id = *id;
-        if let Some(mut target) = self.current(id)
+        if self.spend()
+            && let Some(mut target) = self.current(id)
             && f(self, &mut target)
         {
             self.work.insert(id, target);
@@ -108,7 +177,7 @@ impl Renamer<'_, '_> {
 
     /// Rename inside `obj`; true when it changed.
     fn rename(&mut self, obj: &mut Object, depth: usize) -> bool {
-        if depth > MAX_NESTING {
+        if !self.enter(obj, depth) {
             return false;
         }
         match obj {
@@ -124,6 +193,7 @@ impl Renamer<'_, '_> {
         for (key, value) in entries.iter_mut() {
             if key.as_bytes() == b"DeviceColorant" && self.is_from(value) {
                 *value = Object::Name(Name::from(self.to));
+                self.plan.report.spaces = self.plan.report.spaces.saturating_add(1);
                 changed = true;
             } else {
                 changed |= self.rename(value, depth + 1);
@@ -147,26 +217,26 @@ impl Renamer<'_, '_> {
             }
             return changed;
         };
+        if space.capped {
+            self.complete = false;
+        }
         let names_from = space.names.iter().any(|n| n == self.from);
-        let separation = space.separation;
+        let both = !space.separation && space.names.iter().any(|n| n == self.to);
         if !names_from {
             return items
                 .get_mut(4)
                 .is_some_and(|attrs| self.rename(attrs, depth + 1));
         }
-        if !separation && space.names.iter().any(|n| n == self.to) {
-            let reason = format!(
-                "this DeviceN space already names \"{}\"; renaming would give it two components of one ink",
-                text(self.to)
-            );
-            self.plan.report.refuse(self.at, self.from, reason);
+        if both {
+            self.refuse_both(items, depth);
             return false;
         }
-        self.plan.report.spaces += 1;
-        let Some(names) = items.get_mut(1) else {
-            return false;
+        self.plan.report.spaces = self.plan.report.spaces.saturating_add(1);
+        let mut changed = match items.get_mut(1) {
+            Some(slot) if self.view.resolve(slot).as_name().is_some() => self.entry(slot),
+            Some(names) => self.through(names, &mut |r, o| r.entries(o)),
+            None => false,
         };
-        let mut changed = self.through(names, &mut |r, o| r.rename_entries(o));
         if let Some(attrs) = items.get_mut(4) {
             changed |= self.through(attrs, &mut |r, o| r.attributes(o));
             changed |= self.rename(attrs, depth + 1);
@@ -174,22 +244,62 @@ impl Renamer<'_, '_> {
         changed
     }
 
-    /// A Separation's name, or every entry of a DeviceN names array.
-    fn rename_entries(&mut self, obj: &mut Object) -> bool {
-        match obj {
-            Object::Name(n) if n.as_bytes() == self.from => {
-                *n = Name::from(self.to);
-                true
-            }
-            Object::Array(entries) => {
-                let mut changed = false;
-                for entry in entries.iter_mut() {
-                    changed |= self.rename_entries(entry);
-                }
-                changed
-            }
-            _ => false,
+    /// Refuse a `DeviceN` naming both inks, and protect what it reaches
+    /// through its names (index 1) and attributes (index 4).
+    fn refuse_both(&mut self, items: &[Object], depth: usize) {
+        let reason = format!(
+            "this DeviceN space already names \"{}\"; renaming would give it two components of one ink",
+            text(self.to)
+        );
+        self.plan.report.refuse(self.at, self.from, reason);
+        for slot in [items.get(1), items.get(4)].into_iter().flatten() {
+            self.protect(slot, depth + 1);
         }
+    }
+
+    /// Record every object `o` reaches as one no write may change.
+    fn protect(&mut self, o: &Object, depth: usize) {
+        if !self.spend() {
+            return;
+        }
+        if depth > MAX_NESTING {
+            self.complete = false;
+            return;
+        }
+        let deeper = depth + 1;
+        match o {
+            Object::Reference(id) => {
+                if self.protected.insert(*id)
+                    && let Some(target) = self.view.graph().value(*id).cloned()
+                {
+                    self.protect(&target, deeper);
+                }
+            }
+            Object::Array(items) => items.iter().for_each(|i| self.protect(i, deeper)),
+            Object::Dict(d) => d.iter().for_each(|(_, v)| self.protect(v, deeper)),
+            Object::Stream(s) => s.dict.iter().for_each(|(_, v)| self.protect(v, deeper)),
+            _ => {}
+        }
+    }
+
+    /// Each entry of a names array, or a single name.
+    fn entries(&mut self, obj: &mut Object) -> bool {
+        match obj {
+            Object::Array(entries) => entries
+                .iter_mut()
+                .fold(false, |changed, e| self.entry(e) | changed),
+            other => self.entry(other),
+        }
+    }
+
+    /// One ink name, direct or through a reference; either is replaced by
+    /// the new name itself.
+    fn entry(&self, e: &mut Object) -> bool {
+        if !self.is_from(e) {
+            return false;
+        }
+        *e = Object::Name(Name::from(self.to));
+        true
     }
 
     /// A DeviceN attributes dictionary: `/Colorants` keys and
@@ -246,14 +356,19 @@ impl Renamer<'_, '_> {
         let Object::Array(order) = obj else {
             return false;
         };
-        let is = |o: &Object, n: &[u8]| o.as_name().is_some_and(|x| x.as_bytes() == n);
-        if !order.iter().any(|o| is(o, self.from)) {
+        if !order.iter().any(|o| self.is_from(o)) {
             return false;
         }
-        if order.iter().any(|o| is(o, self.to)) {
-            order.retain(|o| !is(o, self.from));
+        let is_to = |o: &Object| {
+            self.view
+                .resolve(o)
+                .as_name()
+                .is_some_and(|n| n.as_bytes() == self.to)
+        };
+        if order.iter().any(is_to) {
+            order.retain(|o| !self.is_from(o));
         } else {
-            self.rename_entries(obj);
+            self.entries(obj);
         }
         true
     }

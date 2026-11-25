@@ -274,7 +274,14 @@ fn profile_class(view: &DocumentView<'_>, ctx: &Ctx<'_>, intent: &Dict, sink: &m
 }
 
 fn spot_alternates(view: &DocumentView<'_>, ctx: &Ctx<'_>, sink: &mut Sink) {
-    for ink in inks(view) {
+    let list = inks(view);
+    if !list.complete {
+        sink.push(ctx.coverage(
+            None,
+            "a DeviceN space names more than 32 colorants or nests too deeply, so not every ink was read",
+        ));
+    }
+    for ink in list.inks {
         if ink.kind == InkKind::Spot && ink.alternates.len() > 1 {
             sink.push(ctx.doc(&format!(
                 "The spot ink \"{}\" is defined with different alternate spaces ({}).",

@@ -6757,10 +6757,12 @@ aliases on spot to process, both are document edits with a report.
 
 | Call | Returns |
 |---|---|
-| `prepress::inks(&DocumentView) -> Vec<InkUse>` | every colorant a `Separation`/`DeviceN` space names, process first (CMYK order), then spots by name |
-| `InkUse { name, kind: InkKind, alternates: Vec<String>, pages: Vec<usize>, uses }` | `alternates` by family, sorted (more than one: the definitions disagree); `pages` 1-based, empty when defined but never drawn |
+| `prepress::inks(&DocumentView) -> InkList` | every colorant a `Separation`/`DeviceN` space names, process first (CMYK order), then spots by name |
+| `InkList { inks: Vec<InkUse>, complete: bool }` | `complete` is false when a `DeviceN` space names more than 32 colorants (only the first 32 are read, ISO 32000-1 Annex C) or a space is nested past the walk; say so beside the list |
+| `prepress::ink_name_bytes(&str) -> Option<Vec<u8>>` | the bytes an `InkUse::name` spelling stands for; `None` for a `#` without two hex digits |
+| `InkUse { name, kind: InkKind, alternates: Vec<String>, pages: Vec<usize>, uses }` | `name` is UTF-8 with `#` and non-UTF-8 bytes as `#XX` (ISO 32000-1 §7.3.5), so distinct names stay distinct; `alternates` by family, sorted (more than one: the definitions disagree; an unreadable alternate is left out); `pages` 1-based, empty when defined but never drawn |
 | `InkKind` | `Process` (`Cyan`/`Magenta`/`Yellow`/`Black`), `Spot` |
-| `InkSelection` | `All`, `Only(Vec<String>)` (exact names); `selects(&[u8]) -> bool` |
+| `InkSelection` | `All`, `Only(Vec<String>)` (names spelled as `InkUse::name`, compared exactly after decoding); `selects(&[u8]) -> bool` |
 | `InkEditReport { changed, spaces, paints, images, shadings, lookups, refused: Vec<InkRefusal>, overprint_lost: Vec<ObjId>, disclosures }` | `changed` is every object written; `is_empty()` when none |
 | `InkRefusal { object: Option<ObjId>, ink, reason }` | one sentence per thing left as it was |
 
@@ -6772,7 +6774,11 @@ Contract:
   /DeviceColorant` (§14.11.4). Each space keeps its alternate and tint
   transform; a disclosure says when the two names were defined with
   different alternates. A `DeviceN` naming both inks is refused (two
-  components of one ink). Content streams are never rewritten.
+  components of one ink), and protects every object it reaches through its
+  names and attributes: a rename that would change one refuses the whole
+  alias (`InkAliasRefused`), as does a search cut short. A reference
+  naming the ink is replaced by the new name, so a shared name object is
+  never rewritten. Content streams are never rewritten.
 - **Spot to process** converts a space only when every spot it names is
   selected, its alternate is literally `DeviceCMYK` and its tint transform
   has n inputs and 4 outputs. Content colour operators become `k`/`K` (an
@@ -6784,7 +6790,8 @@ Contract:
   alternate (colour conversion belongs to icccer, decision 064), a space
   naming an unselected spot, an unreadable tint transform, inline images,
   colour-keyed or undecodable (DCT, JPX) images, mesh and function-based
-  shadings, uncoloured patterns, a form drawn under two colour states.
+  shadings, uncoloured patterns, a form drawn under two colour states, a
+  `DeviceN` space naming more than 32 colorants.
 - **Overprint** survives only for a `DeviceCMYK` paint under `/OPM 1`
   (§8.6.7). Streams painting a converted ink under overprint with mode 0,
   or drawing a converted image or shading under overprint, are in
@@ -6792,7 +6799,7 @@ Contract:
 - Walked: page content, forms, tiling patterns, annotation `/AP` N/R/D.
   Type 3 glyph procedures and soft masks are not entered.
 
-⚠️ `InkUse`, `InkRefusal` and `InkEditReport` are `#[non_exhaustive]`.
+⚠️ `InkList`, `InkUse`, `InkRefusal` and `InkEditReport` are `#[non_exhaustive]`.
 
 ## 19. Transparency — where it is used, and flattening it (`Pass 748.1`)
 

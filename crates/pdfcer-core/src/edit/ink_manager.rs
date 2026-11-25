@@ -5,32 +5,59 @@
 use super::{Command, CommandKind, EditError, EditSession, ObjectWrite};
 use crate::crypto::PermissionBit;
 use crate::object::{Name, Object, Stream};
-use crate::prepress::{InkEditReport, InkPlan, InkSelection, InkUse, Planned};
+#[cfg(doc)]
+use crate::prepress::InkUse;
+use crate::prepress::{InkEditReport, InkList, InkPlan, InkSelection, Planned};
 
-/// Why a name cannot take part in an alias, or `None` when it can.
-fn alias_refusal(from: &str, to: &str) -> Option<(String, &'static str)> {
-    let reserved = |n: &str| n == "All" || n == "None";
-    if from.is_empty() || to.is_empty() {
-        return Some((String::new(), "an ink name cannot be empty"));
+/// The longest name a reader has to accept, in bytes after `#XX` decoding
+/// (ISO 32000-1 Annex C, Table C.1).
+const MAX_INK_NAME: usize = 127;
+
+/// The two names' bytes, or why one cannot take part in an alias. Names
+/// are spelled as [`InkUse::name`] is: `#XX` is one byte (ISO 32000-1
+/// §7.3.5).
+fn alias_names(from: &str, to: &str) -> Result<(Vec<u8>, Vec<u8>), EditError> {
+    let refused = |name: &str, reason| EditError::InkNameRefused {
+        name: name.to_owned(),
+        reason,
+    };
+    let decode = |n: &str| {
+        crate::prepress::ink_name_bytes(n).ok_or_else(|| {
+            refused(
+                n,
+                "a # must be followed by two hex digits; write # itself as #23",
+            )
+        })
+    };
+    let (f, t) = (decode(from)?, decode(to)?);
+    if f.is_empty() || t.is_empty() {
+        return Err(refused("", "an ink name cannot be empty"));
     }
-    if reserved(from) || reserved(to) {
-        let name = if reserved(from) { from } else { to };
-        return Some((name.to_owned(), "All and None are not inks"));
+    for (name, bytes) in [(from, &f), (to, &t)] {
+        if bytes.len() > MAX_INK_NAME {
+            return Err(refused(name, "an ink name can be at most 127 bytes"));
+        }
+        if bytes.contains(&0) {
+            return Err(refused(name, "a name cannot hold a zero byte"));
+        }
+        if bytes.as_slice() == b"All" || bytes.as_slice() == b"None" {
+            return Err(refused(name, "All and None are not inks"));
+        }
     }
-    if !crate::preflight::walk::is_spot_colorant(from.as_bytes()) {
-        return Some((from.to_owned(), "a process ink cannot be aliased away"));
+    if !crate::preflight::walk::is_spot_colorant(&f) {
+        return Err(refused(from, "a process ink cannot be aliased away"));
     }
-    if from == to {
-        return Some((from.to_owned(), "an ink cannot be aliased to itself"));
+    if f == t {
+        return Err(refused(from, "an ink cannot be aliased to itself"));
     }
-    None
+    Ok((f, t))
 }
 
 impl EditSession {
     /// Every ink the document names, as [`crate::prepress::inks`] lists
     /// them, with this session's edits applied.
     #[must_use]
-    pub fn inks(&self) -> Vec<InkUse> {
+    pub fn inks(&self) -> InkList {
         crate::prepress::inks(&self.view())
     }
 
@@ -43,6 +70,12 @@ impl EditSession {
     /// on-screen look is unchanged; the report discloses when the two
     /// names were defined differently.
     ///
+    /// Names are spelled as [`InkUse::name`] lists them: `#XX` is one byte
+    /// (ISO 32000-1 §7.3.5), so `Spot#80` names byte 0x80 and `No#232` the
+    /// literal `No#2`. A reference naming `from` is replaced by the new
+    /// name, so no shared name object is rewritten. A `/SeparationInfo
+    /// /DeviceColorant` renamed counts in [`InkEditReport::spaces`].
+    ///
     /// A `DeviceN` space naming both inks is refused and listed in
     /// [`InkEditReport::refused`]: it would have two components of one
     /// ink. One undo entry; nothing is committed when nothing changes.
@@ -51,15 +84,20 @@ impl EditSession {
     /// # Errors
     ///
     /// [`EditError::InkNameRefused`] when either name is empty, `All` or
-    /// `None`, `from` is a process ink, or `from == to`;
+    /// `None`, longer than 127 bytes once decoded (ISO 32000-1 Annex C),
+    /// holds a zero byte or a `#` not followed by two hex digits, `from`
+    /// is a process ink, or `from == to`;
+    /// [`EditError::InkAliasRefused`] when the search was cut short
+    /// (nesting past 24 levels, more than 2^22 values, or a `DeviceN` space
+    /// naming more than 32 colorants) or a rename would change an object a
+    /// refused `DeviceN` space reaches; nothing is changed either way;
     /// [`EditError::DocumentEncrypted`] without the modify permission; the
     /// certification gate.
     pub fn alias_ink(&mut self, from: &str, to: &str) -> Result<InkEditReport, EditError> {
-        if let Some((name, reason)) = alias_refusal(from, to) {
-            return Err(EditError::InkNameRefused { name, reason });
-        }
+        let (from, to) = alias_names(from, to)?;
         self.check_ink_edit()?;
-        let plan = crate::prepress::plan_alias(&self.view(), from.as_bytes(), to.as_bytes());
+        let plan = crate::prepress::plan_alias(&self.view(), &from, &to)
+            .map_err(|reason| EditError::InkAliasRefused { reason })?;
         Ok(self.commit_ink_plan(plan, CommandKind::AliasInk))
     }
 

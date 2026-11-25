@@ -19,7 +19,7 @@ use crate::function::PdfFunction;
 use crate::graph::ObjectGraph;
 use crate::object::{Dict, Name, ObjId, Object};
 use crate::optimize::objects::is_image;
-use crate::preflight::walk::is_spot_colorant;
+use crate::preflight::walk::{MAX_COLORANTS, is_spot_colorant};
 use crate::view::DocumentView;
 
 use super::inks::{InkPlan, InkSelection, each_array, family_name, ink_space, live_ids, text};
@@ -118,7 +118,15 @@ impl<'v, 'd> Spaces<'v, 'd> {
             report.refuse(at, first, why);
             return None;
         }
-        let alternate = family_name(self.view, space.alternate);
+        if space.capped {
+            let why = format!(
+                "its DeviceN space names more than {MAX_COLORANTS} colorants, the most pdfcer reads from one space (ISO 32000-1 Annex C)"
+            );
+            report.refuse(at, first, why);
+            return None;
+        }
+        let alternate = family_name(self.view, space.alternate)
+            .unwrap_or_else(|| "an unreadable space".to_owned());
         if !matches!(self.view.resolve(space.alternate), Object::Name(n) if n.as_bytes() == b"DeviceCMYK")
         {
             let why = format!(

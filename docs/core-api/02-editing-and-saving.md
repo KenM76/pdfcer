@@ -5397,13 +5397,13 @@ operator has to get the order of right.
 
 | I want to… | Call | Returns |
 |---|---|---|
-| List the inks | `inks(&self) -> Vec<prepress::InkUse>` | `prepress::inks` over the session's current state. |
-| Print one spot as another | `alias_ink(&mut self, from: &str, to: &str) -> Result<prepress::InkEditReport, EditError>` | Renames `from` in every `Separation`/`DeviceN` space, `DeviceN` `/Colorants` and `/MixingHints` keys and `/SeparationInfo /DeviceColorant`. ONE undo entry (`CommandKind::AliasInk`); nothing committed when nothing changes. A `DeviceN` naming both inks is refused in the report. `InkNameRefused { name, reason }` for an empty, `All`/`None`, process `from`, or `from == to`. Resolves `Check::SpotNotAllowed` for `from`. CLI: `pdfcer alias-ink IN --from A --to B -o OUT [--mode] [--verify-undo]`. |
+| List the inks | `inks(&self) -> prepress::InkList` | `prepress::inks` over the session's current state; show a note beside the list when `complete` is false. |
+| Print one spot as another | `alias_ink(&mut self, from: &str, to: &str) -> Result<prepress::InkEditReport, EditError>` | Renames `from` in every `Separation`/`DeviceN` space, `DeviceN` `/Colorants` and `/MixingHints` keys and `/SeparationInfo /DeviceColorant`. ONE undo entry (`CommandKind::AliasInk`); nothing committed when nothing changes. Names are spelled as `InkUse::name` is (`#XX` is one byte); a `/DeviceColorant` renamed counts in `spaces`; a reference naming `from` is replaced by the new name, never rewritten. A `DeviceN` naming both inks is refused in the report. `InkNameRefused { name, reason }` for an empty, `All`/`None`, over 127 decoded bytes, a zero byte, a `#` without two hex digits, process `from`, or `from == to`. `InkAliasRefused { reason }`, nothing changed, when the search was cut short (nesting past 24, 2^22 values, a `DeviceN` of more than 32 names) or a rename would change an object a refused `DeviceN` reaches. Resolves `Check::SpotNotAllowed` for `from`. CLI: `pdfcer alias-ink IN --from A --to B -o OUT [--mode] [--verify-undo]`. |
 | Convert spots to CMYK | `spot_to_process(&mut self, &prepress::InkSelection) -> Result<prepress::InkEditReport, EditError>` | Evaluates each space's own tint transform where its alternate is `DeviceCMYK`; anything else is refused in the report (colour conversion is icccer's). ONE undo entry (`CommandKind::SpotToProcess`). CLI: `pdfcer spot-to-process IN [--ink NAME]... -o OUT [--mode] [--verify-undo]`. |
 
 Both edits are document edits, unlike Acrobat's output-time Ink Manager.
 Show every `refused`, `overprint_lost` and `disclosures` entry off-canvas.
-Errors besides `InkNameRefused`: `DocumentEncrypted` (no modify permission)
+Errors besides `InkNameRefused` and `InkAliasRefused`: `DocumentEncrypted` (no modify permission)
 and the strict certification gate. **Detail: `03-capabilities.md`, part 18.**
 
 ### 1.37 Convert colours (1) — `Pass 748.4`
@@ -6304,10 +6304,10 @@ borrow it (`tests/image_placement.rs`).
 ### 6.7 The `EditError` taxonomy
 
 `edit.rs`, `#[derive(Debug, Clone, thiserror::Error)]`, `#[non_exhaustive]`.
-**211 variants**, counted at depth 1 inside `pub enum EditError`.
+**212 variants**, counted at depth 1 inside `pub enum EditError`.
 `RunningText(RunningTextError)` wraps `stamp_running_text`'s request errors.
 `PrinterMarks(PrinterMarksError)` wraps `add_printer_marks`'s request errors.
-(`LanguageTagMalformed { tag }`, `DocumentTitleMissing`, `DocumentNotTagged`, `XmpPacketUnwritable { reason }` and `PdfuaIdentificationWithheld { part, reasons }`, from the PDF/UA fixups (§1.38), are the newest; `ColourConversionRefused { reason }`, from `convert_colours`; `InkNameRefused { name, reason }`, from `alias_ink`; `PasteNamesCount { fields, names }`, from `paste_fields`; `InfoKeyReserved { key: ReservedInfoKey }` and `InvalidInfoKey { problem: InfoKeyProblem }`, from `set_info_entry`; `XfaNotDynamic` and `XfaSigned`; `SourcePageOutOfRange`: a SOURCE document's page index, kept
+(`LanguageTagMalformed { tag }`, `DocumentTitleMissing`, `DocumentNotTagged`, `XmpPacketUnwritable { reason }` and `PdfuaIdentificationWithheld { part, reasons }`, from the PDF/UA fixups (§1.38), are the newest; `ColourConversionRefused { reason }`, from `convert_colours`; `InkNameRefused { name, reason }` and `InkAliasRefused { reason }`, from `alias_ink`; `PasteNamesCount { fields, names }`, from `paste_fields`; `InfoKeyReserved { key: ReservedInfoKey }` and `InvalidInfoKey { problem: InfoKeyProblem }`, from `set_info_entry`; `XfaNotDynamic` and `XfaSigned`; `SourcePageOutOfRange`: a SOURCE document's page index, kept
 distinct from `PageOutOfRange` because the two name different mistakes.)
 
 `Pass 270.2` added `AnnotationContentsLocked` — **Table 165 bit 10,

@@ -152,3 +152,36 @@ fn spot_to_process_converts_and_reports_the_refusal() {
         "{listed}"
     );
 }
+
+#[test]
+fn inks_says_when_the_list_is_incomplete() {
+    let names: Vec<String> = (1..=33).map(|i| format!("/N{i:02}")).collect();
+    let pdf = build_pdf(&[
+        (1, "<< /Type /Catalog /Pages 2 0 R >>".into()),
+        (2, "<< /Type /Pages /Kids [3 0 R] /Count 1 >>".into()),
+        (
+            3,
+            format!(
+                "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 20 20] /Resources \
+                 << /ColorSpace << /D1 [/DeviceN [{}] /DeviceCMYK 4 0 R] >> >> >>",
+                names.join(" ")
+            ),
+        ),
+        (
+            4,
+            "<< /FunctionType 2 /Domain [0 1] /C0 [0 0 0 0] /C1 [0 0 0 1] /N 1 >>".into(),
+        ),
+    ]);
+    let path = std::env::temp_dir().join(format!("pdfcer_inkmgr_cap_{}.pdf", std::process::id()));
+    std::fs::write(&path, pdf).unwrap();
+    let (code, out, err) = run(&["inks", s(&path)]);
+    std::fs::remove_file(&path).ok();
+    assert_eq!(code, 0, "{err}");
+    assert!(out.contains("count=32 complete=0"), "{out}");
+    assert!(
+        out.lines()
+            .any(|l| l.starts_with("note \"") && l.contains("32 colorants")),
+        "{out}"
+    );
+    assert!(!out.contains("\"N33\""), "{out}");
+}

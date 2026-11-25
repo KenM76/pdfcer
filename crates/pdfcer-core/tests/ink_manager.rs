@@ -7,7 +7,7 @@ use pdfcer_core::document::Document;
 use pdfcer_core::edit::{CommandKind, EditError, EditSession};
 use pdfcer_core::object::{ObjId, Object};
 use pdfcer_core::preflight::{self, Check, Profile, ProfileRule, Severity};
-use pdfcer_core::prepress::{InkKind, InkSelection, inks};
+use pdfcer_core::prepress::{InkKind, InkSelection, ink_name_bytes, inks};
 use pdfcer_core::writer::SaveOptions;
 
 /// An offset-consistent classic PDF from `(number, body)` pairs.
@@ -123,7 +123,9 @@ fn value(session: &EditSession, num: u32) -> Object {
 #[test]
 fn inks_lists_process_then_spots_with_alternates_and_pages() {
     let doc = Document::from_bytes(fixture(CONTENT)).expect("fixture loads");
-    let listed = inks(&doc.view());
+    let list = inks(&doc.view());
+    assert!(list.complete);
+    let listed = list.inks;
     let names: Vec<&str> = listed.iter().map(|u| u.name.as_str()).collect();
     assert_eq!(names, ["Black", "Gold", "Rust"]);
     assert_eq!(listed[0].kind, InkKind::Process);
@@ -281,6 +283,270 @@ fn spot_to_process_reports_overprint_lost_under_mode_zero() {
     let mut s = session("/S1 cs 1 scn 0 0 1 1 re f");
     let report = s.spot_to_process(&InkSelection::All).expect("converts");
     assert!(report.overprint_lost.is_empty(), "{report:?}");
+}
+
+/// A one-page document: `spaces` is the page's `/ColorSpace` dictionary
+/// body, `page_extra` more page entries, `objects` numbered from 5, and
+/// object 20 a one-input tint transform the spaces may share.
+fn ink_doc(spaces: &str, page_extra: &str, objects: &[(u32, &str)]) -> Vec<u8> {
+    let mut all = vec![
+        (1, "<< /Type /Catalog /Pages 2 0 R >>".to_owned()),
+        (
+            2,
+            "<< /Type /Pages /Kids [3 0 R] /Count 1 /MediaBox [0 0 10 10] >>".to_owned(),
+        ),
+        (
+            3,
+            format!(
+                "<< /Type /Page /Parent 2 0 R /Contents 4 0 R \
+                 /Resources << /ColorSpace << {spaces} >> >> {page_extra} >>"
+            ),
+        ),
+        (4, stream("", b"0 0 1 1 re f")),
+        (
+            20,
+            "<< /FunctionType 2 /Domain [0 1] /C0 [0 0 0 0] /C1 [0 0 0 1] /N 1 >>".to_owned(),
+        ),
+    ];
+    all.extend(objects.iter().map(|(n, b)| (*n, (*b).to_owned())));
+    all.sort_by_key(|(n, _)| *n);
+    build(&all)
+}
+
+fn ink_session(spaces: &str, page_extra: &str, objects: &[(u32, &str)]) -> EditSession {
+    EditSession::new(Document::from_bytes(ink_doc(spaces, page_extra, objects)).expect("loads"))
+}
+
+fn ink_names(pdf: Vec<u8>) -> (Vec<String>, bool) {
+    let doc = Document::from_bytes(pdf).expect("loads");
+    let list = inks(&doc.view());
+    let names = list.inks.into_iter().map(|u| u.name).collect();
+    (names, list.complete)
+}
+
+fn name(bytes: &[u8]) -> Object {
+    Object::Name(bytes.into())
+}
+
+const GOLD: &str = "[/Separation /Gold /DeviceCMYK 20 0 R]";
+
+#[test]
+fn names_differing_only_in_non_utf8_bytes_stay_distinct() {
+    let pdf = ink_doc(
+        "/A [/Separation /Spot#80 /DeviceCMYK 20 0 R] \
+         /B [/Separation /Spot#81 /DeviceCMYK 20 0 R] \
+         /C [/Separation /Spot#2380 /DeviceCMYK 20 0 R]",
+        "",
+        &[],
+    );
+    let (names, complete) = ink_names(pdf);
+    assert_eq!(names, ["Spot#2380", "Spot#80", "Spot#81"]);
+    assert!(complete);
+    assert_eq!(ink_name_bytes("Spot#2380"), Some(b"Spot#80".to_vec()));
+}
+
+#[test]
+fn an_unreadable_alternate_is_omitted() {
+    let pdf = ink_doc("/S [/Separation /Gold 5 0 R 20 0 R]", "", &[(5, "42")]);
+    let doc = Document::from_bytes(pdf).expect("loads");
+    let list = inks(&doc.view());
+    assert_eq!(list.inks.len(), 1, "{list:?}");
+    assert_eq!(list.inks[0].name, "Gold");
+    assert!(list.inks[0].alternates.is_empty(), "{list:?}");
+}
+
+#[test]
+fn ascii_and_utf8_names_are_unchanged() {
+    let pdf = ink_doc(
+        "/A [/Separation /PANTONE#20185#20C /DeviceCMYK 20 0 R] \
+         /B [/Separation /#E9#87#91#E8#89#B2 /DeviceCMYK 20 0 R]",
+        "",
+        &[],
+    );
+    let (names, _) = ink_names(pdf);
+    assert_eq!(names, ["PANTONE 185 C", "\u{91d1}\u{8272}"]);
+}
+
+#[test]
+fn alias_refuses_when_a_space_is_nested_past_the_walk() {
+    let deep = format!("{}{GOLD}{}", "[".repeat(30), "]".repeat(30));
+    let mut s = ink_session("/S 5 0 R", "/Deep 6 0 R", &[(5, GOLD), (6, deep.as_str())]);
+    let before = value(&s, 5);
+    assert!(!inks(&s.view()).complete, "the list says it is incomplete");
+    let err = s.alias_ink("Gold", "Silver").expect_err("never success");
+    assert!(matches!(err, EditError::InkAliasRefused { .. }), "{err:?}");
+    assert!(!s.can_undo(), "nothing committed");
+    assert_eq!(value(&s, 5), before);
+}
+
+#[test]
+fn a_shared_names_array_past_32_lists_32_and_says_incomplete() {
+    let names: Vec<String> = (1..=33).map(|i| format!("/N{i:02}")).collect();
+    let array = format!("[{}]", names.join(" "));
+    let pdf = ink_doc(
+        "/D1 [/DeviceN 5 0 R /DeviceCMYK 20 0 R] /D2 [/DeviceN 5 0 R /DeviceCMYK 20 0 R]",
+        "",
+        &[(5, array.as_str())],
+    );
+    let (listed, complete) = ink_names(pdf.clone());
+    assert_eq!(listed.len(), 32, "{listed:?}");
+    assert!(!listed.iter().any(|n| n == "N33"), "{listed:?}");
+    assert!(!complete);
+    let mut s = EditSession::new(Document::from_bytes(pdf).expect("loads"));
+    let err = s.alias_ink("N01", "Silver").expect_err("incomplete walk");
+    assert!(matches!(err, EditError::InkAliasRefused { .. }), "{err:?}");
+}
+
+#[test]
+fn spot_to_process_refuses_a_devicen_past_32_colorants() {
+    let names: Vec<String> = (1..=33).map(|i| format!("/N{i:02}")).collect();
+    let space = format!("/D1 [/DeviceN [{}] /DeviceCMYK 20 0 R]", names.join(" "));
+    let ops = format!("/D1 cs {} scn 0 0 1 1 re f", vec!["1"; 33].join(" "));
+    let mut all = vec![(
+        3,
+        format!(
+            "<< /Type /Page /Parent 2 0 R /Contents 4 0 R /Resources << /ColorSpace << {space} >> >> >>"
+        ),
+    )];
+    all.push((1, "<< /Type /Catalog /Pages 2 0 R >>".to_owned()));
+    all.push((
+        2,
+        "<< /Type /Pages /Kids [3 0 R] /Count 1 /MediaBox [0 0 10 10] >>".to_owned(),
+    ));
+    all.push((4, stream("", ops.as_bytes())));
+    all.push((
+        20,
+        "<< /FunctionType 2 /Domain [0 1] /C0 [0 0 0 0] /C1 [0 0 0 1] /N 1 >>".to_owned(),
+    ));
+    all.sort_by_key(|(n, _)| *n);
+    let mut s = EditSession::new(Document::from_bytes(build(&all)).expect("loads"));
+    let report = s.spot_to_process(&InkSelection::All).expect("runs");
+    assert!(report.changed.is_empty(), "{report:?}");
+    assert!(
+        report.refused.iter().any(|r| r.reason.contains("32")),
+        "{report:?}"
+    );
+}
+
+#[test]
+fn alias_names_are_capped_at_127_decoded_bytes() {
+    let long = "A".repeat(128);
+    let mut s = ink_session("/S 5 0 R", "", &[(5, GOLD)]);
+    for (from, to) in [("Gold", long.as_str()), (long.as_str(), "Gold")] {
+        assert!(
+            matches!(s.alias_ink(from, to), Err(EditError::InkNameRefused { .. })),
+            "{} -> {}",
+            from.len(),
+            to.len()
+        );
+    }
+    let escaped = "#41".repeat(127);
+    let report = s.alias_ink("Gold", &escaped).expect("127 decoded bytes");
+    assert_eq!(report.spaces, 1, "{report:?}");
+    let Object::Array(items) = value(&s, 5) else {
+        panic!("array")
+    };
+    assert_eq!(items[1], name("A".repeat(127).as_bytes()));
+}
+
+#[test]
+fn alias_decodes_the_hash_spelling() {
+    let mut s = ink_session(
+        "/A 5 0 R /B 6 0 R",
+        "",
+        &[
+            (5, "[/Separation /Spot#80 /DeviceCMYK 20 0 R]"),
+            (6, "[/Separation /No#232 /DeviceCMYK 20 0 R]"),
+        ],
+    );
+    assert!(matches!(
+        s.alias_ink("Gold#2", "Silver"),
+        Err(EditError::InkNameRefused { .. })
+    ));
+    let report = s.alias_ink("Spot#80", "Silver").expect("byte 0x80");
+    assert_eq!(report.spaces, 1, "{report:?}");
+    let Object::Array(a) = value(&s, 5) else {
+        panic!("array")
+    };
+    assert_eq!(a[1], name(b"Silver"));
+    let report = s.alias_ink("No#232", "Copper").expect("the literal No#2");
+    assert_eq!(report.spaces, 1, "{report:?}");
+    let Object::Array(b) = value(&s, 6) else {
+        panic!("array")
+    };
+    assert_eq!(b[1], name(b"Copper"));
+}
+
+#[test]
+fn alias_counts_a_device_colorant_rename() {
+    let mut s = ink_session(
+        "",
+        "/SeparationInfo << /Pages [3 0 R] /DeviceColorant /Plate >>",
+        &[],
+    );
+    let report = s.alias_ink("Plate", "Silver").expect("alias runs");
+    assert_eq!(report.spaces, 1, "{report:?}");
+    assert_eq!(report.changed, [ObjId::new(3, 0)], "{report:?}");
+    let Object::Dict(page) = value(&s, 3) else {
+        panic!("page")
+    };
+    let Some(Object::Dict(info)) = page.get(b"SeparationInfo") else {
+        panic!("separation info")
+    };
+    assert_eq!(info.get(b"DeviceColorant"), Some(&name(b"Silver")));
+}
+
+#[test]
+fn alias_never_rewrites_a_shared_indirect_name() {
+    let objects = [
+        (5, "[/DeviceN [9 0 R /Cyan] /DeviceCMYK 20 0 R]"),
+        (6, "[/Separation 9 0 R /DeviceCMYK 20 0 R]"),
+        (7, "[/DeviceN [9 0 R /Silver] /DeviceCMYK 20 0 R]"),
+        (9, "/Gold"),
+    ];
+    let mut s = ink_session("/D1 5 0 R /S1 6 0 R /D2 7 0 R", "", &objects);
+    let before = value(&s, 7);
+    let report = s.alias_ink("Gold", "Silver").expect("alias runs");
+    assert_eq!(report.spaces, 2, "{report:?}");
+    assert_eq!(report.refused.len(), 1, "{report:?}");
+    assert_eq!(value(&s, 9), name(b"Gold"), "object 9 still reads /Gold");
+    assert_eq!(value(&s, 7), before, "the refused space is unchanged");
+    let Object::Array(d1) = value(&s, 5) else {
+        panic!("array")
+    };
+    assert_eq!(d1[1], Object::Array(vec![name(b"Silver"), name(b"Cyan")]));
+    let Object::Array(s1) = value(&s, 6) else {
+        panic!("array")
+    };
+    assert_eq!(s1[1], name(b"Silver"));
+}
+
+#[test]
+fn alias_refuses_when_a_refused_devicen_shares_a_renamed_object() {
+    let pdf = ink_doc(
+        "/A 5 0 R /B [/DeviceN [/Gold /Silver] /DeviceCMYK 20 0 R \
+         << /Colorants << /Gold 5 0 R >> >>]",
+        "",
+        &[(5, GOLD)],
+    );
+    let mut s = EditSession::new(Document::from_bytes(pdf.clone()).expect("loads"));
+    let err = s.alias_ink("Gold", "Silver").expect_err("refused");
+    assert!(matches!(err, EditError::InkAliasRefused { .. }), "{err:?}");
+    assert!(!s.can_undo(), "nothing committed");
+    let (bytes, _) = s.to_full_bytes(&SaveOptions::identity()).expect("saves");
+    for num in [3, 5] {
+        assert!(
+            contains(&bytes, object_bytes(&pdf, num)),
+            "object {num} changed"
+        );
+    }
+}
+
+#[test]
+fn an_only_selection_takes_the_hash_spelling() {
+    assert!(InkSelection::Only(vec!["Spot#80".into()]).selects(b"Spot\x80"));
+    assert!(!InkSelection::Only(vec!["Spot#80".into()]).selects(b"Spot#80"));
+    assert!(!InkSelection::Only(vec!["Gold#2".into()]).selects(b"Gold#2"));
 }
 
 fn value_of_source(num: u32) -> Object {
