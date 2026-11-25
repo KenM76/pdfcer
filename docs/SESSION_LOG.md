@@ -4,6 +4,18 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-11-25 (1703rd filing) — `Pass 756.0`-`762.0` SHIPPED
+
+**Shipped (engineer-reported; no shell here, git, CI and the gates not checked from here; operator commits):**
+- `756.0` `53c8bdbe` `EditSession::snapshot()`; `757.0` `6f69f6be` `prepress::output_intent`; `758.0` `8fd70ad6` `PdfuaReport::verdict()`; `759.0` `b06d39b9` `preflight::report_json`; `760.0` `ec4b8240` version-floor follow-ups (`X112`); `761.0` `cb4989b5` ink list and alias (`X113`-`X115`); `762.0` `8d180e9c` `/Gxx` glyph names at their own slot; docs `159b73f3` (451 verbs).
+- Filed as one *Shipped* entry in `ROADMAP.md`; the 1702nd *Next up* banner now reads SHIPPED, bullets kept as filed. `FEATURES.md`: three Planned rows moved to Implemented, one new row (`756.0`), one clause each on the ink-list, version-floor and hex-glyph rows. No gui box ticked.
+
+**Decisions made:** none new. Behaviour change recorded: convert-colours skips a first output intent with no integer `/N`. **Breaking for the GUI:** `inks()` returns `InkList` (`.inks`).
+
+**Tests (engineer-reported, merged main):** core lib 2562 / integration 3465 / doctests 317; CLI 134 / 1168; render 579 / 707 / 42; text 44 / 83 / 19. fmt, clippy clean; no manifest change.
+
+**Next:** release `v0.174.0` to OneDrive `pdfcer1`. **Not filed:** wording avoids Adobe-only names per decision 225; "Ink Manager" naming still open.
+
 ## 2026-11-25 (1702nd filing) — `Pass 756.0`-`762.0` FILED (seven consumer requests)
 
 **Filed (no shell here; git, CI and the gates not checked from here; operator commits):**
