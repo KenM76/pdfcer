@@ -420,3 +420,130 @@ fn a_self_referencing_filter_array_ends() {
     );
     assert_eq!(f.floor, v(1, 5), "{f:?}");
 }
+
+/// 1 catalog, 2 pages, then one page per `contents` from 3; `extra` follows.
+fn pages_doc(contents: &[String], extra: &[Vec<u8>]) -> Document {
+    let kids: Vec<String> = (0..contents.len())
+        .map(|i| format!("{} 0 R", i + 3))
+        .collect();
+    let mut bodies = vec![
+        b"<< /Type /Catalog /Pages 2 0 R >>".to_vec(),
+        format!(
+            "<< /Type /Pages /Kids [{}] /Count {} >>",
+            kids.join(" "),
+            contents.len()
+        )
+        .into_bytes(),
+    ];
+    for c in contents {
+        bodies
+            .push(format!("<< /Type /Page /Parent 2 0 R /MediaBox [0 0 9 9] {c} >>").into_bytes());
+    }
+    bodies.extend_from_slice(extra);
+    Document::from_bytes(build(&bodies)).unwrap()
+}
+
+fn pages(contents: &[&str], extra: &[Vec<u8>]) -> VersionFloor {
+    let contents: Vec<String> = contents.iter().map(|c| (*c).to_owned()).collect();
+    version_floor(&pages_doc(&contents, extra))
+}
+
+const MARKED: &[u8] = b"/OC /MC0 BDC EMC";
+
+#[test]
+fn a_comment_left_open_at_a_pieces_end_runs_on_into_the_next() {
+    let first_line = page_doc(
+        "/Contents [4 0 R 5 0 R]",
+        &[stream("", b"% note"), stream("", MARKED)],
+    );
+    assert_eq!(first_line.floor, v(1, 3), "{first_line:?}");
+    assert!(first_line.proven(), "{first_line:?}");
+    let second_line = page_doc(
+        "/Contents [4 0 R 5 0 R]",
+        &[
+            stream("", b"% note"),
+            stream("", b"0 0 m\n/OC /MC0 BDC EMC"),
+        ],
+    );
+    assert_eq!(second_line.floor, v(1, 5), "{second_line:?}");
+    assert_eq!(second_line.requirements[0].example, Some(ObjId::new(3, 0)));
+}
+
+#[test]
+fn a_page_piece_also_drawn_as_a_form_counts_in_both_roles() {
+    let form = stream("/Type /XObject /Subtype /Form /BBox [0 0 9 9]", MARKED);
+    let f = page_doc(
+        "/Contents [4 0 R 5 0 R] /Resources << /XObject << /X 5 0 R >> >>",
+        &[stream("", b"/X Do"), form],
+    );
+    assert_eq!(f.floor, v(1, 5), "{f:?}");
+    assert_eq!(f.requirements[0].objects, 2, "page and form: {f:?}");
+    assert!(f.proven(), "{f:?}");
+}
+
+#[test]
+fn a_page_piece_that_is_another_pages_only_content_counts_for_both() {
+    let f = pages(
+        &["/Contents [5 0 R 6 0 R]", "/Contents 6 0 R"],
+        &[stream("", b"% note"), stream("", MARKED)],
+    );
+    assert_eq!(f.floor, v(1, 5), "{f:?}");
+    assert_eq!(f.requirements[0].objects, 1, "page 4 only: {f:?}");
+    assert_eq!(f.requirements[0].example, Some(ObjId::new(4, 0)));
+}
+
+#[test]
+fn a_glyph_procedure_also_a_page_piece_is_read_alone_too() {
+    let font = b"<< /Type /Font /Subtype /Type3 /FontBBox [0 0 1 1] /FontMatrix [1 0 0 1 0 0] \
+        /CharProcs << /a 5 0 R >> /Encoding << /Differences [97 /a] >> /FirstChar 97 /LastChar 97 /Widths [1] >>";
+    let f = page_doc(
+        "/Contents [5 0 R] /Resources << /Font << /F 4 0 R >> >>",
+        &[font.to_vec(), stream("", MARKED)],
+    );
+    assert_eq!(f.requirements[0].objects, 2, "page and glyph: {f:?}");
+}
+
+#[test]
+fn a_stream_in_a_nested_contents_array_is_still_read() {
+    let f = page_doc(
+        "/Contents [4 0 R [5 0 R]]",
+        &[stream("", b"q Q"), stream("", MARKED)],
+    );
+    assert_eq!(f.floor, v(1, 5), "{f:?}");
+}
+
+#[test]
+fn an_unreadable_stream_shared_by_content_arrays_is_counted_once() {
+    let f = pages(
+        &[
+            "/Contents [6 0 R 7 0 R]",
+            "/Contents [6 0 R]",
+            "/Contents 6 0 R",
+        ],
+        &[stream("/Filter /FlateDecode", b"not zlib"), stream("", b"")],
+    );
+    assert_eq!(
+        f.unprovable,
+        [Unprovable::UnreadableContent(ObjId::new(6, 0))]
+    );
+}
+
+#[test]
+fn a_mebibyte_stream_shared_by_300_pages_is_decoded_once() {
+    const PAGES: usize = 300;
+    let shared = PAGES + 3;
+    let mut header = b"% ".to_vec();
+    header.resize(1 << 20, b'x');
+    header.push(b'\n');
+    let mut extra = vec![stream("", &header)];
+    let contents: Vec<String> = (0..PAGES)
+        .map(|i| format!("/Contents [{shared} 0 R {} 0 R]", shared + 1 + i))
+        .collect();
+    for i in 0..PAGES {
+        extra.push(stream("", format!("{i} 0 m").as_bytes()));
+    }
+    let doc = pages_doc(&contents, &extra);
+    let (f, decodes) = scan(&doc, FloorOptions::default(), Limits::DEFAULT);
+    assert!(f.proven(), "{:?}", f.unprovable);
+    assert_eq!(decodes, PAGES + 1, "the shared stream once, each own once");
+}

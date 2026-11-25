@@ -8,7 +8,6 @@ use super::scan::{Notes, lossy};
 use super::{ctx, keys};
 use crate::content::{ContentStream, ContentTokenKind};
 use crate::document::Document;
-use crate::filters::MAX_DECODED_LEN;
 use crate::object::{Dict, ObjId, Object};
 
 /// The decoded data of stream `id`, or `None` when it cannot be read.
@@ -49,39 +48,6 @@ pub(super) fn page_contents(doc: &Document) -> HashMap<ObjId, Vec<ObjId>> {
         out.insert(obj.id, streams);
     }
     out
-}
-
-/// Scan a page's content `streams` as the one stream they form (ISO
-/// 32000-2 §7.8.2), joined within [`MAX_DECODED_LEN`]. Returns the streams
-/// that could not be read.
-pub(super) fn scan_page(doc: &Document, streams: &[ObjId], notes: &mut Notes) -> Vec<ObjId> {
-    let mut joined = Vec::new();
-    let mut unread = Vec::new();
-    for &id in streams {
-        match decoded(doc, id) {
-            Some(d) if joined.len() + d.len() < MAX_DECODED_LEN => {
-                joined.extend_from_slice(&d);
-                joined.push(b'\n');
-            }
-            _ => unread.push(id),
-        }
-    }
-    if scan_content(joined, notes) {
-        return unread;
-    }
-    let alone: Vec<ObjId> = streams
-        .iter()
-        .copied()
-        .filter(|&id| !unread.contains(&id))
-        .filter(|&id| !decoded(doc, id).is_some_and(|d| scan_content(d, &mut Notes::new())))
-        .collect();
-    let blamed = if alone.is_empty() { streams } else { &alone };
-    for &id in blamed {
-        if !unread.contains(&id) {
-            unread.push(id);
-        }
-    }
-    unread
 }
 
 /// Scan content stream `data`; `false` when it does not tokenize.

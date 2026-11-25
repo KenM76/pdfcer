@@ -65,6 +65,9 @@ pub(super) const BORDER_EFFECT: u64 = 1 << 56;
 pub(super) const WIDGET: u64 = 1 << 57;
 pub(super) const VIEW_3D: u64 = 1 << 58;
 pub(super) const NODE_3D: u64 = 1 << 59;
+/// A stream reached through a page's `/Contents`: read as part of that page's joined
+/// content, and alone only if something else makes it content too.
+pub(super) const PIECE: u64 = 1 << 60;
 pub(super) const UNKNOWN: u64 = 1 << 63;
 
 /// Every bit: a rule that applies whatever the dictionary is.
@@ -265,7 +268,7 @@ pub(super) fn edge(parent: u64, key: &[u8]) -> u64 {
         b"Properties" => on(RESOURCES, PROPS_MAP),
         b"Annots" => on(PAGE, ANNOT),
         b"Trans" => on(PAGE, TRANSITION),
-        b"Contents" => on(PAGE, CONTENT),
+        b"Contents" => on(PAGE, PIECE),
         b"OutputIntents" => on(CATALOG | PAGE, OUTPUT_INTENT),
         b"DestOutputProfile" => on(OUTPUT_INTENT, ICC),
         b"Outlines" => on(CATALOG, OUTLINES),
@@ -328,7 +331,7 @@ pub(super) fn colour_space_element(array: &[Object], index: usize) -> u64 {
 /// `bits` as the rule tables see them: `UNKNOWN` when nothing but
 /// stream-ness or content-ness classified the dictionary.
 pub(super) fn settled(bits: u64) -> u64 {
-    if bits & !(STREAM | CONTENT) == 0 {
+    if bits & !(STREAM | CONTENT | PIECE) == 0 {
         bits | UNKNOWN
     } else {
         bits

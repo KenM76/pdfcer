@@ -17,19 +17,21 @@ mod checks;
 mod content;
 mod ctx;
 mod icc;
+mod joined;
 mod keys;
 mod scan;
 
 #[cfg(test)]
 mod tests;
 
-use std::collections::{BTreeMap, HashSet};
+use std::collections::{BTreeMap, HashMap, HashSet};
 use std::fmt;
 
 use crate::PdfVersion;
 use crate::document::Document;
 use crate::object::{ObjId, Object, Provenance};
 use crate::xref::SectionShape;
+use joined::{Decoder, Limits};
 use scan::{Notes, Walk};
 
 pub use icc::{IccProfile, IccVersionGate};
@@ -148,9 +150,15 @@ pub fn version_floor(doc: &Document) -> VersionFloor {
 /// [`version_floor`] with explicit settings.
 #[must_use]
 pub fn version_floor_with(doc: &Document, options: FloorOptions) -> VersionFloor {
+    scan(doc, options, Limits::DEFAULT).0
+}
+
+/// [`version_floor_with`] within `limits`, with how many content streams
+/// were decoded.
+fn scan(doc: &Document, options: FloorOptions, limits: Limits) -> (VersionFloor, usize) {
     let reached = scan::reached(doc);
     let pages = content::page_contents(doc);
-    let page_streams: HashSet<ObjId> = pages.values().flatten().copied().collect();
+    let alone = read_alone(doc, &reached, &pages);
     let mut run = Run {
         tally: Tally::default(),
         unprovable: Vec::new(),
@@ -158,6 +166,7 @@ pub fn version_floor_with(doc: &Document, options: FloorOptions) -> VersionFloor
         notes: Notes::new(),
         icc_profiles: Vec::new(),
     };
+    let mut decoder = Decoder::new(doc, limits, &pages, &alone);
     scan::scan_dict(
         doc.trailer(),
         ctx::TRAILER,
@@ -176,20 +185,14 @@ pub fn version_floor_with(doc: &Document, options: FloorOptions) -> VersionFloor
         run.walk.next_object();
         let stream_bits = if stream { ctx::STREAM } else { 0 };
         scan::scan_dict(dict, bits | stream_bits, 0, &mut run.notes, &mut run.walk);
-        let own = ctx::own(dict, stream);
-        if let Some(streams) = pages.get(&obj.id) {
-            for id in content::scan_page(doc, streams, &mut run.notes) {
-                run.unprovable(Unprovable::UnreadableContent(id));
-            }
-        } else if stream
-            && (own | bits) & ctx::CONTENT != 0
-            && (own & ctx::CONTENT != 0 || !page_streams.contains(&obj.id))
-        {
-            let read = content::decoded(doc, obj.id)
-                .is_some_and(|d| content::scan_content(d, &mut run.notes));
-            if !read {
-                run.unprovable(Unprovable::UnreadableContent(obj.id));
-            }
+        if let Some(members) = pages.get(&obj.id) {
+            decoder.page(members, &mut run.notes);
+        }
+        if alone.contains(&obj.id) {
+            decoder.alone(obj.id, &mut run.notes);
+        }
+        for id in decoder.take_lost() {
+            run.unprovable(Unprovable::UnreadableContent(id));
         }
         if stream && bits & ctx::ICC != 0 {
             profile(
@@ -201,7 +204,31 @@ pub fn version_floor_with(doc: &Document, options: FloorOptions) -> VersionFloor
         }
         run.tally.add(&mut run.notes, Some(obj.id));
     }
-    run.finish(doc)
+    let decodes = decoder.decodes();
+    (run.finish(doc), decodes)
+}
+
+/// Streams read as content on their own: a form, pattern or glyph, or one
+/// reached through a page's `/Contents` other than as a member of a page's
+/// list (a stream inside a nested array). A page's members are read joined
+/// by [`Decoder::page`]; one also used in another role is read here too.
+fn read_alone(
+    doc: &Document,
+    reached: &HashMap<ObjId, u64>,
+    pages: &HashMap<ObjId, Vec<ObjId>>,
+) -> HashSet<ObjId> {
+    let members: HashSet<ObjId> = pages.values().flatten().copied().collect();
+    doc.objects()
+        .filter_map(|obj| {
+            let Object::Stream(s) = &obj.value else {
+                return None;
+            };
+            let bits = ctx::own(&s.dict, true) | reached.get(&obj.id).copied().unwrap_or(0);
+            let content =
+                bits & ctx::CONTENT != 0 || (bits & ctx::PIECE != 0 && !members.contains(&obj.id));
+            content.then_some(obj.id)
+        })
+        .collect()
 }
 
 /// The scan's running state.
