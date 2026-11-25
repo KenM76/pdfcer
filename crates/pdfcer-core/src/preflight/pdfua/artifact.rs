@@ -387,7 +387,13 @@ impl FormCensus {
         depth: usize,
         active: &mut Vec<ObjId>,
     ) {
-        if depth >= MAX_DEPTH || active.contains(&id) {
+        // A form already on the stack is being read by an outer call.
+        if active.contains(&id) {
+            return;
+        }
+        if depth >= MAX_DEPTH {
+            // Too deep to read: never wrap what cannot be seen.
+            self.tagged = true;
             return;
         }
         let Some(Object::Stream(s)) = view.graph().value(id) else {

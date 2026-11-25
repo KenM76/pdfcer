@@ -228,6 +228,47 @@ fn untagged_content_and_misnested_artifacts_are_found() {
     assert!(v.iter().any(|x| x == "PUI-01-005"), "{v:?}");
 }
 
+/// A form past the depth cap is not read; the validator says so rather
+/// than passing content it never saw.
+#[test]
+fn a_form_chain_too_deep_to_read_is_incomplete_not_passed() {
+    const CHAIN: u32 = 33;
+    let page = "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] \
+                /Resources << /XObject << /F 10 0 R >> >> /Contents 4 0 R /StructParents 0 \
+                /Tabs /S >>";
+    let mut over = vec![
+        (3, page.to_owned()),
+        (
+            4,
+            stream("", "/Figure << /MCID 0 >> BDC 0 0 10 10 re f EMC /F Do"),
+        ),
+    ];
+    for i in 0..CHAIN {
+        let n = 10 + i;
+        let (resources, body) = if i + 1 == CHAIN {
+            (String::new(), "0 0 1 1 re f".to_owned())
+        } else {
+            (
+                format!("/Resources << /XObject << /F {} 0 R >> >>", n + 1),
+                "/F Do".to_owned(),
+            )
+        };
+        let dict = format!("/Type /XObject /Subtype /Form /BBox [0 0 10 10] {resources}");
+        over.push((n, stream(&dict, &body)));
+    }
+    let report = validate_pdfua(&doc(1, &over).view(), PdfuaPart::Ua1);
+    assert!(
+        report
+            .findings
+            .iter()
+            .any(|f| f.kind == FindingKind::Incomplete
+                && f.rule_id == "PUI-01-005"
+                && f.message.contains("deep")),
+        "{:#?}",
+        report.findings
+    );
+}
+
 #[test]
 fn tagged_text_without_a_language_is_found() {
     let font = "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>";

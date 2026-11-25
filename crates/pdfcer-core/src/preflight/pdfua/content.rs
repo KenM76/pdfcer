@@ -245,7 +245,12 @@ impl Walker<'_, '_> {
     }
 
     fn form(&mut self, id: ObjId, outer: &Dict, ctx: Ctx, depth: usize) {
-        if depth >= MAX_DEPTH || self.active.contains(&id.num) {
+        if self.active.contains(&id.num) {
+            return;
+        }
+        if depth >= MAX_DEPTH {
+            let why = format!("the form XObject {id}, nested more than {MAX_DEPTH} forms deep,");
+            self.counts.unread.push(why);
             return;
         }
         let Some(Object::Stream(s)) = self.view.graph().value(id) else {

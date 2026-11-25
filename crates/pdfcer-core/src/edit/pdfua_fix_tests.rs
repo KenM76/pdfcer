@@ -365,6 +365,42 @@ fn artifacts_skip_an_unbalanced_page_and_leave_unclaimed_mcids() {
     );
 }
 
+/// A form drawn past the census's depth cap is unread, so it is treated as
+/// tagged: the wrap must not enclose the chain that reaches it.
+#[test]
+fn artifacts_never_wrap_a_form_chain_too_deep_to_read() {
+    const CHAIN: u32 = 33;
+    let page = "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] \
+                /Resources << /XObject << /F 10 0 R >> >> /Contents 4 0 R /StructParents 0 >>";
+    let mut over = vec![(3, page.to_owned())];
+    for i in 0..CHAIN {
+        let n = 10 + i;
+        let (resources, body) = if i + 1 == CHAIN {
+            (
+                String::new(),
+                "/P << /MCID 0 >> BDC 0 0 1 1 re f EMC".to_owned(),
+            )
+        } else {
+            let loose = if i == 0 { "BT (x) Tj ET " } else { "" };
+            (
+                format!("/Resources << /XObject << /F {} 0 R >> >>", n + 1),
+                format!("{loose}/F Do"),
+            )
+        };
+        let dict = format!("/Type /XObject /Subtype /Form /BBox [0 0 10 10] {resources}");
+        over.push((n, stream(&dict, &body)));
+    }
+    let mut s = session("/F Do", &over);
+    let report = s.mark_untagged_as_artifacts(&[]).unwrap();
+    assert_eq!(report.sequences, 0, "{report:?}");
+    let d = saved(&s);
+    let text = page_content(&d);
+    assert!(!text.contains("/Artifact"), "{text}");
+    let claimed = crate::preflight::claimed_mcids(&d.view()).unwrap();
+    let page_id = crate::page_tree::pages(&d).unwrap()[0].id;
+    assert!(claimed.contains(&(page_id, 0)));
+}
+
 #[test]
 fn tab_order_sets_structure_order_on_annotated_pages_only() {
     let page = "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << >> \
