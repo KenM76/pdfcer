@@ -112,6 +112,27 @@ wherever it appears.*
 
 ## Shipped
 
+### `Pass 775.0`: the CLI exits quietly when the stdout reader closes the pipe; `511dcb30`, 2026-11-25 (1710th filing)
+
+Engineer-reported; no shell here, git, push, CI and the gates not run or checked from here. Never filed as Planned: found during the `v0.175.0` smoke test and fixed on discovery. **Unreleased: on `main` after the `v0.175.0` tag; shipped in the next release.** Reasoning is in the commit message.
+- **`775.0` `511dcb30`:** `pdfcer ... | head -1` made `println!` panic ("failed printing to stdout ... (os error 232)") with a backtrace hint, which reads as a crash. New `crates/pdfcer-cli/src/closed_stdout.rs`: a panic hook installed in `main()` exits 0 on std's stdout-write failure for a closed pipe (EPIPE 32; Windows 109 and 232). Every other panic is unchanged. `main.rs` held at the 800-line structure limit by condensing doc comments. cli only, no public change.
+- **Tests (engineer-reported):** 2 unit tests and integration test `crates/pdfcer-cli/tests/closed_stdout.rs` (registered in `tests/all.rs`); sabotage fails the integration test 3/3.
+- **RAG:** `D:/dev/rag/rust/println_panics_on_a_closed_pipe_windows_os_error_232_fix_with_a_panic_hook.md`.
+- **FEATURES:** a clause on the scriptable-CLI row (Shell & UX); core `—`, cli `[x]`, no new row.
+
+### `v0.175.0` PUBLISHED, tag on `43ebb942` (the version bump), 2026-11-25 (1710th filing)
+
+Engineer-reported (the engineer checked these with a shell); this filing had no shell, so none of it is checked from here. The bump commit `43ebb942` (`chore: version 0.175.0`) is filed here too, as the 1704th did for `f3f7306a`; it is a version-number change with no code change reported.
+- **Tag:** `v0.175.0` on `43ebb942`, after the 1709th filing `ae70e566`. CI green at the tag (run 45698786290).
+- **GitHub release `pdfcer v0.175.0`:** 8 assets; the main zip is 33,630,573 bytes; `gh-release` PASS.
+- **crates.io:** 17 crates published in 2 rounds (render and emf retried).
+- **OneDrive:** slot `pdfcer2` written; `pdfcer1` keeps 0.174.0, so **the next release writes `pdfcer1`**.
+- **Smoke test (fresh folder `D:\builds\smoke-v0.175.0`):** `--version` shows `v0.175.0`; the `dimension-anchor` help and `dimension-add --anchor` are present; 9 new style flags are present on `group-style`; `render-page`, `validate-pdfua` (`verdict=`) and `dimension-list` work.
+- **`verify-release.py`:** failed only "working tree clean" (agent-memory files plus the then-uncommitted `775.0` fix).
+- **Contents:** `Pass 763.0`-`774.0` (`765.0`-`772.0` ce dimensions; `773.0`, `774.0`, `763.0` PDF/UA artifacts; `764.0` `/Info`). Their entries say "Unreleased"; that was true when filed and they shipped here. `Pass 775.0` (above) is NOT in it.
+- **Channel:** release notice `open/notice_2026-11-25_release_v0.175.0.md` and its `INDEX.md` row (both already on disk, grep-checked).
+- **FEATURES:** "shipped after v0.174.0, in the next release" clauses, if any, now read "shipped in v0.175.0". **Next:** `Pass 770.1`; the next release writes `pdfcer1`.
+
 ### `Pass 769.0`-`772.0` + `774.0` fix: named line types (`G331`), anchors (`G332`), centre mark gap/extension/font (`G333`), centre line/mark own stroke (`G334`); `06dfa82a`, `a50d4220`, `35c6b75e`, `4213f457`, `0121cd63`, 2026-11-25 (1709th filing)
 
 Engineer-reported; no shell here, git, push, CI and the gates not run or checked from here. All four were filed Planned/in progress at the 1705th and moved here (grep-checked: the Next up banner and four FEATURES Planned rows). They are ce dimensions (pdfcer-authored); worker commits cherry-picked to `main` in the order `772.0`, `771.0`, `769.0`, `770.0`. **Unreleased: on `main` after the `v0.174.0` tag; shipped in the next release, `v0.175.0`.** Reasoning is in each commit message.

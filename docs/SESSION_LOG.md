@@ -4,6 +4,16 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-11-25 (1710th filing) — `v0.175.0` PUBLISHED (bump `43ebb942`); `Pass 775.0` shipped (`511dcb30`)
+
+**Filed (engineer-reported; no shell here, git, push, CI and the gates not checked from here; operator commits):**
+- Release `v0.175.0`: tag on the bump commit `43ebb942`, after the 1709th filing `ae70e566`; CI green at the tag (run 45698786290); 8 assets (zip 33,630,573 bytes); `gh-release` PASS; 17 crates published in 2 rounds (render and emf retried); OneDrive `pdfcer2` written, `pdfcer1` keeps 0.174.0, **the next release writes `pdfcer1`**. Fresh-folder smoke (`D:\builds\smoke-v0.175.0`) passed: `--version` `v0.175.0`; `dimension-anchor` help and `dimension-add --anchor`; 9 new style flags on `group-style`; `render-page`, `validate-pdfua` (`verdict=`), `dimension-list`. `verify-release` fails only "working tree clean" (agent-memory files plus the then-uncommitted fix). Carries `Pass 763.0`-`774.0`. Notice `open/notice_2026-11-25_release_v0.175.0.md` and its `INDEX.md` row (both on disk, grep-checked). The bump `43ebb942` is filed here, as the 1704th did for `f3f7306a`.
+- `Pass 775.0` `511dcb30`: found during the smoke test, never filed as Planned. `pdfcer ... | head -1` panicked in `println!` (os error 232) with a backtrace hint; new `crates/pdfcer-cli/src/closed_stdout.rs` panic hook exits 0 on a closed stdout pipe (EPIPE 32; Windows 109, 232), other panics unchanged. 2 unit tests plus integration test `tests/closed_stdout.rs`; sabotage fails it 3/3. `main.rs` held at the 800-line limit by condensing doc comments. cli only. **Not in `v0.175.0`; ships in the next release.**
+- RAG: `D:/dev/rag/rust/println_panics_on_a_closed_pipe_windows_os_error_232_fix_with_a_panic_hook.md` plus its index bullet.
+- `FEATURES.md`: three "on main, next release v0.175.0" clauses now read "shipped in v0.175.0"; a `775.0` clause on the scriptable-CLI row. `ROADMAP.md`: two Shipped entries. `NEXT_SESSION.md`: update added.
+
+**Decisions made:** none. **Next:** `Pass 770.1`; next release writes `pdfcer1`; the GUI has consumed none of `765.0`-`772.0`.
+
 ## 2026-11-25 (1709th filing) — `Pass 769.0`-`772.0` SHIPPED (ce dimensions), `0121cd63` fix
 
 **Filed (engineer-reported; no shell here, git, push, CI and the gates not checked from here; operator commits):**
