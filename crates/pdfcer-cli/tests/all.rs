@@ -38,6 +38,7 @@ mod dimension_circle;
 mod dimension_circular_placement;
 mod dimension_extension_gap;
 mod dimension_group_management;
+mod dimension_line_types;
 mod dimension_style;
 mod edit_block_text;
 mod edit_commands;

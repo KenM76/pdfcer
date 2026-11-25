@@ -104,7 +104,7 @@ fn a_group_dash_and_opacity_reach_every_member() {
     s.set_group_style(
         DEFAULT_GROUP_ID,
         GroupStyle {
-            dash: Some(dashed()),
+            dash: Some(dashed().into()),
             opacity: Some(0.4),
             ..GroupStyle::default()
         },
@@ -127,7 +127,7 @@ fn an_explicit_solid_override_beats_a_dashed_group() {
     s.set_group_style(
         DEFAULT_GROUP_ID,
         GroupStyle {
-            dash: Some(dashed()),
+            dash: Some(dashed().into()),
             opacity: Some(0.4),
             ..GroupStyle::default()
         },
@@ -136,7 +136,7 @@ fn an_explicit_solid_override_beats_a_dashed_group() {
     s.set_dimension_style(
         dim,
         StyleOverrides {
-            dash: Some(DimDash::SOLID),
+            dash: Some(DimDash::SOLID.into()),
             opacity: Some(1.0),
             ..StyleOverrides::default()
         },
@@ -160,7 +160,7 @@ fn stroked_terminators_stay_solid_outside_the_path_object() {
         s.set_dimension_style(
             dim,
             StyleOverrides {
-                dash: Some(dashed()),
+                dash: Some(dashed().into()),
                 arrow_form: Some(form),
                 ..StyleOverrides::default()
             },
@@ -183,7 +183,7 @@ fn the_style_survives_save_and_reopen() {
     s.set_dimension_style(
         dim,
         StyleOverrides {
-            dash: Some(dashed()),
+            dash: Some(dashed().into()),
             opacity: Some(0.25),
             ..StyleOverrides::default()
         },
@@ -192,7 +192,7 @@ fn the_style_survives_save_and_reopen() {
     let bytes = s.to_incremental_bytes(&SaveOptions::identity()).unwrap().0;
     let back = EditSession::new(Document::from_bytes(bytes).unwrap());
     let style = back.dimension_model().dimension(dim).unwrap().style;
-    assert_eq!(style.dash, Some(dashed()));
+    assert_eq!(style.dash, Some(dashed().into()));
     assert_eq!(style.opacity, Some(0.25));
 }
 

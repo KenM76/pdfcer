@@ -95,7 +95,7 @@ fn one(kind: DimensionKind) -> (EditSession, ObjId, DimensionId) {
 
 fn group_dash(s: &mut EditSession, dash: DimDash) {
     let g = GroupStyle {
-        dash: Some(dash),
+        dash: Some(dash.into()),
         ..GroupStyle::default()
     };
     s.set_group_style(DEFAULT_GROUP_ID, g).unwrap();
@@ -251,13 +251,13 @@ fn centre_styles_survive_save_with_provenance_and_version_8() {
     let group = back.group(DEFAULT_GROUP_ID).unwrap();
     assert_eq!(group.style.centre.mark.width, Some(0.25));
     let rec = back.dimension(id).unwrap();
-    assert_eq!(rec.style.centre.line.dash, dash);
+    assert_eq!(rec.style.centre.line.dash, dash.map(Into::into));
     assert_eq!(rec.style.count(), 1);
     let p = style_provenance(group, &rec.style);
     assert_eq!(p.centre_line_dash, StyleSource::Dimension);
     assert_eq!(p.centre_mark_width, StyleSource::Group);
     assert_eq!(p.centre_line_width, StyleSource::Factory);
-    assert_eq!(p.each().len(), 26);
+    assert_eq!(p.each().len(), 27);
     let private = pdfcer_core::dimension::serialize_model(&back);
     assert_eq!(sidecar_version(&private), Some(8));
 }
@@ -300,7 +300,7 @@ fn centre_styles_are_built_outside_the_crate() {
     assert!(CentreStyle::default().is_inherit());
     let lower = CentreStyle::INHERIT.with_line(PartStroke::FOLLOW.with_dash(Some(DimDash::SOLID)));
     let merged = s.or(lower);
-    assert_eq!(merged.line.dash, Some(DimDash::SOLID));
+    assert_eq!(merged.line.dash, Some(DimDash::SOLID.into()));
     assert_eq!(merged.line.width, Some(1.0));
     let token = match DashFit::Nominal {
         DashFit::Nominal => "n",

@@ -126,13 +126,7 @@ fn a_document_without_ce_dimensions_gains_no_sidecar() {
 
 #[test]
 fn a_newer_sidecar_is_left_behind_and_said_so() {
-    let mut bytes = dimensioned().bytes().to_vec();
-    let at = bytes
-        .windows(10)
-        .rposition(|w| w.starts_with(b"/Version ") && w[9].is_ascii_digit())
-        .expect("the sidecar is stored uncompressed");
-    bytes[at + 9] = b'9';
-    let source = Document::from_bytes(bytes).unwrap();
+    let source = newer();
     let view = DocumentView::new(&source, source.bytes(), source.version());
     let (bytes, report) = pageops::extract(&view, &[1]).unwrap();
     assert!(report.ce_dimension_sidecar_newer);
@@ -145,13 +139,27 @@ fn a_newer_sidecar_is_left_behind_and_said_so() {
 
 /// The bytes of `dimensioned()` with the sidecar version set to one this
 /// build does not read.
+///
+/// `/Version N` becomes `/Version 99` by absorbing the next whitespace byte
+/// after it (the end of the object at worst), so every offset and `/Length`
+/// stays valid whatever `SIDECAR_VERSION` has reached.
 fn newer() -> Document {
     let mut bytes = dimensioned().bytes().to_vec();
     let at = bytes
-        .windows(10)
-        .rposition(|w| w.starts_with(b"/Version ") && w[9].is_ascii_digit())
+        .windows(11)
+        .rposition(|w| {
+            w.starts_with(b"/Version ") && w[9].is_ascii_digit() && !w[10].is_ascii_digit()
+        })
         .expect("the sidecar is stored uncompressed");
-    bytes[at + 9] = b'9';
+    let digit = at + 9;
+    let ws = digit
+        + bytes[digit..]
+            .iter()
+            .position(u8::is_ascii_whitespace)
+            .expect("whitespace after the version");
+    bytes.copy_within(digit + 1..ws, digit + 2);
+    bytes[digit] = b'9';
+    bytes[digit + 1] = b'9';
     Document::from_bytes(bytes).unwrap()
 }
 

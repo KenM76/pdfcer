@@ -150,9 +150,11 @@ impl DimensionStyle {
             ..*self
         }
         .centre_line_dash();
-        self.centre
-            .line
-            .resolve(ResolvedStroke::new(nominal, self.line_width, self.color))
+        self.centre.line.resolve(
+            ResolvedStroke::new(nominal, self.line_width, self.color),
+            self.standard,
+            self.line_type_scale,
+        )
     }
 
     /// The stroke a centre mark is drawn with: [`CentreStyle::mark`], an
@@ -160,11 +162,11 @@ impl DimensionStyle {
     /// lines.
     #[must_use]
     pub fn centre_mark_stroke(&self) -> ResolvedStroke {
-        self.centre.mark.resolve(ResolvedStroke::new(
-            DimDash::SOLID,
-            self.line_width,
-            self.color,
-        ))
+        self.centre.mark.resolve(
+            ResolvedStroke::new(DimDash::SOLID, self.line_width, self.color),
+            self.standard,
+            self.line_type_scale,
+        )
     }
 
     /// The gap between a cross arm's end and its extension line, in points.
@@ -292,7 +294,7 @@ impl DimensionKind {
     /// ```
     #[must_use]
     pub fn reads_style_field(&self, name: &str) -> bool {
-        const SHARED: &[&str] = &["line-width", "color", "opacity"];
+        const SHARED: &[&str] = &["line-width", "color", "opacity", "line-type-scale"];
         const MEASURED: &[&str] = &[
             "unit",
             "fraction",

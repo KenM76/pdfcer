@@ -62,7 +62,7 @@ impl CentreStyleFlags {
         let part = |dash: &Option<String>, width: Option<f64>, color: &Option<String>, name| {
             Ok::<_, String>(
                 PartStroke::FOLLOW
-                    .with_dash(dash.as_deref().map(parse_dash).transpose()?)
+                    .with_line_type(dash.as_deref().map(parse_dash).transpose()?)
                     .with_width(width.map(|v| checked_metric(name, v)).transpose()?)
                     .with_color(color.as_deref().map(parse_device_color).transpose()?),
             )
@@ -123,10 +123,13 @@ pub(crate) fn centre_style_values(s: &DimensionStyle) -> [(&'static str, String)
     let line = s.centre_line_stroke();
     let mark = s.centre_mark_stroke();
     [
-        ("centre-line-dash", format_dash(line.dash)),
+        ("centre-line-dash", format_line_type(s.centre_line_type())),
         ("centre-line-width", fmt_num(line.width)),
         ("centre-line-color", fmt_color(line.color)),
-        ("centre-mark-dash", format_dash(mark.dash)),
+        (
+            "centre-mark-dash",
+            format_line_type(s.centre_mark_line_type()),
+        ),
         ("centre-mark-width", fmt_num(mark.width)),
         ("centre-mark-color", fmt_color(mark.color)),
         ("centre-mark-gap", fmt_num(s.centre_mark_gap())),

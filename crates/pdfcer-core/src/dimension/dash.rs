@@ -3,7 +3,7 @@
 
 /// The most dash/gap runs a ce dimension's pattern carries — enough for the
 /// drafting linetypes (hidden `[a b]`, centre `[long gap short gap]`).
-pub const MAX_DASH_RUNS: usize = 4;
+pub const MAX_DASH_RUNS: usize = 8;
 
 /// The dash pattern a ce dimension's lines are stroked with: alternating
 /// dash and gap lengths in points, phase 0. [`DimDash::SOLID`] (no runs) is
@@ -24,7 +24,7 @@ pub const MAX_DASH_RUNS: usize = 4;
 /// // Not dashes: negative, never-on, or too many runs.
 /// assert!(DimDash::new(&[-1.0]).is_none());
 /// assert!(DimDash::new(&[0.0, 0.0]).is_none());
-/// assert!(DimDash::new(&[1.0; 5]).is_none());
+/// assert!(DimDash::new(&[1.0; 9]).is_none());
 /// ```
 #[derive(Debug, Clone, Copy, PartialEq, Default)]
 pub struct DimDash {

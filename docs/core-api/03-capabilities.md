@@ -152,8 +152,10 @@ designing anything in this area; do not re-derive it.
 - **Tolerance** — symmetric, deviation, limit, basic (boxed), min, max — as
   the tenth and eleventh properties of that same cascade (`tolerance.rs`).
 - **Dash and opacity** — the twelfth and thirteenth (`Pass 541.0`, G159).
-  `dash: Option<DimDash>` (`dash.rs`): up to `MAX_DASH_RUNS` (4) dash/gap
-  lengths in points, baked into the `/AP` as `[a b] 0 d` (ISO 32000-2
+  `dash: Option<LineTypeRef>` (a named line type or custom `DimDash` runs,
+  `Pass 769.0`, below; the resolved `DimensionStyle::dash` stays a
+  `DimDash`) (`dash.rs`): up to `MAX_DASH_RUNS` (8) dash/gap lengths in
+  points, baked into the `/AP` as `[a b] 0 d` (ISO 32000-2
   §8.4.3.6) on the dimension, extension and leader lines; stroked
   terminators (open, slash) and the label stay solid, via a `q [] 0 d … S Q`
   placed **before** the terminator's path (§8.2 Figure 9 allows no graphics
@@ -262,7 +264,7 @@ designing anything in this area; do not re-derive it.
   - **The circle's stroke is a style property**, `circle: PartStroke` on
     `StyleDefaults` (factory `PartStroke::FOLLOW`), `GroupStyle`,
     `StyleOverrides` and the resolved `DimensionStyle`. `PartStroke { dash:
-    Option<DimDash>, width: Option<f64>, color: Option<Color> }` cascades
+    Option<LineTypeRef>, width: Option<f64>, color: Option<Color> }` cascades
     **per field** (ce dimension → group → factory, `PartStroke::or`), and a
     field unset everywhere follows the ce dimension's own `dash` /
     `line_width` / `color`. Read the drawn stroke from
@@ -270,7 +272,8 @@ designing anything in this area; do not re-derive it.
     (`line_stroke()` is the lines'). Both types are `#[non_exhaustive]`:
     build with `PartStroke::FOLLOW.with_dash(..).with_width(..).with_color(..)`
     and `ResolvedStroke::new(dash, width, color)`; `is_follow()`, `count()`,
-    `resolve(main)`. The type is per-part so later parts (extension lines,
+    `resolve(main, standard: DimStandard, scale: f64)` (a named dash is
+    derived at the part's own width). The type is per-part so later parts (extension lines,
     the leader) reuse it. `width` is not validated by core, as `line_width`
     is not; the CLI refuses a non-positive one.
   - **Opacity is not per part**: it is the annotation's `/CA` (ISO 32000-1
@@ -373,6 +376,51 @@ designing anything in this area; do not re-derive it.
     `group-style`, `--clear` for each; `dimension-list` prints
     `extension_lines_drawn=` on every mark asking for extension lines, and
     `centre-mark` prints it when `false`.
+- **Named drafting line types and a line-type scale** (`Pass 769.0`, G331,
+  `line_type.rs`). `#[non_exhaustive] enum LineType { Continuous, Hidden,
+  Phantom, Chain, Center, Stitch }`: `ALL`, `token()` (lower-case),
+  `parse(&str)` (case-insensitive, `centre` accepted), `runs(standard,
+  width, scale) -> DimDash`. `enum LineTypeRef { Named(LineType),
+  Custom(DimDash) }` (`Default` = `Custom(SOLID)`, `From<LineType>`,
+  `From<DimDash>`, `runs`, `line_type() -> Option<LineType>`, `is_named()`)
+  is now the type of every `dash` field in `StyleDefaults`, `GroupStyle`,
+  `StyleOverrides` and `PartStroke`; a name is stored, never its runs.
+  - Runs: ANSI in points (hidden `9 4.5`, phantom `45 9 9 9 9 9`, chain
+    `18 9 dot 9`, center `54 9 9 9`, stitch `4.5 4.5`); ISO 128-20 in
+    multiples of the line width (hidden `12 3`, phantom `24 3 dot 3 dot 3`,
+    chain and center both `24 3 dot 3`, stitch `3 3`). A dot is drawn one
+    line width long. Each run is multiplied by the scale; dots are not.
+    Custom runs are never scaled. Stitch's numbers are pdfcer's own (no
+    standard gives one); Chain Thick is left out of `ALL`.
+  - `line_type_scale: Option<f64>` on `GroupStyle` / `StyleOverrides`,
+    `f64` on `StyleDefaults` (factory 1.0) and `DimensionStyle`, cascading
+    like every property. `DimensionStyle::line_type: LineTypeRef` is the
+    resolved choice and `dash` its runs at the lines' width.
+    `circle_line_type()`, `centre_line_type()` (factory `Named(Center)`),
+    `centre_mark_line_type()` report the parts' choices; a part following a
+    named type is re-derived at its own width. The factory centre line is
+    `LineType::Center.runs(..)` and bakes byte-identical at scale 1.
+  - Refusal: `EditError::LineTypeScaleOutOfRange { value }` from
+    `set_group_style` / `set_dimension_style` for a scale that is not finite
+    and positive, before anything changes. `line_type_scale_in_range(f64)`
+    is the same test for a shell.
+  - Sidecar: `/Dash` is a Name for a line type, an array for runs;
+    `/LineTypeScale` a Real. A document with either writes **sidecar
+    version 10**; custom runs alone stay at 9 or below. An unknown name
+    reads as unset.
+  - `StyleProvenance` gains `line_type_scale`; `each()` returns **27**, the
+    new entry last so positional indexes are unchanged. ⚠️ **Breaking:** the
+    `dash` field types above, `PartStroke::resolve`'s signature, two new
+    public `DimensionStyle` fields, `MAX_DASH_RUNS` 4 → 8, and code sized
+    to 26.
+  - Not done: a main-line dash is not fitted to the line's length (only
+    centre lines are, as before).
+  - CLI: `--dash hidden|phantom|chain|center|stitch|continuous|solid|3,1.5`
+    and `--line-type-scale 2` on `dimension-style` / `group-style`, `--clear
+    line-type-scale`; the part dash flags take names too. `dimension-list
+    --style` prints `dash=`, `circle-dash=`, `centre-line-dash=`,
+    `centre-mark-dash=` as a name when one is chosen (the factory centre
+    line now lists `center`, not its runs) and `line-type-scale=`.
 - Reposition (drag or numeric), toggle the group's layer, delete
   (annotation + `/AP` + sidecar record together).
 
@@ -441,6 +489,7 @@ document. Every persistent change goes through an `EditSession` verb below.
 - `resolve_style(&Group, &StyleOverrides) -> DimensionStyle` — `style.rs`
 - `style_provenance(&Group, &StyleOverrides) -> StyleProvenance` — `style.rs`
 - `DimDash::new(&[f64]) -> Option<DimDash>`, `DimDash::SOLID`, `pattern()`, `is_solid()`; `opacity_in_range(f64) -> bool` — `dash.rs`
+- `LineType::runs(self, DimStandard, width, scale) -> DimDash`, `LineType::parse(&str) -> Option<LineType>`, `LineTypeRef::runs(..)`; `line_type_scale_in_range(f64) -> bool` — `line_type.rs`
 - `preview_group_scale(ScaleEntry) -> Option<ScalePreview>` — `units.rs`
 - `ScaleEntry::real_length_on(&Page, measured_user_units, real_length, Unit) -> ScaleEntry` — `units.rs`. Request G287. **The calibration rule:** a group's scale is real units per point (1/72 inch) of paper, and a label is `user-space length x /UserUnit x scale`, so one scale means the same real length per inch of paper on every page whatever its `/UserUnit`. `ScaleEntry::RealLength::drawn_pdf_length` is therefore in points: pass `DimensionKind::measured_points()` through this constructor with the page the reference line is on, never straight in. On a `/UserUnit` 1 page the two are equal. `ScaleEntry::Ratio` is paper to real and needs no page. CLI: `group-set-scale --drawn 100 --drawn-page 3`.
 - `format_measurement(points, ScaleState, NumberFormat) -> MeasurementDisplay` — `units.rs`
@@ -701,14 +750,15 @@ Four further points a panel gets wrong if it guesses:
   (`style.rs`). Saying "factory" for them "would be a lie an operator
   could act on."
 - **`StyleProvenance::each()` returns a fixed-size `[(&'static str,
-  StyleSource); 26]`** (`style.rs`) so a loop gets a **compile error**,
-  not a silently short list, when a twenty-seventh property lands.
+  StyleSource); 27]`** (`style.rs`) so a loop gets a **compile error**,
+  not a silently short list, when a twenty-eighth property lands.
   ⚠️ `docs/ui_specs/…-ce-dimension-properties.md` **Amendment B §B.2 says
   "nine"** — that text predates `Pass 69.1` adding `tolerance` and
   `tolerance_places`, and `Pass 541.0` adding `dash` and `opacity`, and `Pass 740.0` adding
   `centre_mark_size`, and `Pass 766.0` adding the three circle-stroke fields, and `Pass 772.0`
-  adding the six centre-stroke fields, and `Pass 771.0` the three centre-mark reach fields.
-  The code at `style.rs` is authoritative: **twenty-six**.
+  adding the six centre-stroke fields, and `Pass 771.0` the three centre-mark reach fields,
+  and `Pass 769.0` `line_type_scale`.
+  The code at `style.rs` is authoritative: **twenty-seven**.
   Same for §B.4's "the same nine properties".
 - **Clearing an override restores inheritance**, live and in both
   directions — deliberately unlike the reference tool, whose `DeleteStyle`

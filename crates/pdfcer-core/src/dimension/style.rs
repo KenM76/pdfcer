@@ -90,6 +90,7 @@ use super::centre::CentreMarkSize;
 use super::centre_style::CentreStyle;
 use super::dash::DimDash;
 use super::group::{DimStandard, Group};
+use super::line_type::LineTypeRef;
 use super::part_stroke::PartStroke;
 use super::tolerance::Tolerance;
 use super::units::{DecimalMarker, FractionMode, NumberFormat, Unit};
@@ -204,8 +205,10 @@ pub struct StyleDefaults {
     /// expresses as a −3 sentinel hidden inside the digit count; a distinct
     /// absent-value is the same information without the trap.
     pub tolerance_places: Option<u32>,
-    /// Stroke dash pattern (`Pass 541.0`).
-    pub dash: DimDash,
+    /// Stroke dash: a named line type or custom runs (`Pass 541.0`, G331).
+    pub dash: LineTypeRef,
+    /// Line-type scale for named types.
+    pub line_type_scale: f64,
     /// Constant opacity, written as the annotation's `/CA` (`Pass 541.0`).
     pub opacity: f64,
     /// Centre-mark arm length (`Pass 740.0`).
@@ -231,7 +234,8 @@ impl StyleDefaults {
         // dimension authored before `Pass 69.1` carries.
         tolerance: Tolerance::None,
         tolerance_places: None,
-        dash: DimDash::SOLID,
+        dash: LineTypeRef::Custom(DimDash::SOLID),
+        line_type_scale: 1.0,
         opacity: 1.0,
         centre_mark_size: CentreMarkSize::TextHeight(0.5),
         circle: PartStroke::FOLLOW,
@@ -277,8 +281,10 @@ pub struct GroupStyle {
     /// The group's default tolerance precision; `None` ⇒ factory (follow the
     /// nominal's).
     pub tolerance_places: Option<u32>,
-    /// Stroke dash pattern; `None` ⇒ factory (solid) (`Pass 541.0`).
-    pub dash: Option<DimDash>,
+    /// Stroke dash; `None` ⇒ factory (solid) (`Pass 541.0`).
+    pub dash: Option<LineTypeRef>,
+    /// Line-type scale; `None` ⇒ factory (`1.0`).
+    pub line_type_scale: Option<f64>,
     /// Opacity in `0..=1`; `None` ⇒ factory (opaque) (`Pass 541.0`).
     pub opacity: Option<f64>,
     /// Centre-mark arm length; `None` ⇒ factory (half the text height).
@@ -344,10 +350,12 @@ pub struct StyleOverrides {
     /// This ce dimension's tolerance precision; `None` ⇒ the group's, then
     /// factory (follow the nominal's).
     pub tolerance_places: Option<u32>,
-    /// Stroke dash pattern; `None` ⇒ the group's, then factory (solid).
-    /// `Some(DimDash::SOLID)` keeps this one solid in a dashed group
-    /// (`Pass 541.0`).
-    pub dash: Option<DimDash>,
+    /// Stroke dash; `None` ⇒ the group's, then factory (solid).
+    /// `Some(LineTypeRef::Custom(DimDash::SOLID))` keeps this one solid in a
+    /// dashed group (`Pass 541.0`).
+    pub dash: Option<LineTypeRef>,
+    /// Line-type scale; `None` ⇒ the group's, then factory (`1.0`).
+    pub line_type_scale: Option<f64>,
     /// Opacity in `0..=1`; `None` ⇒ the group's, then factory (opaque)
     /// (`Pass 541.0`).
     pub opacity: Option<f64>,
@@ -387,6 +395,7 @@ impl StyleOverrides {
             + usize::from(self.tolerance.is_some())
             + usize::from(self.tolerance_places.is_some())
             + usize::from(self.dash.is_some())
+            + usize::from(self.line_type_scale.is_some())
             + usize::from(self.opacity.is_some())
             + usize::from(self.centre_mark_size.is_some())
             + self.circle.count()
@@ -469,6 +478,8 @@ pub struct StyleProvenance {
     pub tolerance_places: StyleSource,
     /// Source of the dash pattern.
     pub dash: StyleSource,
+    /// Source of the line-type scale.
+    pub line_type_scale: StyleSource,
     /// Source of the opacity.
     pub opacity: StyleSource,
     /// Source of the centre-mark size.
@@ -510,7 +521,7 @@ impl StyleProvenance {
     /// gets a compile error, not a silently shorter listing, when a property
     /// is added and this method is not extended.
     #[must_use]
-    pub const fn each(&self) -> [(&'static str, StyleSource); 26] {
+    pub const fn each(&self) -> [(&'static str, StyleSource); 27] {
         [
             ("unit", self.unit),
             ("fraction", self.fraction),
@@ -538,6 +549,7 @@ impl StyleProvenance {
             ("centre-mark-gap", self.centre_mark_gap),
             ("centre-mark-extension", self.centre_mark_extension),
             ("centre-mark-line-font", self.centre_mark_line_font),
+            ("line-type-scale", self.line_type_scale),
         ]
     }
 }
@@ -588,20 +600,27 @@ pub fn resolve_style(group: &Group, over: &StyleOverrides) -> DimensionStyle {
         fraction: over.fraction.unwrap_or(group.format.fraction),
         decimal_marker: over.decimal_marker.unwrap_or(group.format.decimal_marker),
     };
+    let standard = over.standard.unwrap_or(group.standard);
+    let line_width = over
+        .line_width
+        .or(group.style.line_width)
+        .unwrap_or(f.line_width);
+    let line_type = over.dash.or(group.style.dash).unwrap_or(f.dash);
+    let line_type_scale = over
+        .line_type_scale
+        .or(group.style.line_type_scale)
+        .unwrap_or(f.line_type_scale);
     DimensionStyle {
         // Group-only, deliberately: see the module doc's divergence 3. The
         // calibration is the group's; only its expression follows the unit.
         scale: group.scale.in_unit(group.format.unit, format.unit),
         format,
-        standard: over.standard.unwrap_or(group.standard),
+        standard,
         text_height: over
             .text_height
             .or(group.style.text_height)
             .unwrap_or(f.text_height),
-        line_width: over
-            .line_width
-            .or(group.style.line_width)
-            .unwrap_or(f.line_width),
+        line_width,
         arrow_length: over
             .arrow_length
             .or(group.style.arrow_length)
@@ -619,7 +638,9 @@ pub fn resolve_style(group: &Group, over: &StyleOverrides) -> DimensionStyle {
             .tolerance_places
             .or(group.style.tolerance_places)
             .or(f.tolerance_places),
-        dash: over.dash.or(group.style.dash).unwrap_or(f.dash),
+        dash: line_type.runs(standard, line_width, line_type_scale),
+        line_type,
+        line_type_scale,
         opacity: over.opacity.or(group.style.opacity).unwrap_or(f.opacity),
         centre_mark_size: over
             .centre_mark_size
@@ -685,6 +706,10 @@ pub fn style_provenance(group: &Group, over: &StyleOverrides) -> StyleProvenance
             group.style.tolerance_places.is_some(),
         ),
         dash: three(over.dash.is_some(), group.style.dash.is_some()),
+        line_type_scale: three(
+            over.line_type_scale.is_some(),
+            group.style.line_type_scale.is_some(),
+        ),
         opacity: three(over.opacity.is_some(), group.style.opacity.is_some()),
         centre_mark_size: three(
             over.centre_mark_size.is_some(),
@@ -776,7 +801,7 @@ mod tests {
         // A property whose group tier is a concrete field never reports
         // Factory — the group always has an answer for it.
         assert_eq!(p.standard, StyleSource::Group);
-        assert_eq!(p.each().len(), 23);
+        assert_eq!(p.each().len(), 27);
         assert_eq!(p.centre_mark_size, StyleSource::Factory);
         assert_eq!(p.circle_width, StyleSource::Factory);
     }
@@ -791,7 +816,7 @@ mod tests {
             .with_width(Some(0.25));
         let over = StyleOverrides {
             line_width: Some(2.0),
-            dash: DimDash::new(&[4.0, 2.0]),
+            dash: DimDash::new(&[4.0, 2.0]).map(LineTypeRef::from),
             circle: PartStroke::FOLLOW.with_width(Some(1.0)),
             ..StyleOverrides::default()
         };

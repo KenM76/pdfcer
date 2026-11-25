@@ -3,6 +3,8 @@
 //! G329; the shape centre lines and centre marks reuse).
 
 use super::dash::DimDash;
+use super::group::DimStandard;
+use super::line_type::LineTypeRef;
 use crate::annot_author::Color;
 
 /// Overrides for the stroke of one drawn part of a ce dimension (today the
@@ -19,8 +21,9 @@ use crate::annot_author::Color;
 /// ISO 32000-1 §12.5.2 Table 166), as in CAD drafting packages, which have no
 /// per-line opacity; a per-part `ExtGState` path is deliberately absent.
 ///
-/// Non-exhaustive so a named line type can join `dash`; build one with
-/// [`Self::FOLLOW`] and the `with_` builders.
+/// `dash` is a [`LineTypeRef`]: a named line type is derived at the part's
+/// own width. Non-exhaustive; build one with [`Self::FOLLOW`] and the
+/// `with_` builders.
 ///
 /// # Examples
 ///
@@ -38,7 +41,7 @@ use crate::annot_author::Color;
 pub struct PartStroke {
     /// Dash pattern; `None` follows the ce dimension's `dash`.
     /// `Some(DimDash::SOLID)` keeps the part solid under dashed lines.
-    pub dash: Option<DimDash>,
+    pub dash: Option<LineTypeRef>,
     /// Stroke width in points; `None` follows the ce dimension's
     /// `line_width`.
     pub width: Option<f64>,
@@ -54,9 +57,20 @@ impl PartStroke {
         color: None,
     };
 
-    /// Builder: set or clear the dash override.
+    /// Builder: set or clear the dash override as custom runs in points.
     #[must_use]
     pub const fn with_dash(mut self, dash: Option<DimDash>) -> Self {
+        self.dash = match dash {
+            Some(d) => Some(LineTypeRef::Custom(d)),
+            None => None,
+        };
+        self
+    }
+
+    /// Builder: set or clear the dash override as a named line type or
+    /// custom runs.
+    #[must_use]
+    pub const fn with_line_type(mut self, dash: Option<LineTypeRef>) -> Self {
         self.dash = dash;
         self
     }
@@ -100,12 +114,21 @@ impl PartStroke {
     }
 
     /// The stroke this part draws with, each unset field taken from `main`,
-    /// the ce dimension's own stroke.
+    /// the stroke it follows. A named dash is derived at the part's width
+    /// under `standard` at line-type `scale`.
     #[must_use]
-    pub fn resolve(self, main: ResolvedStroke) -> ResolvedStroke {
+    pub fn resolve(
+        self,
+        main: ResolvedStroke,
+        standard: DimStandard,
+        scale: f64,
+    ) -> ResolvedStroke {
+        let width = self.width.unwrap_or(main.width);
         ResolvedStroke {
-            dash: self.dash.unwrap_or(main.dash),
-            width: self.width.unwrap_or(main.width),
+            dash: self
+                .dash
+                .map_or(main.dash, |t| t.runs(standard, width, scale)),
+            width,
             color: self.color.unwrap_or(main.color),
         }
     }

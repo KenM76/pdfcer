@@ -37,6 +37,7 @@ use super::fit::FitCircle;
 use super::group::{
     DimStandard, DimensionId, DimensionKind, DimensionModel, DimensionRecord, Group, GroupId,
 };
+use super::line_type::{LineType, LineTypeRef, tier_uses_line_types};
 use super::part_stroke::PartStroke;
 use super::style::{ArrowForm, GroupStyle, StyleOverrides};
 use super::tolerance::Tolerance;
@@ -118,7 +119,15 @@ use crate::annot_author::Color;
 ///   (pdfcer-gui request G333). An older build drops them and re-bakes the
 ///   extension lines at the arm length, solid. Emitted per document, only
 ///   when one is set.
-pub const SIDECAR_VERSION: i64 = 9;
+/// - **10** — a named line type (`/Dash /hidden`, a name in place of the
+///   run array) and `/LineTypeScale` (pdfcer-gui request G331). An older
+///   build reads the name as unset and drops the scale, so the line follows
+///   its group. Emitted per document, only when one is used.
+pub const SIDECAR_VERSION: i64 = 10;
+
+/// The schema version a document needs when a centre-mark gap, extension or
+/// line font is set but no named line type or line-type scale.
+const SIDECAR_VERSION_PRE_LINE_TYPES: i64 = 9;
 
 /// The schema version a document needs when a centre stroke is set but no
 /// centre-mark gap, extension or line font.
@@ -179,8 +188,17 @@ fn model_sidecar_version(model: &DimensionModel) -> i64 {
         .iter()
         .any(|g| g.style.centre.sets_mark_reach())
         || dims.iter().any(|d| d.style.centre.sets_mark_reach());
-    if mark_reach {
+    let line_types = model.groups().iter().any(|g| {
+        let s = &g.style;
+        tier_uses_line_types(s.dash, s.line_type_scale, s.circle, s.centre)
+    }) || dims.iter().any(|d| {
+        let s = &d.style;
+        tier_uses_line_types(s.dash, s.line_type_scale, s.circle, s.centre)
+    });
+    if line_types {
         SIDECAR_VERSION
+    } else if mark_reach {
+        SIDECAR_VERSION_PRE_LINE_TYPES
     } else if centre_styles {
         SIDECAR_VERSION_PRE_MARK_REACH
     } else if part_strokes {
@@ -363,6 +381,7 @@ fn group_style_keys(s: &GroupStyle) -> StyleKeys {
         tolerance: s.tolerance,
         tolerance_places: s.tolerance_places,
         dash: s.dash,
+        line_type_scale: s.line_type_scale,
         opacity: s.opacity,
         centre_mark_size: s.centre_mark_size,
         circle: s.circle,
@@ -430,6 +449,7 @@ fn deserialize_group(obj: &Object) -> Option<Group> {
                 tolerance: k.tolerance,
                 tolerance_places: k.tolerance_places,
                 dash: k.dash,
+                line_type_scale: k.line_type_scale,
                 opacity: k.opacity,
                 centre_mark_size: k.centre_mark_size,
                 circle: k.circle,
@@ -784,6 +804,7 @@ fn serialize_dimension(dim: &DimensionRecord) -> Object {
             tolerance: dim.style.tolerance,
             tolerance_places: dim.style.tolerance_places,
             dash: dim.style.dash,
+            line_type_scale: dim.style.line_type_scale,
             opacity: dim.style.opacity,
             centre_mark_size: dim.style.centre_mark_size,
             circle: dim.style.circle,
@@ -897,6 +918,7 @@ fn deserialize_dimension(obj: &Object) -> Option<DimensionRecord> {
             tolerance: appearance.tolerance,
             tolerance_places: appearance.tolerance_places,
             dash: appearance.dash,
+            line_type_scale: appearance.line_type_scale,
             opacity: appearance.opacity,
             centre_mark_size: appearance.centre_mark_size,
             circle: appearance.circle,
@@ -986,7 +1008,8 @@ struct StyleKeys {
     color: Option<Color>,
     tolerance: Option<Tolerance>,
     tolerance_places: Option<u32>,
-    dash: Option<DimDash>,
+    dash: Option<LineTypeRef>,
+    line_type_scale: Option<f64>,
     opacity: Option<f64>,
     centre_mark_size: Option<CentreMarkSize>,
     circle: PartStroke,
@@ -1044,7 +1067,10 @@ fn put_style_keys(d: &mut Dict, k: StyleKeys) {
     }
     // `/Dash []` is an explicit solid override, distinct from absent.
     if let Some(dash) = k.dash {
-        d.insert(Name::from(b"Dash"), dash_array(dash));
+        d.insert(Name::from(b"Dash"), dash_value(dash));
+    }
+    if let Some(v) = k.line_type_scale {
+        d.insert(Name::from(b"LineTypeScale"), Object::Real(v));
     }
     if let Some(v) = k.opacity {
         d.insert(Name::from(b"Opacity"), Object::Real(v));
@@ -1063,7 +1089,7 @@ fn put_style_keys(d: &mut Dict, k: StyleKeys) {
 pub(super) fn put_part_stroke(p: PartStroke) -> Object {
     let mut d = Dict::new();
     if let Some(dash) = p.dash {
-        d.insert(Name::from(b"Dash"), dash_array(dash));
+        d.insert(Name::from(b"Dash"), dash_value(dash));
     }
     if let Some(w) = p.width {
         d.insert(Name::from(b"LineWidth"), Object::Real(w));
@@ -1081,22 +1107,35 @@ pub(super) fn read_part_stroke(d: &Dict, key: &[u8]) -> PartStroke {
         return PartStroke::FOLLOW;
     };
     PartStroke::FOLLOW
-        .with_dash(dash_of(p.get(b"Dash")))
+        .with_line_type(dash_of(p.get(b"Dash")))
         .with_width(positive_of(p.get(b"LineWidth")))
         .with_color(color_of(p.get(b"Color")))
 }
 
-fn dash_array(dash: DimDash) -> Object {
-    Object::Array(dash.pattern().iter().copied().map(Object::Real).collect())
+/// A named line type as its token, custom runs as an array of points.
+fn dash_value(dash: LineTypeRef) -> Object {
+    match dash {
+        LineTypeRef::Named(t) => Object::Name(Name::from(t.token().as_bytes())),
+        LineTypeRef::Custom(d) => {
+            Object::Array(d.pattern().iter().copied().map(Object::Real).collect())
+        }
+    }
 }
 
-fn dash_of(o: Option<&Object>) -> Option<DimDash> {
+/// `/Dash` back: an array is custom runs, a name a line type; an unknown
+/// name (a later build's type) reads as unset.
+fn dash_of(o: Option<&Object>) -> Option<LineTypeRef> {
     match o {
         Some(Object::Array(a)) => a
             .iter()
             .map(Object::as_number)
             .collect::<Option<Vec<f64>>>()
-            .and_then(|p| DimDash::new(&p)),
+            .and_then(|p| DimDash::new(&p))
+            .map(LineTypeRef::Custom),
+        Some(Object::Name(n)) => std::str::from_utf8(n.as_bytes())
+            .ok()
+            .and_then(LineType::parse)
+            .map(LineTypeRef::Named),
         _ => None,
     }
 }
@@ -1127,6 +1166,10 @@ fn read_style_keys(d: &Dict) -> StyleKeys {
             .and_then(|v| u32::try_from(v).ok())
             .filter(|p| *p <= 12),
         dash: dash_of(d.get(b"Dash")),
+        line_type_scale: d
+            .get(b"LineTypeScale")
+            .and_then(Object::as_number)
+            .filter(|v| super::line_type::line_type_scale_in_range(*v)),
         opacity: d
             .get(b"Opacity")
             .and_then(Object::as_number)
@@ -1694,13 +1737,18 @@ mod style_sidecar_tests {
             color: Some(Color::Cmyk(0.0, 1.0, 1.0, 0.0)),
             tolerance: Some(Tolerance::Symmetric { magnitude: 0.25 }),
             tolerance_places: Some(3),
-            dash: DimDash::new(&[3.0, 1.5]),
+            dash: DimDash::new(&[3.0, 1.5]).map(Into::into),
+            line_type_scale: Some(2.0),
             opacity: Some(0.5),
             centre_mark_size: Some(CentreMarkSize::Fixed(4.0)),
             circle: PartStroke::FOLLOW
                 .with_dash(DimDash::new(&[6.0, 2.0, 1.0, 2.0]))
                 .with_width(Some(0.35)),
-            centre: CentreStyle::INHERIT.with_mark(PartStroke::FOLLOW.with_width(Some(0.2))),
+            centre: CentreStyle::INHERIT.with_mark(
+                PartStroke::FOLLOW
+                    .with_width(Some(0.2))
+                    .with_line_type(Some(LineTypeRef::Named(LineType::Hidden))),
+            ),
         };
         let first = model.dimensions()[0].id;
         model.dimension_mut(first).unwrap().style = StyleOverrides {
@@ -1723,7 +1771,8 @@ mod style_sidecar_tests {
             tolerance_places: None,
             // An explicit solid line under a dashed group must survive as
             // itself, not read back as "inherit the dash".
-            dash: Some(DimDash::SOLID),
+            dash: Some(DimDash::SOLID.into()),
+            line_type_scale: None,
             opacity: None,
             centre_mark_size: Some(CentreMarkSize::TextHeight(0.75)),
             // A solid circle under a dashed group circle, in its own colour.
@@ -1756,7 +1805,7 @@ mod style_sidecar_tests {
         assert!(back.dimension(first).unwrap().style.circle.width.is_none());
         assert_eq!(
             sidecar_version(&serialize_model(&model)),
-            Some(SIDECAR_VERSION_PRE_MARK_REACH)
+            Some(SIDECAR_VERSION)
         );
     }
 

@@ -12335,11 +12335,18 @@ pub(crate) enum Command {
         /// The tolerance's own decimal precision. Omit to follow the nominal's.
         #[arg(long)]
         tolerance_places: Option<u32>,
-        /// Dash pattern for the stroked lines: dash and gap lengths in
-        /// points, comma-separated (`3,1.5`), up to 4 runs; `solid` for an
+        /// Dash for the stroked lines: a line type (continuous, hidden,
+        /// phantom, chain, center, stitch), drawn to the drafting standard
+        /// and line width at --line-type-scale; or dash and gap lengths in
+        /// points, comma-separated (`3,1.5`), up to 8 runs; `solid` for an
         /// explicit solid line. Terminators and the label stay solid.
         #[arg(long)]
         dash: Option<String>,
+        /// Scale every named line type is drawn at; 1 is the table's own
+        /// size, 2 doubles every dash and gap (dots stay one line width).
+        /// Custom point runs are not scaled.
+        #[arg(long)]
+        line_type_scale: Option<f64>,
         /// Opacity, 0.0-1.0, written as the annotation's `/CA`.
         #[arg(long)]
         opacity: Option<f64>,
@@ -12440,11 +12447,18 @@ pub(crate) enum Command {
         /// The tolerance's own decimal precision. Omit to follow the nominal's.
         #[arg(long)]
         tolerance_places: Option<u32>,
-        /// Dash pattern for the stroked lines: dash and gap lengths in
-        /// points, comma-separated (`3,1.5`), up to 4 runs; `solid` for an
+        /// Dash for the stroked lines: a line type (continuous, hidden,
+        /// phantom, chain, center, stitch), drawn to the drafting standard
+        /// and line width at --line-type-scale; or dash and gap lengths in
+        /// points, comma-separated (`3,1.5`), up to 8 runs; `solid` for an
         /// explicit solid line. Terminators and the label stay solid.
         #[arg(long)]
         dash: Option<String>,
+        /// Scale every named line type is drawn at; 1 is the table's own
+        /// size, 2 doubles every dash and gap (dots stay one line width).
+        /// Custom point runs are not scaled.
+        #[arg(long)]
+        line_type_scale: Option<f64>,
         /// Opacity, 0.0-1.0, written as the annotation's `/CA`.
         #[arg(long)]
         opacity: Option<f64>,

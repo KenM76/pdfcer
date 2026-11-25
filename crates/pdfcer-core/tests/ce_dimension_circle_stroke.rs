@@ -193,7 +193,10 @@ fn the_circle_stroke_survives_save_and_reopen_at_both_tiers() {
     let g = back.group(DEFAULT_GROUP_ID).unwrap();
     assert_eq!(g.style.circle.width, Some(0.25));
     let rec = back.dimension(id).unwrap();
-    assert_eq!(rec.style.circle.dash, DimDash::new(&[2.0, 2.0]));
+    assert_eq!(
+        rec.style.circle.dash,
+        DimDash::new(&[2.0, 2.0]).map(Into::into)
+    );
     let p = pdfcer_core::dimension::style_provenance(g, &rec.style);
     assert_eq!(p.circle_width, StyleSource::Group);
     assert_eq!(p.circle_dash, StyleSource::Dimension);
@@ -224,7 +227,7 @@ fn part_strokes_are_built_outside_the_crate() {
     assert_eq!(p.count(), 1);
     assert!(PartStroke::default().is_follow());
     let main = ResolvedStroke::new(DimDash::SOLID, 0.75, Color::Gray(0.0));
-    let r = p.resolve(main);
+    let r = p.resolve(main, pdfcer_core::dimension::DimStandard::Ansi, 1.0);
     assert_eq!((r.width, r.color), (0.75, Color::Gray(0.5)));
     let lower = PartStroke::FOLLOW.with_width(Some(1.0)).with_color(None);
     assert_eq!(p.or(lower).width, Some(1.0));

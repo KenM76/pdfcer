@@ -15,7 +15,7 @@
 use super::author::DimensionStyle;
 use super::dash::DimDash;
 use super::fit::FitCircle;
-use super::group::{DimStandard, DimensionKind, DimensionRecord, Group};
+use super::group::{DimensionKind, DimensionRecord, Group};
 use crate::vector::Point;
 use crate::vector::linepick::{
     ParallelPolicy, PickedLine, TwoLineRelation, classify_two_lines, measured_angle_degrees,
@@ -323,15 +323,15 @@ impl DimensionStyle {
     /// the line width (`[24w 3w w 3w]`; ISO's short dash of `0.5w` is drawn
     /// at `w` so it stays visible). The factory centre-line pattern
     /// [`Self::centre_line_stroke`] uses when `centre.line.dash` is unset; it
-    /// never reads `dash`.
+    /// never reads `dash`. It is [`super::LineType::Center`] at
+    /// [`Self::line_type_scale`].
     #[must_use]
     pub fn centre_line_dash(self) -> DimDash {
-        let w = self.line_width;
-        let runs = match self.standard {
-            DimStandard::Ansi => [54.0, 9.0, 9.0, 9.0],
-            DimStandard::Iso => [24.0 * w, 3.0 * w, w, 3.0 * w],
-        };
-        DimDash::new(&runs).unwrap_or(DimDash::SOLID)
+        super::line_type::LineType::Center.runs(
+            self.standard,
+            self.line_width,
+            self.line_type_scale,
+        )
     }
 
     /// The centre-mark arm length in points.

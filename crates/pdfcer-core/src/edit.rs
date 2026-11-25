@@ -1989,6 +1989,14 @@ fn choice_opt_array(options: &[ChoiceOption]) -> Object {
     )
 }
 
+/// Refuse a set line-type scale that is not finite and positive.
+fn check_line_type_scale(scale: Option<f64>) -> Result<(), EditError> {
+    match scale.filter(|v| !crate::dimension::line_type_scale_in_range(*v)) {
+        Some(value) => Err(EditError::LineTypeScaleOutOfRange { value }),
+        None => Ok(()),
+    }
+}
+
 /// Build a `/BS` border-style dictionary (§12.5.4 Table 166), for every
 /// widget-creation route (R171: one rule, one place).
 ///
@@ -9095,6 +9103,14 @@ pub enum EditError {
          nothing was authored"
     )]
     MarkupOpacityOutOfRange {
+        /// The value the caller supplied.
+        value: f64,
+    },
+    /// A ce dimension's line-type scale was zero, negative or not finite
+    /// (pdfcer-gui request G331); a non-positive scale has no pattern to
+    /// draw.
+    #[error("line-type scale {value} must be finite and greater than 0; nothing was changed")]
+    LineTypeScaleOutOfRange {
         /// The value the caller supplied.
         value: f64,
     },
@@ -56962,6 +56978,8 @@ impl EditSession {
     /// [`EditError::InvalidTolerance`] for a tolerance that cannot be drawn;
     /// [`EditError::MarkupOpacityOutOfRange`] for an `opacity` outside
     /// `0.0..=1.0` or not finite;
+    /// [`EditError::LineTypeScaleOutOfRange`] for a `line_type_scale` that
+    /// is not finite and positive;
     /// plus the encryption, enforced-certification and newer-sidecar guards
     /// every ce-dimension mutation carries. Every refusal happens before any
     /// mutation.
@@ -56989,6 +57007,7 @@ impl EditSession {
         {
             return Err(EditError::MarkupOpacityOutOfRange { value: a });
         }
+        check_line_type_scale(style.line_type_scale)?;
         let mut model = self.read_dimension_model();
         let Some(g) = model.group_mut(group) else {
             return Err(EditError::DimensionGroupNotFound { id: group.0 });
@@ -57035,6 +57054,8 @@ impl EditSession {
     /// [`EditError::InvalidTolerance`] for a tolerance that cannot be drawn;
     /// [`EditError::MarkupOpacityOutOfRange`] for an `opacity` outside
     /// `0.0..=1.0` or not finite;
+    /// [`EditError::LineTypeScaleOutOfRange`] for a `line_type_scale` that
+    /// is not finite and positive;
     /// plus the encryption, enforced-certification and newer-sidecar guards.
     pub fn set_dimension_style(
         &mut self,
@@ -57058,6 +57079,7 @@ impl EditSession {
         {
             return Err(EditError::MarkupOpacityOutOfRange { value: a });
         }
+        check_line_type_scale(style.line_type_scale)?;
         let mut model = self.read_dimension_model();
         // Refuse an unknown id BEFORE mutating anything (rule 4: a refusal
         // never leaves a half-written model behind).

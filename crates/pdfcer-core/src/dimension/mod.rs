@@ -79,6 +79,8 @@ pub mod group;
 /// Parse a real-world length written the way a drawing writes it
 /// (`55 5/8"`, `4'-7 1/2"`), for the scale-by-known-dimension workflow.
 pub mod length_parse;
+/// Named drafting line types, derived per standard, width and scale.
+pub mod line_type;
 pub mod measure_dict;
 /// A typed scaled length back to page user space.
 pub mod measurement_parse;
@@ -117,6 +119,7 @@ pub use group::{
     DimensionRecord, Group, GroupId, transform_kind,
 };
 pub use length_parse::{LengthParseError, ParsedLength, parse_length};
+pub use line_type::{LineType, LineTypeRef, line_type_scale_in_range};
 pub use measure_dict::{build_measure_dict, build_ocg, build_ocproperties};
 pub use measurement_parse::user_units_from_measurement_on;
 pub use part_stroke::{PartStroke, ResolvedStroke};

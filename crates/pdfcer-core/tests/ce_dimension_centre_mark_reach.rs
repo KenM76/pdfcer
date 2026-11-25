@@ -232,7 +232,7 @@ fn reach_survives_save_with_provenance_and_version_9() {
     assert_eq!(p.centre_mark_gap, StyleSource::Dimension);
     assert_eq!(p.centre_mark_extension, StyleSource::Group);
     assert_eq!(p.centre_mark_line_font, StyleSource::Dimension);
-    assert_eq!(p.each().len(), 26);
+    assert_eq!(p.each().len(), 27);
     let private = pdfcer_core::dimension::serialize_model(&back);
     assert_eq!(sidecar_version(&private), Some(9));
 }

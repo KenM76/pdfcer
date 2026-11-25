@@ -1778,6 +1778,8 @@ pub(crate) enum StylePropArg {
     TolerancePlaces,
     /// Dash pattern.
     Dash,
+    /// Line-type scale.
+    LineTypeScale,
     /// Opacity.
     Opacity,
     /// Centre-mark arm size.
@@ -1866,6 +1868,7 @@ pub(crate) struct AppearanceArgs {
     pub(crate) tolerance: Option<String>,
     pub(crate) tolerance_places: Option<u32>,
     pub(crate) dash: Option<String>,
+    pub(crate) line_type_scale: Option<f64>,
     pub(crate) opacity: Option<f64>,
     pub(crate) centre_mark_size: Option<String>,
     pub(crate) circle_dash: Option<String>,
@@ -2011,6 +2014,7 @@ pub(crate) fn cmd_group_style(args: &GroupStyleArgs<'_>) -> u8 {
             StylePropArg::Tolerance => style.tolerance = None,
             StylePropArg::TolerancePlaces => style.tolerance_places = None,
             StylePropArg::Dash => style.dash = None,
+            StylePropArg::LineTypeScale => style.line_type_scale = None,
             StylePropArg::Opacity => style.opacity = None,
             StylePropArg::CentreMarkSize => style.centre_mark_size = None,
             StylePropArg::CircleDash => style.circle.dash = None,
@@ -2064,6 +2068,9 @@ pub(crate) fn cmd_group_style(args: &GroupStyleArgs<'_>) -> u8 {
             }
             if let Some(v) = a.dash {
                 style.dash = Some(v);
+            }
+            if let Some(v) = a.line_type_scale {
+                style.line_type_scale = Some(v);
             }
             if let Some(v) = a.opacity {
                 style.opacity = Some(v);
@@ -2121,7 +2128,8 @@ pub(crate) struct ResolvedAppearance {
     pub(crate) color: Option<pdfcer_core::annot_author::Color>,
     pub(crate) tolerance: Option<pdfcer_core::dimension::Tolerance>,
     pub(crate) tolerance_places: Option<u32>,
-    pub(crate) dash: Option<pdfcer_core::dimension::DimDash>,
+    pub(crate) dash: Option<pdfcer_core::dimension::LineTypeRef>,
+    pub(crate) line_type_scale: Option<f64>,
     pub(crate) opacity: Option<f64>,
     pub(crate) centre_mark_size: Option<pdfcer_core::dimension::CentreMarkSize>,
     /// The circle-stroke fields given; unset ones leave the tier's alone.
@@ -2161,6 +2169,10 @@ pub(crate) fn apply_appearance(a: &AppearanceArgs) -> Result<ResolvedAppearance,
             other => other,
         },
         dash: a.dash.as_deref().map(parse_dash).transpose()?,
+        line_type_scale: a
+            .line_type_scale
+            .map(|v| checked_metric("line-type-scale", v))
+            .transpose()?,
         opacity: a.opacity,
         centre_mark_size: a
             .centre_mark_size
@@ -2168,7 +2180,7 @@ pub(crate) fn apply_appearance(a: &AppearanceArgs) -> Result<ResolvedAppearance,
             .map(parse_centre_mark_size)
             .transpose()?,
         circle: pdfcer_core::dimension::PartStroke::FOLLOW
-            .with_dash(a.circle_dash.as_deref().map(parse_dash).transpose()?)
+            .with_line_type(a.circle_dash.as_deref().map(parse_dash).transpose()?)
             .with_width(
                 a.circle_width
                     .map(|v| checked_metric("circle-width", v))
@@ -2196,12 +2208,23 @@ pub(crate) fn parse_centre_mark_size(
     })
 }
 
-/// Parse a `--dash` spec: `solid`, or comma-separated run lengths in points.
-pub(crate) fn parse_dash(spec: &str) -> Result<pdfcer_core::dimension::DimDash, String> {
-    use pdfcer_core::dimension::{DimDash, MAX_DASH_RUNS};
+/// Parse a `--dash` spec: a line-type name, `solid`, or comma-separated run
+/// lengths in points.
+pub(crate) fn parse_dash(spec: &str) -> Result<pdfcer_core::dimension::LineTypeRef, String> {
+    use pdfcer_core::dimension::{DimDash, LineType, LineTypeRef, MAX_DASH_RUNS};
     let s = spec.trim();
     if s.eq_ignore_ascii_case("solid") {
-        return Ok(DimDash::SOLID);
+        return Ok(LineTypeRef::Custom(DimDash::SOLID));
+    }
+    if let Some(t) = LineType::parse(s) {
+        return Ok(LineTypeRef::Named(t));
+    }
+    if s.chars().any(char::is_alphabetic) {
+        let names: Vec<&str> = LineType::ALL.iter().map(|t| t.token()).collect();
+        return Err(format!(
+            "--dash `{spec}` is not a line type: use one of {}, `solid`, or point runs like 3,1.5",
+            names.join(", ")
+        ));
     }
     let runs = s
         .split(',')
@@ -2211,7 +2234,7 @@ pub(crate) fn parse_dash(spec: &str) -> Result<pdfcer_core::dimension::DimDash, 
                 .map_err(|_| format!("`{t}` is not a number in --dash `{spec}`"))
         })
         .collect::<Result<Vec<_>, _>>()?;
-    DimDash::new(&runs).ok_or_else(|| {
+    DimDash::new(&runs).map(LineTypeRef::Custom).ok_or_else(|| {
         format!(
             "--dash `{spec}` is not a dash pattern (up to {MAX_DASH_RUNS} non-negative runs, not all zero; `solid` for none)"
         )
@@ -2322,6 +2345,7 @@ pub(crate) fn cmd_dimension_style(args: &DimensionStyleArgs<'_>) -> u8 {
             StylePropArg::Tolerance => style.tolerance = None,
             StylePropArg::TolerancePlaces => style.tolerance_places = None,
             StylePropArg::Dash => style.dash = None,
+            StylePropArg::LineTypeScale => style.line_type_scale = None,
             StylePropArg::Opacity => style.opacity = None,
             StylePropArg::CentreMarkSize => style.centre_mark_size = None,
             StylePropArg::CircleDash => style.circle.dash = None,
@@ -2402,6 +2426,9 @@ pub(crate) fn cmd_dimension_style(args: &DimensionStyleArgs<'_>) -> u8 {
             }
             if let Some(v) = a.dash {
                 style.dash = Some(v);
+            }
+            if let Some(v) = a.line_type_scale {
+                style.line_type_scale = Some(v);
             }
             if let Some(v) = a.opacity {
                 style.opacity = Some(v);
@@ -2507,7 +2534,7 @@ pub(crate) fn cmd_dimension_list(input: &Path, show_style: bool) -> u8 {
             );
             println!(
                 "    group-stroke dash={} opacity={} centre_mark_size={}",
-                st.dash.map_or_else(|| "-".to_owned(), format_dash),
+                st.dash.map_or_else(|| "-".to_owned(), format_line_type),
                 opt_num(st.opacity),
                 st.centre_mark_size
                     .map_or_else(|| "-".to_owned(), |m| m.token()),
@@ -2656,7 +2683,7 @@ pub(crate) fn cmd_dimension_list(input: &Path, show_style: bool) -> u8 {
             let resolved = pdfcer_core::dimension::resolve_style(group, &d.style);
             let prov = pdfcer_core::dimension::style_provenance(group, &d.style);
             let [c0, c1, c2, c3, c4, c5, c6, c7, c8] = centre_style_values(&resolved);
-            let values: [(&str, String); 26] = [
+            let values: [(&str, String); 27] = [
                 ("unit", resolved.format.unit.token().to_owned()),
                 ("fraction", format_fraction(resolved.format.fraction)),
                 (
@@ -2680,10 +2707,10 @@ pub(crate) fn cmd_dimension_list(input: &Path, show_style: bool) -> u8 {
                     // printed as one.
                     opt_places(resolved.tolerance_places),
                 ),
-                ("dash", format_dash(resolved.dash)),
+                ("dash", format_line_type(resolved.line_type)),
                 ("opacity", fmt_num(resolved.opacity)),
                 ("centre-mark-size", resolved.centre_mark_size.token()),
-                ("circle-dash", format_dash(resolved.circle_stroke().dash)),
+                ("circle-dash", format_line_type(resolved.circle_line_type())),
                 ("circle-width", fmt_num(resolved.circle_stroke().width)),
                 ("circle-color", fmt_color(resolved.circle_stroke().color)),
                 c0,
@@ -2695,6 +2722,7 @@ pub(crate) fn cmd_dimension_list(input: &Path, show_style: bool) -> u8 {
                 c6,
                 c7,
                 c8,
+                ("line-type-scale", fmt_num(resolved.line_type_scale)),
             ];
             // Paired positionally against `StyleProvenance::each`, whose own
             // doc comment explains why it returns a fixed-size array: a
@@ -2716,6 +2744,15 @@ pub(crate) fn cmd_dimension_list(input: &Path, show_style: bool) -> u8 {
 /// `Some(3.5)` as `3.5`, `None` as `-` (meaning: inherited, not set here).
 pub(crate) fn opt_num(v: Option<f64>) -> String {
     v.map_or_else(|| "-".to_owned(), fmt_num)
+}
+
+/// A line type's token, or custom runs as [`format_dash`]: the vocabulary
+/// `--dash` accepts back.
+pub(crate) fn format_line_type(t: pdfcer_core::dimension::LineTypeRef) -> String {
+    match t {
+        pdfcer_core::dimension::LineTypeRef::Named(n) => n.token().to_owned(),
+        pdfcer_core::dimension::LineTypeRef::Custom(d) => format_dash(d),
+    }
 }
 
 /// A dash pattern in the vocabulary `--dash` accepts back.

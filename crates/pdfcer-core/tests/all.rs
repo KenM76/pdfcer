@@ -41,6 +41,7 @@ mod ce_dimension_centre_line_ends;
 mod ce_dimension_centre_mark_reach;
 mod ce_dimension_centre_stroke;
 mod ce_dimension_circle_stroke;
+mod ce_dimension_line_types;
 mod ce_dimension_rim_snap;
 mod ce_dimension_set_centre_mark;
 mod cell_block_model;

@@ -115,8 +115,16 @@ pub struct DimensionStyle {
     /// The tolerance's own decimal precision; `None` ⇒ the nominal's
     /// (Pass 69.1).
     pub tolerance_places: Option<u32>,
-    /// Stroke dash pattern for the lines; terminators and label stay solid.
+    /// The dash pattern drawn on the lines, derived by
+    /// [`super::resolve_style`] from [`Self::line_type`]; terminators and
+    /// label stay solid.
     pub dash: super::dash::DimDash,
+    /// The lines' dash as chosen: a named line type or custom runs
+    /// (pdfcer-gui request G331).
+    pub line_type: super::line_type::LineTypeRef,
+    /// The line-type scale every named type on this ce dimension is drawn
+    /// at; `1.0` is the table's own size.
+    pub line_type_scale: f64,
     /// Constant opacity, written as the annotation's `/CA` (§12.5.2 Table
     /// 166) when below 1; an opaque ce dimension carries no `/CA`.
     pub opacity: f64,
@@ -170,7 +178,13 @@ impl DimensionStyle {
             color: f.color,
             tolerance: f.tolerance,
             tolerance_places: f.tolerance_places,
-            dash: f.dash,
+            // The factory line type is custom solid runs.
+            dash: match f.dash {
+                super::line_type::LineTypeRef::Custom(d) => d,
+                super::line_type::LineTypeRef::Named(_) => super::dash::DimDash::SOLID,
+            },
+            line_type: f.dash,
+            line_type_scale: f.line_type_scale,
             opacity: f.opacity,
             user_unit: 1.0,
             centre_mark_size: f.centre_mark_size,
@@ -192,7 +206,19 @@ impl DimensionStyle {
     /// annotation-wide (`/CA`).
     #[must_use]
     pub fn circle_stroke(&self) -> ResolvedStroke {
-        self.circle.resolve(self.line_stroke())
+        // A followed named type is re-derived at the circle's own width.
+        let width = self.circle.width.unwrap_or(self.line_width);
+        let follow = match self.line_type {
+            super::line_type::LineTypeRef::Named(t) => {
+                t.runs(self.standard, width, self.line_type_scale)
+            }
+            super::line_type::LineTypeRef::Custom(_) => self.dash,
+        };
+        self.circle.resolve(
+            ResolvedStroke::new(follow, self.line_width, self.color),
+            self.standard,
+            self.line_type_scale,
+        )
     }
 }
 
