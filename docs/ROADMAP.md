@@ -112,6 +112,16 @@ wherever it appears.*
 
 ## Shipped
 
+### `Pass 774.0`: an unreadable form is disclosed, not left silently (`X118`); `269185bd`, 2026-11-25 (1708th filing)
+
+Engineer-reported; no shell here, git, push, CI and the gates not run or checked from here. Never filed as Planned: the request arrived and shipped in one round, and this filing is its only filing. **Unreleased: on `main` after the `v0.174.0` tag; shipped in the next release, `v0.175.0`.** Reasoning is in the commit message.
+- **`774.0` `269185bd` (`X118`, operator request from the crates consumer):** `FormCensus` (`crates/pdfcer-core/src/preflight/pdfua/artifact.rs`) marked a form it could not read (content that does not parse, or past the depth cap) as tagged, so it was never wrapped (correct) but was reported only when it held untagged content; an unread form was left silently. The census now has a separate `unread` flag, carried out of nested forms; the planner records unread forms in `ArtifactPlan::unread_forms` (crate-private) and treats them as barriers. `EditSession::mark_untagged_as_artifacts` (`crates/pdfcer-core/src/edit/pdfua_artifacts.rs`) adds a per-page disclosure: "left N form XObject(s) that could not be read in full; untagged content may remain inside them". Rule 4 (fuzzy, never sneaky): it was silent before. No public signature change. core (fix to the existing PDF/UA fixup (artifact) row; cli and gui unchanged).
+- **Tests:** new `artifacts_disclose_a_form_they_could_not_read`; `artifacts_never_wrap_a_form_chain_too_deep_to_read` now asserts the disclosure. Both fail with the disclosure removed (sabotage-checked, engineer-reported).
+- **Tests (merged main, engineer-reported, all green):** core lib 2568, integration 3492, doctests 320. `cargo fmt` and `clippy -D warnings` clean; code-structure gate clean.
+- **Invariants:** no manifest change, so `cargo tree` is unchanged (rule 2 unaffected).
+- **Channel:** request `open/request_X118_unreadable_form_reported.md`; reply `open/reply_X118_unreadable_form_reported_SHIPPED.md`, both under `D:\Dev\FeatureRequests\pdfce_FeatureRequests\`.
+- **FEATURES:** a `774.0` clause on the PDF/UA fixup (artifact) row; no new row.
+
 ### `Pass 773.0`: an image with `/StructParent` is structure content (`X117`); `58f8dc86`, 2026-11-25 (1707th filing)
 
 Engineer-reported; no shell here, git, push, CI and the gates not run or checked from here. Never filed as Planned: the request arrived and shipped in one round, and this filing is its only filing. **Unreleased: on `main` after the `v0.174.0` tag; shipped in the next release, `v0.175.0`.** Reasoning is in the commit message.

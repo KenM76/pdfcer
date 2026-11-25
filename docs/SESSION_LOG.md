@@ -4,6 +4,18 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-11-25 (1708th filing) — `Pass 774.0` SHIPPED (unreadable form disclosed, `X118`)
+
+**Filed (engineer-reported; no shell here, git, push, CI and the gates not checked from here; operator commits):**
+- `Pass 774.0` `269185bd` (`X118`): `FormCensus` marked an unreadable form (unparseable content, or past the depth cap) as tagged, so it was correctly never wrapped, but it was reported only when it held untagged content. New `unread` flag carried out of nested forms; `ArtifactPlan::unread_forms` (crate-private); `mark_untagged_as_artifacts` now discloses per page. Rule 4: it was silent before. No public signature change. core only. On `main` after `v0.174.0`; next release `v0.175.0`. Never filed as Planned; filed here as Shipped.
+- `FEATURES.md`: a `774.0` clause on the PDF/UA fixup (artifact) row (under the 1,200-char cap). `ROADMAP.md`: Shipped entry. `NEXT_SESSION.md`: one line. The 1707th filing (`d3f1310b`) is pushed (engineer-reported).
+
+**Tests (engineer-reported, merged main):** core lib 2568, integration 3492, doctests 320, all green; fmt, clippy `-D warnings` and code-structure clean; both touched tests fail with the disclosure removed.
+
+**Decisions made:** none.
+
+**Next:** the worker's `769.0`-`772.0`; release `v0.175.0` writes OneDrive `pdfcer2`.
+
 ## 2026-11-25 (1707th filing) — `Pass 773.0` SHIPPED (image `/StructParent`, `X117`)
 
 **Filed (engineer-reported; no shell here, git, push, CI and the gates not checked from here; operator commits):**

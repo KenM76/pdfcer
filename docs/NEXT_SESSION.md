@@ -5,7 +5,9 @@ Engineer-owned; replaced each session. The previous long-form handoff (mesh
 failure classes, probe recipes, release recipe detail) is in git:
 `git show 40e7d1d7:docs/NEXT_SESSION.md`. Grep it; do not re-adopt it wholesale.
 
-**2026-11-25 update (Pass 773.0, newest; filed 1707th).** Pass 773.0 (`58f8dc86`, X117) is on `main`, unreleased (next release v0.175.0): an image with `/StructParent` counts as tagged in the artifact planner, `FormCensus::walk` and PUI-01-005. README says 273 subcommands (`937566fe`).
+**2026-11-25 update (Pass 774.0, newest; filed 1708th).** Pass 774.0 (`269185bd`, X118) is on `main`, unreleased (next release v0.175.0): `mark_untagged_as_artifacts` now discloses, per page, a form it could not read.
+
+**2026-11-25 update (Pass 773.0, previous; filed 1707th).** Pass 773.0 (`58f8dc86`, X117) is on `main`, unreleased (next release v0.175.0): an image with `/StructParent` counts as tagged in the artifact planner, `FormCensus::walk` and PUI-01-005. README says 273 subcommands (`937566fe`).
 
 **2026-11-25 update (Passes 765.0-768.0 on main, previous; filed 1706th).** Passes 765.0 (`4bc1908a`, G328 rim/quadrant/tangent snap), 766.0 (`a2869ef4`, G329 circle own stroke and hide, sidecar v7), 767.0 (`aa5e03db`, G330 `set_centre_mark`) and 768.0 (`986f03fb`, G335 move a centre line's ends) are on `main`, unreleased (next release v0.175.0, with 763.0 and 764.0). **In progress (a worker):** Passes 769.0-772.0 (G331 named line types, G332 associative anchors, G333 centre mark gap/extension/font, G334 centre line/mark own stroke), order 772, 771, 769, 770. The GUI has not consumed any of 765.0-768.0 yet. The v0.174.0 entry below is still the latest release.
 
