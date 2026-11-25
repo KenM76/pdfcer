@@ -103,6 +103,7 @@ pub(crate) fn cmd_dimension_add(args: &DimensionAddArgs<'_>) -> u8 {
             DimensionKind::Circular {
                 fit,
                 show_diameter: matches!(kind, DimKindArg::Diameter),
+                show_circle: true,
                 leader_angle: 0.0,
                 text_distance: None,
                 centre_mark: None,
@@ -1781,6 +1782,12 @@ pub(crate) enum StylePropArg {
     Opacity,
     /// Centre-mark arm size.
     CentreMarkSize,
+    /// The circle's dash (radius/diameter ce dimensions).
+    CircleDash,
+    /// The circle's stroke width.
+    CircleWidth,
+    /// The circle's colour.
+    CircleColor,
 }
 
 /// The terminator forms, mirrored from `pdfcer_core::dimension::ArrowForm`.
@@ -1843,6 +1850,9 @@ pub(crate) struct AppearanceArgs {
     pub(crate) dash: Option<String>,
     pub(crate) opacity: Option<f64>,
     pub(crate) centre_mark_size: Option<String>,
+    pub(crate) circle_dash: Option<String>,
+    pub(crate) circle_width: Option<f64>,
+    pub(crate) circle_color: Option<String>,
 }
 
 pub(crate) struct GroupStyleArgs<'a> {
@@ -1984,6 +1994,9 @@ pub(crate) fn cmd_group_style(args: &GroupStyleArgs<'_>) -> u8 {
             StylePropArg::Dash => style.dash = None,
             StylePropArg::Opacity => style.opacity = None,
             StylePropArg::CentreMarkSize => style.centre_mark_size = None,
+            StylePropArg::CircleDash => style.circle.dash = None,
+            StylePropArg::CircleWidth => style.circle.width = None,
+            StylePropArg::CircleColor => style.circle.color = None,
             // Named so the refusal says WHICH property and WHY, rather than
             // ignoring the flag and leaving the operator to discover from the
             // saved file that nothing happened.
@@ -2030,6 +2043,7 @@ pub(crate) fn cmd_group_style(args: &GroupStyleArgs<'_>) -> u8 {
             if let Some(v) = a.centre_mark_size {
                 style.centre_mark_size = Some(v);
             }
+            style.circle = a.circle.or(style.circle);
         }
         Err(msg) => {
             eprintln!("pdfcer: {}: {msg}", args.input.display());
@@ -2081,6 +2095,8 @@ pub(crate) struct ResolvedAppearance {
     pub(crate) dash: Option<pdfcer_core::dimension::DimDash>,
     pub(crate) opacity: Option<f64>,
     pub(crate) centre_mark_size: Option<pdfcer_core::dimension::CentreMarkSize>,
+    /// The circle-stroke fields given; unset ones leave the tier's alone.
+    pub(crate) circle: pdfcer_core::dimension::PartStroke,
 }
 
 /// Validate the appearance flags and convert them to core types.
@@ -2120,6 +2136,19 @@ pub(crate) fn apply_appearance(a: &AppearanceArgs) -> Result<ResolvedAppearance,
             .as_deref()
             .map(parse_centre_mark_size)
             .transpose()?,
+        circle: pdfcer_core::dimension::PartStroke::FOLLOW
+            .with_dash(a.circle_dash.as_deref().map(parse_dash).transpose()?)
+            .with_width(
+                a.circle_width
+                    .map(|v| checked_metric("circle-width", v))
+                    .transpose()?,
+            )
+            .with_color(
+                a.circle_color
+                    .as_deref()
+                    .map(parse_device_color)
+                    .transpose()?,
+            ),
     })
 }
 
@@ -2263,6 +2292,9 @@ pub(crate) fn cmd_dimension_style(args: &DimensionStyleArgs<'_>) -> u8 {
             StylePropArg::Dash => style.dash = None,
             StylePropArg::Opacity => style.opacity = None,
             StylePropArg::CentreMarkSize => style.centre_mark_size = None,
+            StylePropArg::CircleDash => style.circle.dash = None,
+            StylePropArg::CircleWidth => style.circle.width = None,
+            StylePropArg::CircleColor => style.circle.color = None,
         }
     }
     if let Some(token) = args.unit {
@@ -2336,6 +2368,7 @@ pub(crate) fn cmd_dimension_style(args: &DimensionStyleArgs<'_>) -> u8 {
             if let Some(v) = a.centre_mark_size {
                 style.centre_mark_size = Some(v);
             }
+            style.circle = a.circle.or(style.circle);
         }
         Err(msg) => {
             eprintln!("pdfcer: {}: {msg}", args.input.display());
@@ -2490,9 +2523,13 @@ pub(crate) fn cmd_dimension_list(input: &Path, show_style: bool) -> u8 {
             DimensionKind::Circular {
                 leader_angle,
                 centre_mark,
+                show_circle,
                 ..
             } => {
                 let mut s = format!(" leader_angle={leader_angle}");
+                if !show_circle {
+                    s.push_str(" circle=hidden");
+                }
                 if let Some(t) = d.kind.circular_text_distance() {
                     s.push_str(&format!(" text_distance={t}"));
                 }
@@ -2569,7 +2606,7 @@ pub(crate) fn cmd_dimension_list(input: &Path, show_style: bool) -> u8 {
             };
             let resolved = pdfcer_core::dimension::resolve_style(group, &d.style);
             let prov = pdfcer_core::dimension::style_provenance(group, &d.style);
-            let values: [(&str, String); 14] = [
+            let values: [(&str, String); 17] = [
                 ("unit", resolved.format.unit.token().to_owned()),
                 ("fraction", format_fraction(resolved.format.fraction)),
                 (
@@ -2596,6 +2633,9 @@ pub(crate) fn cmd_dimension_list(input: &Path, show_style: bool) -> u8 {
                 ("dash", format_dash(resolved.dash)),
                 ("opacity", fmt_num(resolved.opacity)),
                 ("centre-mark-size", resolved.centre_mark_size.token()),
+                ("circle-dash", format_dash(resolved.circle_stroke().dash)),
+                ("circle-width", fmt_num(resolved.circle_stroke().width)),
+                ("circle-color", fmt_color(resolved.circle_stroke().color)),
             ];
             // Paired positionally against `StyleProvenance::each`, whose own
             // doc comment explains why it returns a fixed-size array: a

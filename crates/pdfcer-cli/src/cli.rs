@@ -12346,6 +12346,18 @@ pub(crate) enum Command {
         /// the centre and end this far past the rim.
         #[arg(long, value_name = "text:F|fixed:PT")]
         centre_mark_size: Option<String>,
+        /// Dash pattern for a radius/diameter ce dimension's circle, as
+        /// `--dash`. Unset, the circle follows the lines' dash.
+        #[arg(long)]
+        circle_dash: Option<String>,
+        /// Stroke width of the circle, in points. Unset, it follows
+        /// `--line-width`.
+        #[arg(long)]
+        circle_width: Option<f64>,
+        /// Colour of the circle, as `--color`. Unset, it follows the lines'
+        /// colour. Opacity is annotation-wide and stays `--opacity`.
+        #[arg(long)]
+        circle_color: Option<String>,
         /// Clear a property back to the factory default (repeatable, or
         /// comma-separated). Property names are the ones
         /// `dimension-list --style` prints.
@@ -12437,6 +12449,18 @@ pub(crate) enum Command {
         /// the centre and end this far past the rim.
         #[arg(long, value_name = "text:F|fixed:PT")]
         centre_mark_size: Option<String>,
+        /// Dash pattern for a radius/diameter ce dimension's circle, as
+        /// `--dash`. Unset, the circle follows the lines' dash.
+        #[arg(long)]
+        circle_dash: Option<String>,
+        /// Stroke width of the circle, in points. Unset, it follows
+        /// `--line-width`.
+        #[arg(long)]
+        circle_width: Option<f64>,
+        /// Colour of the circle, as `--color`. Unset, it follows the lines'
+        /// colour. Opacity is annotation-wide and stays `--opacity`.
+        #[arg(long)]
+        circle_color: Option<String>,
         /// Clear an override, returning that property to inheritance
         /// (repeatable, or comma-separated).
         #[arg(long, value_enum, value_delimiter = ',')]
@@ -12832,6 +12856,34 @@ pub(crate) enum Command {
         /// Which reading the label should print.
         #[arg(long, value_enum)]
         show: DisplayReading,
+        /// Output path.
+        #[arg(short, long)]
+        output: PathBuf,
+        /// Save mode.
+        #[arg(long, value_enum, default_value_t = SaveMode::Incremental)]
+        mode: SaveMode,
+        /// Reload and verify the edit undoes byte-identically.
+        #[arg(long)]
+        verify_undo: bool,
+    },
+    /// **Show or hide a radius/diameter ce dimension's circle.**
+    ///
+    /// The leader, label and any centre mark stay; the fit and the value do
+    /// not change. `dimension-list` prints circle=hidden for a hidden one.
+    /// The circle's own stroke is set with `dimension-style`/`group-style`
+    /// --circle-dash, --circle-width and --circle-color.
+    ///
+    /// Refused by name, with nothing written, for any other kind of ce
+    /// dimension.
+    DimensionCircle {
+        /// Input PDF.
+        input: PathBuf,
+        /// The ce dimension id, as printed by `dimension-list`.
+        #[arg(long)]
+        dimension: u32,
+        /// Whether the circle is drawn.
+        #[arg(long, value_enum)]
+        circle: CircleShownArg,
         /// Output path.
         #[arg(short, long)]
         output: PathBuf,

@@ -154,6 +154,7 @@ pub use history_transfer::{HistoryError, HistoryImport};
 pub use regroup::WidgetRegroup;
 mod content_mark;
 mod decoration_refresh;
+mod dimension_circle;
 mod dimension_merge;
 mod dimension_unit;
 mod editable_source;
@@ -1151,6 +1152,13 @@ pub enum CommandKind {
     SetDimensionDisplay {
         /// The resulting display: `true` ⇒ diameter, `false` ⇒ radius.
         show_diameter: bool,
+    },
+    /// A radius/diameter ce dimension's circle shown or hidden, and its
+    /// `/AP` regenerated. ONE undoable command. See
+    /// [`EditSession::set_circular_circle_shown`].
+    SetCircularCircleShown {
+        /// The resulting state: `true` ⇒ the circle is drawn.
+        shown: bool,
     },
     /// A closed perimeter ce dimension switched between reporting its
     /// perimeter and its enclosed area, and its `/AP`, `/Contents` and
@@ -56690,6 +56698,7 @@ impl EditSession {
             DimensionKind::Circular {
                 fit,
                 show_diameter,
+                show_circle,
                 leader_angle,
                 centre_mark,
                 ..
@@ -56702,6 +56711,7 @@ impl EditSession {
                 DimensionKind::Circular {
                     fit,
                     show_diameter,
+                    show_circle,
                     leader_angle: if text_along.is_finite() {
                         text_along.rem_euclid(360.0)
                     } else {
@@ -56882,6 +56892,7 @@ impl EditSession {
         // never leaves a half-written model behind.
         let DimensionKind::Circular {
             fit,
+            show_circle,
             leader_angle,
             text_distance,
             centre_mark,
@@ -56897,6 +56908,7 @@ impl EditSession {
             d.kind = DimensionKind::Circular {
                 fit,
                 show_diameter,
+                show_circle,
                 leader_angle,
                 text_distance,
                 centre_mark,

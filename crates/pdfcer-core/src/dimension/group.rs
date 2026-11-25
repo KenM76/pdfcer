@@ -245,6 +245,11 @@ pub enum DimensionKind {
         fit: FitCircle,
         /// `true` ⇒ display the diameter; `false` ⇒ the radius.
         show_diameter: bool,
+        /// Whether the circle outline is drawn. `false` hides it and leaves
+        /// the leader, label and any centre mark; a sidecar without the key
+        /// reads `true`. Set it with
+        /// [`crate::edit::EditSession::set_circular_circle_shown`].
+        show_circle: bool,
         /// Direction of the leader from the centre, in degrees
         /// counter-clockwise from page +x. `0.0` is where every circular ce
         /// dimension authored before this field existed draws its leader.
@@ -894,6 +899,7 @@ impl DimensionKind {
             Self::Circular {
                 fit,
                 show_diameter,
+                show_circle,
                 leader_angle,
                 text_distance,
                 centre_mark,
@@ -903,6 +909,7 @@ impl DimensionKind {
                     ..fit
                 },
                 show_diameter,
+                show_circle,
                 leader_angle: (leader_angle + radians.to_degrees()).rem_euclid(360.0),
                 text_distance,
                 centre_mark: centre_mark.map(|m| m.turned(radians.to_degrees())),
@@ -974,22 +981,12 @@ impl DimensionKind {
                 text_along,
                 extension_gap,
             },
-            Self::Circular {
-                fit,
-                show_diameter,
-                leader_angle,
-                text_distance,
-                centre_mark,
-            } => Self::Circular {
-                fit: FitCircle {
-                    center: Point::new(fit.center.x + dx, fit.center.y + dy),
-                    ..fit
-                },
-                show_diameter,
-                leader_angle,
-                text_distance,
-                centre_mark,
-            },
+            mut kind @ Self::Circular { .. } => {
+                if let Self::Circular { fit, .. } = &mut kind {
+                    fit.center = Point::new(fit.center.x + dx, fit.center.y + dy);
+                }
+                kind
+            }
             kind @ (Self::CentreLine { .. } | Self::CentreMark { .. }) => {
                 kind.centre_mapped(|p| Point::new(p.x + dx, p.y + dy))
             }
@@ -1615,6 +1612,7 @@ mod tests {
                 residual: 0.0,
             },
             show_diameter: false,
+            show_circle: true,
             leader_angle: 0.0,
             text_distance: None,
             centre_mark: None,
@@ -1627,6 +1625,7 @@ mod tests {
                 residual: 0.0,
             },
             show_diameter: true,
+            show_circle: true,
             leader_angle: 0.0,
             text_distance: None,
             centre_mark: None,
@@ -1878,6 +1877,7 @@ pub fn transform_kind(kind: &DimensionKind, m: crate::vector::Matrix) -> Dimensi
         DimensionKind::Circular {
             fit,
             show_diameter,
+            show_circle,
             leader_angle,
             text_distance,
             centre_mark,
@@ -1902,6 +1902,7 @@ pub fn transform_kind(kind: &DimensionKind, m: crate::vector::Matrix) -> Dimensi
                     ..*fit
                 },
                 show_diameter: *show_diameter,
+                show_circle: *show_circle,
                 leader_angle: angle,
                 text_distance: *text_distance,
                 centre_mark: centre_mark.map(|mk| mk.turned(angle - *leader_angle)),

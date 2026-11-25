@@ -36,6 +36,7 @@ use super::fit::FitCircle;
 use super::group::{
     DimStandard, DimensionId, DimensionKind, DimensionModel, DimensionRecord, Group, GroupId,
 };
+use super::part_stroke::PartStroke;
 use super::style::{ArrowForm, GroupStyle, StyleOverrides};
 use super::tolerance::Tolerance;
 use super::units::{DecimalMarker, FractionMode, NumberFormat, ScaleState, Unit};
@@ -104,7 +105,15 @@ use crate::annot_author::Color;
 ///   `/CentreMark` (`Pass 739.0`, `Pass 740.0`). An older build drops an
 ///   unknown kind and loses a mark on re-bake. Emitted per document, only when
 ///   some ce dimension draws centre geometry.
-pub const SIDECAR_VERSION: i64 = 6;
+/// - **7** — a circular record's `/ShowCircle false` and a `/Circle` part
+///   stroke on a group or ce dimension (pdfcer-gui request G329). An older
+///   build drops both and re-bakes the circle drawn, in the leader's stroke.
+///   Emitted per document, only when some circle is hidden or restyled.
+pub const SIDECAR_VERSION: i64 = 7;
+
+/// The schema version a document needs when it draws centre geometry but no
+/// circle is hidden or restyled.
+const SIDECAR_VERSION_PRE_PART_STROKE: i64 = 6;
 
 /// The schema version a document needs when it has an area ce dimension but
 /// no centre geometry.
@@ -135,11 +144,24 @@ const SIDECAR_VERSION_PRE_OVERRIDE: i64 = 3;
 /// [`serialize_model`]'s no-change-is-a-no-op guarantee (R34) true.
 fn model_sidecar_version(model: &DimensionModel) -> i64 {
     let dims = model.dimensions();
-    if dims
+    let part_strokes = model.groups().iter().any(|g| !g.style.circle.is_follow())
+        || dims.iter().any(|d| {
+            !d.style.circle.is_follow()
+                || matches!(
+                    d.kind,
+                    DimensionKind::Circular {
+                        show_circle: false,
+                        ..
+                    }
+                )
+        });
+    if part_strokes {
+        SIDECAR_VERSION
+    } else if dims
         .iter()
         .any(|d| d.kind.is_centre_geometry() || d.kind.centre_mark_centre().is_some())
     {
-        SIDECAR_VERSION
+        SIDECAR_VERSION_PRE_PART_STROKE
     } else if dims.iter().any(|d| d.kind.is_area()) {
         SIDECAR_VERSION_PRE_CENTRE
     } else if dims.iter().any(|d| d.label_override.is_some()) {
@@ -298,22 +320,25 @@ fn serialize_group(g: &Group) -> Object {
     // been styled produces byte-identical sidecar output to what it produced
     // before this Pass existed (R34 minimal diff — and the reason no
     // `SIDECAR_VERSION` bump is owed here; see the constant's own note).
-    put_style_keys(
-        &mut d,
-        StyleKeys {
-            text_height: g.style.text_height,
-            line_width: g.style.line_width,
-            arrow_length: g.style.arrow_length,
-            arrow_form: g.style.arrow_form,
-            color: g.style.color,
-            tolerance: g.style.tolerance,
-            tolerance_places: g.style.tolerance_places,
-            dash: g.style.dash,
-            opacity: g.style.opacity,
-            centre_mark_size: g.style.centre_mark_size,
-        },
-    );
+    put_style_keys(&mut d, group_style_keys(&g.style));
     Object::Dict(d)
+}
+
+/// A group's style as the keys [`put_style_keys`] writes.
+fn group_style_keys(s: &GroupStyle) -> StyleKeys {
+    StyleKeys {
+        text_height: s.text_height,
+        line_width: s.line_width,
+        arrow_length: s.arrow_length,
+        arrow_form: s.arrow_form,
+        color: s.color,
+        tolerance: s.tolerance,
+        tolerance_places: s.tolerance_places,
+        dash: s.dash,
+        opacity: s.opacity,
+        centre_mark_size: s.centre_mark_size,
+        circle: s.circle,
+    }
 }
 
 fn deserialize_group(obj: &Object) -> Option<Group> {
@@ -378,6 +403,7 @@ fn deserialize_group(obj: &Object) -> Option<Group> {
                 dash: k.dash,
                 opacity: k.opacity,
                 centre_mark_size: k.centre_mark_size,
+                circle: k.circle,
             }
         },
     })
@@ -643,11 +669,16 @@ fn serialize_dimension(dim: &DimensionRecord) -> Object {
         DimensionKind::Circular {
             fit,
             show_diameter,
+            show_circle,
             leader_angle,
             text_distance,
             centre_mark,
         } => {
             d.insert(Name::from(b"Kind"), Object::Name(Name::from(b"circular")));
+            // Absent reads as shown, so a drawn circle adds no key (R34).
+            if !show_circle {
+                d.insert(Name::from(b"ShowCircle"), Object::Boolean(false));
+            }
             if let Some(mark) = centre_mark {
                 d.insert(Name::from(b"CentreMark"), Object::Boolean(true));
                 put_mark_keys(&mut d, mark);
@@ -725,6 +756,7 @@ fn serialize_dimension(dim: &DimensionRecord) -> Object {
             dash: dim.style.dash,
             opacity: dim.style.opacity,
             centre_mark_size: dim.style.centre_mark_size,
+            circle: dim.style.circle,
         },
     );
     Object::Dict(d)
@@ -780,6 +812,7 @@ fn deserialize_dimension(obj: &Object) -> Option<DimensionRecord> {
                     .unwrap_or(0.0),
             },
             show_diameter: bool_of(d.get(b"Diameter")).unwrap_or(false),
+            show_circle: bool_of(d.get(b"ShowCircle")).unwrap_or(true),
             leader_angle: placement_of(d.get(b"LeaderAngle")),
             text_distance: d
                 .get(b"TextDistance")
@@ -835,6 +868,7 @@ fn deserialize_dimension(obj: &Object) -> Option<DimensionRecord> {
             dash: appearance.dash,
             opacity: appearance.opacity,
             centre_mark_size: appearance.centre_mark_size,
+            circle: appearance.circle,
         },
     })
 }
@@ -923,9 +957,12 @@ struct StyleKeys {
     dash: Option<DimDash>,
     opacity: Option<f64>,
     centre_mark_size: Option<CentreMarkSize>,
+    circle: PartStroke,
 }
 
 /// Write the appearance keys that are actually set. Absent = inherit.
+/// A circle stroke goes in its own `/Circle` dict under the same key names as
+/// the ce dimension's lines, written only when some field is set.
 fn put_style_keys(d: &mut Dict, k: StyleKeys) {
     if let Some(v) = k.text_height {
         d.insert(Name::from(b"TextHeight"), Object::Real(v));
@@ -974,10 +1011,7 @@ fn put_style_keys(d: &mut Dict, k: StyleKeys) {
     }
     // `/Dash []` is an explicit solid override, distinct from absent.
     if let Some(dash) = k.dash {
-        d.insert(
-            Name::from(b"Dash"),
-            Object::Array(dash.pattern().iter().copied().map(Object::Real).collect()),
-        );
+        d.insert(Name::from(b"Dash"), dash_array(dash));
     }
     if let Some(v) = k.opacity {
         d.insert(Name::from(b"Opacity"), Object::Real(v));
@@ -989,6 +1023,52 @@ fn put_style_keys(d: &mut Dict, k: StyleKeys) {
         };
         d.insert(Name::from(b"MarkSizeKind"), Object::Name(Name::from(kind)));
         d.insert(Name::from(b"MarkSize"), Object::Real(v));
+    }
+    if !k.circle.is_follow() {
+        d.insert(Name::from(b"Circle"), put_part_stroke(k.circle));
+    }
+}
+
+/// A part stroke as a dict of its set fields: `/Dash`, `/LineWidth`,
+/// `/Color`, encoded as on the ce dimension itself.
+fn put_part_stroke(p: PartStroke) -> Object {
+    let mut d = Dict::new();
+    if let Some(dash) = p.dash {
+        d.insert(Name::from(b"Dash"), dash_array(dash));
+    }
+    if let Some(w) = p.width {
+        d.insert(Name::from(b"LineWidth"), Object::Real(w));
+    }
+    if let Some(c) = p.color {
+        d.insert(Name::from(b"Color"), c.to_array());
+    }
+    Object::Dict(d)
+}
+
+/// The part stroke under `key`; absent, malformed or out-of-range fields
+/// follow the ce dimension.
+fn read_part_stroke(d: &Dict, key: &[u8]) -> PartStroke {
+    let Some(p) = d.get(key).and_then(Object::as_dict) else {
+        return PartStroke::FOLLOW;
+    };
+    PartStroke::FOLLOW
+        .with_dash(dash_of(p.get(b"Dash")))
+        .with_width(positive_of(p.get(b"LineWidth")))
+        .with_color(color_of(p.get(b"Color")))
+}
+
+fn dash_array(dash: DimDash) -> Object {
+    Object::Array(dash.pattern().iter().copied().map(Object::Real).collect())
+}
+
+fn dash_of(o: Option<&Object>) -> Option<DimDash> {
+    match o {
+        Some(Object::Array(a)) => a
+            .iter()
+            .map(Object::as_number)
+            .collect::<Option<Vec<f64>>>()
+            .and_then(|p| DimDash::new(&p)),
+        _ => None,
     }
 }
 
@@ -1017,14 +1097,7 @@ fn read_style_keys(d: &Dict) -> StyleKeys {
             .and_then(Object::as_int)
             .and_then(|v| u32::try_from(v).ok())
             .filter(|p| *p <= 12),
-        dash: match d.get(b"Dash") {
-            Some(Object::Array(a)) => a
-                .iter()
-                .map(Object::as_number)
-                .collect::<Option<Vec<f64>>>()
-                .and_then(|p| DimDash::new(&p)),
-            _ => None,
-        },
+        dash: dash_of(d.get(b"Dash")),
         opacity: d
             .get(b"Opacity")
             .and_then(Object::as_number)
@@ -1036,6 +1109,7 @@ fn read_style_keys(d: &Dict) -> StyleKeys {
                 _ => None,
             }
         }),
+        circle: read_part_stroke(d, b"Circle"),
     }
 }
 
@@ -1366,6 +1440,7 @@ mod tests {
                     residual: 0.3,
                 },
                 show_diameter: true,
+                show_circle: true,
                 leader_angle: 0.0,
                 text_distance: None,
                 centre_mark: None,
@@ -1489,6 +1564,7 @@ mod angular_sidecar_tests {
                     residual: 0.0,
                 },
                 show_diameter: false,
+                show_circle: true,
                 leader_angle: 0.0,
                 text_distance: None,
                 centre_mark: None,
@@ -1597,6 +1673,9 @@ mod style_sidecar_tests {
             dash: DimDash::new(&[3.0, 1.5]),
             opacity: Some(0.5),
             centre_mark_size: Some(CentreMarkSize::Fixed(4.0)),
+            circle: PartStroke::FOLLOW
+                .with_dash(DimDash::new(&[6.0, 2.0, 1.0, 2.0]))
+                .with_width(Some(0.35)),
         };
         let first = model.dimensions()[0].id;
         model.dimension_mut(first).unwrap().style = StyleOverrides {
@@ -1622,6 +1701,10 @@ mod style_sidecar_tests {
             dash: Some(DimDash::SOLID),
             opacity: None,
             centre_mark_size: Some(CentreMarkSize::TextHeight(0.75)),
+            // A solid circle under a dashed group circle, in its own colour.
+            circle: PartStroke::FOLLOW
+                .with_dash(Some(DimDash::SOLID))
+                .with_color(Some(Color::Rgb(0.0, 0.0, 1.0))),
         };
 
         let back = deserialize_model(&serialize_model(&model)).expect("round trip");
@@ -1643,6 +1726,11 @@ mod style_sidecar_tests {
                 .is_none()
         );
         assert!(back.dimension(first).unwrap().style.line_width.is_none());
+        assert!(back.dimension(first).unwrap().style.circle.width.is_none());
+        assert_eq!(
+            sidecar_version(&serialize_model(&model)),
+            Some(SIDECAR_VERSION)
+        );
     }
 
     /// A file-supplied style value that is absurd or malformed must read as

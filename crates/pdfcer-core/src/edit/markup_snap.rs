@@ -160,9 +160,11 @@ fn ce_dimension_geometry(d: &DimensionRecord, style: Option<DimensionStyle>) -> 
                 g.push_points(&[start, end], false, OutlineKind::EndsOnly);
             }
         }
-        DimensionKind::Circular { fit, .. } => {
+        DimensionKind::Circular {
+            fit, show_circle, ..
+        } => {
             g.push_center_point(fit.center);
-            g.push_circle(fit.center, fit.radius, true);
+            g.push_circle(fit.center, fit.radius, *show_circle);
         }
         DimensionKind::Angular { apex, .. } => g.push_node(*apex),
         DimensionKind::Perimeter { points, .. } => {

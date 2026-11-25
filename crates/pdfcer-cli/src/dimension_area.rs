@@ -1,5 +1,6 @@
-//! `dimension-area` — switch a closed perimeter ce dimension between its
-//! perimeter and its enclosed-area reading.
+//! Reading toggles on a placed ce dimension: `dimension-area` (a closed
+//! perimeter's perimeter or enclosed area) and `dimension-circle` (a
+//! radius/diameter ce dimension's circle shown or hidden).
 
 use super::*;
 
@@ -66,6 +67,71 @@ pub(crate) fn cmd_dimension_area(
         "dimension-area {} dimension={dimension} show={} mode={} -> {}; changed={} objects={} appended={} out_bytes={} undo_verified={} undo_identical={}",
         input.display(),
         show.token(),
+        mode.name(),
+        output.display(),
+        outcome.changed,
+        r.objects_written,
+        r.bytes_appended,
+        r.bytes_written,
+        u32::from(outcome.undo_verified),
+        u32::from(outcome.undo_identical),
+    );
+    finish_edit(input, &outcome)
+}
+
+/// Whether the circle of a radius/diameter ce dimension is drawn.
+#[derive(Copy, Clone, Debug, PartialEq, Eq, clap::ValueEnum)]
+pub(crate) enum CircleShownArg {
+    /// Draw the circle (the default for a new ce dimension).
+    Shown,
+    /// Draw only the leader, label and any centre mark.
+    Hidden,
+}
+
+impl CircleShownArg {
+    const fn token(self) -> &'static str {
+        match self {
+            Self::Shown => "shown",
+            Self::Hidden => "hidden",
+        }
+    }
+}
+
+/// `dimension-circle`: one `dimension-circle …` line with the usual save
+/// fields, then [`finish_edit`]'s exit code. An unknown id or a ce dimension
+/// that is not radius/diameter is refused before anything is written.
+pub(crate) fn cmd_dimension_circle(
+    input: &Path,
+    dimension: u32,
+    circle: CircleShownArg,
+    output: &Path,
+    mode: SaveMode,
+    verify_undo: bool,
+) -> u8 {
+    let (source, mut session) = match open_for_edit(input) {
+        Ok(pair) => pair,
+        Err(code) => return code,
+    };
+    let id = pdfcer_core::dimension::DimensionId(dimension);
+    if let Err(err) = session.set_circular_circle_shown(id, circle == CircleShownArg::Shown) {
+        return report_edit_error(input, &err);
+    }
+    let outcome = match save_edited(
+        &mut session,
+        &source,
+        output,
+        mode,
+        ProducerArg::Preserve,
+        verify_undo,
+    ) {
+        Ok(outcome) => outcome,
+        Err(code) => return code,
+    };
+    let r = &outcome.report;
+    println!(
+        "dimension-circle {} dimension={dimension} circle={} mode={} -> {}; changed={} objects={} appended={} out_bytes={} undo_verified={} undo_identical={}",
+        input.display(),
+        circle.token(),
         mode.name(),
         output.display(),
         outcome.changed,

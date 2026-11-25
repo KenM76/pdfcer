@@ -182,6 +182,7 @@ pub(crate) fn cmd_centre_mark(args: &CentreMarkArgs<'_>) -> u8 {
         m => DimensionKind::Circular {
             fit,
             show_diameter: m == CentreMeasureArg::Diameter,
+            show_circle: true,
             leader_angle: 0.0,
             text_distance: None,
             centre_mark: Some(mark),

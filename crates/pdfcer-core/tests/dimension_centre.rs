@@ -429,6 +429,7 @@ fn a_diameter_with_its_centre_mark_is_one_object() {
     let dia = DimensionKind::Circular {
         fit: circle(),
         show_diameter: true,
+        show_circle: true,
         leader_angle: 0.0,
         text_distance: None,
         centre_mark: Some(CentreMarkSpec::default()),

@@ -89,6 +89,7 @@ use super::author::DimensionStyle;
 use super::centre::CentreMarkSize;
 use super::dash::DimDash;
 use super::group::{DimStandard, Group};
+use super::part_stroke::PartStroke;
 use super::tolerance::Tolerance;
 use super::units::{DecimalMarker, FractionMode, NumberFormat, Unit};
 
@@ -208,6 +209,9 @@ pub struct StyleDefaults {
     pub opacity: f64,
     /// Centre-mark arm length (`Pass 740.0`).
     pub centre_mark_size: CentreMarkSize,
+    /// A radius/diameter ce dimension's circle stroke; the factory follows
+    /// the ce dimension in every field.
+    pub circle: PartStroke,
 }
 
 impl StyleDefaults {
@@ -226,6 +230,7 @@ impl StyleDefaults {
         dash: DimDash::SOLID,
         opacity: 1.0,
         centre_mark_size: CentreMarkSize::TextHeight(0.5),
+        circle: PartStroke::FOLLOW,
     };
 }
 
@@ -273,6 +278,9 @@ pub struct GroupStyle {
     pub opacity: Option<f64>,
     /// Centre-mark arm length; `None` ⇒ factory (half the text height).
     pub centre_mark_size: Option<CentreMarkSize>,
+    /// The circle stroke of the group's radius/diameter ce dimensions; each
+    /// `None` field ⇒ factory.
+    pub circle: PartStroke,
 }
 
 impl GroupStyle {
@@ -337,6 +345,9 @@ pub struct StyleOverrides {
     pub opacity: Option<f64>,
     /// Centre-mark arm length; `None` ⇒ the group's, then factory.
     pub centre_mark_size: Option<CentreMarkSize>,
+    /// This radius/diameter ce dimension's circle stroke; each `None` field
+    /// ⇒ the group's, then factory, then this ce dimension's own lines.
+    pub circle: PartStroke,
 }
 
 impl StyleOverrides {
@@ -367,6 +378,7 @@ impl StyleOverrides {
             + usize::from(self.dash.is_some())
             + usize::from(self.opacity.is_some())
             + usize::from(self.centre_mark_size.is_some())
+            + self.circle.count()
     }
 }
 
@@ -449,6 +461,13 @@ pub struct StyleProvenance {
     pub opacity: StyleSource,
     /// Source of the centre-mark size.
     pub centre_mark_size: StyleSource,
+    /// Source of the circle's dash pattern. `Factory` here means it follows
+    /// the ce dimension's resolved `dash`.
+    pub circle_dash: StyleSource,
+    /// Source of the circle's stroke width (`Factory`: follows `line_width`).
+    pub circle_width: StyleSource,
+    /// Source of the circle's colour (`Factory`: follows `color`).
+    pub circle_color: StyleSource,
 }
 
 impl StyleProvenance {
@@ -459,7 +478,7 @@ impl StyleProvenance {
     /// gets a compile error, not a silently shorter listing, when a property
     /// is added and this method is not extended.
     #[must_use]
-    pub const fn each(&self) -> [(&'static str, StyleSource); 14] {
+    pub const fn each(&self) -> [(&'static str, StyleSource); 17] {
         [
             ("unit", self.unit),
             ("fraction", self.fraction),
@@ -475,6 +494,9 @@ impl StyleProvenance {
             ("dash", self.dash),
             ("opacity", self.opacity),
             ("centre-mark-size", self.centre_mark_size),
+            ("circle-dash", self.circle_dash),
+            ("circle-width", self.circle_width),
+            ("circle-color", self.circle_color),
         ]
     }
 }
@@ -562,6 +584,7 @@ pub fn resolve_style(group: &Group, over: &StyleOverrides) -> DimensionStyle {
             .centre_mark_size
             .or(group.style.centre_mark_size)
             .unwrap_or(f.centre_mark_size),
+        circle: over.circle.or(group.style.circle).or(f.circle),
         user_unit: 1.0,
     }
 }
@@ -623,6 +646,18 @@ pub fn style_provenance(group: &Group, over: &StyleOverrides) -> StyleProvenance
         centre_mark_size: three(
             over.centre_mark_size.is_some(),
             group.style.centre_mark_size.is_some(),
+        ),
+        circle_dash: three(
+            over.circle.dash.is_some(),
+            group.style.circle.dash.is_some(),
+        ),
+        circle_width: three(
+            over.circle.width.is_some(),
+            group.style.circle.width.is_some(),
+        ),
+        circle_color: three(
+            over.circle.color.is_some(),
+            group.style.circle.color.is_some(),
         ),
     }
 }
@@ -689,8 +724,43 @@ mod tests {
         // A property whose group tier is a concrete field never reports
         // Factory — the group always has an answer for it.
         assert_eq!(p.standard, StyleSource::Group);
-        assert_eq!(p.each().len(), 14);
+        assert_eq!(p.each().len(), 17);
         assert_eq!(p.centre_mark_size, StyleSource::Factory);
+        assert_eq!(p.circle_width, StyleSource::Factory);
+    }
+
+    /// Would catch: the circle cascaded as one unit (a group colour lost to a
+    /// ce dimension's width), or an unset field not following the lines.
+    #[test]
+    fn the_circle_stroke_cascades_per_field_and_follows_the_lines() {
+        let mut g = group();
+        g.style.circle = PartStroke::FOLLOW
+            .with_color(Some(Color::Gray(0.5)))
+            .with_width(Some(0.25));
+        let over = StyleOverrides {
+            line_width: Some(2.0),
+            dash: DimDash::new(&[4.0, 2.0]),
+            circle: PartStroke::FOLLOW.with_width(Some(1.0)),
+            ..StyleOverrides::default()
+        };
+        let s = resolve_style(&g, &over);
+        let c = s.circle_stroke();
+        assert!((c.width - 1.0).abs() < f64::EPSILON);
+        assert_eq!(c.color, Color::Gray(0.5));
+        assert_eq!(c.dash, s.dash, "an unset circle dash follows the lines");
+        let p = style_provenance(&g, &over);
+        assert_eq!(
+            (p.circle_dash, p.circle_width, p.circle_color),
+            (
+                StyleSource::Factory,
+                StyleSource::Dimension,
+                StyleSource::Group
+            )
+        );
+        assert_eq!(over.count(), 3);
+        // Nothing set anywhere: the circle draws exactly as the lines.
+        let plain = resolve_style(&group(), &StyleOverrides::default());
+        assert_eq!(plain.circle_stroke(), plain.line_stroke());
     }
 
     /// `follows_group` is the predicate a UI actually needs, and getting it

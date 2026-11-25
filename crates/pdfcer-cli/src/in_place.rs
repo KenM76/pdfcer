@@ -64,6 +64,7 @@ pub(crate) const IN_PLACE_COMMANDS: &[&str] = &[
     "detach-file",
     "dimension-add",
     "dimension-area",
+    "dimension-circle",
     "dimension-delete",
     "dimension-display",
     "dimension-extension-gap",

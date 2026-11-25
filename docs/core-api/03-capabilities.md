@@ -246,6 +246,48 @@ designing anything in this area; do not re-derive it.
     `pdfcer centre-mark IN (--circle cx,cy,r | --points "x,y x,y x,y ...")
     [--measure none|radius|diameter] [--extension-lines] [--angle DEG] -o OUT`;
     `group-style` / `dimension-style --centre-mark-size text:F|fixed:PT`.
+- **The circle of a radius/diameter ce dimension** (`Pass 766.0`, G329).
+  - `DimensionKind::Circular::show_circle: bool` — `false` bakes no circle
+    (leader, label and any centre mark stay, and the circle leaves the
+    `/BBox`). Sidecar `/ShowCircle false`, written only when hidden; absent
+    reads `true`. Snap targets on a hidden circle carry `drawn: false`.
+    ⚠️ **Breaking for struct literals:** add `show_circle: true`.
+  - `EditSession::set_circular_circle_shown(id, shown: bool) -> Result<(),
+    EditError>` — one undo entry, **commits even on a no-op** (like
+    `set_dimension_display`); `NotACircularDimension { id }` for any other
+    kind, `DimensionNotFound` for an unknown id, both before mutating.
+  - **The circle's stroke is a style property**, `circle: PartStroke` on
+    `StyleDefaults` (factory `PartStroke::FOLLOW`), `GroupStyle`,
+    `StyleOverrides` and the resolved `DimensionStyle`. `PartStroke { dash:
+    Option<DimDash>, width: Option<f64>, color: Option<Color> }` cascades
+    **per field** (ce dimension → group → factory, `PartStroke::or`), and a
+    field unset everywhere follows the ce dimension's own `dash` /
+    `line_width` / `color`. Read the drawn stroke from
+    `DimensionStyle::circle_stroke() -> ResolvedStroke { dash, width, color }`
+    (`line_stroke()` is the lines'). Both types are `#[non_exhaustive]`:
+    build with `PartStroke::FOLLOW.with_dash(..).with_width(..).with_color(..)`
+    and `ResolvedStroke::new(dash, width, color)`; `is_follow()`, `count()`,
+    `resolve(main)`. The type is per-part so later parts (extension lines,
+    the leader) reuse it. `width` is not validated by core, as `line_width`
+    is not; the CLI refuses a non-positive one.
+  - **Opacity is not per part**: it is the annotation's `/CA` (ISO 32000-1
+    §12.5.2 Table 166), one value for the whole ce dimension.
+  - Bake: a circle whose resolved stroke equals the lines' is emitted
+    byte-identical to before; otherwise it is stroked inside its own `q … Q`
+    setting only the differing colour, `w` and `d`.
+  - Sidecar `/Circle << /Dash /LineWidth /Color >>` on a group or ce
+    dimension, written only when some field is set. A document with a hidden
+    or restyled circle writes **sidecar version 7**; an older build refuses
+    to edit it.
+  - `StyleProvenance` gains `circle_dash`, `circle_width`, `circle_color`;
+    `each()` now returns **17** entries (`"circle-dash"`, `"circle-width"`,
+    `"circle-color"`). ⚠️ **Breaking** for a literal of any of the four
+    style types (add `circle`) and for code sized to 14.
+  - CLI: `pdfcer dimension-circle IN --dimension N --circle shown|hidden -o
+    OUT`; `dimension-style` / `group-style --circle-dash 6,2 --circle-width
+    0.35 --circle-color 0,0,1`, `--clear circle-dash,circle-width,circle-color`;
+    `dimension-list` prints `circle=hidden`, and `--style` lists the three
+    resolved values with their source.
 - Reposition (drag or numeric), toggle the group's layer, delete
   (annotation + `/AP` + sidecar record together).
 
@@ -294,6 +336,7 @@ document. Every persistent change goes through an `EditSession` verb below.
 | `set_group_style(group, style: GroupStyle)` | `Result<usize, EditError>` — members **regenerated** |
 | `set_dimension_style(dimension, style: StyleOverrides)` | `Result<usize, EditError>` — always this one member |
 | `set_dimension_display(dimension, show_diameter: bool)` | `Result<(), EditError>` — circular only |
+| `set_circular_circle_shown(dimension, shown: bool)` | `Result<(), EditError>` — circular only; commits on a no-op |
 | `set_dimension_area(dimension, area: bool)` | `Result<(), EditError>` — closed perimeter, ≥3 vertices |
 | `place_dimension(dimension, offset: f64, text_along: f64)` | `Result<(), EditError>` |
 | `set_dimension_extension_gap(dimension, end: DimensionEnd, gap: Option<f64>)` | `Result<(), EditError>` — linear only; `None` = the standard's gap |
@@ -571,12 +614,13 @@ Four further points a panel gets wrong if it guesses:
   (`style.rs`). Saying "factory" for them "would be a lie an operator
   could act on."
 - **`StyleProvenance::each()` returns a fixed-size `[(&'static str,
-  StyleSource); 14]`** (`style.rs`) so a loop gets a **compile error**,
-  not a silently short list, when a fifteenth property lands.
+  StyleSource); 17]`** (`style.rs`) so a loop gets a **compile error**,
+  not a silently short list, when an eighteenth property lands.
   ⚠️ `docs/ui_specs/…-ce-dimension-properties.md` **Amendment B §B.2 says
   "nine"** — that text predates `Pass 69.1` adding `tolerance` and
   `tolerance_places`, and `Pass 541.0` adding `dash` and `opacity`, and `Pass 740.0` adding
-  `centre_mark_size`. The code at `style.rs` is authoritative: **fourteen**.
+  `centre_mark_size`, and `Pass 766.0` adding the three circle-stroke fields.
+  The code at `style.rs` is authoritative: **seventeen**.
   Same for §B.4's "the same nine properties".
 - **Clearing an override restores inheritance**, live and in both
   directions — deliberately unlike the reference tool, whose `DeleteStyle`

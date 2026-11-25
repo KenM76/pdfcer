@@ -330,6 +330,7 @@ fn a_circular_ce_dimension_snaps_to_its_centre() {
             residual: 0.0,
         },
         show_diameter: true,
+        show_circle: true,
         leader_angle: 45.0,
         text_distance: None,
         centre_mark: None,

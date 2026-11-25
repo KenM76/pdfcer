@@ -47,6 +47,7 @@ fn circle(show_diameter: bool) -> DimensionKind {
             residual: 0.0,
         },
         show_diameter,
+        show_circle: true,
         leader_angle: 0.0,
         text_distance: None,
         centre_mark: None,

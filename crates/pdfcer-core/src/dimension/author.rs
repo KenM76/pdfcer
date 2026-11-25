@@ -41,6 +41,7 @@ use crate::writer::content::{ContentBuilder, LineCap, LineJoin, Paint};
 
 use super::group::{DimStandard, DimensionKind};
 use super::measure_dict::build_measure_dict;
+use super::part_stroke::ResolvedStroke;
 use super::style::{ArrowForm, StyleDefaults, StyleOverrides};
 use super::tolerance::Tolerance;
 use super::units::{NumberFormat, ScaleState};
@@ -126,6 +127,10 @@ pub struct DimensionStyle {
     /// Centre-mark arm length, for a centre mark or a circular ce dimension
     /// that carries one.
     pub centre_mark_size: super::centre::CentreMarkSize,
+    /// The circle's stroke overrides, for a radius/diameter ce dimension; the
+    /// cascade's result, still `None` where the circle follows these lines.
+    /// Read the drawn stroke from [`Self::circle_stroke`].
+    pub circle: super::part_stroke::PartStroke,
 }
 
 impl DimensionStyle {
@@ -165,7 +170,24 @@ impl DimensionStyle {
             opacity: f.opacity,
             user_unit: 1.0,
             centre_mark_size: f.centre_mark_size,
+            circle: f.circle,
         }
+    }
+
+    /// The stroke of this ce dimension's own lines: `dash`, `line_width`
+    /// and `color`.
+    #[must_use]
+    pub const fn line_stroke(&self) -> ResolvedStroke {
+        ResolvedStroke::new(self.dash, self.line_width, self.color)
+    }
+
+    /// The stroke a radius/diameter ce dimension's circle is drawn with:
+    /// [`Self::circle`] with each unset field taken from
+    /// [`Self::line_stroke`]. Opacity is not part of it; it is
+    /// annotation-wide (`/CA`).
+    #[must_use]
+    pub fn circle_stroke(&self) -> ResolvedStroke {
+        self.circle.resolve(self.line_stroke())
     }
 }
 
@@ -578,7 +600,10 @@ pub fn author_dimension_with_label(
             );
         }
         DimensionKind::Circular {
-            fit, show_diameter, ..
+            fit,
+            show_diameter,
+            show_circle,
+            ..
         } => {
             // Circular text is horizontal under both standards (no axis
             // frame), so its box is axis-aligned; `lift` is the same rule the
@@ -601,7 +626,7 @@ pub fn author_dimension_with_label(
                 fit.center,
                 fit.radius,
                 circular_leader(kind),
-                show_diameter,
+                (show_diameter, show_circle),
                 style,
                 text_box,
             );
@@ -881,7 +906,18 @@ pub(super) fn begin_strokes(b: &mut ContentBuilder, style: DimensionStyle) {
     //
     // So: a pure grey is written with the grey operators it always used, and
     // DeviceRGB appears only once a colour actually needs it.
-    let paint = match style.color {
+    let paint = stroke_paint(style.color);
+    paint.apply_stroke(b);
+    paint.apply_fill(b);
+    b.set_line_width(style.line_width);
+    b.set_line_cap(LineCap::Butt);
+    b.set_line_join(LineJoin::Miter);
+}
+
+/// `color` as the operators [`begin_strokes`] writes it: a pure grey RGB as
+/// `g`/`G`, everything else in its own space.
+fn stroke_paint(color: crate::annot_author::Color) -> crate::annot_author::Color {
+    match color {
         // Exact equality is the intent: only an untouched/explicitly-grey
         // colour takes the legacy path.
         #[allow(clippy::float_cmp)]
@@ -889,12 +925,7 @@ pub(super) fn begin_strokes(b: &mut ContentBuilder, style: DimensionStyle) {
             crate::annot_author::Color::Gray(r)
         }
         other => other,
-    };
-    paint.apply_stroke(b);
-    paint.apply_fill(b);
-    b.set_line_width(style.line_width);
-    b.set_line_cap(LineCap::Butt);
-    b.set_line_join(LineJoin::Miter);
+    }
 }
 
 /// The nominal's own decimal precision, for a tolerance that follows it.
@@ -1127,7 +1158,8 @@ fn circular_leader(kind: &DimensionKind) -> (Point, Point, bool) {
     }
 }
 
-/// Draw a circular dimension: the fitted circle outline plus the leader from
+/// Draw a circular dimension: the fitted circle outline (when shown, in
+/// [`DimensionStyle::circle_stroke`]) plus the leader from
 /// [`circular_leader`] with its arrowhead(s) on the rim. An outside leader
 /// stops where it enters `text_box` (`[llx, lly, urx, ury]`, the label grown
 /// by its padding), so it points at the value rather than running through it.
@@ -1138,7 +1170,7 @@ fn draw_circular(
     center: Point,
     radius: f64,
     (from, to, outside): (Point, Point, bool),
-    show_diameter: bool,
+    (show_diameter, show_circle): (bool, bool),
     style: DimensionStyle,
     text_box: [f64; 4],
 ) {
@@ -1148,9 +1180,11 @@ fn draw_circular(
     } else {
         to
     };
-    // The fitted circle outline (four kappa cubics), for context.
-    if radius.is_finite() && radius > 0.0 {
-        emit_circle(b, center, radius);
+    // The fitted circle outline (four kappa cubics), unless hidden.
+    if show_circle && radius.is_finite() && radius > 0.0 {
+        stroke_part(b, style, style.circle_stroke(), |b| {
+            emit_circle_path(b, center, radius);
+        });
         bounds.add(Point::new(center.x - radius, center.y - radius));
         bounds.add(Point::new(center.x + radius, center.y + radius));
     }
@@ -1425,10 +1459,37 @@ fn stroke_solid(
     }
 }
 
-/// Emit a circle outline centred at `c` radius `r` as four kappa cubics.
-fn emit_circle(b: &mut ContentBuilder, c: Point, r: f64) {
-    emit_circle_path(b, c, r);
+/// Build a path with `path` and stroke it in `part`, a stroke that may
+/// differ from the ce dimension's own lines. A part that draws like the lines
+/// strokes in their state with no extra operator, so its bytes are unchanged;
+/// otherwise the differing fields are set inside `q … Q`, which goes before
+/// the path (§8.2 Figure 9 allows no graphics state operator inside one).
+#[allow(clippy::float_cmp)] // an exact copy of the same width is the intent
+fn stroke_part(
+    b: &mut ContentBuilder,
+    style: DimensionStyle,
+    part: ResolvedStroke,
+    path: impl FnOnce(&mut ContentBuilder),
+) {
+    let main = style.line_stroke();
+    let differs = part != main;
+    if differs {
+        b.save_state();
+        if part.color != main.color {
+            stroke_paint(part.color).apply_stroke(b);
+        }
+        if part.width != main.width {
+            b.set_line_width(part.width);
+        }
+        if part.dash != main.dash {
+            b.set_dash(part.dash.pattern(), 0.0);
+        }
+    }
+    path(b);
     b.paint(Paint::Stroke);
+    if differs {
+        b.restore_state();
+    }
 }
 
 /// The circle PATH alone, unpainted — so a caller can choose stroke or fill.
@@ -1737,6 +1798,7 @@ mod tests {
                     &DimensionKind::Circular {
                         fit,
                         show_diameter: false,
+                        show_circle: true,
                         leader_angle,
                         text_distance: Some(60.0),
                         centre_mark: None,
@@ -1782,6 +1844,7 @@ mod tests {
             &DimensionKind::Circular {
                 fit,
                 show_diameter: false,
+                show_circle: true,
                 leader_angle: 0.0,
                 text_distance: None,
                 centre_mark: None,
@@ -1797,6 +1860,7 @@ mod tests {
             &DimensionKind::Circular {
                 fit,
                 show_diameter: true,
+                show_circle: true,
                 leader_angle: 0.0,
                 text_distance: None,
                 centre_mark: None,

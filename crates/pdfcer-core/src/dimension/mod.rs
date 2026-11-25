@@ -79,6 +79,9 @@ pub mod length_parse;
 pub mod measure_dict;
 /// A typed scaled length back to page user space.
 pub mod measurement_parse;
+/// The stroke of one drawn part of a ce dimension (a circle), cascaded per
+/// field.
+pub mod part_stroke;
 pub mod sidecar;
 /// The factory -> group -> ce-dimension STYLE CASCADE (`Pass 69.0`): the
 /// per-property override model behind the operator's group-default-plus-
@@ -111,6 +114,7 @@ pub use group::{
 pub use length_parse::{LengthParseError, ParsedLength, parse_length};
 pub use measure_dict::{build_measure_dict, build_ocg, build_ocproperties};
 pub use measurement_parse::user_units_from_measurement_on;
+pub use part_stroke::{PartStroke, ResolvedStroke};
 pub use sidecar::{SIDECAR_VERSION, deserialize_model, serialize_model, sidecar_version};
 pub use style::{
     ArrowForm, GroupStyle, StyleDefaults, StyleOverrides, StyleProvenance, StyleSource,

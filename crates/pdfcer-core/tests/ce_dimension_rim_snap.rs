@@ -34,6 +34,7 @@ fn circular() -> DimensionKind {
     DimensionKind::Circular {
         fit: fit(),
         show_diameter: true,
+        show_circle: true,
         leader_angle: 45.0,
         text_distance: None,
         centre_mark: None,
@@ -159,4 +160,16 @@ fn a_ce_dimension_target_is_built_with_new_outside_the_crate() {
     let cfg = SnapConfig::new(1.0).with_from(Some(Point::new(1.0, 2.0)));
     assert_eq!(cfg.from, Some(Point::new(1.0, 2.0)));
     assert_eq!(SnapConfig::new(1.0).from, None);
+}
+
+/// Would catch: a hidden circle (G329) still offered as drawn geometry.
+#[test]
+fn a_hidden_circular_circle_snaps_but_is_tagged_not_drawn() {
+    let (mut s, id) = with(circular());
+    s.set_circular_circle_shown(id, false).unwrap();
+    let t = 200f64.to_radians();
+    let q = Point::new(C.x + (R + 1.0) * t.cos(), C.y + (R + 1.0) * t.sin());
+    let c = near(&mut s, q, None);
+    let rim = of(&c, SnapKind::RimNearest);
+    assert_eq!(rim[0].ce_dimension, Some(CeDimensionTarget::new(id, false)));
 }
