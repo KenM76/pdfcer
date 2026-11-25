@@ -214,6 +214,46 @@ pub enum ReservedInfoKey {
     Trapped,
 }
 
+impl ReservedInfoKey {
+    /// The reserved key `key` names, if any: exactly the keys
+    /// [`EditSession::set_info_entry`] refuses with
+    /// [`EditError::InfoKeyReserved`], since it asks this. `key` is the
+    /// decoded name bytes without `/`, as in [`InfoEntry::key`]; matching
+    /// is exact and case-sensitive.
+    ///
+    /// ```
+    /// use pdfcer_core::edit::ReservedInfoKey;
+    /// assert_eq!(ReservedInfoKey::from_key(b"ModDate"), Some(ReservedInfoKey::ModDate));
+    /// assert_eq!(ReservedInfoKey::from_key(b"Department"), None);
+    /// ```
+    #[must_use]
+    pub fn from_key(key: &[u8]) -> Option<Self> {
+        Self::all().iter().copied().find(|r| r.key() == key)
+    }
+
+    /// The dictionary key, without `/`.
+    #[must_use]
+    pub const fn key(self) -> &'static [u8] {
+        match self {
+            Self::Producer => b"Producer",
+            Self::CreationDate => b"CreationDate",
+            Self::ModDate => b"ModDate",
+            Self::Trapped => b"Trapped",
+        }
+    }
+
+    /// Every reserved key.
+    #[must_use]
+    pub const fn all() -> &'static [Self] {
+        &[
+            Self::Producer,
+            Self::CreationDate,
+            Self::ModDate,
+            Self::Trapped,
+        ]
+    }
+}
+
 /// Why a key is not a usable `/Info` key.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[non_exhaustive]
@@ -225,16 +265,6 @@ pub enum InfoKeyProblem {
     /// Longer than the 127 bytes ISO 32000-1 Annex C lets a reader limit
     /// names to.
     TooLong,
-}
-
-fn reserved(key: &[u8]) -> Option<ReservedInfoKey> {
-    match key {
-        b"Producer" => Some(ReservedInfoKey::Producer),
-        b"CreationDate" => Some(ReservedInfoKey::CreationDate),
-        b"ModDate" => Some(ReservedInfoKey::ModDate),
-        b"Trapped" => Some(ReservedInfoKey::Trapped),
-        _ => None,
-    }
 }
 
 fn standard_field(key: &[u8]) -> Option<InfoField> {
@@ -343,7 +373,8 @@ impl EditSession {
     /// # Errors
     ///
     /// [`EditError::InfoKeyReserved`] for `Producer`, `CreationDate`,
-    /// `ModDate` and `Trapped`; [`EditError::InvalidInfoKey`] for an empty,
+    /// `ModDate` and `Trapped` (ask first with
+    /// [`ReservedInfoKey::from_key`]); [`EditError::InvalidInfoKey`] for an empty,
     /// NUL-holding or over-long key; otherwise as
     /// [`EditSession::set_info_field`].
     pub fn set_info_entry(
@@ -351,7 +382,7 @@ impl EditSession {
         key: &[u8],
         value: Option<&str>,
     ) -> Result<InfoEditOutcome, EditError> {
-        if let Some(key) = reserved(key) {
+        if let Some(key) = ReservedInfoKey::from_key(key) {
             return Err(EditError::InfoKeyReserved { key });
         }
         let problem = if key.is_empty() {

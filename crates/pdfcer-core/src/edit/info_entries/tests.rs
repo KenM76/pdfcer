@@ -20,9 +20,10 @@ fn each_standard_key_maps_to_its_xmp_property() {
 #[test]
 fn only_the_four_machine_set_keys_are_reserved() {
     for key in [&b"Producer"[..], b"CreationDate", b"ModDate", b"Trapped"] {
-        assert!(reserved(key).is_some());
+        assert!(ReservedInfoKey::from_key(key).is_some());
     }
     for field in InfoField::all() {
-        assert!(reserved(field.key()).is_none());
+        assert!(ReservedInfoKey::from_key(field.key()).is_none());
     }
+    assert_eq!(ReservedInfoKey::all().len(), 4);
 }

@@ -213,6 +213,15 @@ clear the undo stack or the dirty set, and none write to disk. **Detail: §5.5.*
 need their own policy); `set_info_entry` refuses the same keys plus `/Trapped`
 (a name, not text).
 
+**Ask before drawing a row:** `ReservedInfoKey::from_key(key: &[u8]) ->
+Option<ReservedInfoKey>` (`edit/info_entries.rs`, not an `EditSession` verb)
+is `Some` for exactly the keys `set_info_entry` refuses with
+`InfoKeyReserved` — `set_info_entry` asks it, so the two cannot drift. `key` is
+`InfoEntry::key` (no `/`), matched exactly and case-sensitively. Draw a
+`Some` row read-only. `ReservedInfoKey::all() -> &'static [ReservedInfoKey]`
+lists them and `.key() -> &'static [u8]` names one; do not mirror the list in
+the shell.
+
 **XMP kept in step** (`edit/info_entries.rs`, `edit/xmp_rewrite.rs`). Each
 `/Info` edit rewrites the catalog's `/Metadata` packet in the same command, so
 one Ctrl+Z restores both. Mapping: `Title` → `dc:title` (Alt, `x-default`),

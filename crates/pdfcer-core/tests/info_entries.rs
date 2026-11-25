@@ -238,6 +238,24 @@ fn reserved_and_invalid_keys_are_refused_by_name() {
     assert_eq!(s.undo_depth(), 1, "refusals record nothing");
 }
 
+/// `ReservedInfoKey::from_key` is the question a shell asks before drawing
+/// a row; it must give `set_info_entry`'s answer for every key.
+#[test]
+fn the_reserved_key_lookup_agrees_with_set_info_entry() {
+    let mut s = session(&pdf(None, false));
+    for &which in ReservedInfoKey::all() {
+        assert_eq!(ReservedInfoKey::from_key(which.key()), Some(which));
+        let err = s.set_info_entry(which.key(), Some("x")).unwrap_err();
+        assert!(matches!(err, EditError::InfoKeyReserved { key } if key == which));
+    }
+    let mut keys: Vec<&[u8]> = vec![b"Department", b"producer", b"Title", b"Author"];
+    keys.extend(InfoField::all().iter().map(|f| f.key()));
+    for key in keys {
+        assert_eq!(ReservedInfoKey::from_key(key), None);
+        assert!(s.set_info_entry(key, Some("x")).is_ok(), "{key:?}");
+    }
+}
+
 #[test]
 fn pdfa_1_to_3_keeps_custom_keys_out_of_xmp() {
     for part in ["1", "2", "3"] {
