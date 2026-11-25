@@ -124,3 +124,35 @@ fn a_rule_naming_no_fixup_is_named_and_still_fails() {
     assert_eq!(code, 0, "{out}");
     assert!(out.contains("fixup fix-hairlines"), "{out}");
 }
+
+#[test]
+fn report_format_json_writes_a_report_a_program_can_read() {
+    use pdfcer_core::ocr::json_lite::{Json, parse};
+    let input = scratch("in-json.pdf");
+    std::fs::write(&input, fixture()).unwrap();
+    let report = scratch("report.json");
+    let prof = profile("");
+    let (code, out) = run(&[
+        input.to_str().unwrap(),
+        "--profile",
+        prof.to_str().unwrap(),
+        "--report",
+        report.to_str().unwrap(),
+        "--report-format",
+        "json",
+    ]);
+    assert_eq!(code, 18, "{out}");
+    let json = parse(&std::fs::read(&report).unwrap()).expect("valid JSON");
+    let s = |j: &Json, k: &str| j.get(k).and_then(Json::as_str).map(str::to_owned);
+    assert_eq!(s(&json, "profile").as_deref(), Some("thin"));
+    assert_eq!(s(&json, "verdict").as_deref(), Some("fails"));
+    let findings = json.get("findings").and_then(Json::as_array).unwrap();
+    assert_eq!(findings.len(), 1);
+    assert_eq!(s(&findings[0], "rule").as_deref(), Some("hairline"));
+    assert_eq!(findings[0].get("page").and_then(Json::as_f64), Some(1.0));
+    let rules = json.get("rules").and_then(Json::as_array).unwrap();
+    assert_eq!(
+        s(&rules[0], "suggested_fixup").as_deref(),
+        Some("fix-hairlines")
+    );
+}

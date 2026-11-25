@@ -1,7 +1,7 @@
 //! A preflight report as plain text for a person to read or file.
 
 use super::fixup::{Fixup, rule_matches};
-use super::{Finding, FindingKind, FindingTarget, PreflightReport, Profile, Severity};
+use super::{Finding, FindingKind, FindingTarget, PreflightReport, Profile, ProfileRule, Severity};
 
 /// The report as plain text, grouped by rule in profile order.
 ///
@@ -37,11 +37,7 @@ pub fn report_text(report: &PreflightReport, profile: &Profile) -> String {
     let mut out = header(report, profile);
     let mut quiet = Vec::new();
     for rule in &profile.rules {
-        let found: Vec<&Finding> = report
-            .findings
-            .iter()
-            .filter(|f| rule_matches(&f.rule_id, &rule.id))
-            .collect();
+        let found = rule_findings(report, rule);
         if found.is_empty() {
             quiet.push(rule.id.as_str());
             continue;
@@ -52,11 +48,11 @@ pub fn report_text(report: &PreflightReport, profile: &Profile) -> String {
             rule.severity.as_str(),
             found.len()
         ));
-        let names: Vec<&str> = rule.fixups.iter().map(Fixup::name).collect();
+        let (names, suggested) = fixups_of(rule);
         if !names.is_empty() {
             out.push_str(&format!("  fixup: {}\n", names.join(", ")));
-        } else if let Some(s) = Fixup::suggested(&rule.check) {
-            out.push_str(&format!("  suggested fixup: {}\n", s.name()));
+        } else if let Some(s) = suggested {
+            out.push_str(&format!("  suggested fixup: {s}\n"));
         }
         for f in found {
             out.push_str(&format!("  {}\n", finding_text(f)));
@@ -68,16 +64,74 @@ pub fn report_text(report: &PreflightReport, profile: &Profile) -> String {
     out
 }
 
+/// The report's overall answer, shared by the text and JSON reports.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(super) enum Outcome {
+    /// An error-severity finding, or findings dropped at the cap.
+    Fails,
+    /// No error, but a finding remains or the run was cancelled.
+    NeedsReview,
+    /// Every page checked and nothing found.
+    Passes,
+}
+
+impl Outcome {
+    /// The outcome `report` earns.
+    pub(super) fn of(report: &PreflightReport) -> Self {
+        if report.fails() {
+            Self::Fails
+        } else if report.findings.is_empty() && !report.cancelled {
+            Self::Passes
+        } else {
+            Self::NeedsReview
+        }
+    }
+
+    const fn text(self) -> &'static str {
+        match self {
+            Self::Fails => "FAILS",
+            Self::NeedsReview => "needs review",
+            Self::Passes => "passes",
+        }
+    }
+
+    /// The JSON report's spelling.
+    pub(super) const fn json(self) -> &'static str {
+        match self {
+            Self::Fails => "fails",
+            Self::NeedsReview => "needs-review",
+            Self::Passes => "passes",
+        }
+    }
+}
+
+/// The findings `rule` reported, in report order.
+pub(super) fn rule_findings<'a>(
+    report: &'a PreflightReport,
+    rule: &ProfileRule,
+) -> Vec<&'a Finding> {
+    report
+        .findings
+        .iter()
+        .filter(|f| rule_matches(&f.rule_id, &rule.id))
+        .collect()
+}
+
+/// The fixups `rule` names, and pdfcer's suggestion when it names none.
+pub(super) fn fixups_of(rule: &ProfileRule) -> (Vec<&'static str>, Option<&'static str>) {
+    let names: Vec<&'static str> = rule.fixups.iter().map(Fixup::name).collect();
+    let suggested = if names.is_empty() {
+        Fixup::suggested(&rule.check).map(|s| s.name())
+    } else {
+        None
+    };
+    (names, suggested)
+}
+
 fn header(report: &PreflightReport, profile: &Profile) -> String {
     let count = |s: Severity| report.findings.iter().filter(|f| f.severity == s).count();
     let kind = |k: FindingKind| report.findings.iter().filter(|f| f.kind == k).count();
-    let verdict = if report.fails() {
-        "FAILS"
-    } else if report.findings.is_empty() && !report.cancelled {
-        "passes"
-    } else {
-        "needs review"
-    };
+    let verdict = Outcome::of(report).text();
     let mut out = format!("Preflight report: {}\n", profile.name);
     if !profile.description.is_empty() {
         out.push_str(&format!("{}\n", profile.description));
@@ -107,7 +161,8 @@ fn header(report: &PreflightReport, profile: &Profile) -> String {
     out
 }
 
-fn finding_text(f: &Finding) -> String {
+/// One finding as the text report's sentence.
+pub(super) fn finding_text(f: &Finding) -> String {
     let place = f
         .page
         .map_or_else(|| "document".to_owned(), |p| format!("page {p}"));

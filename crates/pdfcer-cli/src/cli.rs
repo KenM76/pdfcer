@@ -194,6 +194,16 @@ impl From<DecorationMetricsArg> for pdfcer_core::text_edit::decoration::Decorati
     }
 }
 
+/// `preflight --report-format`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, clap::ValueEnum)]
+pub(crate) enum ReportFormatArg {
+    /// Readable text grouped by rule.
+    #[default]
+    Text,
+    /// One JSON object with the same verdict and findings.
+    Json,
+}
+
 /// `extract-text --ocr-layer` and `export-docx --ocr-layer`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, clap::ValueEnum)]
 pub(crate) enum OcrLayerArg {
@@ -11882,7 +11892,9 @@ pub(crate) enum Command {
     /// `pdfx-3-2002`, `pdfx-3-2003`, `pdfx-4`, or a PDF/A level: `pdfa-1b`,
     /// `pdfa-2b`, `pdfa-3b`) or a JSON profile file;
     /// `--dump-profile` prints the chosen profile as JSON, to edit and pass
-    /// back. `--report FILE` also writes a readable text report.
+    /// back. `--report FILE` also writes a readable text report;
+    /// `--report-format json` writes it as one JSON object instead, with
+    /// the same verdict and findings.
     ///
     /// `--fix OUTPUT` runs the fixups the failing rules name in the profile
     /// (a rule's `fixups` list in its JSON) as one undo step, saves the
@@ -11906,6 +11918,9 @@ pub(crate) enum Command {
         /// Also write the report as readable text to this file.
         #[arg(long, value_name = "FILE")]
         report: Option<PathBuf>,
+        /// The `--report` file's format: `text`, or `json` for a program.
+        #[arg(long, value_enum, default_value_t = ReportFormatArg::Text, requires = "report")]
+        report_format: ReportFormatArg,
         /// Run the profile's fixups and save the fixed document here.
         #[arg(long, value_name = "OUTPUT", conflicts_with = "dump_profile")]
         fix: Option<PathBuf>,

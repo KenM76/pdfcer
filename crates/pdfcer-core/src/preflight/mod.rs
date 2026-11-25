@@ -25,6 +25,7 @@ mod pdfa;
 mod pdfua;
 mod pdfx;
 mod profile;
+mod report_json;
 mod report_text;
 #[cfg(test)]
 pub(crate) mod tests;
@@ -49,6 +50,7 @@ pub(crate) use pdfua::{
 };
 pub use pdfx::{PdfxLevel, PdfxReport, PdfxVerdict, validate_pdfx, validate_pdfx_with};
 pub use profile::{Profile, ProfileError, ProfileRule};
+pub use report_json::report_json;
 pub use report_text::report_text;
 
 use crate::PdfVersion;

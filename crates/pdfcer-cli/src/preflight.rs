@@ -24,6 +24,8 @@ pub(crate) struct PreflightArgs<'a> {
     pub(crate) dump: bool,
     /// `--report FILE`.
     pub(crate) report: Option<&'a Path>,
+    /// `--report-format`.
+    pub(crate) report_format: ReportFormatArg,
     /// `--fix OUTPUT`.
     pub(crate) fix: Option<&'a Path>,
     /// `--fix-suggested`.
@@ -48,7 +50,8 @@ pub(crate) struct PreflightArgs<'a> {
 ///   with ` rect=<llx>,<lly>,<urx>,<ury>` and
 ///   ` measured=<v> limit=<l> unit=<u>` when known, then ` "<sentence>"`.
 /// - `--report FILE` also writes `preflight::report_text` of the checked
-///   document to FILE; with `--fix`, of the fixed output.
+///   document to FILE (`preflight::report_json` with `--report-format
+///   json`); with `--fix`, of the fixed output.
 /// - `--fix OUTPUT`: see [`fix::cmd_preflight_fix`].
 /// - Exit `PREFLIGHT_FAILED` (18) when an error-severity rule found anything
 ///   or findings were dropped; `EDIT_REFUSED` for an unknown or invalid
@@ -78,7 +81,7 @@ pub(crate) fn cmd_preflight(a: &PreflightArgs<'_>) -> u8 {
     };
     let report = check(&doc.view(), &profile, a);
     print_report(input, &profile, &report);
-    if let Err(code) = write_report(a.report, &report, &profile) {
+    if let Err(code) = write_report(a, &report, &profile) {
         return code;
     }
     if report.fails() {
@@ -122,16 +125,21 @@ pub(crate) fn print_report(input: &Path, profile: &Profile, report: &PreflightRe
     }
 }
 
-/// Write the text report to `path`, when one was asked for.
+/// Write the report to `--report`, in `--report-format`, when one was
+/// asked for.
 pub(crate) fn write_report(
-    path: Option<&Path>,
+    a: &PreflightArgs<'_>,
     report: &PreflightReport,
     profile: &Profile,
 ) -> Result<(), u8> {
-    let Some(path) = path else {
+    let Some(path) = a.report else {
         return Ok(());
     };
-    std::fs::write(path, preflight::report_text(report, profile)).map_err(|err| {
+    let body = match a.report_format {
+        ReportFormatArg::Text => preflight::report_text(report, profile),
+        ReportFormatArg::Json => preflight::report_json(report, profile),
+    };
+    std::fs::write(path, body).map_err(|err| {
         eprintln!("pdfcer: --report {}: {err}", path.display());
         exit::IO_ERROR
     })

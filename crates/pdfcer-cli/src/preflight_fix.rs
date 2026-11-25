@@ -115,7 +115,7 @@ fn recheck(a: &PreflightArgs<'_>, output: &Path, profile: &Profile) -> u8 {
     };
     let report = check(&doc.view(), profile, a);
     print_report(output, profile, &report);
-    if let Err(code) = write_report(a.report, &report, profile) {
+    if let Err(code) = write_report(a, &report, profile) {
         return code;
     }
     if report.fails() {

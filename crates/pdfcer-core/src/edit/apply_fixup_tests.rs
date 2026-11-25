@@ -337,6 +337,56 @@ fn report_text_groups_findings_by_rule_with_the_fixup() {
 }
 
 #[test]
+fn report_json_carries_the_text_reports_verdict_and_findings() {
+    use crate::ocr::json_lite::{Json, parse};
+    let s = session(two_pages());
+    let p = profile(vec![
+        hairline_rule(),
+        ProfileRule::new("pages", Check::Encrypted, Severity::Error),
+    ]);
+    let report = preflight::run(&s.view(), &p);
+    let text = preflight::report_text(&report, &p);
+    let json = parse(preflight::report_json(&report, &p).as_bytes()).expect("valid JSON");
+    let str_of = |j: &Json, k: &str| j.get(k).and_then(Json::as_str).map(str::to_owned);
+    assert_eq!(str_of(&json, "profile").as_deref(), Some("test"));
+    assert_eq!(str_of(&json, "verdict").as_deref(), Some("fails"));
+    assert!(text.contains("Result: FAILS\n"));
+    assert_eq!(json.get("pages_checked").and_then(Json::as_f64), Some(2.0));
+    assert_eq!(json.get("cancelled").and_then(Json::as_bool), Some(false));
+    let rules = json.get("rules").and_then(Json::as_array).expect("rules");
+    assert_eq!(rules.len(), 2);
+    assert_eq!(str_of(&rules[0], "id").as_deref(), Some("hairline"));
+    assert_eq!(rules[0].get("findings").and_then(Json::as_f64), Some(2.0));
+    assert_eq!(
+        str_of(&rules[0], "suggested_fixup").as_deref(),
+        Some("fix-hairlines")
+    );
+    assert!(rules[1].get("suggested_fixup").is_some_and(Json::is_null));
+    let findings = json
+        .get("findings")
+        .and_then(Json::as_array)
+        .expect("findings");
+    assert_eq!(findings.len(), report.findings.len());
+    for f in findings {
+        let line = str_of(f, "text").expect("text");
+        assert!(text.contains(&format!("  {line}\n")), "{line}");
+        assert_eq!(str_of(f, "kind").as_deref(), Some("violation"));
+    }
+    let target = findings[findings.len() - 1].get("target").expect("target");
+    assert_eq!(str_of(target, "kind").as_deref(), Some("object"));
+
+    let clean = profile(vec![ProfileRule::new(
+        "pages",
+        Check::Encrypted,
+        Severity::Error,
+    )]);
+    let report = preflight::run(&s.view(), &clean);
+    let json = parse(preflight::report_json(&report, &clean).as_bytes()).expect("valid JSON");
+    assert_eq!(str_of(&json, "verdict").as_deref(), Some("passes"));
+    assert!(preflight::report_text(&report, &clean).contains("Result: passes\n"));
+}
+
+#[test]
 fn a_resample_that_would_grow_the_stream_is_kept_and_listed() {
     // A short repeating ramp compresses to almost nothing; resampling breaks
     // the repeat.

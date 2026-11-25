@@ -7184,6 +7184,7 @@ FILE] [--report FILE] [--mode] [--verify-undo]`.
 | `Check::ImageAbovePpi { max_ppi }` (JSON `image-above-ppi`) | a `Warning`-style rule: an image drawn above `max_ppi` in either direction, at its largest placement |
 | `ProfileRule.fixups: Vec<Fixup>`, `with_fixup()` | a rule's fixups; JSON `"fixups": [{"fixup": "<name>", …}]`, round-tripped by `to_json`/`from_json` |
 | `report_text(&PreflightReport, &Profile) -> String` | the report as text: name, description, pages checked, result (`FAILS`/`passes`/`needs review`), counts; per rule with findings its fixups (or the suggested one) and one line per finding; the rules with no finding |
+| `report_json(&PreflightReport, &Profile) -> String` (`Pass 759.0`) | the same report as one JSON object, same verdict rule and finding facts: `profile`, `description`, `pages_checked`, `page_count`, `cancelled`, `dropped`, `verdict` (`fails`/`needs-review`/`passes`), `counts` (`error`, `warning`, `info`, `violation`, `needs_person`, `incomplete`), `rules` (every profile rule: `id`, `severity`, `findings` count, `fixups`, `suggested_fixup` or `null`), `findings` (`rule`, `severity`, `kind`, `page` or `null`, `target` `{kind, index}` or `{kind, num, generation}`, `rect` or `null`, `measured` `{value, limit, unit}` or `null`, `message`, `text` = the text report's line). Non-finite numbers are `null`. CLI: `preflight --report FILE --report-format json` |
 
 Contract:
 
