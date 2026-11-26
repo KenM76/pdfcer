@@ -5,7 +5,9 @@ Engineer-owned; replaced each session. The previous long-form handoff (mesh
 failure classes, probe recipes, release recipe detail) is in git:
 `git show 40e7d1d7:docs/NEXT_SESSION.md`. Grep it; do not re-adopt it wholesale.
 
-**2026-11-25 update (Pass 776.0, newest; filed 1712th).** Pass 776.0 (`2da07efd`, `X119`) is on `main`, unreleased: content compaction keeps a `TL` after `TD` (it had removed it as a repeat, putting `T*` text on the wrong line), and a whole real beyond the 32-bit integer range keeps its period. Core only. **`X119` is closed.** The next release is `v0.176.0` (`pdfcer1` OneDrive slot) and carries 775.0, 770.1, 770.2 and 776.0.
+**2026-11-25 update (Pass 777.0 + v0.176.0 IN PROGRESS, newest; filed 1713th).** **The `v0.176.0` release is in progress and waits on CI for this fix.** CI went red on the version bump `a4a54a32` (run 45751692314, windows): a test race in `crates/pdfcer-cli/tests/three_d.rs`, where `lens_render()` and `panorama_render()` shared one fixed input path across parallel tests. Pass 777.0 (`d3c8a742`, test-only) keys each input on its tag. The package will be rebuilt after the last code commit; it carries 775.0, 770.1, 770.2, 776.0 and 777.0, and writes OneDrive `pdfcer1`.
+
+**2026-11-25 update (Pass 776.0, previous; filed 1712th).** Pass 776.0 (`2da07efd`, `X119`) is on `main`, unreleased: content compaction keeps a `TL` after `TD` (it had removed it as a repeat, putting `T*` text on the wrong line), and a whole real beyond the 32-bit integer range keeps its period. Core only. **`X119` is closed.** The next release is `v0.176.0` (`pdfcer1` OneDrive slot) and carries 775.0, 770.1, 770.2 and 776.0.
 
 **2026-11-25 update (Passes 770.1 + 770.2, previous; filed 1711th).** On `main`, unreleased (next release writes `pdfcer1`): 770.1 `47eb7f4b` (ce dimension anchors survive page transforms, copy and paste via clip format 6, and `set_centre_mark`; breaking `ClipAnnotation::Dimension` fields) and 770.2 `61f77977` (flattening a ce dimension removes it from the model and detaches its anchors). **`Pass 770.1` is no longer open; Next up has no head.** The GUI has consumed none of 765.0-772.0.
 

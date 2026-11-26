@@ -112,6 +112,14 @@ wherever it appears.*
 
 ## Shipped
 
+### `Pass 777.0`: the 3D-render lens and panorama CLI tests no longer share one input file; `d3c8a742`, 2026-11-25 (1713th filing); also the `v0.176.0` version bump `a4a54a32`
+
+Engineer-reported; no shell here, git, push, CI and the gates not run or checked from here. Never filed as Planned: found when CI went red on the unfiled `v0.176.0` version-bump commit `a4a54a32` (`chore: version 0.176.0`, a version-number change with no code change reported; filed here as the 1710th did for `43ebb942`), run 45751692314, windows. **Unreleased: the `v0.176.0` release is in progress and waits on CI for this fix.** Reasoning is in the commit message.
+- **Defect (test race, not a product defect):** `three_d::sun_elevation_raises_the_sun` failed with "not a PDF: no %PDF- header in the first 0 bytes". `lens_render()` and `panorama_render()` wrote their input PDF to one fixed per-process path (`with_prc("render_lens"` / `"render_pano"`, ...), so parallel tests rewrote the file while another read it.
+- **Fix, `crates/pdfcer-cli/tests/three_d.rs` only (test-only, no binary difference):** both helpers key the input on their tag (`render_lens_{tag}`, `render_pano_{tag}`). The one tag shared by two tests (`"flat"`, panorama jpg and png) became `"flat"` and `"flat_png"`. A `uniq -d` sweep confirms every tag is unique.
+- **Tests (engineer-reported):** three_d CLI tests 76/76 locally, run twice; fmt and clippy clean.
+- **FEATURES:** none (test-only, no capability change).
+
 ### `Pass 776.0`: content compaction keeps a `TL` after `TD`, and keeps the period on huge whole reals; `2da07efd`, 2026-11-25 (1712th filing)
 
 Engineer-reported; no shell here, git, push, CI and the gates not run or checked from here. Never filed as Planned: operator request `X119`, shipped in one go. **Unreleased: on `main` after the `v0.175.0` tag; shipped in the next release (`v0.176.0`, `pdfcer1` slot).** Reasoning is in the commit message.

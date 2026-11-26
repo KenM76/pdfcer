@@ -4,6 +4,16 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-11-25 (1713th filing) — `Pass 777.0` SHIPPED (`d3c8a742`); `v0.176.0` bump `a4a54a32` filed
+
+**Filed (engineer-reported; no shell here, git, push, CI and the gates not checked from here; operator commits):**
+- `Pass 777.0` `d3c8a742`, never Planned: CI went red on the `v0.176.0` bump `a4a54a32` (run 45751692314, windows). `three_d::sun_elevation_raises_the_sun` failed "not a PDF: no %PDF- header in the first 0 bytes": `lens_render()` and `panorama_render()` wrote to one fixed per-process path, so parallel tests rewrote a file another was reading. A test race, not a product defect. Fix in `crates/pdfcer-cli/tests/three_d.rs` only: inputs keyed on the tag (`render_lens_{tag}`, `render_pano_{tag}`); the shared `"flat"` tag became `"flat"` and `"flat_png"`; `uniq -d` sweep confirms every tag unique. three_d CLI tests 76/76 locally, twice; fmt, clippy clean. Test-only, no binary difference.
+- The bump `a4a54a32` (`chore: version 0.176.0`) was unfiled; filed here, as the 1710th did for `43ebb942`.
+- **`v0.176.0` is in progress**, waiting on CI for this fix; the package is rebuilt after the last code commit; it carries `775.0`, `770.1`, `770.2`, `776.0`, `777.0` and writes OneDrive `pdfcer1`.
+- `ROADMAP.md`: Shipped entry. `FEATURES.md`: not edited (no capability change). `NEXT_SESSION.md`: update added.
+
+**Decisions made:** none. **Next:** finish `v0.176.0` once CI is green.
+
 ## 2026-11-25 (1712th filing) — `Pass 776.0` SHIPPED (`2da07efd`), operator request `X119`
 
 **Filed (engineer-reported; no shell here, git, push, CI and the gates not checked from here; operator commits):**
