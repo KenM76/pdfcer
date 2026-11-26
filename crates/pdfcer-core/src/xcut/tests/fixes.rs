@@ -77,3 +77,31 @@ fn dropped_source_bound_keys_are_disclosed() {
         landed.outcome.disclosures
     );
 }
+
+/// A self-reference (a Screen's rendition `/AN`) binds to the pasted copy
+/// and does not drag the source page tree into the clip.
+#[test]
+#[allow(clippy::unwrap_used)]
+fn a_self_playing_screen_points_at_its_pasted_copy() {
+    let (s, id) = fixture::self_playing_screen();
+    let clip = copy(&s, id).unwrap();
+    let carried = clip.annotations.first().unwrap();
+    let crate::vector::ClipAnnotation::Raw(raw) = carried else {
+        panic!("not raw: {carried:?}");
+    };
+    assert!(
+        raw.objects.len() <= 1,
+        "page tree leaked into the clip: {:?}",
+        raw.objects
+    );
+    let mut dst = fixture::destination();
+    paste(&mut dst, 0, &clip, (0.0, 0.0)).unwrap();
+    let pasted = *annots(&dst, 0).last().unwrap();
+    let Some(Object::Dict(d)) = dst.value(pasted) else {
+        panic!("no pasted annotation");
+    };
+    let Some(Object::Dict(action)) = d.get(b"A") else {
+        panic!("action lost: {d:?}");
+    };
+    assert_eq!(action.get(b"AN"), Some(&Object::Reference(pasted)));
+}

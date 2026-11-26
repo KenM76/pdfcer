@@ -214,6 +214,11 @@ pub const MAX_CLIP_WIDGETS: usize = 512;
 /// costs the operator one degraded value, not the copy.
 const MAX_CLIP_DEPTH: usize = 32;
 
+/// The value of a clip object standing for the copied object itself
+/// ([`Closure::pin_self`]). An Annex E third-class name, so no producer's
+/// indirect object can collide with it.
+pub(crate) const CLIP_SELF_MARKER: &[u8] = b"XXpdfcerClipSelf";
+
 /// Field-half keys that are the field's **identity or structure**, and are
 /// therefore never carried.
 ///
@@ -884,6 +889,25 @@ impl<'a> Closure<'a> {
             },
         );
         Ok(number)
+    }
+
+    /// Stand `id` (the object being copied) in for itself: a reference back
+    /// to it inside its own value tree interns as a [`CLIP_SELF_MARKER`]
+    /// placeholder instead of walking the object, whose `/P` would drag the
+    /// source page tree into the clip. Paste binds the placeholder to the
+    /// new object. A Screen annotation naming itself through a rendition
+    /// action's `/AN` (§12.6.4.13) is the conforming case.
+    pub(crate) fn pin_self(&mut self, id: ObjId) -> Result<(), ClipError> {
+        let number = self.reserve()?;
+        self.mapping.insert(id, number);
+        self.objects.insert(
+            number,
+            ClipObject {
+                value: Object::Name(Name::from(CLIP_SELF_MARKER)),
+                payload: None,
+            },
+        );
+        Ok(())
     }
 
     fn reserve(&mut self) -> Result<u32, ClipError> {

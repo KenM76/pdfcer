@@ -16769,13 +16769,13 @@ impl EditSession {
         let subtype = String::from_utf8_lossy(&annot.subtype).into_owned();
         let view = self.view();
         let mut closure = crate::formclip::Closure::new(&view);
+        closure.pin_self(id)?;
         let carried = crate::xcut::carry::clone_then_patch(
             dict,
             &mut closure,
             Self::CLIP_STRIPPED_ANNOT_KEYS,
             Vec::new(),
         )?;
-        let _ = id;
         Ok(crate::vector::ClipAnnotation::Raw(Box::new(
             crate::vector::clip::RawAnnotation {
                 subtype,
@@ -16818,7 +16818,16 @@ impl EditSession {
             })?
             .id;
 
-        let mut imported: BTreeMap<u32, ObjId> = BTreeMap::new();
+        // Allocated first so a self-reference in the clip binds to it.
+        let annot_id = ObjId::new(self.alloc_number()?, 0);
+        let mut imported: BTreeMap<u32, ObjId> = raw
+            .objects
+            .iter()
+            .filter(|(_, o)| {
+                matches!(&o.value, Object::Name(n) if n.as_bytes() == crate::formclip::CLIP_SELF_MARKER)
+            })
+            .map(|(n, _)| (*n, annot_id))
+            .collect();
         let mut objects: Vec<ObjectWrite> = Vec::new();
         let mut dict = self
             .clip_materialize_value(
@@ -16878,7 +16887,6 @@ impl EditSession {
         dict.insert(Name::from(b"Type"), Object::Name(Name::from(b"Annot")));
         dict.insert(Name::from(b"P"), Object::Reference(page_id));
 
-        let annot_id = ObjId::new(self.alloc_number()?, 0);
         if regenerate_name {
             let taken = self.page_annotation_names(page_id);
             dict.insert(

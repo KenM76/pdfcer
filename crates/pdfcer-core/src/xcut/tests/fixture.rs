@@ -64,6 +64,18 @@ pub(super) fn build(kind: ObjectKind) -> (EditSession, ObjId) {
     )
 }
 
+/// A Screen annotation whose rendition action names itself through `/AN`
+/// (§12.6.4.13, the conforming self-play shape).
+pub(super) fn self_playing_screen() -> (EditSession, ObjId) {
+    let target = format!(
+        "<< /Type /Annot /Subtype /Screen /Rect [100 100 200 150] /P 3 0 R          /A << /S /Rendition /OP 0 /AN {TARGET} 0 R >> >>"
+    );
+    (
+        EditSession::new(pdf(&objects(&target, TARGET))),
+        ObjId::new(TARGET, 0),
+    )
+}
+
 fn objects(target: &str, parent: u32) -> Vec<(u32, String)> {
     let ap = stream(
         "/Type /XObject /Subtype /Form /BBox [0 0 100 50]",
