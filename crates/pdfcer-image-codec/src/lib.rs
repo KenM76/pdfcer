@@ -1234,7 +1234,7 @@ mod tests {
     #[test]
     fn one_row_past_max_image_pixels_is_refused() {
         // 11586^2 = MAX_IMAGE_PIXELS + 17,668; 11585^2 is under it.
-        assert!(11586u64 * 11586 > MAX_IMAGE_PIXELS && 11585u64 * 11585 <= MAX_IMAGE_PIXELS);
+        const { assert!(11586u64 * 11586 > MAX_IMAGE_PIXELS && 11585u64 * 11585 <= MAX_IMAGE_PIXELS) };
         let bytes = rgb_with_sof_dims(11586, 11586);
         assert_eq!(
             decode_fixture(&bytes, &dct_dict(11586, 11586)).unwrap_err(),
