@@ -112,7 +112,18 @@ wherever it appears.*
 
 ## Shipped
 
-### `v0.179.0` version bump `90ccebc6`; release IN PROGRESS, 2026-11-26 (1724th filing)
+### `v0.179.0` PUBLISHED, 2026-11-26 (1727th filing); the latest release
+
+Engineer-reported; no shell here, so git, CI, GitHub, crates.io and OneDrive were not checked from here. Annotated tag `v0.179.0` (object `dfc3533c`) is on `dad4f11b`; `main` was pushed to `e0e74811` with the tag. CI green on `dad4f11b` (run 45846942261). **Carries `Pass 780.0`** (`1bd09a91` 600 dpi scans, fallible buffers, `G336`; `44816881` clippy const-assert fix); bump `90ccebc6`.
+- **GitHub release:** 8 assets; portable zip `pdfcer-v0.179.0-windows-x64.zip` 33,626,563 bytes, built from `D:\builds\pdfcer-20261126-1100-e0e7481`, staged in `D:\builds\rel179`.
+- **Fresh-folder smoke:** `--version` reports 0.179.0, revision `v0.179.0-1-ge0e74811`; rendered `copier-scan-600dpi.pdf` with images=1, images_unsupported=0.
+- **OneDrive:** `deploy-onedrive.py` wrote `pdfcer2`; `pdfcer1` keeps 0.178.0. **The next release writes `pdfcer1`.**
+- **`verify-release.py v0.179.0`:** every check passed except "working tree clean" (42 paths: uncommitted agent-memory files, research notes and line-ending-only diffs; the standing never-commit locals).
+- **crates.io:** 17 crates at 0.179.0 published in one multi-package `cargo publish` round, no 429.
+- **Channel:** pdfcer-gui told in `open/notice_2026-11-26_release_v0.179.0.md`, INDEX row written.
+- **State after:** Next up stays `Pass 781.0` (decision 228), then `781.1`, then `780.1`. `G337` (cancel inside large-image decode) is still open and owed. `FEATURES.md`: no change.
+
+### `v0.179.0` version bump `90ccebc6`; release IN PROGRESS (superseded by the entry above), 2026-11-26 (1724th filing)
 
 Engineer-reported; no shell here, git, push, CI and the gates not checked from here. `90ccebc6` (`chore: bump version to 0.179.0`) changes `Cargo.toml`, `Cargo.lock` and `fuzz/Cargo.lock`, 56 insertions and 56 deletions, identical in shape to `186ada57`; a version-number change with no code change reported, filed here as the 1720th did for `186ada57`. Gates: the change-scoped release tests (image-codec, core, render, cli, `--no-fail-fast`) are running; results reported in the release filing. **Unreleased: the release is in progress.** It carries `Pass 780.0` (`1bd09a91`, `G336`), plus filings `108c4074` (1722nd) and `11f64401` (1723rd) since the `v0.178.0` tag; both pushed to `main`. OneDrive slot: `pdfcer2` (`pdfcer1` keeps 0.178.0). The tag goes on this filing commit after CI is green, pushed without `--no-verify`; the PUBLISHED entry follows.
 

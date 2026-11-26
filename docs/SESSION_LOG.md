@@ -4,6 +4,16 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-11-26 (1727th filing) — `v0.179.0` PUBLISHED
+
+**Filed (engineer-reported; no shell here, git, push, CI, GitHub, crates.io and OneDrive not checked from here; operator commits):**
+- Tag `v0.179.0` (annotated, object `dfc3533c`) on `dad4f11b`; `main` pushed to `e0e74811` with the tag; CI green on `dad4f11b` (run 45846942261). Carries `Pass 780.0` (`1bd09a91`, `44816881`), bump `90ccebc6`.
+- GitHub release: 8 assets; portable zip 33,626,563 bytes (`D:\builds\pdfcer-20261126-1100-e0e7481`, staged `D:\builds\rel179`). Fresh-folder smoke: 0.179.0, revision `v0.179.0-1-ge0e74811`, `copier-scan-600dpi.pdf` images=1 images_unsupported=0.
+- `deploy-onedrive.py` wrote `pdfcer2`; `pdfcer1` keeps 0.178.0; **the next release writes `pdfcer1`**. `verify-release.py` passed except "working tree clean" (42 uncommitted local paths). 17 crates at 0.179.0 published in one round, no 429. GUI notified (`open/notice_2026-11-26_release_v0.179.0.md`, INDEX row).
+- `ROADMAP.md`: PUBLISHED Shipped entry; the in-progress bump entry marked superseded. `NEXT_SESSION.md` updated. `FEATURES.md`: no change.
+
+**Decisions made:** none. **Next:** `Pass 781.0` (decision 228), `781.1`, then `780.1`; `G337` still open.
+
 ## 2026-11-26 (1726th filing) — decision 228 and the `Pass 781.x`/`782.x` cross-cutting coverage arc filed (no code)
 
 **Filed (engineer-reported; no shell here, git, push, CI and the gates not checked from here; operator commits):**
