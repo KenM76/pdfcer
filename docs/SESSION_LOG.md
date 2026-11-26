@@ -4,6 +4,14 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-11-26 (1721st filing) — `v0.178.0` PUBLISHED (tag `5bba0cd0`)
+
+**Filed (engineer-reported; no shell here, git, push, CI and the gates not checked from here; operator commits):**
+- `v0.178.0`: tag on `5bba0cd0` (1720th filing commit; bump `186ada57`), pushed with the pre-push hook running (not `--no-verify`), CI green (run 45801814312); GitHub release 8 assets, `gh-release.py` PASS (portable zip 33,525,605 bytes); 17 crates at 0.178.0 on crates.io in one round; OneDrive `pdfcer1` = 0.178.0 (6 items, 90,723,844 bytes), `pdfcer2` keeps 0.177.0 (**next release writes `pdfcer2`**); fresh-folder smoke OK (`--version` 0.178.0, `inspect` on `minimal.pdf`, `render-page --page 1` of `hello.pdf` at 200x120); `verify-release.py` ok except "working tree clean" (standing never-commit locals). Carries `779.0` and `779.1`. Notice `open/notice_2026-11-26_release_v0.178.0.md`, INDEX row written.
+- `ROADMAP.md`: PUBLISHED entry; the bump entry's header points to it. `FEATURES.md`: no change. `NEXT_SESSION.md`: update added.
+
+**Decisions made:** none. **Next:** no open requests; Next up has no head.
+
 ## 2026-11-26 (1720th filing) — `v0.178.0` bump `186ada57` filed; release IN PROGRESS
 
 **Filed (engineer-reported; no shell here, git, push, CI and the gates not checked from here; operator commits):**

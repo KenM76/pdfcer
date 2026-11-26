@@ -112,7 +112,19 @@ wherever it appears.*
 
 ## Shipped
 
-### `v0.178.0` version bump `186ada57`; release IN PROGRESS, 2026-11-26 (1720th filing)
+### `v0.178.0` PUBLISHED, tag on `5bba0cd0`, 2026-11-26 (1721st filing)
+
+Engineer-reported (checked by the engineer with a shell); this filing had no shell, so none of it is checked from here.
+- **Tag:** `v0.178.0` on `5bba0cd0` (the 1720th filing commit; bump `186ada57`). **Pushed with the pre-push hook running, not `--no-verify`** (the 1717th's slip is not repeated). CI green (run 45801814312).
+- **GitHub release:** "pdfcer v0.178.0"; `tools/gh-release.py` PASS, 8 assets at their local sizes; portable zip `pdfcer-v0.178.0-windows-x64.zip`, 33,525,605 bytes, plus the three OCR add-on zips and a `.sha256` for each.
+- **crates.io:** all 17 crates at 0.178.0, published leaf-first with `--no-verify` in one round, no failures.
+- **OneDrive:** `deploy-onedrive.py` wrote 6 items, 90,723,844 bytes, to `pdfcer1` = 0.178.0; `pdfcer2` keeps 0.177.0, so **the next release writes `pdfcer2`**.
+- **Smoke (fresh folder, build `pdfcer-20261126-0457-186ada5`):** `--version` 0.178.0, rev `v0.177.0-6-g186ada57`; `inspect` reads `minimal.pdf`; `render-page --page 1` renders `hello.pdf` to 200x120.
+- **`verify-release.py v0.178.0`:** every check ok except "working tree clean"; the only dirty files are the standing never-commit locals (agent memory, the stray `-` file, research request drafts, line-ending-only diffs in `THIRD_PARTY_LICENSES.md` and `tools/render-profile/Cargo.lock`), as at the previous release.
+- **Carries:** `Pass 779.0` (`688ad325`, `X121`), `Pass 779.1` (`fbbb02e2`).
+- **Channel:** `open/notice_2026-11-26_release_v0.178.0.md` and its INDEX row written. No open requests remain.
+
+### `v0.178.0` version bump `186ada57`; release IN PROGRESS, 2026-11-26 (1720th filing); published, see the entry above
 
 Engineer-reported; no shell here, git, push, CI and the gates not checked from here. `186ada57` (`chore: bump version to 0.178.0`) changes `Cargo.toml`, `Cargo.lock` and `fuzz/Cargo.lock`, 56 insertions and 56 deletions, identical in shape to `eed2a9d2`; a version-number change with no code change reported, filed here as the 1716th did for `eed2a9d2`. pdfcer-core: 6447 tests passed, 0 failed (`--no-fail-fast`). **Unreleased: the release is in progress.** It carries `Pass 779.0` (`688ad325`, `X121`) and `Pass 779.1` (`fbbb02e2`), plus filings `6e3d2685` (1718th) and `cb040ae4` (1719th); all pushed to `main`. OneDrive slot: `pdfcer1` (`pdfcer2` keeps 0.177.0). The tag goes on this filing commit after CI is green, **pushed without `--no-verify`**; the PUBLISHED entry follows.
 
