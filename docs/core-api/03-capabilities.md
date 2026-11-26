@@ -7482,3 +7482,51 @@ Contract:
 
 ⚠️ `TacRequest`, `TacRegion`, `TacMeasurement` and `TacRaster` are
 `#[non_exhaustive]`: build them with their constructors.
+
+## 28. Cross-cutting coverage — what each operation does to each kind (`pdfcer_core::xcut`, decision 228)
+
+A shell asking *"will Copy keep this annotation's author? does Save keep
+its opacity? is Cut allowed on a pop-up?"* asks `xcut::expect(op, kind)`
+instead of guessing. The same function drives the engine's own test gate,
+so an answer here is one the engine is tested against.
+
+| I want to… | call |
+|---|---|
+| know what kind an annotation dict is | `classify_annot(graph, &dict) -> ObjectKind` |
+| list every kind / every operation | `ObjectKind::ALL`, `Op::ALL`, `OpGroup::ALL`, `OpGroup::ops()` |
+| a stable string for a kind or op (logs, settings) | `ObjectKind::id()` (`"annot.stamp"`), `Op::id()`; `ObjectKind::from_id` parses one back |
+| know what an op does to a kind | `expect(op, kind) -> Expect` |
+| grey a control | `Expect::Refused(cause)` → disabled, `cause` is the tooltip; `NotApplicable(reason)` → hide |
+
+- **`Expect`**: `Preserve(&[Change])` (every property survives except the
+  listed changes), `Remove(&[key])`, `Consume { .. }`, `Represent`,
+  `Refused(cause)`, `NotApplicable(reason)`, `Pending(pass)` (not yet
+  verified by the gate; treat as unknown, not as refused).
+  `Expect::is_driven()` is false for the last two.
+- **`Change`** (`#[non_exhaustive]`): `Translated(key)`, `Rebound(key)`,
+  `Regenerated(key)`, `Dropped { key, disclosed_by, .. }`, `Rebaked { .. }`,
+  `Renumbered`, `Unbound { .. }`. A `Dropped` key names the
+  `Disclosure` (`PasteDroppedKeys` → `PasteOutcome::dropped_keys`,
+  `PasteRepliesUnthreaded` → `PasteOutcome::replies_unthreaded`) that
+  tells the operator.
+- **`ObjectKind` and `Op` are NOT `#[non_exhaustive]`**: a new kind or op
+  is meant to break every exhaustive `match`, the engine's policy table
+  included. Do match them exhaustively.
+- **The generated table is `docs/cross-cutting.md`**, one section per
+  `OpGroup`, rows `ObjectKind::id()`, columns `Op::id()`.
+
+**What the gate verifies today**: the clipboard group (`copy`, `cut`,
+`paste`, `duplicate`, `reload`) for raw-carried annotation kinds, each
+built with every common key plus a third-class sentinel (Annex E `XX`
+prefix) and an indirect sentinel stream, so a key nobody listed is still
+checked. `/Popup` and `/Redact` are `Refused` (see part 2's paste section).
+Markup, ce dimensions, widgets, content and document-level kinds read
+`Pending`.
+
+Traps:
+
+- `Pending` is not a promise of failure. The cell is unverified; the
+  operation may work.
+- `classify_annot` treats any `/IT /LineDimension` line as a ce dimension,
+  including one another producer wrote (ISO 32000-1 Table 175 defines the
+  intent generically).

@@ -75,6 +75,7 @@ fn a_pasted_reply_reports_its_unthreaded_link() {
     let stdout = String::from_utf8_lossy(&o.stdout);
     let stderr = String::from_utf8_lossy(&o.stderr);
     assert!(stdout.contains("replies_unthreaded=1"), "{stdout}");
+    assert!(stdout.contains("dropped_keys=IRT:1"), "{stdout}");
     assert!(
         stderr.contains("1 annotation(s) were replies"),
         "the lost thread must be disclosed: {stderr}"

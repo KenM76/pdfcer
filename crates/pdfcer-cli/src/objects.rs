@@ -689,13 +689,14 @@ pub(crate) fn cmd_object_paste(args: &ObjectPasteArgs<'_>) -> u8 {
             Ok(outcome) => {
                 report_disclosures(&outcome.disclosures);
                 println!(
-                    "object-paste {} page {} clip={} PREVIEW; would_paste={} annotations={} replies_unthreaded={} resources={} bbox={:.2},{:.2},{:.2},{:.2}",
+                    "object-paste {} page {} clip={} PREVIEW; would_paste={} annotations={} replies_unthreaded={} dropped_keys={} resources={} bbox={:.2},{:.2},{:.2},{:.2}",
                     args.input.display(),
                     args.page,
                     args.clip.display(),
                     outcome.objects_pasted,
                     outcome.annotations_pasted,
                     outcome.replies_unthreaded,
+                    dropped_keys_field(&outcome.dropped_keys),
                     outcome.resources_added,
                     outcome.bbox.min.x,
                     outcome.bbox.min.y,
@@ -732,7 +733,7 @@ pub(crate) fn cmd_object_paste(args: &ObjectPasteArgs<'_>) -> u8 {
     };
     let r = &outcome.report;
     println!(
-        "object-paste {} page {} clip={} mode={} -> {}; pasted={} annotations={} replies_unthreaded={} resources={} \
+        "object-paste {} page {} clip={} mode={} -> {}; pasted={} annotations={} replies_unthreaded={} dropped_keys={} resources={} \
 bbox={:.2},{:.2},{:.2},{:.2} changed={} objects_written={} appended={} out_bytes={} \
 undo_verified={} undo_identical={}",
         args.input.display(),
@@ -743,6 +744,7 @@ undo_verified={} undo_identical={}",
         pasted.objects_pasted,
         pasted.annotations_pasted,
         pasted.replies_unthreaded,
+        dropped_keys_field(&pasted.dropped_keys),
         pasted.resources_added,
         pasted.bbox.min.x,
         pasted.bbox.min.y,
@@ -1534,4 +1536,16 @@ pub(crate) fn cmd_handle_move(args: &HandleMoveArgs<'_>) -> u8 {
         u32::from(outcome.undo_identical),
     );
     finish_edit(args.input, &outcome)
+}
+
+/// `PasteOutcome::dropped_keys` as `Key:N,Key:N`, or `none`.
+fn dropped_keys_field(dropped: &std::collections::BTreeMap<String, u64>) -> String {
+    if dropped.is_empty() {
+        return "none".to_owned();
+    }
+    dropped
+        .iter()
+        .map(|(k, n)| format!("{k}:{n}"))
+        .collect::<Vec<_>>()
+        .join(",")
 }

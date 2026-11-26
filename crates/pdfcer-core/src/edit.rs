@@ -207,6 +207,7 @@ mod running_text;
 mod sign_appearance;
 mod stroke_style;
 mod widget_angle;
+mod xcut_probe;
 pub use annot_restyle::{
     AnnotOpacityChange, MARKER_SUBTYPES, MarkerColor, MarkerStyle, MarkerStyleChange,
 };
@@ -5279,6 +5280,12 @@ pub struct PasteOutcome {
     /// `Pass 253.4`). They arrive as standalone comments; a non-zero count
     /// also adds a line to [`Self::disclosures`].
     pub replies_unthreaded: u64,
+    /// Keys pasted annotations lost because they named an object in the
+    /// source document, by key name (`StructParent`, `Popup`, `IRT`), with
+    /// how many annotations lost each. A non-zero `StructParent` or `Popup`
+    /// count also adds a line to [`Self::disclosures`]; `IRT` is the count
+    /// [`Self::replies_unthreaded`] already discloses.
+    pub dropped_keys: BTreeMap<String, u64>,
     /// Every operator-facing disclosure, verbatim. Empty for an ordinary
     /// paste.
     pub disclosures: Vec<String>,
@@ -16722,9 +16729,17 @@ impl EditSession {
     /// See [`RawAnnotation`](crate::vector::clip::RawAnnotation) for the
     /// per-key reasoning. `/Popup` and `/IRT` are the two that are not merely
     /// unresolvable but would plant a *relationship* the operator did not
-    /// select.
-    const CLIP_STRIPPED_ANNOT_KEYS: &'static [&'static [u8]] =
-        &[b"P", b"Parent", b"StructParent", b"NM", b"Popup", b"IRT"];
+    /// select. A marked strip travels as `null` so the paste can disclose it
+    /// (`/StructParent`, `/Popup`, `/IRT`) or regenerate it (`/NM`); see
+    /// `crate::xcut::carry`. `/P` and `/Parent` are always re-supplied.
+    const CLIP_STRIPPED_ANNOT_KEYS: &'static [(&'static [u8], crate::xcut::carry::Strip)] = &[
+        (b"P", crate::xcut::carry::Strip::Silent),
+        (b"Parent", crate::xcut::carry::Strip::Silent),
+        (b"StructParent", crate::xcut::carry::Strip::Marked),
+        (b"NM", crate::xcut::carry::Strip::Marked),
+        (b"Popup", crate::xcut::carry::Strip::Marked),
+        (b"IRT", crate::xcut::carry::Strip::Marked),
+    ];
 
     /// Subtypes pdfcer refuses to put on the clipboard at all, with the reason.
     ///
@@ -16754,13 +16769,12 @@ impl EditSession {
         let subtype = String::from_utf8_lossy(&annot.subtype).into_owned();
         let view = self.view();
         let mut closure = crate::formclip::Closure::new(&view);
-        let mut carried = Dict::new();
-        for (key, value) in dict.iter() {
-            if Self::CLIP_STRIPPED_ANNOT_KEYS.contains(&key.as_bytes()) {
-                continue;
-            }
-            carried.insert(key.clone(), closure.take(value, 0)?);
-        }
+        let carried = crate::xcut::carry::clone_then_patch(
+            dict,
+            &mut closure,
+            Self::CLIP_STRIPPED_ANNOT_KEYS,
+            Vec::new(),
+        )?;
         let _ = id;
         Ok(crate::vector::ClipAnnotation::Raw(Box::new(
             crate::vector::clip::RawAnnotation {
@@ -16816,6 +16830,14 @@ impl EditSession {
             .as_dict()
             .cloned()
             .unwrap_or_default();
+        // The dropped markers are counted from the clip by
+        // `pasted_dropped_keys`, so the verb and the preview agree.
+        let regenerate_name = crate::xcut::carry::take_markers(
+            &mut dict,
+            PASTE_DROPPED_ANNOT_KEYS,
+            b"NM",
+            &mut BTreeMap::new(),
+        );
 
         // A destination or an action that named the SOURCE document is
         // dropped rather than planted: a link whose target does not resolve
@@ -16857,6 +16879,13 @@ impl EditSession {
         dict.insert(Name::from(b"P"), Object::Reference(page_id));
 
         let annot_id = ObjId::new(self.alloc_number()?, 0);
+        if regenerate_name {
+            let taken = self.page_annotation_names(page_id);
+            dict.insert(
+                Name::from(b"NM"),
+                Object::String(crate::xcut::carry::unique_name(annot_id.num, &taken)),
+            );
+        }
         objects.push(ObjectWrite {
             id: annot_id,
             before: None,
@@ -16897,6 +16926,22 @@ impl EditSession {
         }
     }
 
+    /// Every `/NM` among `page_id`'s annotations (§12.5.2 Table 164).
+    fn page_annotation_names(&self, page_id: ObjId) -> Vec<Vec<u8>> {
+        let graph = self.graph();
+        crate::annot::page_annotations(&graph, page_id)
+            .iter()
+            .filter_map(|a| a.id)
+            .filter_map(|id| match self.value(id) {
+                Some(Object::Dict(d)) => match d.get(b"NM").map(|o| graph.resolve(o)) {
+                    Some(Object::String(nm)) => Some(nm.clone()),
+                    _ => None,
+                },
+                _ => None,
+            })
+            .collect()
+    }
+
     /// Whether a carried annotation's `/Dest` or `/A` names something that
     /// exists in THIS document.
     ///
@@ -16907,16 +16952,26 @@ impl EditSession {
     /// resolving — dropping a target that would have worked is a visible,
     /// recoverable disappointment; planting one that does not is a link the
     /// operator trusts and that silently fails.
+    ///
+    /// Only a `/Dest` or a `/GoTo` action's `/D` names a target in this
+    /// document (§12.6.4.2). Every other action (`/URI`, `/Launch`, a
+    /// `/GoToR` into another file, a script) is not bound to the source
+    /// document and resolves as itself.
     fn destination_resolves(&self, dict: &Dict) -> bool {
         let graph = self.graph();
+        let action = dict
+            .get(b"A")
+            .map(|a| graph.resolve(a))
+            .and_then(Object::as_dict);
+        let goto = action.is_some_and(|a| {
+            matches!(a.get(b"S").map(|s| graph.resolve(s)), Some(Object::Name(n)) if n.as_bytes() == b"GoTo")
+        });
+        if !dict.contains_key(b"Dest") && !goto {
+            return true;
+        }
         let dest = dict
             .get(b"Dest")
-            .or_else(|| {
-                dict.get(b"A")
-                    .map(|a| graph.resolve(a))
-                    .and_then(Object::as_dict)
-                    .and_then(|a| a.get(b"D"))
-            })
+            .or_else(|| action.and_then(|a| a.get(b"D")))
             .map(|d| graph.resolve(d));
         match dest {
             // A named destination: resolves only if this document has it.
@@ -17274,12 +17329,15 @@ impl EditSession {
             let (annotations_pasted, mut disclosures, report) =
                 self.paste_clip_annotations(page_index, clip, at)?;
             disclosures.extend(unthreaded_reply_disclosure(clip));
+            let dropped_keys = pasted_dropped_keys(clip);
+            disclosures.extend(dropped_keys_disclosure(&dropped_keys));
             let outcome = PasteOutcome {
                 objects_pasted: 0,
                 annotations_pasted,
                 resources_added: 0,
                 bbox: plan.bbox,
                 replies_unthreaded: clip.replies_unthreaded,
+                dropped_keys,
                 disclosures,
             };
             return Ok((outcome, report));
@@ -17343,12 +17401,15 @@ impl EditSession {
         let (annotations_pasted, mut disclosures, report) =
             self.paste_clip_annotations(page_index, clip, at)?;
         disclosures.extend(unthreaded_reply_disclosure(clip));
+        let dropped_keys = pasted_dropped_keys(clip);
+        disclosures.extend(dropped_keys_disclosure(&dropped_keys));
         let outcome = PasteOutcome {
             objects_pasted: plan.items as u64,
             annotations_pasted,
             resources_added: plan.resources.len() as u64,
             bbox: plan.bbox,
             replies_unthreaded: clip.replies_unthreaded,
+            dropped_keys,
             disclosures,
         };
         Ok((outcome, report))
@@ -17395,12 +17456,15 @@ impl EditSession {
             }
         }
         disclosures.extend(unthreaded_reply_disclosure(clip));
+        let dropped_keys = pasted_dropped_keys(clip);
+        disclosures.extend(dropped_keys_disclosure(&dropped_keys));
         Ok(PasteOutcome {
             objects_pasted: plan.items as u64,
             annotations_pasted,
             resources_added: plan.resources.len() as u64,
             bbox: plan.bbox,
             replies_unthreaded: clip.replies_unthreaded,
+            dropped_keys,
             disclosures,
         })
     }
@@ -62135,6 +62199,42 @@ fn unthreaded_reply_disclosure(clip: &crate::vector::ObjectClip) -> Option<Strin
         format!(
             "paste: {} annotation(s) were replies; the reply link was not carried, so they arrive as separate comments",
             clip.replies_unthreaded
+        )
+    })
+}
+
+/// Keys a raw clip annotation carries as a `null` marker and the paste
+/// removes, counted in [`PasteOutcome::dropped_keys`].
+const PASTE_DROPPED_ANNOT_KEYS: &[&[u8]] = &[b"StructParent", b"Popup", b"IRT"];
+
+/// [`PasteOutcome::dropped_keys`] for `clip`: read from the clip alone, so
+/// the verb and [`EditSession::paste_preview`] report the same counts.
+fn pasted_dropped_keys(clip: &crate::vector::ObjectClip) -> BTreeMap<String, u64> {
+    let mut dropped = BTreeMap::new();
+    for annotation in &clip.annotations {
+        if let crate::vector::ClipAnnotation::Raw(raw) = annotation {
+            crate::xcut::carry::count_markers(&raw.dict, PASTE_DROPPED_ANNOT_KEYS, &mut dropped);
+        }
+    }
+    dropped
+}
+
+/// The disclosure for [`pasted_dropped_keys`]; `IRT` is left to
+/// [`unthreaded_reply_disclosure`].
+fn dropped_keys_disclosure(dropped: &BTreeMap<String, u64>) -> Option<String> {
+    let what = |key: &str| match key {
+        "StructParent" => Some("its structure-tree entry (tags)"),
+        "Popup" => Some("its pop-up window"),
+        _ => None,
+    };
+    let parts: Vec<String> = dropped
+        .iter()
+        .filter_map(|(k, n)| what(k).map(|w| format!("{n} lost {w}")))
+        .collect();
+    (!parts.is_empty()).then(|| {
+        format!(
+            "paste: pasted annotations named objects in the document they were copied from, which were not carried: {}",
+            parts.join("; ")
         )
     })
 }

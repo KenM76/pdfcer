@@ -1283,6 +1283,8 @@ The two exceptions are `transform_objects` / `transform_preview`
 > | `objects_pasted: u64` | how many arrived |
 > | `resources_added: u64` | how many `/Resources` bindings the page gained — **worth showing somewhere**: every paste adds fresh entries, so a shell that pastes the same clip forty times and wonders why the file grew has the answer here |
 > | `bbox` | page-space bounds after `at` |
+> | `replies_unthreaded: u64` | pasted replies whose `/IRT` link was not carried (below) |
+> | `dropped_keys: BTreeMap<String, u64>` | source-bound keys the pasted annotations lost, by key name (`StructParent`, `Popup`, `IRT`), with how many lost each. Non-zero `StructParent` or `Popup` adds a disclosure; `IRT` is disclosed through `replies_unthreaded` |
 > | `disclosures` | as everywhere; empty for an ordinary paste |
 >
 > #### Cut is one undo entry, and the ORDER is load-bearing
@@ -1452,6 +1454,12 @@ The two exceptions are `transform_objects` / `transform_preview`
 >
 > **Stripped at copy time**, each because it names something that exists only
 > in the source: `/P`, `/Parent`, `/StructParent`, `/NM`, `/Popup`, `/IRT`.
+> `/P` and `/Parent` go silently (the paste rebinds `/P`). The other four
+> leave a `/Key null` marker in the clip dict, which reads as absent
+> (ISO 32000-1 §7.3.7), so the clip format is unchanged; the paste removes
+> each marker, counts it into `PasteOutcome::dropped_keys` and, for `/NM`,
+> writes a fresh name unique among the destination page's annotations
+> (§12.5.2 Table 164: `/NM` identifies an annotation on its page).
 >
 > **A stripped `/IRT` is counted, not silent** (`Pass 253.4`):
 > `ObjectClip::replies_unthreaded: u64` is how many copied annotations were
@@ -1459,7 +1467,8 @@ The two exceptions are `transform_objects` / `transform_preview`
 > `paste_objects` and `paste_preview`. Non-zero adds the disclosure
 > `paste: N annotation(s) were replies; the reply link was not carried, so they
 > arrive as separate comments`. The link is not remapped, even when the parent
-> was copied too. CLI: `object-paste` prints `replies_unthreaded=N`.
+> was copied too. CLI: `object-paste` prints `replies_unthreaded=N` and
+> `dropped_keys=Key:N,...` (or `none`).
 >
 > **Four subtypes are still refused, by policy rather than for want of a
 > model** — ask the clip and grey the control rather than letting a paste fail:
@@ -1471,9 +1480,11 @@ The two exceptions are `transform_objects` / `transform_preview`
 > | `/Redact` | a pending destructive operation, not artwork; pasting one arms a redaction nobody reviewed |
 > | a ce dimension whose sidecar record is missing | pasting the outline without the measurement is the silently-wrong outcome (`R204`) |
 >
-> ★ **A `/Link` is carried, and its destination is checked on paste.** If the
-> target does not resolve in the destination document, `/Dest` and `/A` are
-> **dropped and disclosed** — a link that looks clickable and goes nowhere is
+> ★ **A `/Link` is carried, and its destination is checked on paste.** Only a
+> `/Dest` or a `/GoTo` action names a target in the source document
+> (§12.6.4.2); a `/URI`, `/Launch`, `/GoToR` or JavaScript action is carried
+> as is. If a `/Dest` or `/GoTo` target does not resolve in the destination
+> document, `/Dest` and `/A` are **dropped and disclosed** — a link that looks clickable and goes nowhere is
 > worse than a rectangle that plainly does nothing. Acrobat's own
 > cross-document link paste drops the target at an arbitrary place instead.
 >
