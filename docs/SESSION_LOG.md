@@ -4,6 +4,17 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-11-26 (1728th filing) — `Pass 781.0` shipped: the `xcut` cross-cutting coverage foundation (decision 228)
+
+**Filed (engineer-reported; no shell here, git, push, CI and the gates not checked from here; operator commits):**
+- `0e9223bf` (foundation and clipboard gate) and `5886050b` (self-referencing annotation fix), on `main`, local, unpushed (also unpushed: `6b78e867`).
+- `pdfcer_core::xcut` public (`ObjectKind`, `Op` 38, `Expect`/`Change`/`Disclosure`, exhaustive policy tables), `pub(crate)` `carry` and `dump`, generated `docs/cross-cutting.md`. Metrics `cells=1444 run=83 preserve=75 refused=8 pending=1361`. Both negative controls fail the comparator as required.
+- Four defects fixed on discovery: link actions other than `/Dest`/`/GoTo` dropped cross-document; `/NM` lost on paste; `/StructParent`, `/Popup`, `/IRT` stripped silently (now `PasteOutcome::dropped_keys`, CLI `object-paste` prints it); a Screen `/AN` self-reference dragged the page tree into the clip (`Closure::pin_self`).
+- Tests (engineer-reported): core 2590 lib + 3542 integration + 328 doctests, 0 failed; cli green; 11 `xcut` tests; clippy, fmt, structure gate (535 baseline, none new) clean. No manifest change.
+- `ROADMAP.md`: Shipped entry; Next up head now `781.1`, then `780.1`; Backlog arc line updated. `FEATURES.md`: cross-cutting row core `[x]` cli `[x]` gui `[ ]`, kept in Planned (foundation only); annotation copy/paste row clause updated. Decision-228 doc not edited.
+
+**Decisions made:** none new (decision 228 implemented as filed). **Still owed:** `781.7.a` trap (`classify_annot` treats any standard `/IT /LineDimension` as a ce dimension; core-api §28); `G337` open. **Next:** `Pass 781.1`, then `780.1`.
+
 ## 2026-11-26 (1727th filing) — `v0.179.0` PUBLISHED
 
 **Filed (engineer-reported; no shell here, git, push, CI, GitHub, crates.io and OneDrive not checked from here; operator commits):**
