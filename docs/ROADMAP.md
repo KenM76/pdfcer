@@ -112,7 +112,19 @@ wherever it appears.*
 
 ## Shipped
 
-### `v0.177.0` version bump `eed2a9d2`; release IN PROGRESS, 2026-11-26 (1716th filing)
+### `v0.177.0` PUBLISHED, tag on `5065defd`, 2026-11-26 (1717th filing)
+
+Engineer-reported (checked by the engineer with a shell); this filing had no shell, so none of it is checked from here.
+- **Tag:** `v0.177.0` on `5065defd` (the 1716th filing commit; bump `eed2a9d2`). CI green (run 45771022162).
+- **GitHub release:** 8 assets; portable zip `pdfcer-v0.177.0-windows-x64.zip`, 33,535,206 bytes, built from `eed2a9d2`, plus its `.sha256` and the three OCR add-on zips with `.sha256`.
+- **crates.io:** all 17 crates at 0.177.0 in one round of the leaf-first retry loop (`cargo publish -p <crate> --no-verify`, `CARGO_TARGET_DIR=target/pub`), no failures.
+- **OneDrive:** `pdfcer2` = 0.177.0; `pdfcer1` keeps 0.176.0, so **the next release writes `pdfcer1`**.
+- **Smoke (fresh folder):** `--version` 0.177.0, revision `v0.176.0-5-geed2a9d2`; `optimize --streams recompress-9` with content compaction on a PDF 2.0 fixture, output renders correctly. `verify-release.py` ok except "working tree clean" (uncommitted agent-memory and untracked research notes, the known exception).
+- **Carries:** `Pass 778.0` (`fdf5bc6f`, `X120`), `Pass 776.1` (`692a2f0d`, `X119` addendum (2)).
+- **Process slip, recorded honestly:** the release tag was pushed with `--no-verify`, skipping the pre-push hook (the commits-filed check). The tagged commit had already passed that hook on the `main` push and CI was green, so nothing went unchecked. **The next release must push the tag without `--no-verify`.**
+- **Channel:** `D:\Dev\FeatureRequests\pdfce_FeatureRequests\open\notice_2026-11-26_release_v0.177.0.md`.
+
+### `v0.177.0` version bump `eed2a9d2`; release IN PROGRESS, 2026-11-26 (1716th filing); published, see the entry above
 
 Engineer-reported; no shell here, git, push, CI and the gates not checked from here. `eed2a9d2` (`chore: bump version to 0.177.0`) changes `Cargo.toml`, `Cargo.lock` and `fuzz/Cargo.lock`, 0.176.0 to 0.177.0 on all 17 workspace crates; a version-number change with no code change reported, filed here as the 1710th did for `43ebb942`. **Unreleased: the release is in progress.** It carries `Pass 778.0` (`fdf5bc6f`, `X120`) and `Pass 776.1` (`692a2f0d`, `X119` addendum (2)). Filing commits since the `v0.176.0` tag: `fed30b50` (1714th), `23e551be` (1715th). OneDrive slot: `pdfcer2` (`pdfcer1` keeps 0.176.0). The tag goes on this filing commit after CI is green; the PUBLISHED entry follows.
 

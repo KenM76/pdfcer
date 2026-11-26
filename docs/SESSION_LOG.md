@@ -4,6 +4,15 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-11-26 (1717th filing) — `v0.177.0` PUBLISHED (tag `5065defd`)
+
+**Filed (engineer-reported; no shell here, git, push, CI and the gates not checked from here; operator commits):**
+- `v0.177.0`: tag on `5065defd` (1716th filing commit; bump `eed2a9d2`), CI green (run 45771022162); 8 assets (portable zip 33,535,206 bytes, built from `eed2a9d2`); 17 crates at 0.177.0 on crates.io in one retry round; OneDrive `pdfcer2` = 0.177.0, `pdfcer1` keeps 0.176.0 (**next release writes `pdfcer1`**); fresh-folder smoke OK (`--version` 0.177.0, `optimize --streams recompress-9` with content compaction on a PDF 2.0 fixture renders correctly); `verify-release.py` ok except "working tree clean". Carries `778.0` and `776.1`. Notice `open/notice_2026-11-26_release_v0.177.0.md`.
+- **Process slip:** the tag was pushed with `--no-verify`, skipping the commits-filed pre-push hook; the commit had passed it on the `main` push and CI was green. The next release pushes the tag without `--no-verify`.
+- `ROADMAP.md`: PUBLISHED entry; the bump entry's header points to it. `FEATURES.md`: no change. `NEXT_SESSION.md`: update added.
+
+**Decisions made:** none. **Next:** no open requests; Next up has no head.
+
 ## 2026-11-26 (1716th filing) — `v0.177.0` bump `eed2a9d2` filed; release IN PROGRESS
 
 **Filed (engineer-reported; no shell here, git, push, CI and the gates not checked from here; operator commits):**
