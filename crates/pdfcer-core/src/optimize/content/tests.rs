@@ -300,3 +300,27 @@ fn compaction_that_saves_nothing_is_kept_as_stored() {
         |k| k.id == id(4) && matches!(k.reason, crate::optimize::SkipReason::NotSmaller { .. })
     ));
 }
+
+#[test]
+fn a_td_sets_the_leading_so_a_later_tl_stays() {
+    let (out, removed, _) = squeeze(b"BT 5 TL 0 -12 TD 5 TL T* ET");
+    assert_eq!(removed, 0, "{out}");
+    assert_eq!(out.matches("TL").count(), 2, "{out}");
+}
+
+#[test]
+fn a_td_forgets_only_the_leading() {
+    let (out, _, _) = squeeze(b"BT 2 Tc 0 -12 TD 2 Tc (a) Tj ET");
+    assert_eq!(out.matches("Tc").count(), 1, "{out}");
+}
+
+#[test]
+fn a_whole_real_beyond_the_integer_range_stays_a_real() {
+    assert_eq!(super::rewrite::real(4e9).as_deref(), Some("4000000000."));
+    assert_eq!(super::rewrite::real(-3e9).as_deref(), Some("-3000000000."));
+    assert_eq!(super::rewrite::real(612.0).as_deref(), Some("612"));
+    assert_eq!(
+        super::rewrite::real(2147483647.0).as_deref(),
+        Some("2147483647")
+    );
+}

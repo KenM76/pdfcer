@@ -44,7 +44,7 @@ pub(super) fn compact(buf: &[u8], settings: ResolvedContent) -> Result<Compacted
 /// Operators that change none of the state [`State`] tracks.
 const NEUTRAL: &[&[u8]] = &[
     b"m", b"l", b"c", b"v", b"y", b"h", b"re", b"S", b"s", b"f", b"F", b"f*", b"B", b"B*", b"b",
-    b"b*", b"n", b"W", b"W*", b"BT", b"ET", b"Td", b"TD", b"Tm", b"T*", b"Tj", b"TJ", b"'", b"BMC",
+    b"b*", b"n", b"W", b"W*", b"BT", b"ET", b"Td", b"Tm", b"T*", b"Tj", b"TJ", b"'", b"BMC",
     b"BDC", b"EMC", b"MP", b"DP", b"Do", b"sh", b"BX", b"EX", b"cm",
 ];
 
@@ -134,7 +134,11 @@ fn mark_redundant(content: &ContentStream, keep: &mut [bool]) -> u64 {
                         false
                     }
                     None => {
-                        if !NEUTRAL.contains(&op) {
+                        if op == b"TD" {
+                            // `tx ty TD` also sets the leading to -ty
+                            // (ISO 32000-2 §9.4.2, Table 106).
+                            state.slots.retain(|(s, _, _)| *s != b"TL");
+                        } else if !NEUTRAL.contains(&op) {
                             state = State::default();
                         }
                         false
@@ -357,7 +361,14 @@ pub(super) fn real(r: f64) -> Option<String> {
     if t.contains(['e', 'E']) {
         return None;
     }
-    let t = t.strip_suffix(".0").map_or(t.clone(), str::to_owned);
+    // A whole value beyond Annex C's ±2^31−1 integer limit keeps its
+    // period: a reader holding integers in 32 bits would overflow on it.
+    let in_range = r.abs() <= f64::from(i32::MAX);
+    let t = match t.strip_suffix(".0") {
+        Some(int) if in_range => int.to_owned(),
+        Some(int) => format!("{int}."),
+        None => t,
+    };
     let t = if t == "-0" { "0".to_owned() } else { t };
     Some(if let Some(rest) = t.strip_prefix("0.") {
         format!(".{rest}")
