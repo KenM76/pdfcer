@@ -4,6 +4,15 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-11-26 (1724th filing) — `v0.179.0` bump `90ccebc6` filed; release IN PROGRESS
+
+**Filed (engineer-reported; no shell here, git, push, CI and the gates not checked from here; operator commits):**
+- `90ccebc6` (`chore: bump version to 0.179.0`): `Cargo.toml`, `Cargo.lock`, `fuzz/Cargo.lock`; 56 insertions, 56 deletions, same shape as `186ada57`; no code change reported. Change-scoped release tests (image-codec, core, render, cli, `--no-fail-fast`) running; results reported in the release filing.
+- Release `v0.179.0` in progress: carries `Pass 780.0` (`1bd09a91`, `G336`). Filing commits since the `v0.178.0` tag: `108c4074` (1722nd), `11f64401` (1723rd). Both pushed to `main`. OneDrive slot `pdfcer2`; `pdfcer1` keeps 0.178.0. The tag goes on this filing commit after CI is green and is pushed without `--no-verify`. Plan: tag, package, smoke test, GitHub release, deploy, then crates.
+- `ROADMAP.md`: Shipped entry for the bump. `FEATURES.md`: no change.
+
+**Decisions made:** none. **Next:** CI green on the filing commit, tag, package, smoke, gh-release, `deploy-onedrive.py` to `pdfcer2`, `verify-release.py`, `cargo publish` leaf-first.
+
 ## 2026-11-26 (1722nd filing) — `Pass 780.0` SHIPPED (`1bd09a91`), request `G336`; `Pass 780.1` filed; decision 226 and its amendment
 
 **Filed (engineer-reported; no shell here, git, CI and the gates not checked from here; operator commits):**

@@ -112,6 +112,10 @@ wherever it appears.*
 
 ## Shipped
 
+### `v0.179.0` version bump `90ccebc6`; release IN PROGRESS, 2026-11-26 (1724th filing)
+
+Engineer-reported; no shell here, git, push, CI and the gates not checked from here. `90ccebc6` (`chore: bump version to 0.179.0`) changes `Cargo.toml`, `Cargo.lock` and `fuzz/Cargo.lock`, 56 insertions and 56 deletions, identical in shape to `186ada57`; a version-number change with no code change reported, filed here as the 1720th did for `186ada57`. Gates: the change-scoped release tests (image-codec, core, render, cli, `--no-fail-fast`) are running; results reported in the release filing. **Unreleased: the release is in progress.** It carries `Pass 780.0` (`1bd09a91`, `G336`), plus filings `108c4074` (1722nd) and `11f64401` (1723rd) since the `v0.178.0` tag; both pushed to `main`. OneDrive slot: `pdfcer2` (`pdfcer1` keeps 0.178.0). The tag goes on this filing commit after CI is green, pushed without `--no-verify`; the PUBLISHED entry follows.
+
 ### `Pass 780.0`: image decode ceilings raised for 600 dpi copier scans, allocation failure a named refusal; `1bd09a91`, 2026-11-26 (1722nd filing), request `G336`
 
 Engineer-reported; no shell here, so git, CI and the gates were not checked from here (`1bd09a91` is the HEAD commit in the session's git snapshot). Never filed as Planned. **Unreleased; rides the next release (writes `pdfcer2`).** Reasoning is in the commit message and `docs/decisions/226-image-decode-ceilings.md`; **decision 226 is amended the same day by the operator ruling filed with it (see `Pass 780.1`).** The raise is an interim, not the policy.
