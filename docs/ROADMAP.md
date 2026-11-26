@@ -112,6 +112,16 @@ wherever it appears.*
 
 ## Shipped
 
+### `Pass 776.0`: content compaction keeps a `TL` after `TD`, and keeps the period on huge whole reals; `2da07efd`, 2026-11-25 (1712th filing)
+
+Engineer-reported; no shell here, git, push, CI and the gates not run or checked from here. Never filed as Planned: operator request `X119`, shipped in one go. **Unreleased: on `main` after the `v0.175.0` tag; shipped in the next release (`v0.176.0`, `pdfcer1` slot).** Reasoning is in the commit message.
+- **Bug 1, `optimize/content/rewrite.rs`:** `tx ty TD` sets the leading to `-ty` (ISO 32000-2 §9.4.2, Table 106). `TD` had been treated as state-neutral, so a later `TL` naming the earlier leading was removed as a repeat and `T*` then moved by the wrong amount: text on the wrong line. `TD` now forgets only the `TL` slot; other tracked slots survive it.
+- **Bug 2, `real()` formatting:** a whole real with |r| > `i32::MAX` keeps its period (`4e9` becomes `4000000000.`), per Annex C's integer limit of ±2^31−1 (32-bit readers). In-range whole values still drop `.0`.
+- **Scope:** core only, no public API change, no cli or gui change; no manifest touched, so `cargo tree` unchanged.
+- **Tests (engineer-reported):** 3 new in `optimize/content/tests.rs` (`a_td_sets_the_leading_so_a_later_tl_stays`, `a_td_forgets_only_the_leading`, `a_whole_real_beyond_the_integer_range_stays_a_real`), each sabotage-verified; content tests 40/40; full pdfcer-core suite green; fmt, clippy, code-structure and string-gaps clean.
+- **Channel:** `open/reply_X119_content_compaction_td_leading_SHIPPED.md`, with its INDEX row. `X119` closed.
+- **FEATURES:** a clause on the "Compact content streams losslessly" row; boxes unchanged.
+
 ### `Pass 770.1` + `770.2`: ce dimension anchors survive page transforms, paste and centre-mark edits; flattening removes a ce dimension from the model; `47eb7f4b`, `61f77977`, 2026-11-25 (1711th filing)
 
 Engineer-reported; no shell here, git, push, CI and the gates not run or checked from here. `770.1` closes the `G332` residue minted in the 1709th; `770.2` was never filed as Planned (a bug found while closing `770.1`'s open flatten route, fixed on discovery). `770.1` was a worker commit cherry-picked to `main`. **Unreleased: on `main` after the `v0.175.0` tag; shipped in the next release, which writes `pdfcer1`.** Reasoning is in each commit message.

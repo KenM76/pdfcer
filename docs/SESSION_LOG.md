@@ -4,6 +4,17 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-11-25 (1712th filing) — `Pass 776.0` SHIPPED (`2da07efd`), operator request `X119`
+
+**Filed (engineer-reported; no shell here, git, push, CI and the gates not checked from here; operator commits):**
+- `Pass 776.0` `2da07efd`, never Planned: content compaction treated `TD` as state-neutral, so a later `TL` naming the earlier leading was removed as a repeat and `T*` moved by the wrong amount (text on the wrong line). `TD` sets the leading to `-ty` (ISO 32000-2 §9.4.2, Table 106); it now forgets only the `TL` slot. Also: a whole real beyond `i32::MAX` keeps its period (Annex C integer limit).
+- core only, no public API, cli or gui change. 3 new tests, each sabotage-verified; content tests 40/40; core suite, fmt, clippy, structure, string-gaps clean (engineer-reported).
+- **Unreleased**; the next release is `v0.176.0` (`pdfcer1`), carrying `775.0`, `770.1`, `770.2`, `776.0`. `X119` closed (`open/reply_X119_content_compaction_td_leading_SHIPPED.md`).
+- `ROADMAP.md`: Shipped entry. `FEATURES.md`: clause on the "Compact content streams losslessly" row, boxes unchanged. `NEXT_SESSION.md`: update added.
+- **Survivors (hard rule 11):** FEATURES "Round content-stream path coordinates..." row says `TD` "is left as written (its `ty` sets the leading)", and the "remainder" row says `TD` is excluded by design: both are about rounding, still true, left.
+
+**Decisions made:** none. **Next:** no head of Next up.
+
 ## 2026-11-25 (1711th filing) — `Pass 770.1` SHIPPED (`47eb7f4b`), `Pass 770.2` (`61f77977`)
 
 **Filed (engineer-reported; no shell here, git, push, CI and the gates not checked from here; operator commits):**
