@@ -4,6 +4,15 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-11-26 (1715th filing) — `Pass 776.1` SHIPPED (`692a2f0d`), operator request `X119` addendum (2)
+
+**Filed (engineer-reported; no shell here, git, push, CI and the gates not checked from here; operator commits):**
+- `Pass 776.1` `692a2f0d`, never Planned: content compaction is now judged against the base stream action as well as the stored bytes (`ResolvedContent.beat`), and a refused compaction falls through to the base action instead of losing it. Core only (`pub(crate)`); the CLI `optimize` content option already reaches it. 2 new tests, 374 core and 60 CLI optimize tests pass. Unreleased. Reply `open/reply_X119_content_compaction_td_leading_SHIPPED.md` § "Addendum (2)".
+- `fed30b50` was the 1714th filing itself (docs only); nothing to file for it.
+- `ROADMAP.md`: Shipped entry. `FEATURES.md`: clause on the content-compaction row, boxes unchanged. `NEXT_SESSION.md`: update added.
+
+**Decisions made:** none. **Next:** no open requests; Next up has no head.
+
 ## 2026-11-26 (1714th filing) — `v0.176.0` PUBLISHED (tag `1eee0ea4`); `Pass 778.0` SHIPPED (`fdf5bc6f`), operator request `X120`
 
 **Filed (engineer-reported; no shell here, git, push, CI and the gates not checked from here; operator commits):**

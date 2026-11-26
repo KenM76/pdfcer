@@ -112,6 +112,15 @@ wherever it appears.*
 
 ## Shipped
 
+### `Pass 776.1`: content compaction must beat the base stream action; `692a2f0d`, 2026-11-26 (1715th filing), operator request `X119` addendum (2)
+
+Engineer-reported; no shell here, git, push, CI and the gates not checked from here. Never filed as Planned. **Unreleased: on `main` after the `v0.176.0` tag; rides the next release.** Reasoning is in the commit message.
+- **Fix:** `plan_content` judged a compacted stream against the stored bytes, so under a re-encoding base action (Recompress/Brotli) enabling `content(...)` could store more than leaving it off, and a refused compaction (Undecodable/Mismatch/NotSmaller) lost the base recompression. `ResolvedContent` gains planner-set `beat` (the base action, or leave when a refusal blocks it); `content::apply` refuses as `NotSmaller` unless strictly smaller than both the stored bytes and what `beat` alone stores; the `stream_writes` redo carries the same bar; `plan_stream` falls through to the base action when compaction is not planned (the refusal stays in `plan.skipped`, so a stream can appear in both skipped and changes). Base action choice extracted into `stream_action`.
+- **Scope:** `crates/pdfcer-core/src/edit/optimize.rs`, `optimize/content/{mod,tests}.rs`; `pub(crate)` only, no public API, `docs/core-api` or manifest change. Delivery core; the CLI `optimize` content option already reaches it, no box rounded up.
+- **Tests (engineer-reported):** 2 new (`a_refused_compaction_falls_back_to_the_base_action`, sabotage-checked against the old bar; `compaction_never_stores_more_than_the_stream_action_alone`, 300 iterations, no counterexample against the old code even at 3000). 374 core and 60 CLI optimize tests pass; clippy `-D warnings`, fmt, `check-code-structure` clean.
+- **Channel:** `open/reply_X119_content_compaction_td_leading_SHIPPED.md` § "Addendum (2)".
+- **FEATURES:** clause on the "Compact content streams losslessly" row; no box changed.
+
 ### `Pass 778.0`: PDF/UA preflight PUI-01-005 keys a marked-content claim with `/Stm` by its stream; `fdf5bc6f`, 2026-11-26 (1714th filing), operator request `X120`
 
 Engineer-reported; no shell here, git, push, CI and the gates not checked from here. Never filed as Planned. **Unreleased: on `main` after the `v0.176.0` tag; rides the next release.** Reasoning is in the commit message.
