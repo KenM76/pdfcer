@@ -29162,7 +29162,9 @@ closes out the *prior* filing's business rather than opening this one's.
 
 ## Next up
 
-> **`Pass 780.1` HEAD OF NEXT UP: the `780.1`-`780.8` ARC, no fixed image-size ceiling (filed 1722nd; split and decision 227 filed 1723rd).** Follows `Pass 780.0` (the interim raise, `1bd09a91`). Operator ruling 2026-11-26: "I'm not a fan of an arbitrary limit on image size being imposed on an end user." Design and acceptance in `docs/decisions/227-image-decode-bounds.md` ("Pass split"); limits come only from memory, data evidence and an off-by-default operator cap. **The old constants stay until `780.5`**, so protection never weakens mid-arc. Work in this order; `780.1` at the head. IDs `780.1`-`780.8` grep-checked unused before filing the 1722nd.
+> **`Pass 781.0` HEAD OF NEXT UP, after the `v0.179.0` release: the `xcut` foundation of decision 228 (filed 1726th).** Operator request 2026-11-26: every feature fully supported by every other feature (copy and paste carrying every property) without being asked. Design, acceptance table and rejected options in `docs/decisions/228-cross-cutting-coverage.md`; the copy/paste gap list in `docs/decisions/228-cross-cutting-coverage.md` (Appendix). **Scope of 781.0:** `pdfcer-core::xcut` (`ObjectKind`, `Op`, `Expect`/`Change`, policy tables, canonical property dump, `clone_then_patch`) with the clipboard columns (Copy, Cut, Paste, Duplicate, ReloadRoundTrip) driven and the other columns `pass:782.x`. **Acceptance:** no wildcard in `xcut/policy/*`; the metrics line is printed; both negative controls (a paste that drops the sentinel, a redact that leaves it) fail the comparator; every clipboard cell is `ok` or `pass:781.n`; structure gate clean. **Rule from now on:** every new Pass scopes its cross-cutting cells (kinds x operations) at filing. core only; the GUI half rides channel note `E069`. IDs `781.x`/`782.x` and decision `228` grep-checked free before filing. *FEATURES:* one Planned row, boxes unticked. The rest of the arc is in *Backlog* (`Pass 781.1`-`781.7.x`, `782.0`-`782.6`).
+
+> *(Amended 1726th filing: `Pass 781.0`, above, is now the head, per the operator; the `780.x` arc waits behind it.)* **`Pass 780.1` (was head of Next up): the `780.1`-`780.8` ARC, no fixed image-size ceiling (filed 1722nd; split and decision 227 filed 1723rd).** Follows `Pass 780.0` (the interim raise, `1bd09a91`). Operator ruling 2026-11-26: "I'm not a fan of an arbitrary limit on image size being imposed on an end user." Design and acceptance in `docs/decisions/227-image-decode-bounds.md` ("Pass split"); limits come only from memory, data evidence and an off-by-default operator cap. **The old constants stay until `780.5`**, so protection never weakens mid-arc. Work in this order; `780.1` at the head. IDs `780.1`-`780.8` grep-checked unused before filing the 1722nd.
 >
 > - **`780.1` plumbing and measured predictors (inert).** Measured peak never exceeds predicted, predicted within 1.5x measured, across every sampling factor, progressive, non-interleaved, CMYK/YCCK, multi-component JPX, JBIG2 generic/text/halftone (peak-counting allocator in an integration-test binary; dev-dependency licence-classified); wasm32 builds of core and render.
 > - **`780.2` evidence bounds.** A crafted 65535^2 header backed by about 600 bytes is refused before any allocation over 1 MiB; zero new corpus refusals; the 310-byte JPX declaring 65,536 tiles is refused; boundary tests (`bits - 1` refused, `bits` admitted).
@@ -40622,6 +40624,26 @@ overrides the image dictionary; `/ColorSpace` optional,
 Grouped by rough Acrobat Pro feature area. Each bucket gets scoped into
 real Pass entries as the engineer reaches it — this list exists so
 nothing gets forgotten, not as a commitment to build in this order.
+
+- **Cross-cutting coverage arc, decision 228 (filed 1726th; head is `Pass 781.0` in Next up; acceptance per row in `docs/decisions/228-cross-cutting-coverage.md` "Pass split").** All core unless stated; none started.
+  - **`781.1`** process gate: `tools/check-cross-cutting.py` + CI step, `XCUT_BASE`, carry-lint baseline, engineer agent text, `CLAUDE.md` rule 16, channel note to pdfcer-gui.
+  - **`781.2`** markup paste becomes Raw plus patches, `/AP` re-baked only under a non-translation transform, `MarkupCarry` deleted. **`781.3`** `FIELD_CARRIED_KEYS` inverted to a denylist (`FieldClip`, `FieldClipSet`). **`781.4`** ce dimension clone-then-patch (re-register sidecar, map group, re-bake `/AP` only on scale/format change). **`781.5`** content kinds (ExtGState, `BDC`, `/OC` chain; `ClipItem.kind` becomes `ObjectKind`). **`781.6`** document kinds (outline, attachment, page, layer, named destination).
+  - **`782.0`** Undo/Redo/Save. **`782.1`** Move/Transform/Align/Restack/Group/Ungroup/LayerAssign. **`782.2`** Delete and page routes. **`782.3`** Redact/Sanitize (`Remove`). **`782.4`** Flatten/Print/exports/PDF-A convert. **`782.5`** `read-probe`. **`782.6`** StructureTags/Search/Compare/HitTest/Properties/CliVerb/CoreApiDoc, matrix `pending=0`.
+  - **`781.7.x` audit gaps, priority order, one row each (a day or less):**
+    - **`781.7.a`** pdf dimension Line/Polygon/PolyLine paste drops `/Measure /IT /LL /LLE /LLO /Cap /CP /CO` (largest gap; a pdf dimension pastes as a plain line).
+    - **`781.7.b`** content prelude (`vector/clip.rs`) drops ExtGState (dash, alpha, blend, soft mask), the stroke-style prefix pdfcer itself writes, caps, joins, miter limit and the clip path; converts CMYK to RGB; emits nothing for Separation, ICC or pattern paint.
+    - **`781.7.c`** content `/OC` membership on paste, keeping the source layer, plus a core option for the GUI.
+    - **`781.7.d`** markup `/F` reset to Print; `/M /CreationDate /Subj /RC /DS /ExData /Lang` and Circle `/BE` dropped (subsumed by `781.2`, listed for traceability).
+    - **`781.7.e`** Popup and `/IRT` not remapped when parent and reply are both copied.
+    - **`781.7.f`** raw annotation and widget `/OC` carried as an unregistered OCG copy; re-bind to the destination `/OCProperties`.
+    - **`781.7.g`** inherited field `/Ff /DA /Q /V /DV` not materialised (with `781.3`).
+    - **`781.7.h`** `paste_pages` should use `insert_pages_with_options` so bookmarks and named destinations come along.
+    - **`781.7.i`** bookmark `/SE` and non-GoTo actions dropped.
+    - **`781.7.j`** attachment `/AFRelationship /Subtype /Params /CI` dropped.
+    - **`781.7.k`** structure tags and `/MCID` dropped on every route (may become a `pass:782.6` cell).
+    - **`781.7.l`** correct three stale doc comments: `vector/clip.rs` (dash, alpha), `edit.rs` and `pageops/mod.rs` ("not merged"), `formclip.rs` module doc.
+  - **GUI-side, PENDING in pdfcer-gui, sent through channel note `E069`; no box ticked:** paste keeps the source layer; copying between pdfcer windows through the OS clipboard drops all annotations; fields copied with one `copy_field` per field instead of `copy_fields`.
+  - ID by grep: zero hits for `Pass 781.` / `Pass 782.` and decision `228` before this filing.
 
 - **`Pass 755.1` (OPEN, NOT STARTED; filed 1698th filing; found by `Pass 755.0`):** the dense CMYK + spot test file page 1 as a single render takes 8-10 s at 150 dpi (release); not investigated. Profile with `tools/render-profile`. ID by grep before use.
 

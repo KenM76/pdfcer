@@ -4,6 +4,17 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-11-26 (1726th filing) — decision 228 and the `Pass 781.x`/`782.x` cross-cutting coverage arc filed (no code)
+
+**Filed (engineer-reported; no shell here, git, push, CI and the gates not checked from here; operator commits):**
+- **Operator request (Ken, 2026-11-26):** make every copy and paste carry every object's properties; every new feature only gets partial support unless explicitly asked; make full support of the other features (copy and paste being one example) automatic.
+- **Two artifacts from the autonomous-builder consultant:** `docs/decisions/228-cross-cutting-coverage.md` (decision, artifacts, Pass split, rejected options, limits) and `docs/decisions/228-cross-cutting-coverage.md` (Appendix) (read-only audit of every copy/paste route, with the gap list).
+- **Decision 228:** compiler-enforced exhaustive `ObjectKind` matches per operation; clone-then-patch as the only carry; property-equality gate test with non-default fixtures plus a sentinel key; generated `docs/cross-cutting.md`; `tools/check-cross-cutting.py` CI gate. `ARCHITECTURE.md` §12 entry added; body sections deferred until `781.0`/`781.1` ship.
+- **Arc filed:** `Pass 781.0` as a Next up banner (head, after the `v0.179.0` release); `781.1`-`781.6`, `781.7.a`-`l` (the audit's core gaps) and `782.0`-`782.6` in Backlog; the three GUI-side gaps recorded as pending in pdfcer-gui (channel note `E069`), no boxes ticked. `Pass 780.1` banner amended: no longer head. `FEATURES.md`: one new Planned row, all boxes unticked.
+- Grep-checked before filing: decision `228` and `Pass 781.`/`782.` had zero prior hits.
+
+**Decisions made:** decision 228 (above). **Next:** release `v0.179.0` finishes first, then implementation begins with `Pass 781.0`.
+
 ## 2026-11-26 (1725th filing) — CI clippy fix `44816881` for `Pass 780.0`; `v0.179.0` still in progress
 
 **Filed (engineer-reported; no shell here, git, push, CI and the gates not checked from here; operator commits):**

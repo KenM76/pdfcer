@@ -824,6 +824,7 @@ the model or verb exists and only the named shell is missing. The
 
 | core | cli | gui | Acrobat | Feature |
 |:----:|:---:|:---:|:-------:|---------|
+| [ ] | [ ] | [ ] | ? | **Cross-cutting coverage gate (every object kind × every operation)** — a new feature is checked against copy, paste, undo, save, page routes, redact, export and the rest by the build and a test, not by being asked for. Decision 228; `Pass 781.0` (Next up), arc `781.x`-`782.x` (Backlog). |
 | [ ] | [ ] | — | ? | **No fixed image-size ceiling: images refuse only for lack of memory, malformed geometry, or an optional operator cap (off by default)** — today a raised interim ceiling (2^27 pixels, `Pass 780.0`) still applies. Arc `Pass 780.1`-`780.8` (Next up; decision 227): memory budget (`--max-image-memory`), evidence bounds, optional `--max-image-pixels`, image-stream byte bounds, display-resolution texels. |
 | [ ] | [ ] | [ ] | ? | **Join two open path ends; close an open path** — the two node-editing verbs `Pass 722.0` did not ship. `Pass 722.2` (Backlog). |
 | [ ] | [ ] | [ ] | ? | **Dynamic XFA, page-background fields bind per page** — each page instance of a `pageArea` is its own form node, so a value typed on page 3 stays on page 3; `match="global"` or an explicit `bind ref` stays one shared value. `Pass 647.3g` (OPEN; `X016` item 1; not gating `v0.156.0`). |
