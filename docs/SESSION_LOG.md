@@ -4,6 +4,15 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-11-26 (1718th filing) — `Pass 779.0` SHIPPED (`688ad325`), operator request `X121`
+
+**Filed (engineer-reported; no shell here, git, push, CI and the gates not checked from here; operator commits):**
+- `Pass 779.0` `688ad325`, never Planned: refused ICC profiles are counted by reason (`pdfcer_render::icc::IccUnmodelled`, four `Diagnostics` fields, `icc_profiles_unmodelled` now their sum); `pdfcer print` names the reasons per page. Each distinct profile counted once per cache under its first refusal reason. 7 new render tests (586 lib pass), 11 emf ICC, 62 CLI print pass; sabotage fails 3. Unreleased. Reply `open/reply_X121_icc_unmodelled_reasons_SHIPPED.md`; `X121` closed.
+- **Finding:** icccer builds a chain despite a patched header class (offset 12) or data colour space (offset 16); patching PCS (offset 20) to `CMYK` yields a parses-but-no-chain profile. Written to `D:/dev/rag/rust/` (icccer finding, indexed); it is about the crate, not PDF producers, so nothing went to `C:\personal_rag\pdf\`.
+- `ROADMAP.md`: Shipped entry. `FEATURES.md`: clause on the print-disclosure row, no box changed. `NEXT_SESSION.md`: update added.
+
+**Decisions made:** none. **Next:** no open requests; Next up has no head.
+
 ## 2026-11-26 (1717th filing) — `v0.177.0` PUBLISHED (tag `5065defd`)
 
 **Filed (engineer-reported; no shell here, git, push, CI and the gates not checked from here; operator commits):**

@@ -112,6 +112,18 @@ wherever it appears.*
 
 ## Shipped
 
+### `Pass 779.0`: count refused ICC profiles by reason; `688ad325`, 2026-11-26 (1718th filing), operator request `X121`
+
+Engineer-reported; no shell here, git, push, CI and the gates not checked from here. Never filed as Planned. **Unreleased: on `main` after the `v0.177.0` tag; rides the next release.** Reasoning is in the commit message.
+- **Change:** new public `#[non_exhaustive]` enum `pdfcer_render::icc::IccUnmodelled` (`SourceUnparsed`, `DestinationUnparsed`, `NoChain`, `ProbeRefused`, plus `ALL`). `IccBridge::build` / `build_to_srgb` (`pub(crate)`) return `Result<Self, IccUnmodelled>`. `IccBridgeCache` keeps per-reason counts in a `Cell<[usize; 4]>`; each distinct profile is counted once per cache, under the first reason it was refused for. Paint paths still receive `Option`, so fallbacks are unchanged.
+- **Diagnostics:** `pdfcer_render::Diagnostics` gains `icc_profiles_unparsed`, `icc_output_intent_unparsed`, `icc_profiles_without_chain`, `icc_profiles_probe_refused`; `icc_profiles_unmodelled` is now their sum (`Diagnostics::add_icc_unmodelled`); merging carries all four.
+- **CLI:** `pdfcer print` (raster and vector routes) names the reasons in the per-page warning, e.g. "(1 not matching /N)". The plates route still has no carrier.
+- **Docs:** `docs/core-api/03-capabilities.md` documents the fields; line count in `docs/core-api/index.md` updated; `check-core-api-verbs` green.
+- **Tests (engineer-reported):** 7 new unit tests in `crates/pdfcer-render/src/icc.rs`; render lib 586 pass; pdfcer-emf ICC 11 pass; CLI `print` 62 pass. fmt, clippy `-D warnings` (render, cli, emf) and code-structure clean. Sabotage (pin every refusal to slot 0) fails 3 tests. No manifest change (no `cargo tree` change), no writer change.
+- **Finding:** icccer still builds a chain when header device class (offset 12) or data colour space (offset 16) is patched; patching PCS (offset 20) to `CMYK` gives a parses-but-no-chain profile. `D:/dev/rag/rust/icccer_chain_survives_patched_class_and_colour_space_so_make_an_unmodelled_test_profile_via_the_pcs_field.md`.
+- **Channel:** `open/reply_X121_icc_unmodelled_reasons_SHIPPED.md`. `X121` closed.
+- **FEATURES:** clause on the "Print disclosure of unusable colour profiles" row (`Pass 700.19` / `X074`); core and cli were already ticked, gui unchanged and unticked.
+
 ### `v0.177.0` PUBLISHED, tag on `5065defd`, 2026-11-26 (1717th filing)
 
 Engineer-reported (checked by the engineer with a shell); this filing had no shell, so none of it is checked from here.
