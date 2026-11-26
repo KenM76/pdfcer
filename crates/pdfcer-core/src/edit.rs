@@ -159,6 +159,7 @@ mod dimension_anchor_paste;
 mod dimension_centre_mark;
 mod dimension_circle;
 mod dimension_vertex_kind;
+mod flatten_dimensions;
 pub use dimension_centre_mark::{CentreMarkHost, CentreMarkOutcome};
 use dimension_vertex_kind::vertex_edited_kind;
 mod dimension_merge;
@@ -27642,6 +27643,11 @@ pub struct AnnotFlattenOutcome {
     pub popups_removed: usize,
     /// Replies elsewhere whose `/IRT` named a flattened annotation, un-linked.
     pub replies_unlinked: usize,
+    /// Of those, ce dimensions, now removed from the ce dimension model.
+    pub ce_dimensions_flattened: usize,
+    /// Ce dimensions not flattened whose anchor to a flattened one was
+    /// cleared; they keep their last solved position.
+    pub ce_dimension_anchors_detached: usize,
     /// Annotations left in place when every annotation was asked for.
     pub skipped: Vec<AnnotFlattenRefusal>,
     /// What the operator is told (rule 4), most important first.
@@ -48274,6 +48280,7 @@ impl EditSession {
             })
             .collect();
 
+        self.release_flattened_dimensions(&removing, &mut objects, &mut outcome)?;
         outcome.changed = true;
         outcome.flattened = flattened;
         outcome.replies_unlinked = replies.len();

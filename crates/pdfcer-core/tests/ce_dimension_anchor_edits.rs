@@ -298,3 +298,41 @@ fn clearing_or_changing_a_centre_mark_re_solves_its_dependents() {
         Some(CentreMarkSpec::default())
     );
 }
+
+/// Flattening a ce dimension's annotation burns it into the page, so it
+/// leaves the ce dimension model; a ce dimension anchored to it detaches
+/// and keeps its position. Undo restores both.
+#[test]
+fn flattening_a_target_detaches_its_dependents() {
+    let (mut s, t, d) = anchored(mark());
+    let annot = s.dimension_model().dimension(t).unwrap().annot.unwrap();
+    let held = point(&s, d, 1);
+    let out = s.flatten_annotations(0, Some(&[annot])).unwrap();
+    assert_eq!(out.ce_dimensions_flattened, 1);
+    assert_eq!(out.ce_dimension_anchors_detached, 1);
+    assert!(
+        out.disclosures
+            .iter()
+            .any(|m| m.contains("detached ce dimension"))
+    );
+    let m = s.dimension_model();
+    assert!(
+        m.dimension(t).is_none(),
+        "a flattened ce dimension left the model"
+    );
+    assert!(s.dimension_anchors(d).is_empty());
+    assert_eq!(point(&s, d, 1), held);
+    s.undo().unwrap();
+    assert!(s.dimension_model().dimension(t).is_some());
+    assert_eq!(s.dimension_anchors(d).len(), 1);
+}
+
+/// Flattening both leaves nothing to detach.
+#[test]
+fn flattening_a_target_with_its_dependent_detaches_nothing() {
+    let (mut s, _, _) = anchored(mark());
+    let out = s.flatten_annotations(0, None).unwrap();
+    assert_eq!(out.ce_dimensions_flattened, 2);
+    assert_eq!(out.ce_dimension_anchors_detached, 0);
+    assert!(s.dimension_model().dimensions().is_empty());
+}
