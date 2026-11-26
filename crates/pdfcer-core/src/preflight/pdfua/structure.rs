@@ -72,6 +72,9 @@ pub(super) struct Tree {
     pub(super) elems: Vec<Elem>,
     /// `(page, MCID)` to the element that owns the marked content.
     pub(super) mcids: HashMap<(ObjId, i64), usize>,
+    /// `(stream, MCID)` for an MCR with `/Stm`: its id is local to that
+    /// form XObject or appearance stream (ISO 32000-1 §14.7.4.2, Table 324).
+    pub(super) stream_mcids: HashMap<(ObjId, i64), usize>,
     /// An annotation or form XObject to its `/OBJR` parent element.
     pub(super) objr: HashMap<ObjId, usize>,
     /// The depth or element cap stopped the reader.
@@ -204,7 +207,10 @@ impl<'v> Reader<'v, '_> {
             Some(b"MCR") => {
                 let mcid = d.get(b"MCID").map(|o| self.view.resolve(o));
                 if let Some(Object::Integer(n)) = mcid {
-                    self.mcid(parent, page_of(d), *n);
+                    match d.get(b"Stm").and_then(Object::as_reference) {
+                        Some(stm) => self.stream_mcid(parent, stm, *n),
+                        None => self.mcid(parent, page_of(d), *n),
+                    }
                 }
                 return;
             }
@@ -242,6 +248,16 @@ impl<'v> Reader<'v, '_> {
             return;
         };
         self.tree.mcids.insert((page, mcid), p);
+        if let Some(e) = self.tree.elems.get_mut(p) {
+            e.content_kids += 1;
+        }
+    }
+
+    fn stream_mcid(&mut self, parent: Option<usize>, stm: ObjId, mcid: i64) {
+        let Some(p) = parent else {
+            return;
+        };
+        self.tree.stream_mcids.insert((stm, mcid), p);
         if let Some(e) = self.tree.elems.get_mut(p) {
             e.content_kids += 1;
         }

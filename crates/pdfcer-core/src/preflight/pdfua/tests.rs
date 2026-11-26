@@ -228,6 +228,61 @@ fn untagged_content_and_misnested_artifacts_are_found() {
     assert!(v.iter().any(|x| x == "PUI-01-005"), "{v:?}");
 }
 
+/// An MCR with `/Stm` claims an id in that stream, not the page's id of
+/// the same number (ISO 32000-1 §14.7.4.2, Table 324).
+#[test]
+fn an_mcr_with_stm_does_not_claim_the_page_sequence() {
+    let d = doc(
+        1,
+        &[
+            (4, stream("", "/P << /MCID 8 >> BDC 0 0 1 1 re f EMC")),
+            (
+                7,
+                "<< /Type /StructElem /S /P /P 6 0 R /Pg 3 0 R \
+                 /K << /Type /MCR /Pg 3 0 R /Stm 11 0 R /MCID 8 >> >>"
+                    .into(),
+            ),
+            (
+                11,
+                stream("/Type /XObject /Subtype /Form /BBox [0 0 1 1]", ""),
+            ),
+        ],
+    );
+    assert_has(&d, 1, "PUI-01-005");
+}
+
+/// A form's own sequence is tagged only by an MCR naming that form and id.
+#[test]
+fn a_form_sequence_needs_a_claim_keyed_by_the_form() {
+    let page = "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] \
+                 /Resources << /XObject << /Fm1 12 0 R >> >> /Contents 4 0 R \
+                 /StructParents 0 /Tabs /S >>";
+    let form = stream(
+        "/Type /XObject /Subtype /Form /BBox [0 0 10 10]",
+        "/P << /MCID 20 >> BDC 0 0 1 1 re f EMC",
+    );
+    let with_claim = |mcid: u8| {
+        doc(
+            1,
+            &[
+                (3, page.to_owned()),
+                (4, stream("", "/Fm1 Do")),
+                (
+                    7,
+                    format!(
+                        "<< /Type /StructElem /S /P /P 6 0 R /Pg 3 0 R \
+                 /K << /Type /MCR /Pg 3 0 R /Stm 12 0 R /MCID {mcid} >> >>"
+                    ),
+                ),
+                (12, form.clone()),
+            ],
+        )
+    };
+    let v = violations(&with_claim(20), 1);
+    assert!(!v.iter().any(|x| x == "PUI-01-005"), "{v:?}");
+    assert_has(&with_claim(21), 1, "PUI-01-005");
+}
+
 /// An image with `/StructParent` is tagged content, not untagged content.
 #[test]
 fn an_image_with_a_struct_parent_is_not_untagged_content() {

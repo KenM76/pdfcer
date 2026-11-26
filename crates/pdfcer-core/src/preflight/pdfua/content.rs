@@ -4,10 +4,11 @@
 //! ISO 14289-2 §8.2.2; veraPDF PDFUA-1 7.1-1…3, 7.2-34, 7.20-1).
 //!
 //! A marked-content sequence is *tagged* when its `/MCID` is claimed by a
-//! structure element for this page. Inside a form XObject an `/MCID` is
-//! taken as tagged (its owner is keyed by the form stream, which the tree
-//! reader does not index), and a form with a `/StructParent` is tagged as
-//! a whole.
+//! structure element: on the page by an integer kid or an MCR without
+//! `/Stm`, inside a form XObject by an MCR whose `/Stm` is that form
+//! (ISO 32000-1 §14.7.4.2, Table 324). Inside a form a page claim on the same id is
+//! also accepted, for producers that leave `/Stm` out. A form with a
+//! `/StructParent` is tagged as a whole.
 
 use super::fonts::Used;
 use super::structure::Tree;
@@ -52,6 +53,8 @@ struct Walker<'v, 'd> {
     view: &'v DocumentView<'d>,
     tree: &'v Tree,
     page: ObjId,
+    /// The form XObject being read, `None` on the page itself.
+    stream: Option<ObjId>,
     used: &'v mut Used,
     counts: Counts,
     active: Vec<u32>,
@@ -70,6 +73,7 @@ pub(super) fn check(
         view,
         tree,
         page: page.id,
+        stream: None,
         used,
         counts: Counts::default(),
         active: Vec::new(),
@@ -127,7 +131,7 @@ impl Walker<'_, '_> {
             let name = op.operator_name(&stream.buf).unwrap_or_default();
             match name {
                 b"BMC" | b"BDC" => {
-                    let mark = self.open(&op, name == b"BDC", resources, ctx, depth);
+                    let mark = self.open(&op, name == b"BDC", resources, ctx);
                     marks.push(mark);
                 }
                 b"EMC" => {
@@ -165,14 +169,7 @@ impl Walker<'_, '_> {
     }
 
     /// A `BMC` or `BDC`: classify the sequence it opens (veraPDF 7.1-1, 7.1-2).
-    fn open(
-        &mut self,
-        op: &Operation<'_>,
-        bdc: bool,
-        resources: &Dict,
-        ctx: Ctx,
-        depth: usize,
-    ) -> Mark {
+    fn open(&mut self, op: &Operation<'_>, bdc: bool, resources: &Dict, ctx: Ctx) -> Mark {
         let tag = first_operand(op);
         let artifact = matches!(&tag, Some(Object::Name(n)) if n.as_bytes() == b"Artifact");
         let props = match last_operand(op).filter(|_| bdc) {
@@ -187,9 +184,11 @@ impl Walker<'_, '_> {
         let mut lang = string_of(self.view, props.get(b"Lang")).is_some();
         let mut tagged = false;
         if let Some(Object::Integer(mcid)) = props.get(b"MCID") {
-            if depth > 0 {
-                tagged = true;
-            } else if let Some(&elem) = self.tree.mcids.get(&(self.page, *mcid)) {
+            let elem = self
+                .stream
+                .and_then(|f| self.tree.stream_mcids.get(&(f, *mcid)))
+                .or_else(|| self.tree.mcids.get(&(self.page, *mcid)));
+            if let Some(&elem) = elem {
                 tagged = true;
                 lang |= self.tree.has_lang(elem);
             }
@@ -269,7 +268,9 @@ impl Walker<'_, '_> {
         match ContentStream::from_form(self.view, id) {
             Ok(inner) => {
                 self.active.push(id.num);
+                let outer_stream = self.stream.replace(id);
                 self.walk(&inner, own.as_ref().unwrap_or(outer), ctx, depth + 1);
+                self.stream = outer_stream;
                 self.active.pop();
             }
             Err(e) => self
