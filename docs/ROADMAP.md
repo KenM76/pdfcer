@@ -112,6 +112,10 @@ wherever it appears.*
 
 ## Shipped
 
+### `v0.178.0` version bump `186ada57`; release IN PROGRESS, 2026-11-26 (1720th filing)
+
+Engineer-reported; no shell here, git, push, CI and the gates not checked from here. `186ada57` (`chore: bump version to 0.178.0`) changes `Cargo.toml`, `Cargo.lock` and `fuzz/Cargo.lock`, 56 insertions and 56 deletions, identical in shape to `eed2a9d2`; a version-number change with no code change reported, filed here as the 1716th did for `eed2a9d2`. pdfcer-core: 6447 tests passed, 0 failed (`--no-fail-fast`). **Unreleased: the release is in progress.** It carries `Pass 779.0` (`688ad325`, `X121`) and `Pass 779.1` (`fbbb02e2`), plus filings `6e3d2685` (1718th) and `cb040ae4` (1719th); all pushed to `main`. OneDrive slot: `pdfcer1` (`pdfcer2` keeps 0.177.0). The tag goes on this filing commit after CI is green, **pushed without `--no-verify`**; the PUBLISHED entry follows.
+
 ### `Pass 779.1`: rejoin the refused-profile warning; `fbbb02e2`, 2026-11-26 (1719th filing)
 
 Engineer-reported; no shell here, so git, CI and the gates were not checked from here. Never filed as Planned. **Unreleased, unpublished.** Reasoning is in the commit message.
