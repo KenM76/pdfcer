@@ -4,6 +4,15 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-11-26 (1716th filing) — `v0.177.0` bump `eed2a9d2` filed; release IN PROGRESS
+
+**Filed (engineer-reported; no shell here, git, push, CI and the gates not checked from here; operator commits):**
+- `eed2a9d2` (`chore: bump version to 0.177.0`): `Cargo.toml`, `Cargo.lock`, `fuzz/Cargo.lock`; 0.176.0 to 0.177.0 on all 17 workspace crates; no code change reported. It was unfiled; filed here as the 1710th did for `43ebb942`.
+- Release `v0.177.0` in progress: carries `Pass 778.0` (`fdf5bc6f`, `X120`) and `Pass 776.1` (`692a2f0d`, `X119` addendum (2)). Filing commits since the `v0.176.0` tag: `fed30b50` (1714th), `23e551be` (1715th). OneDrive slot `pdfcer2`; `pdfcer1` keeps 0.176.0. The tag goes on this filing commit after CI is green.
+- `ROADMAP.md`: Shipped entry for the bump. `NEXT_SESSION.md`: update added. `FEATURES.md`: no change.
+
+**Decisions made:** none. **Next:** CI green on the filing commit, tag, gh-release, `deploy-onedrive.py` to `pdfcer2`, `verify-release.py`, `cargo publish` leaf-first.
+
 ## 2026-11-26 (1715th filing) — `Pass 776.1` SHIPPED (`692a2f0d`), operator request `X119` addendum (2)
 
 **Filed (engineer-reported; no shell here, git, push, CI and the gates not checked from here; operator commits):**

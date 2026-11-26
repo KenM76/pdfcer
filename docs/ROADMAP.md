@@ -112,6 +112,10 @@ wherever it appears.*
 
 ## Shipped
 
+### `v0.177.0` version bump `eed2a9d2`; release IN PROGRESS, 2026-11-26 (1716th filing)
+
+Engineer-reported; no shell here, git, push, CI and the gates not checked from here. `eed2a9d2` (`chore: bump version to 0.177.0`) changes `Cargo.toml`, `Cargo.lock` and `fuzz/Cargo.lock`, 0.176.0 to 0.177.0 on all 17 workspace crates; a version-number change with no code change reported, filed here as the 1710th did for `43ebb942`. **Unreleased: the release is in progress.** It carries `Pass 778.0` (`fdf5bc6f`, `X120`) and `Pass 776.1` (`692a2f0d`, `X119` addendum (2)). Filing commits since the `v0.176.0` tag: `fed30b50` (1714th), `23e551be` (1715th). OneDrive slot: `pdfcer2` (`pdfcer1` keeps 0.176.0). The tag goes on this filing commit after CI is green; the PUBLISHED entry follows.
+
 ### `Pass 776.1`: content compaction must beat the base stream action; `692a2f0d`, 2026-11-26 (1715th filing), operator request `X119` addendum (2)
 
 Engineer-reported; no shell here, git, push, CI and the gates not checked from here. Never filed as Planned. **Unreleased: on `main` after the `v0.176.0` tag; rides the next release.** Reasoning is in the commit message.
