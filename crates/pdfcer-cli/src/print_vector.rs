@@ -87,7 +87,8 @@ pub(crate) fn report_unmodelled(index: usize, d: &pdfcer_render::Diagnostics) {
     if n > 0 {
         let s = if n == 1 { "" } else { "s" };
         eprintln!(
-            "pdfcer: page {}: {n} embedded colour profile{s} could not be used ({});              those colours print from the profile's alternate colour space",
+            "pdfcer: page {}: {n} embedded colour profile{s} could not be used ({}); \
+             those colours print from the profile's alternate colour space",
             index + 1,
             unmodelled_reasons(d)
         );
