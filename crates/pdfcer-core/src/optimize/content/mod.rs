@@ -284,6 +284,10 @@ pub(crate) struct ResolvedContent {
     /// `Recompress` or `Brotli`: the whole-state action the patches landed
     /// on, `recompress-9` when that was `leave`.
     pub(crate) encode: StreamAction,
+    /// What the stream gets with compaction off, the size the result must
+    /// beat: the run's base action, or `leave` when the planner refuses it.
+    /// Set by the planner, not a setting.
+    pub(crate) beat: StreamAction,
 }
 
 impl ResolvedContent {
@@ -295,6 +299,7 @@ impl ResolvedContent {
             redundant: true,
             round: None,
             start: None,
+            beat: StreamAction::Leave,
             encode: match base {
                 StreamAction::Recompress { .. } | StreamAction::Brotli { .. } => base,
                 _ => StreamAction::Recompress { level: 9 },
@@ -434,8 +439,9 @@ pub(crate) fn eligible(dict: &Dict, category: Option<SpaceCategory>) -> bool {
 }
 
 /// Rewrite the content stored as `raw` under `dict` and encode it as
-/// `settings.encode`. Refused, like every stream action, when not strictly
-/// smaller than `raw`.
+/// `settings.encode`. Refused as [`SkipReason::NotSmaller`] unless strictly
+/// smaller than both `raw` and what `settings.beat` alone stores, so
+/// compaction never writes more than the run would without it.
 pub(crate) fn apply(
     settings: ResolvedContent,
     dict: &Dict,
@@ -461,9 +467,17 @@ pub(crate) fn apply(
         ),
         _ => (b"FlateDecode", flate::encode_with_level(&out.bytes, 9)),
     };
-    if data.len() >= raw.len() {
+    let bar = if data.len() < raw.len() {
+        match super::streams::apply(settings.beat, dict, raw) {
+            Ok(Some((_, base))) => base.len().min(raw.len()),
+            _ => raw.len(),
+        }
+    } else {
+        raw.len()
+    };
+    if data.len() >= bar {
         return Err(SkipReason::NotSmaller {
-            before: raw.len() as u64,
+            before: bar as u64,
             after: data.len() as u64,
         });
     }

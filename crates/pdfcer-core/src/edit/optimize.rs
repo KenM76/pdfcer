@@ -452,32 +452,26 @@ pub(super) fn plan_stream(
         filters: &filters,
     };
     let resolved = settings.resolve(id, &facts);
-    let is_image =
-        matches!(stream.dict.get(b"Subtype"), Some(Object::Name(n)) if n.as_bytes() == b"Image");
     if let Some(rc) = resolved.content
         && content::eligible(&stream.dict, row.map(|r| r.category))
+        && plan_content(
+            plan,
+            rc,
+            resolved.base,
+            (id, stream, raw),
+            row,
+            ctx,
+            &filters,
+        )
     {
-        plan_content(plan, rc, (id, stream, raw), row, ctx, filters);
         return;
     }
-    let (action, mut job) = match ctx.lockstep.map_or(resolved.image, |l| Some(l.settings)) {
-        Some(img) if is_image => {
-            let space = row.and_then(|r| r.image.as_ref());
-            match image_action(&img, (stream, raw), space, ctx) {
-                Ok(Some(decided)) => decided,
-                Ok(None) => return,
-                Err(reason) => {
-                    let action = StreamAction::Image(img.to_patch());
-                    plan.skipped.push(Skipped { id, action, reason });
-                    return;
-                }
-            }
-        }
-        _ => (resolved.base, None),
+    let image = ctx.lockstep.map_or(resolved.image, |l| Some(l.settings));
+    let Some((action, mut job)) =
+        stream_action(plan, image, resolved.base, (id, stream, raw), row, ctx)
+    else {
+        return;
     };
-    if action == StreamAction::Leave {
-        return;
-    }
     let skip = |reason| Skipped { id, action, reason };
     if let Some(reason) = refusal(&stream.dict, action, ctx) {
         plan.skipped.push(skip(reason));
@@ -519,6 +513,36 @@ pub(super) fn plan_stream(
     }
 }
 
+/// The action a non-content stream gets: an image's re-encode when `image`
+/// applies to it, else `base`. `None` leaves the stream, recording any
+/// refusal in `plan`.
+fn stream_action(
+    plan: &mut OptimizePlan,
+    image: Option<image::ResolvedImage>,
+    base: StreamAction,
+    (id, stream, raw): (ObjId, &Stream, &[u8]),
+    row: Option<&ObjectSpace>,
+    ctx: &image::pipeline::Context<'_, '_>,
+) -> Option<(StreamAction, Option<ImageJob>)> {
+    let is_image =
+        matches!(stream.dict.get(b"Subtype"), Some(Object::Name(n)) if n.as_bytes() == b"Image");
+    let decided = match image {
+        Some(img) if is_image => {
+            let space = row.and_then(|r| r.image.as_ref());
+            match image_action(&img, (stream, raw), space, ctx) {
+                Ok(decided) => decided?,
+                Err(reason) => {
+                    let action = StreamAction::Image(img.to_patch());
+                    plan.skipped.push(Skipped { id, action, reason });
+                    return None;
+                }
+            }
+        }
+        _ => (base, None),
+    };
+    (decided.0 != StreamAction::Leave).then_some(decided)
+}
+
 /// The action an image stream gets under `img`; `None` leaves it as stored.
 fn image_action(
     img: &image::ResolvedImage,
@@ -550,16 +574,24 @@ fn may_round(settings: &OptimizeSettings) -> bool {
 /// An image re-encode and the change it records.
 type ImageJob = (image::pipeline::Job, Box<ImageChange>);
 
-/// Compact one content stream under `rc`, recording it in `plan`.
+/// Compact one content stream under `rc`, recording it in `plan`, when the
+/// result is smaller than what `base` alone would store. Returns whether it
+/// was planned; when not, the refusal is in `plan.skipped` and the caller
+/// gives the stream `base`.
 fn plan_content(
     plan: &mut OptimizePlan,
     mut rc: ResolvedContent,
+    base: StreamAction,
     (id, stream, raw): (ObjId, &Stream, &[u8]),
     row: Option<&ObjectSpace>,
     ctx: &image::pipeline::Context<'_, '_>,
-    filters: Vec<String>,
-) {
+    filters: &[String],
+) -> bool {
     rc.start = ctx.start;
+    rc.beat = match refusal(&stream.dict, base, ctx) {
+        Some(_) => StreamAction::Leave,
+        None => base,
+    };
     let action = StreamAction::Content(rc.to_patch());
     let result = match refusal(&stream.dict, rc.encode, ctx) {
         Some(reason) => Err(reason),
@@ -569,14 +601,14 @@ fn plan_content(
         Ok(done) => done,
         Err(reason) => {
             plan.skipped.push(Skipped { id, action, reason });
-            return;
+            return false;
         }
     };
     plan.changes.push(PlannedChange {
         id,
         category: row.map_or(SpaceCategory::OtherReferenced, |r| r.category),
         action,
-        filters_before: filters,
+        filters_before: filters.to_vec(),
         before_bytes: raw.len() as u64,
         after_bytes: data.len() as u64,
         lossy: change.numbers_rounded > 0,
@@ -593,4 +625,5 @@ fn plan_content(
         dict,
         data,
     });
+    true
 }

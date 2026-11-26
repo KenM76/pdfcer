@@ -21,6 +21,7 @@ fn settings(whitespace: Whitespace, numbers: Numbers, redundant: bool) -> Resolv
         round: None,
         start: Scale::new(1.0),
         encode: StreamAction::Recompress { level: 9 },
+        beat: StreamAction::Leave,
     }
 }
 
@@ -323,4 +324,74 @@ fn a_whole_real_beyond_the_integer_range_stays_a_real() {
         super::rewrite::real(2147483647.0).as_deref(),
         Some("2147483647")
     );
+}
+
+/// Compacted text can encode larger than the original under the same
+/// filter, so the bar is what the base action alone stores.
+#[test]
+fn compaction_never_stores_more_than_the_stream_action_alone() {
+    let pieces = [
+        "0 0 m",
+        "10.0 10.0 l",
+        "S",
+        "q",
+        "Q",
+        "1.000 w",
+        "0.50 g",
+        "f",
+        "BT",
+        "ET",
+    ];
+    let seps = [" ", "  ", "\n", " \n", "\r\n"];
+    let mut seed: u64 = 1;
+    let mut next = || {
+        seed = seed
+            .wrapping_mul(6_364_136_223_846_793_005)
+            .wrapping_add(1_442_695_040_888_963_407);
+        usize::try_from(seed >> 33).unwrap()
+    };
+    let mut on = OptimizeSettings::new();
+    on.streams = StreamAction::Recompress { level: 9 };
+    on.content = Some(ContentPatch::new());
+    let mut off = on.clone();
+    off.content = None;
+    for _ in 0..300 {
+        let mut text = Vec::new();
+        for _ in 0..4 + next() % 30 {
+            text.extend_from_slice(pieces[next() % pieces.len()].as_bytes());
+            text.extend_from_slice(seps[next() % seps.len()].as_bytes());
+        }
+        let after = |settings: &OptimizeSettings| {
+            let (_, p) = plan(page_doc(&text), settings);
+            p.changes
+                .iter()
+                .find(|c| c.id == id(4))
+                .map_or(text.len() as u64, |c| c.after_bytes)
+        };
+        assert!(
+            after(&on) <= after(&off),
+            "{:?}",
+            String::from_utf8_lossy(&text)
+        );
+    }
+}
+
+/// A stream compaction cannot shrink below the base action still gets the
+/// base action, with the refusal recorded.
+#[test]
+fn a_refused_compaction_falls_back_to_the_base_action() {
+    let (already, _, _) = squeeze(&page_content());
+    let mut settings = OptimizeSettings::new();
+    settings.streams = StreamAction::Recompress { level: 9 };
+    settings.content = Some(ContentPatch::new());
+    let (_, p) = plan(page_doc(already.as_bytes()), &settings);
+    assert!(p.skipped.iter().any(
+        |k| k.id == id(4) && matches!(k.reason, crate::optimize::SkipReason::NotSmaller { .. })
+    ));
+    let change = p
+        .changes
+        .iter()
+        .find(|c| c.id == id(4))
+        .expect("recompressed");
+    assert_eq!(change.action, StreamAction::Recompress { level: 9 });
 }
