@@ -4,6 +4,15 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-11-26 (1714th filing) — `v0.176.0` PUBLISHED (tag `1eee0ea4`); `Pass 778.0` SHIPPED (`fdf5bc6f`), operator request `X120`
+
+**Filed (engineer-reported; no shell here, git, push, CI and the gates not checked from here; operator commits):**
+- `v0.176.0`: tag on `1eee0ea4`, CI green (run 45757628865); 8 assets (portable zip 33,534,309 bytes); 17 crates at 0.176.0 on crates.io (4 retry rounds); OneDrive `pdfcer1` = 0.176.0, `pdfcer2` keeps 0.175.0 (**next release writes `pdfcer2`**); fresh-folder smoke OK; `verify-release.py` ok except "working tree clean" (agent-memory files). Carries `770.1`/`770.2`, `775.0`, `776.0`, `777.0`. Notice `open/notice_2026-11-26_release_v0.176.0.md`.
+- `Pass 778.0` `fdf5bc6f`, never Planned: PDF/UA PUI-01-005 now keys an MCR with `/Stm` by `(stream, MCID)` (ISO 32000-1 §14.7.4.2, Table 324), not the page map; a form's MCID is looked up by `(form, id)`; the page-claim leniency inside a form is kept. `claimed_mcids` (artifact fixer) no longer counts a `/Stm` claim as covering a page sequence. Core only, `pub(super)`, no API change. 2 new tests, sabotage-verified; 39 pdfua tests pass; clippy, fmt clean. Unreleased. Reply `open/reply_X120_pdfua_mcid_claims_by_stream_SHIPPED.md`; `X120` closed.
+- `ROADMAP.md`: two Shipped entries. `FEATURES.md`: clause on the PDF/UA validation row, boxes unchanged. `NEXT_SESSION.md`: update added.
+
+**Decisions made:** none. **Next:** no open requests; Next up has no head.
+
 ## 2026-11-25 (1713th filing) — `Pass 777.0` SHIPPED (`d3c8a742`); `v0.176.0` bump `a4a54a32` filed
 
 **Filed (engineer-reported; no shell here, git, push, CI and the gates not checked from here; operator commits):**

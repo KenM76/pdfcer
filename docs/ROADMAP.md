@@ -112,6 +112,26 @@ wherever it appears.*
 
 ## Shipped
 
+### `Pass 778.0`: PDF/UA preflight PUI-01-005 keys a marked-content claim with `/Stm` by its stream; `fdf5bc6f`, 2026-11-26 (1714th filing), operator request `X120`
+
+Engineer-reported; no shell here, git, push, CI and the gates not checked from here. Never filed as Planned. **Unreleased: on `main` after the `v0.176.0` tag; rides the next release.** Reasoning is in the commit message.
+- **Fix:** the structure reader keys an MCR carrying `/Stm` by `(stream, MCID)` in new `Tree.stream_mcids` (ISO 32000-1 §14.7.4.2, Table 324), not in the page map. The content walker tracks the form being read, drops the `depth > 0` shortcut that counted any MCID in a form as tagged, and looks a form's MCID up by `(form, id)`. Leniency kept: inside a form a page claim on the same id is still accepted (producers that omit `/Stm`). Side effect: `claimed_mcids` (artifact fixer) no longer treats a `/Stm` claim as covering a page sequence.
+- **Scope:** `crates/pdfcer-core/src/preflight/pdfua/{structure,content,tests}.rs`; `pub(super)` only, no public API, `docs/core-api` or manifest change. Core only: reached through the existing `pdfcer preflight` and PDF/UA path, so no cli box changes.
+- **Tests (engineer-reported):** 2 new (`an_mcr_with_stm_does_not_claim_the_page_sequence`, `a_form_sequence_needs_a_claim_keyed_by_the_form`); 39 pdfua tests pass; sabotage (routing `/Stm` claims to the page map) fails the first; clippy `-D warnings` and fmt clean.
+- **Channel:** `open/reply_X120_pdfua_mcid_claims_by_stream_SHIPPED.md`. `X120` closed.
+- **FEATURES:** a clause on the "Validate PDF/UA-1 and PDF/UA-2" row; no box changed.
+
+### `v0.176.0` PUBLISHED, tag on `1eee0ea4`, 2026-11-26 (1714th filing)
+
+Engineer-reported (checked by the engineer with a shell); this filing had no shell, so none of it is checked from here.
+- **Tag:** `v0.176.0` on `1eee0ea4`. CI green (run 45757628865).
+- **GitHub release:** 8 assets; portable zip 33,534,309 bytes, sha256 `ebc5280e1bee866898bc95786aa99ac283cd8010dabdb869de8063e6472b0271`, plus its `.sha256` and three OCR add-on zips with `.sha256`.
+- **crates.io:** all 17 crates at 0.176.0 (round retry, 4 rounds, last left=[]).
+- **OneDrive:** `pdfcer1` = 0.176.0; `pdfcer2` keeps 0.175.0, so **the next release writes `pdfcer2`**.
+- **Smoke (fresh folder):** `--version` 0.176.0, revision `v0.175.0-10-g1eee0ea4`. `verify-release.py` ok except "working tree clean" (uncommitted agent-memory files, the known exception).
+- **Carries:** `770.1`/`770.2` (G332 anchor follow-through), `775.0`, `776.0` (`X119`), `777.0`.
+- **Channel:** `D:\Dev\FeatureRequests\pdfce_FeatureRequests\open\notice_2026-11-26_release_v0.176.0.md`.
+
 ### `Pass 777.0`: the 3D-render lens and panorama CLI tests no longer share one input file; `d3c8a742`, 2026-11-25 (1713th filing); also the `v0.176.0` version bump `a4a54a32`
 
 Engineer-reported; no shell here, git, push, CI and the gates not run or checked from here. Never filed as Planned: found when CI went red on the unfiled `v0.176.0` version-bump commit `a4a54a32` (`chore: version 0.176.0`, a version-number change with no code change reported; filed here as the 1710th did for `43ebb942`), run 45751692314, windows. **Unreleased: the `v0.176.0` release is in progress and waits on CI for this fix.** Reasoning is in the commit message.
