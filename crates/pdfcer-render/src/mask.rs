@@ -179,12 +179,27 @@ pub enum MaskRefusal {
     /// which are attacker-controlled independently of the base image's.
     #[error("mask exceeds MAX_IMAGE_PIXELS ({MAX_IMAGE_PIXELS} pixels)")]
     TooLarge,
+    /// The allocator refused the mask's alpha plane; the mask is within
+    /// pdfcer's ceilings (decision 226). The payload is the refused size.
+    #[error("not enough memory for the mask ({0} bytes needed)")]
+    AllocationFailed(u64),
     /// The colour-key `/Mask` array's length was not `2 × n` for the
     /// base image's component count (§8.9.6.4), so no range test could
     /// be built. Truncating or padding it would mask the wrong colours,
     /// which is worse than masking none.
     #[error("colour-key /Mask array length is not 2 x the component count")]
     ColourKeyLength,
+}
+
+/// A zeroed alpha plane, allocated fallibly.
+fn zeroed_alpha(width: u32, height: u32) -> Result<Vec<u8>, MaskRefusal> {
+    let len = (width as usize).saturating_mul(height as usize);
+    let mut alpha = Vec::new();
+    alpha
+        .try_reserve_exact(len)
+        .map_err(|_| MaskRefusal::AllocationFailed(len as u64))?;
+    alpha.resize(len, 0);
+    Ok(alpha)
 }
 
 impl MaskRefusal {
@@ -203,6 +218,7 @@ impl MaskRefusal {
             Self::Undecodable(_) => "mask/undecodable",
             Self::UnsupportedColorSpace(_) => "mask/colour-space",
             Self::TooLarge => "mask/too-large",
+            Self::AllocationFailed(_) => "mask/allocation-failed",
             Self::ColourKeyLength => "mask/colour-key-length",
         }
     }
@@ -719,7 +735,7 @@ pub fn soft_mask_plane(
     let slope = (dmax - dmin) / max_sample;
 
     let stride = row_stride(sample_width, 1, bits).map_err(|_| MaskRefusal::TooLarge)?;
-    let mut alpha = vec![0u8; (width as usize).saturating_mul(height as usize)];
+    let mut alpha = zeroed_alpha(width, height)?;
     for y in 0..height as usize {
         let row_bit_base = y.saturating_mul(stride).saturating_mul(8);
         for x in 0..width as usize {
@@ -821,7 +837,7 @@ pub fn stencil_plane(doc: &DocumentView<'_>, entry: &Object) -> Result<AlphaPlan
     };
     let stride = row_stride(sample_width, 1, bits).map_err(|_| MaskRefusal::TooLarge)?;
 
-    let mut alpha = vec![0u8; (width as usize).saturating_mul(height as usize)];
+    let mut alpha = zeroed_alpha(width, height)?;
     for y in 0..height as usize {
         let row_bit_base = y.saturating_mul(stride).saturating_mul(8);
         for x in 0..width as usize {

@@ -254,8 +254,8 @@
 use hayro_jpeg2000::{ColorSpace, DecodeSettings, DecoderContext, Image};
 
 use super::{
-    Codec, CodecColorModel, CodecNotes, CodedImage, ImageCodecError, MAX_IMAGE_DIMENSION,
-    MAX_IMAGE_PIXELS, MAX_IMAGE_SAMPLE_BYTES,
+    Codec, CodecColorModel, CodecNotes, CodedImage, ImageCodecError, MAX_DECODER_WORKING_BYTES,
+    MAX_IMAGE_DIMENSION, MAX_IMAGE_PIXELS, MAX_IMAGE_SAMPLE_BYTES,
 };
 // decision 018: the codecs resolve indirect entries through a `DocumentView`
 // rather than a `&Document`, so an image whose dictionary lives in an
@@ -269,17 +269,12 @@ use pdfcer_model::view::DocumentView;
 ///
 /// The decoder holds one `f32` per sample per component — four bytes for
 /// every one byte that reaches [`CodedImage::samples`] — and allocates
-/// all of it up front from the codestream's declared geometry. Setting
-/// this to [`MAX_IMAGE_PIXELS`] × 4 components × 4 bytes makes it
-/// **exactly as permissive as [`MAX_IMAGE_PIXELS`] already is**: no
-/// image that the project-wide pixel ceiling admits is refused here.
-///
-/// It exists anyway, rather than being left implicit, for the reason
-/// rule R25 was written: a bound that is only the accidental product of
-/// other constants is a bound nobody chose and nobody will notice
-/// changing. This one is written down, and it is the number the fuzz
-/// target's `-rss_limit_mb` is reasoned against.
-const MAX_WORKING_BYTES: u64 = MAX_IMAGE_PIXELS * 4 * 4;
+/// all of it up front from the codestream's declared geometry. It is the
+/// shared [`MAX_DECODER_WORKING_BYTES`], so it is **tighter** than
+/// [`MAX_IMAGE_PIXELS`]: a four-component JPX above 2^25 px, or a
+/// three-component one above about 44.7 Mpx, is refused here. It is the
+/// number the fuzz target's `-rss_limit_mb` is reasoned against.
+const MAX_WORKING_BYTES: u64 = MAX_DECODER_WORKING_BYTES;
 
 /// Maximum number of T.800 tiles pdfcer will decode in one image.
 ///
@@ -510,7 +505,7 @@ pub(super) fn decode(
     }
     let pixel_count = rows.saturating_mul(width_usize);
 
-    let mut samples = vec![0u8; pixel_count.saturating_mul(colour_len)];
+    let mut samples = super::zeroed(pixel_count.saturating_mul(colour_len))?;
     for (index, plane) in colour_planes.iter().enumerate() {
         interleave(
             plane.samples(),
@@ -529,7 +524,7 @@ pub(super) fn decode(
     };
     let embedded_alpha = match (smask, alpha_plane) {
         (SMaskInData::Opacity, Some(plane)) => {
-            let mut alpha = vec![0u8; pixel_count];
+            let mut alpha = super::zeroed(pixel_count)?;
             interleave(plane.samples(), plane.bit_depth(), 0, 1, &mut alpha);
             Some(alpha)
         }

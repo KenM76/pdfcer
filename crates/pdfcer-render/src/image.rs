@@ -220,6 +220,11 @@ pub enum ImageError {
     /// `Width × Height` exceeds [`MAX_IMAGE_PIXELS`] (pdfcer guard).
     #[error("image exceeds MAX_IMAGE_PIXELS ({MAX_IMAGE_PIXELS} pixels)")]
     TooLarge,
+    /// The allocator refused a sample or texel buffer the image needed.
+    /// The image is within pdfcer's ceilings; the machine lacks the memory
+    /// (decision 226). The payload is the refused size in bytes.
+    #[error("not enough memory for the image ({0} bytes needed)")]
+    AllocationFailed(u64),
 }
 
 /// Which of §8.9.6.1's transparency mechanisms supplied an image's alpha.
@@ -1041,11 +1046,27 @@ fn map_filter_error(err: FilterError) -> ImageError {
 /// distinctions the diagnostics need to count separately (decision 005
 /// §6.4): "this codec is not built", "this *feature* of this codec is
 /// not built", and "these bytes are broken."
+/// A transparent `width` x `height` pixmap, allocated fallibly: an
+/// allocator refusal is [`ImageError::AllocationFailed`], never an abort.
+fn try_pixmap(width: u32, height: u32) -> Result<Pixmap, ImageError> {
+    let size = tiny_skia::IntSize::from_wh(width, height).ok_or(ImageError::TooLarge)?;
+    let len = (width as usize)
+        .checked_mul(height as usize)
+        .and_then(|n| n.checked_mul(4))
+        .ok_or(ImageError::TooLarge)?;
+    let mut data = Vec::new();
+    data.try_reserve_exact(len)
+        .map_err(|_| ImageError::AllocationFailed(len as u64))?;
+    data.resize(len, 0);
+    Pixmap::from_vec(data, size).ok_or(ImageError::TooLarge)
+}
+
 fn map_codec_error(err: ImageCodecError) -> ImageError {
     match err {
         ImageCodecError::Filter(inner) => map_filter_error(inner),
         ImageCodecError::FeatureUnsupported { feature } => ImageError::CodecFeature(feature),
         ImageCodecError::TooLarge => ImageError::TooLarge,
+        ImageCodecError::AllocationFailed { bytes } => ImageError::AllocationFailed(bytes),
         // `Unsupported` and `NotAllowedInline` are both "pdfcer will not
         // decode this codec here"; the message already says which and
         // why, and an operator's next action is the same either way.
@@ -1140,7 +1161,7 @@ fn decode_stencil(
         notes.truncated = true;
     }
 
-    let mut pixmap = Pixmap::new(width, height).ok_or(ImageError::TooLarge)?;
+    let mut pixmap = try_pixmap(width, height)?;
     let ink = premultiplied(fill, 255);
     // A fully transparent texel must have zero colour too: tiny-skia
     // stores PREMULTIPLIED components, and `r > a` is an invalid
@@ -1542,7 +1563,7 @@ fn decode_sampled(
         _ => vec![(0.0, 1.0); components],
     };
 
-    let mut pixmap = Pixmap::new(width, height).ok_or(ImageError::TooLarge)?;
+    let mut pixmap = try_pixmap(width, height)?;
     // The ink planes exist only for a `DeviceCMYK` image. Every other space
     // either has no colorants to preserve (`DeviceRGB`, `Lab`) or resolves
     // through a tint transform whose output is already the alternate's, and
@@ -1576,7 +1597,10 @@ fn decode_sampled(
     let carries_ink = space.yields_cmyk(&mut scratch_diag)
         || matches!(space, Space::Indexed { ink: Some(_), .. });
     let mut ink = if carries_ink {
-        match (Pixmap::new(width, height), Pixmap::new(width, height)) {
+        match (
+            try_pixmap(width, height).ok(),
+            try_pixmap(width, height).ok(),
+        ) {
             (Some(cmy), Some(k)) => Some(CmykTexels { cmy, k }),
             // Out of memory for the extra planes is not a reason to fail the
             // image: the sRGB path still works and merely bridges, which is
@@ -1593,7 +1617,10 @@ fn decode_sampled(
     // failed image — the sRGB path still paints, and the overprint path then
     // discloses that it could not run rather than painting silently wrongly.
     let mut op_planes = if op_kind.is_some() {
-        match (Pixmap::new(width, height), Pixmap::new(width, height)) {
+        match (
+            try_pixmap(width, height).ok(),
+            try_pixmap(width, height).ok(),
+        ) {
             (Some(cmy), Some(k)) => Some(CmykTexels { cmy, k }),
             _ => None,
         }
@@ -1609,7 +1636,7 @@ fn decode_sampled(
     let mut spot_planes: Vec<Pixmap> = Vec::with_capacity(spot_colorants.len());
     if op_planes.is_some() {
         for _ in &spot_colorants {
-            match Pixmap::new(width, height) {
+            match try_pixmap(width, height).ok() {
                 Some(p) => spot_planes.push(p),
                 None => {
                     spot_planes.clear();
@@ -2001,7 +2028,7 @@ fn write_ink(planes: &mut CmykTexels, at: usize, tint: [f32; 4], alpha: u8) {
 /// be allocated; the caller then bridges sRGB as for any other image.
 pub(crate) fn gray_ink(texels: &Pixmap) -> Option<CmykTexels> {
     let (w, h) = (texels.width(), texels.height());
-    let (mut cmy, mut k) = (Pixmap::new(w, h)?, Pixmap::new(w, h)?);
+    let (mut cmy, mut k) = (try_pixmap(w, h).ok()?, try_pixmap(w, h).ok()?);
     for ((src, c), kk) in texels
         .pixels()
         .iter()

@@ -56,7 +56,7 @@
 //!
 //! ## The cost gate, and why it is not a weakening
 //!
-//! `MAX_IMAGE_PIXELS` is 32 Mpx. Encoding a 32-megapixel image on every
+//! `MAX_IMAGE_PIXELS` is 134 Mpx. Encoding a 134-megapixel image on every
 //! iteration would give libFuzzer roughly one execution per second and the
 //! campaign would explore nothing. So the two expensive policies (`Lossless`
 //! and `Jpeg`) run only when the cheap passthrough import has already

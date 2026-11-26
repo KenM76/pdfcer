@@ -587,10 +587,12 @@ mod tests {
 
     #[test]
     fn the_row_ceiling_is_derived_not_invented() {
-        // A 1728-wide A4 fax: 32 Mpx / 1728 = 19418 rows, well past any
-        // real scan, and far past the 16384 a vendor default would have
+        // A 600 dpi A4 bilevel scan is 4960 wide: 2^27 / 4960 = 27060 rows,
+        // past any real page and the 16384 a vendor default would have
         // imposed (rule R25's whole point).
-        assert_eq!(row_ceiling(1728), (MAX_IMAGE_PIXELS / 1728) as u32);
+        assert_eq!(row_ceiling(4960), (MAX_IMAGE_PIXELS / 4960) as u32);
+        // A 1728-wide fax binds on the dimension ceiling instead.
+        assert_eq!(row_ceiling(1728), MAX_IMAGE_DIMENSION);
         // A one-pixel-wide image cannot claim 32 million rows.
         assert_eq!(row_ceiling(1), MAX_IMAGE_DIMENSION);
         // Never zero, whatever the width.

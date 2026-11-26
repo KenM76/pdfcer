@@ -3059,7 +3059,11 @@ Bilevel | Unspecified | Unknown{components}`.
 image, decoded or not; render counts it in
 `RenderDiagnostics::jxl_nonstandard_images` and notes it — disclose it).
 `ImageCodecError` — `lib.rs`: `Filter | Unsupported | FeatureUnsupported
-| Corrupt | TooLarge | NotAllowedInline | CodecNotTerminal`.
+| Corrupt | TooLarge | AllocationFailed { bytes } | NotAllowedInline
+| CodecNotTerminal`. `AllocationFailed` (also `render::image::ImageError::AllocationFailed(u64)`
+and `MaskRefusal::AllocationFailed(u64)`, key `mask/allocation-failed`)
+means the image is within the ceilings but the allocator refused it; it
+is a refusal, never an abort.
 
 `image_codec::jxl` exports `is_jxl(&[u8]) -> bool` and
 `decode_pixels(&[u8]) -> Result<JxlPixels, ImageCodecError>` (frame 0, 8-bit,
@@ -3196,11 +3200,12 @@ f.eval_into(&inputs, &mut buf)?;                           // function.rs
 | Guard | Constant / value | Error |
 |---|---|---|
 | Decoded byte-stream ceiling (incremental) | `filters::MAX_DECODED_LEN` = 256 MiB | `FilterError::OutputTooLarge` |
-| Image pixel count | `MAX_IMAGE_PIXELS` = 32 Mpx | `ImageCodecError::TooLarge` |
+| Image pixel count | `MAX_IMAGE_PIXELS` = 2^27 (134 Mpx; 600 dpi legal and A3 scans fit; decision 226) | `ImageCodecError::TooLarge` |
 | Image dimension | `MAX_IMAGE_DIMENSION` = 65,535 | `TooLarge` |
-| Decoded sample bytes | `MAX_IMAGE_SAMPLE_BYTES` = 128 MiB | `TooLarge` |
+| Decoded sample bytes | `MAX_IMAGE_SAMPLE_BYTES` = pixels x 4 = 512 MiB | `TooLarge` |
 | DCT progressive scans | `dct::MAX_PROGRESSIVE_SCANS` = 100 *(private)* | `Corrupt` |
-| JPX working memory | `jpx::MAX_WORKING_BYTES` *(private)* | `TooLarge` |
+| JPX/JXL working memory, JPEG remux grid | `MAX_DECODER_WORKING_BYTES` = 512 MiB (fixed, not derived from the pixel ceiling) | `TooLarge` |
+| Any large sample/texel/mask buffer | allocator refusal | `AllocationFailed` |
 | JPX tile count | `jpx::MAX_TILES` = 4096 *(private)* | `TooLarge` |
 | JPX component bit depth | `jpx::MAX_COMPONENT_BIT_DEPTH` = 31 *(private)* | `FeatureUnsupported` |
 | CCITT/JBIG2 sink budget | `BilevelSink::budget` (latched, since vendor sinks are infallible) | `TooLarge` |

@@ -18,7 +18,10 @@ use super::vl_pre::Grey;
 /// Largest enlargement accepted.
 pub const MAX_FACTOR: f32 = 4.0;
 /// Most output pixels produced; a larger result is refused, not clipped.
-pub const MAX_OUTPUT_PIXELS: usize = 1 << 27;
+///
+/// The image decode ceiling, so an upscaled image can always be read back.
+#[allow(clippy::cast_possible_truncation)] // 2^27 fits every usize pdfcer targets
+pub const MAX_OUTPUT_PIXELS: usize = crate::image_codec::MAX_IMAGE_PIXELS as usize;
 
 /// The interpolation kernel.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]

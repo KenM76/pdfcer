@@ -63,7 +63,7 @@
 //!
 //! libFuzzer flags any input taking over **one second** as a
 //! `slow-unit`, a threshold set for parsers rather than for image
-//! decoders. `MAX_IMAGE_PIXELS` legitimately admits a 32-megapixel
+//! decoders. `MAX_IMAGE_PIXELS` legitimately admits a 134-megapixel
 //! image; this target decodes each input up to four times; and the
 //! sanitized, coverage-instrumented build runs roughly 20× slower than
 //! the shipped one. A perfectly ordinary 17 Mpx codestream measures

@@ -153,8 +153,8 @@ use zune_jpeg::zune_core::colorspace::ColorSpace;
 use zune_jpeg::zune_core::options::DecoderOptions;
 
 use super::{
-    Codec, CodecColorModel, CodecNotes, CodedImage, ImageCodecError, MAX_IMAGE_DIMENSION,
-    MAX_IMAGE_PIXELS, MAX_IMAGE_SAMPLE_BYTES,
+    Codec, CodecColorModel, CodecNotes, CodedImage, ImageCodecError, MAX_DECODER_WORKING_BYTES,
+    MAX_IMAGE_DIMENSION, MAX_IMAGE_PIXELS, MAX_IMAGE_SAMPLE_BYTES,
 };
 use crate::CmykJpegPolarity;
 
@@ -179,6 +179,11 @@ use pdfcer_model::view::DocumentView;
 /// is about the number being one pdfcer chose and can be seen to have
 /// chosen — an inherited default never appears in a diff.
 const MAX_PROGRESSIVE_SCANS: usize = 100;
+
+/// Most 8x8 coefficient blocks the multi-scan remux may hold: the shared
+/// decoder working budget at 128 bytes (64 `i16`) per block, 2^22 blocks.
+#[allow(clippy::cast_possible_truncation)] // 2^22 fits every usize
+const MAX_REMUX_BLOCKS: usize = (MAX_DECODER_WORKING_BYTES / 128) as usize;
 
 /// Decode a `DCTDecode` codestream.
 ///
@@ -206,10 +211,10 @@ pub(super) fn decode(
     let frame = sniff(data)?;
     // zune-jpeg 0.5.15 mis-reads subsampled components coded in separate
     // scans; the lossless one-scan rewrite decodes to the same pixels. Any
-    // remux error falls back to the original bytes for zune to judge. One
-    // coefficient block per 64 output samples keeps the remux inside the
-    // sample ceiling.
-    let remuxed = pdfcer_jpeg_remux::interleave(data, MAX_IMAGE_SAMPLE_BYTES / 64)
+    // remux error falls back to the original bytes for zune to judge. A
+    // block is 64 `i16` coefficients (128 bytes), so the block budget keeps
+    // the coefficient grid inside the shared decoder working budget.
+    let remuxed = pdfcer_jpeg_remux::interleave(data, MAX_REMUX_BLOCKS)
         .ok()
         .flatten();
     let data = remuxed.as_deref().unwrap_or(data);
@@ -252,7 +257,7 @@ pub(super) fn decode(
         .filter(|&n| n <= MAX_IMAGE_SAMPLE_BYTES)
         .ok_or(ImageCodecError::TooLarge)?;
 
-    let mut samples = vec![0u8; buffer_size];
+    let mut samples = super::zeroed(buffer_size)?;
     decoder.decode_into(&mut samples).map_err(corrupt)?;
 
     // The one colour operation this module performs, and only because

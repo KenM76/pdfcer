@@ -22,17 +22,17 @@ use jxl_oxide::color::{ColourEncoding, ColourSpace, TransferFunction, WhitePoint
 use jxl_oxide::{AllocTracker, JxlImage, NullCms};
 
 use super::{
-    Codec, CodecColorModel, CodecNotes, CodedImage, ImageCodecError, MAX_IMAGE_DIMENSION,
-    MAX_IMAGE_PIXELS, MAX_IMAGE_SAMPLE_BYTES,
+    Codec, CodecColorModel, CodecNotes, CodedImage, ImageCodecError, MAX_DECODER_WORKING_BYTES,
+    MAX_IMAGE_DIMENSION, MAX_IMAGE_PIXELS, MAX_IMAGE_SAMPLE_BYTES,
 };
 use pdfcer_model::graph::ObjectGraph;
 use pdfcer_model::object::{Dict, Object};
 use pdfcer_model::view::DocumentView;
 
 /// Ceiling on the decoder's own allocations, enforced by its
-/// [`AllocTracker`]: four colour-plus-alpha `f32` planes at
-/// [`MAX_IMAGE_PIXELS`], the same budget as the JPX decoder.
-const MAX_WORKING_BYTES: u64 = MAX_IMAGE_PIXELS * 4 * 4;
+/// [`AllocTracker`]: the shared [`MAX_DECODER_WORKING_BYTES`], the same
+/// budget as the JPX decoder.
+const MAX_WORKING_BYTES: u64 = MAX_DECODER_WORKING_BYTES;
 
 /// Bare-codestream signature (ISO/IEC 18181-1 §6.1).
 const CODESTREAM_SIGNATURE: [u8; 2] = [0xFF, 0x0A];
@@ -103,7 +103,7 @@ pub fn decode_pixels(data: &[u8]) -> Result<JxlPixels, ImageCodecError> {
     let len = (width as usize)
         .saturating_mul(height as usize)
         .saturating_mul(channels);
-    let mut interleaved = vec![0u8; len];
+    let mut interleaved = super::zeroed(len)?;
     if stream.write_to_buffer(&mut interleaved) != len {
         return Err(corrupt("decoder produced fewer samples than declared"));
     }

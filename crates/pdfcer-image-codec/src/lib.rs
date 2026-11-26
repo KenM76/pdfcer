@@ -148,17 +148,20 @@ use pdfcer_model::view::DocumentView;
 /// Maximum `width × height` accepted for a single decoded image
 /// (pdfcer policy, ARCHITECTURE.md §10.1 — no Annex C limit exists).
 ///
-/// 32 Mpx (33,554,432) bounds an RGBA texel buffer at 128 MiB. For
-/// scale: a 300 DPI A4 page scanned in full colour is ~8.7 Mpx, and the
-/// largest sensible print image at 600 DPI on a 200-inch (Annex C
-/// maximum) page edge is still comfortably under this. A crafted
-/// 65535 × 65535 image (4.3 Gpx, 17 GiB of RGBA) is refused here rather
-/// than after a 17 GiB allocation attempt.
+/// 2^27 (134,217,728) bounds an RGBA texel buffer at 512 MiB. It admits
+/// the page sizes office copiers scan by default: a 600 dpi colour scan
+/// of a legal page is 42.8 Mpx, of an A3 page 69.6 Mpx. A2 at 600 dpi
+/// (139 Mpx) is refused. A crafted 65535 × 65535 image (4.3 Gpx, 17 GiB
+/// of RGBA) is refused here, 32× over, rather than after a 17 GiB
+/// allocation attempt. Decision 226.
+///
+/// Decoder working sets that do not scale with this ceiling have their
+/// own fixed budget, [`MAX_DECODER_WORKING_BYTES`].
 ///
 /// This is the **single** source of truth for the limit;
 /// `pdfcer_render::image::MAX_IMAGE_PIXELS` re-exports it so the codec
 /// layer and the rasterizer can never drift apart.
-pub const MAX_IMAGE_PIXELS: u64 = 32 * 1024 * 1024;
+pub const MAX_IMAGE_PIXELS: u64 = 1 << 27;
 
 /// Maximum width or height, in samples, accepted from a codestream.
 ///
@@ -178,7 +181,28 @@ pub const MAX_IMAGE_DIMENSION: u32 = 65_535;
 /// declared output size **before** the buffer is allocated, so a
 /// codestream claiming a huge component count cannot turn an
 /// in-bounds pixel count into an out-of-bounds allocation.
-pub const MAX_IMAGE_SAMPLE_BYTES: usize = 128 * 1024 * 1024;
+#[allow(clippy::cast_possible_truncation)] // 2^29 fits every usize pdfcer targets, wasm32 included
+pub const MAX_IMAGE_SAMPLE_BYTES: usize = (MAX_IMAGE_PIXELS * 4) as usize;
+
+/// Ceiling on a decoder's internal working set, in bytes: the JPX and JXL
+/// decoders' sample planes, and the JPEG remux's coefficient grid.
+///
+/// Fixed at 512 MiB, not derived from [`MAX_IMAGE_PIXELS`], because these
+/// working sets are 12–16 bytes per pixel and would otherwise reach 2 GiB,
+/// half of wasm32's address space. At four `f32` components this is
+/// exactly 2^25 px, so it admits a three-component colour scan of a legal
+/// page (490 MiB). Decision 226.
+pub const MAX_DECODER_WORKING_BYTES: u64 = 1 << 29;
+
+/// A zeroed buffer of `len` bytes, or [`ImageCodecError::AllocationFailed`]
+/// when the allocator refuses it.
+pub(crate) fn zeroed(len: usize) -> Result<Vec<u8>, ImageCodecError> {
+    let mut buf = Vec::new();
+    buf.try_reserve_exact(len)
+        .map_err(|_| ImageCodecError::AllocationFailed { bytes: len as u64 })?;
+    buf.resize(len, 0);
+    Ok(buf)
+}
 
 /// Which terminal image codec a `/Filter` chain ends in.
 #[derive(Copy, Clone, PartialEq, Eq, Debug, Hash)]
@@ -481,6 +505,14 @@ pub enum ImageCodecError {
     /// [`MAX_IMAGE_SAMPLE_BYTES`]).
     #[error("image exceeds pdfcer's decode ceilings ({MAX_IMAGE_PIXELS} pixels max)")]
     TooLarge,
+    /// The allocator refused a buffer the image needed. The image is
+    /// within pdfcer's ceilings; the machine lacks the memory (decision
+    /// 226). Never an abort, because on wasm32 an abort traps the module.
+    #[error("not enough memory to decode the image ({bytes} bytes needed)")]
+    AllocationFailed {
+        /// Size of the refused allocation.
+        bytes: u64,
+    },
     /// The codec is forbidden inside an inline image (§7.4.7, §8.9.7).
     #[error("{} data may not appear in an inline image", .codec.name())]
     NotAllowedInline {
@@ -1174,6 +1206,48 @@ mod tests {
             decode_fixture(fixtures::RGB_HUGE_DIMS, &dct_dict(65535, 65535)).unwrap_err(),
             ImageCodecError::TooLarge
         );
+    }
+
+    /// [`fixtures::RGB_2X2`] with its SOF0 `Y` and `X` fields set to the
+    /// given geometry, so a ceiling can be probed without encoding it.
+    fn rgb_with_sof_dims(width: u16, height: u16) -> Vec<u8> {
+        let mut bytes = fixtures::RGB_2X2.to_vec();
+        let sof = bytes
+            .windows(2)
+            .position(|w| w == [0xFF, 0xC0])
+            .expect("RGB_2X2 is baseline");
+        bytes[sof + 5..sof + 7].copy_from_slice(&height.to_be_bytes());
+        bytes[sof + 7..sof + 9].copy_from_slice(&width.to_be_bytes());
+        bytes
+    }
+
+    #[test]
+    fn a_600_dpi_legal_scan_is_within_the_ceilings() {
+        // 5100 x 8400 = 42.8 Mpx, the copier default for a legal page
+        // (decision 226). Whatever the 2x2 entropy data then does, the
+        // geometry itself must not be refused.
+        let bytes = rgb_with_sof_dims(5100, 8400);
+        let result = decode_fixture(&bytes, &dct_dict(5100, 8400));
+        assert_ne!(result.err(), Some(ImageCodecError::TooLarge));
+    }
+
+    #[test]
+    fn one_row_past_max_image_pixels_is_refused() {
+        // 11586^2 = MAX_IMAGE_PIXELS + 17,668; 11585^2 is under it.
+        assert!(11586u64 * 11586 > MAX_IMAGE_PIXELS && 11585u64 * 11585 <= MAX_IMAGE_PIXELS);
+        let bytes = rgb_with_sof_dims(11586, 11586);
+        assert_eq!(
+            decode_fixture(&bytes, &dct_dict(11586, 11586)).unwrap_err(),
+            ImageCodecError::TooLarge
+        );
+    }
+
+    #[test]
+    fn the_sample_ceiling_is_four_bytes_per_admitted_pixel() {
+        assert_eq!(MAX_IMAGE_PIXELS, 1 << 27);
+        assert_eq!(MAX_IMAGE_SAMPLE_BYTES as u64, MAX_IMAGE_PIXELS * 4);
+        // The JPX/JXL budget is fixed, not derived: 2^25 px at 4 components.
+        assert_eq!(MAX_DECODER_WORKING_BYTES, (1 << 25) * 4 * 4);
     }
 
     #[test]
