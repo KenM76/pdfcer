@@ -4,6 +4,18 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-11-25 (1711th filing) — `Pass 770.1` SHIPPED (`47eb7f4b`), `Pass 770.2` (`61f77977`)
+
+**Filed (engineer-reported; no shell here, git, push, CI and the gates not checked from here; operator commits):**
+- `Pass 770.1` `47eb7f4b` (closes the `G332` residue): page transforms keep anchors (no code change, tested); clip format 6 carries anchors through copy and paste (followed when target and dependent are copied together, otherwise detached with a `paste:` disclosure, one undo entry); `set_centre_mark` re-solves and reports; cli `object-paste` and `dimension-centre-mark` print `followed`/`detached`. **Breaking:** `ClipAnnotation::Dimension` gains `source` and `anchors`. 7 core + 3 CLI tests, sabotage at 8 sites.
+- `Pass 770.2` `61f77977`, fixed on discovery, never Planned: `flatten_annotations` left a flattened ce dimension's record in the sidecar (anchors stayed Solved, `move_dimension` returned `Ok` on an orphan). New `edit/flatten_dimensions.rs`; `AnnotFlattenOutcome` gains two counters. 2 tests, sabotage 2 of 2.
+- Both **unreleased**; ship in the next release, which writes `pdfcer1`.
+- **Tests (engineer-reported):** core `all` 3542 passed (2 ignored), lib 2572, CLI 1194 passed (2 ignored); gates clean.
+- `ROADMAP.md`: Shipped entry, Next up banner updated. `FEATURES.md`: anchors row, flatten row, Planned `770.1` row removed. `NEXT_SESSION.md`: update added.
+- **Survivors (hard rule 11):** only append-only history says "not done" (ROADMAP 1709th entry, SESSION_LOG 1709th); left as filed.
+
+**Decisions made:** none. **Next:** no head of Next up; the GUI has consumed none of `765.0`-`772.0`.
+
 ## 2026-11-25 (1710th filing) — `v0.175.0` PUBLISHED (bump `43ebb942`); `Pass 775.0` shipped (`511dcb30`)
 
 **Filed (engineer-reported; no shell here, git, push, CI and the gates not checked from here; operator commits):**

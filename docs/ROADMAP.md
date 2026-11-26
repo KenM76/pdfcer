@@ -112,6 +112,17 @@ wherever it appears.*
 
 ## Shipped
 
+### `Pass 770.1` + `770.2`: ce dimension anchors survive page transforms, paste and centre-mark edits; flattening removes a ce dimension from the model; `47eb7f4b`, `61f77977`, 2026-11-25 (1711th filing)
+
+Engineer-reported; no shell here, git, push, CI and the gates not run or checked from here. `770.1` closes the `G332` residue minted in the 1709th; `770.2` was never filed as Planned (a bug found while closing `770.1`'s open flatten route, fixed on discovery). `770.1` was a worker commit cherry-picked to `main`. **Unreleased: on `main` after the `v0.175.0` tag; shipped in the next release, which writes `pdfcer1`.** Reasoning is in each commit message.
+- **`770.1` `47eb7f4b`, page transforms:** rotate, set rotation, crop, box edits and resize leave an anchor intact because they do not change the coordinate frame; no code change, covered by a test. `scale_pages` already refuses pages with ce dimensions (tested for an anchored pair).
+- **`770.1`, copy and paste:** anchors travel in clip format 6 (`CLIP_VERSION` 5 to 6; new `CLIP_VERSION_PRE_ANCHORS = 5`). Target and dependent copied together: the anchor is remapped to the pasted target and reported as followed. Dependent only: the anchor is dropped and reported as detached with a `paste:` disclosure. A paste is one undo entry. An unanchored clip is still written as v5.
+- **`770.1`, `set_centre_mark`:** re-solves dependents and reports them. cli: `object-paste` and `dimension-centre-mark` print the `followed` and `detached` lines.
+- **Breaking (`770.1`):** `ClipAnnotation::Dimension` gains `source: Option<DimensionId>` and `anchors`. `docs/core-api` 02, 03 and the index updated.
+- **`770.2` `61f77977`:** `flatten_annotations` left a flattened ce dimension's record in the sidecar, so its anchors stayed "Solved" and `move_dimension` returned `Ok` while rewriting an orphaned object. New `edit/flatten_dimensions.rs`: the records leave the model and anchors to them detach, in the same undo entry. Public: `AnnotFlattenOutcome` gains `ce_dimensions_flattened` and `ce_dimension_anchors_detached`, plus two disclosures. Other removal routes checked: `delete_annotation` already goes through `delete_dimension`.
+- **Tests (engineer-reported):** 7 core (`tests/ce_dimension_anchor_edits.rs`) and 3 CLI (`tests/dimension_anchor.rs`) for `770.1`, sabotage run at 8 sites with each failing its test; 2 for `770.2`, sabotage fails 2 of 2. Main after both: pdfcer-core `all` 3542 passed, 2 ignored; lib 2572; pdfcer-cli 1194 passed, 2 ignored; all gates clean.
+- **FEATURES:** anchors row: "Not yet" clause removed, copy/paste and centre-mark clause added; Planned `770.1` row removed; flatten-annotations row gets a ce-dimension clause. core `[x]`, cli `[x]`, gui `[ ]` (not consumed).
+
 ### `Pass 775.0`: the CLI exits quietly when the stdout reader closes the pipe; `511dcb30`, 2026-11-25 (1710th filing)
 
 Engineer-reported; no shell here, git, push, CI and the gates not run or checked from here. Never filed as Planned: found during the `v0.175.0` smoke test and fixed on discovery. **Unreleased: on `main` after the `v0.175.0` tag; shipped in the next release.** Reasoning is in the commit message.
@@ -29037,8 +29048,7 @@ closes out the *prior* filing's business rather than opening this one's.
 
 > **`Pass 765.0`-`768.0` SHIPPED (1706th) and `Pass 769.0`-`772.0` SHIPPED (1709th filing, `35c6b75e`, `4213f457`, `a50d4220`, `06dfa82a`); see *Shipped*. No head of Next up beyond the item below.** The `G328`-`G335` ce-dimension requests (operator request `O461`) are all shipped.
 >
-> - **`Pass 770.1` anchors follow the three edits `770.0` did not cover (`G332` residue).** Filed 1709th from the shipped reply. Page transforms (rotate, scale, crop) do not re-solve a ce dimension's anchors; copy and paste drop anchors; `set_centre_mark` does not re-solve anchors on the mark it changes. Acceptance: each re-solves or detaches with a disclosure, in the same undo entry. core, then cli output. ID grep-checked unused across `docs/`.
-> - *FEATURES:* the four Planned rows (`769.0`-`772.0`) are removed; residue row for `770.1` added to Planned (1709th).
+> - **`Pass 770.1` SHIPPED (1711th filing, `47eb7f4b`), with `Pass 770.2` (`61f77977`); see *Shipped*.** The `G332` residue is closed; nothing remains of it. Its Planned row in `FEATURES.md` is removed.
 
 > **`Pass 756.0`-`762.0` SHIPPED (1703rd filing, `53c8bdbe`, `6f69f6be`, `8fd70ad6`, `b06d39b9`, `ec4b8240`, `cb4989b5`, `8d180e9c`); see *Shipped*. Released as `v0.174.0` (1705th filing).** Their bullets below are kept as filed. Filed 2026-11-25 (1702nd filing) as seven consumer requests (no shell here). IDs `756.0`-`762.0` grep-checked unused across `docs/` before filing. Requests live in `D:\Dev\FeatureRequests\pdfce_FeatureRequests\` (root or `open/`) and are cited by filename; read the request for its full acceptance text.
 >
