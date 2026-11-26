@@ -4,6 +4,16 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-11-26 (1722nd filing) — `Pass 780.0` SHIPPED (`1bd09a91`), request `G336`; `Pass 780.1` filed; decision 226 and its amendment
+
+**Filed (engineer-reported; no shell here, git, CI and the gates not checked from here; operator commits):**
+- `Pass 780.0` `1bd09a91`, never Planned: a 600 dpi RICOH legal scan (5100x8400 DCT, 42.8 Mpx) rendered blank under the 32 Mpx `MAX_IMAGE_PIXELS`. Now 2^27 (interim), sample bytes = pixels x 4, new `MAX_DECODER_WORKING_BYTES` 512 MiB, fallible sample/texel/mask allocation with named refusals (`ImageCodecError::AllocationFailed`, render `ImageError::AllocationFailed`, `MaskRefusal::AllocationFailed` key `mask/allocation-failed`). `compass.pdf` pages 1 and 8 render the scan. Codec 120 lib + 3 (3 new), 9 render/core/CLI targets green, DCT fuzz 72,280 runs in 134 s, 0 crashes; `cargo tree` unchanged; core + cli, no GUI. Reply `open/reply_G336_..._SHIPPED.md`, INDEX row written.
+- **Operator ruling (Ken, 2026-11-26), amends decision 226:** image guards must rest on memory (named refusal, never an abort), evidence of malformation (a declared size the data cannot encode), or an operator-set stricter cap off by default; a fixed constant chosen as "comfortably above real files" is not acceptable; crafted headers still refused before a huge allocation. The 2^27 value is therefore interim.
+- `Pass 780.1` filed as head of Next up (remove the fixed ceiling; design consult in flight, may split into `780.x`).
+- `ROADMAP.md`: Shipped entry, Next up banner. `FEATURES.md`: new Planned row for `780.1`; no Implemented box changed (no row states the 32 Mpx limit). `ARCHITECTURE.md` §12: decision 226 entry with the amendment; §10.1 states no image ceiling value, so no body edit. `NEXT_SESSION.md`: update added.
+
+**Decisions made:** decision 226 (+ same-day amendment). **Next:** `Pass 780.1` after the design consult.
+
 ## 2026-11-26 (1721st filing) — `v0.178.0` PUBLISHED (tag `5bba0cd0`)
 
 **Filed (engineer-reported; no shell here, git, push, CI and the gates not checked from here; operator commits):**

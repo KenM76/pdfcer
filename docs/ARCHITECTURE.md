@@ -13888,3 +13888,13 @@ Operator ruling (Ken, 2026-11-25). Engineer-reported; no `docs/decisions/225-*.m
 **Open item (pending the operator's answer).** Whether "Ink Manager" (`Pass 748.3`; CLI verbs `inks`, `alias-ink`, `spot-to-process`) is an Adobe-only name. Until answered, no rename and no ruling either way; the librarian files the answer as an amendment here.
 
 **Body-section effect.** None. **Decision ceiling.** Fills `225`; next free decision `226`. **New standing rule.** None (a decision, not an `R` number; the engineer may promote it).
+
+### 2026-11-26 (1722nd filing) — decision 226: image decode ceilings sized for 600 dpi copier scans (interim); amended same day by the operator's no-arbitrary-limit ruling
+
+Engineer-reported; full record in `docs/decisions/226-image-decode-ceilings.md`. Shipped as `Pass 780.0` (`1bd09a91`), request `G336`.
+
+**Decides.** `MAX_IMAGE_PIXELS` 2^27, `MAX_IMAGE_SAMPLE_BYTES` = pixels x 4, `pdfcer_image_codec::MAX_DECODER_WORKING_BYTES` 512 MiB (JPX/JXL working sets; JPEG remux grid 2^22 blocks), fallible sample/texel/mask allocation with named `AllocationFailed` refusals. Trigger: a 42.8 Mpx scan was blank under the old 32 Mpx ceiling.
+
+**Amended 2026-11-26 (operator ruling, Ken):** "I'm not a fan of an arbitrary limit on image size being imposed on an end user." Image guards must be grounded in one of: (1) memory, with a named refusal and never an abort; (2) evidence of malformation, a declared size the data cannot encode; (3) an operator-set stricter cap, off by default. A fixed size constant chosen as "comfortably above real files" is not acceptable; crafted headers are still refused before a huge allocation. The 2^27 value above is **interim**; `Pass 780.1` replaces it. The decision text above is unchanged.
+
+**Body-section effect.** None: §10.1 states no image ceiling value; `Pass 780.1` reconciles the §10 wording. `docs/core-api/` §11.5 limits table was updated by `Pass 780.0`. **Decision ceiling.** Fills `226`; next free decision `227`. **New standing rule.** None (the ruling is recorded as an amendment; the engineer may promote it to an `R` number).

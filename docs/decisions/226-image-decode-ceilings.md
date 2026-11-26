@@ -63,3 +63,10 @@
   `memory_bytes`. A GUI page cache must budget for them: about 171 MB per
   cached legal scan page.
 - Images over 2^24 px never take the GPU path.
+
+## Amendment — operator ruling
+
+The operator rejected a fixed image-size ceiling imposed on end users. The
+2^27 value above is interim. Pass 780.1 replaces it with guards grounded in
+memory, in evidence of malformation, or in an operator cap that is off by
+default (§12, decision 226 amendment).

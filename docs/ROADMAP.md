@@ -112,6 +112,18 @@ wherever it appears.*
 
 ## Shipped
 
+### `Pass 780.0`: image decode ceilings raised for 600 dpi copier scans, allocation failure a named refusal; `1bd09a91`, 2026-11-26 (1722nd filing), request `G336`
+
+Engineer-reported; no shell here, so git, CI and the gates were not checked from here (`1bd09a91` is the HEAD commit in the session's git snapshot). Never filed as Planned. **Unreleased; rides the next release (writes `pdfcer2`).** Reasoning is in the commit message and `docs/decisions/226-image-decode-ceilings.md`; **decision 226 is amended the same day by the operator ruling filed with it (see `Pass 780.1`).** The raise is an interim, not the policy.
+- **Trigger:** a RICOH 600 dpi colour scan of a legal page (5100x8400 DCT, 42.8 Mpx; 13.4 MB for 8 pages) rendered blank on every page, because `MAX_IMAGE_PIXELS` was 32 Mpx.
+- **Change:** `MAX_IMAGE_PIXELS` = 2^27 (interim); `MAX_IMAGE_SAMPLE_BYTES` = pixels x 4; new public `pdfcer_image_codec::MAX_DECODER_WORKING_BYTES` = 512 MiB for the JPX/JXL working sets, and the JPEG remux grid is 2^22 blocks.
+- **Fallible allocation:** sample, texel and mask buffers allocate fallibly, with new named refusals `ImageCodecError::AllocationFailed { bytes }`, render `ImageError::AllocationFailed(u64)` and `MaskRefusal::AllocationFailed(u64)` (key `mask/allocation-failed`). Optional CMYK, overprint and spot planes fall back as before. The `upscale-images` output ceiling is tied to `MAX_IMAGE_PIXELS`; OCR, deskew, upscale-images and replace-image follow the same ceiling.
+- **Measured:** `compass.pdf` pages 1 and 8 render the scan (`images=1 images_unsupported=0`).
+- **Tests (engineer-reported):** codec 120 lib + 3, including 3 new (legal geometry accepted, 11586^2 refused, constants pinned; the CCITT row-ceiling test re-derived); render, core and CLI 9 test targets green. clippy `-D warnings` (all features) clean, fmt applied; `check-code-structure`, every `check-*.py` and `check-*.sh` gate green; `check-core-api-verbs` green and the `docs/core-api/` §11.5 limits table updated. DCT fuzz: 72,280 runs in 134 s (about 1.9 ms each), 0 crashes, rss 761 MB.
+- **Invariants:** `cargo tree` unchanged, no new dependency, no manifest touched. **Delivered as core + cli; no GUI.**
+- **Channel:** `open/reply_G336_a_600_dpi_legal_scan_exceeds_the_image_pixel_ceiling_SHIPPED.md`, INDEX row written.
+- **FEATURES:** no row states the 32 Mpx image limit (the "4 Mpx per raster" and "32 MiB input" figures belong to patterns and SVG import), so no box or clause changed.
+
 ### `v0.178.0` PUBLISHED, tag on `5bba0cd0`, 2026-11-26 (1721st filing)
 
 Engineer-reported (checked by the engineer with a shell); this filing had no shell, so none of it is checked from here.
@@ -29144,6 +29156,12 @@ closes out the *prior* filing's business rather than opening this one's.
 ---
 
 ## Next up
+
+> **`Pass 780.1` HEAD OF NEXT UP, filed 2026-11-26 (1722nd filing): remove the fixed image-size ceiling; memory- and evidence-based guards, optional operator cap.** Follows `Pass 780.0` (the interim raise, `1bd09a91`). Operator ruling 2026-11-26 (decision 226, amended): "I'm not a fan of an arbitrary limit on image size being imposed on an end user." A fixed size constant chosen as "comfortably above real files" is not acceptable. ID `780.1` grep-checked unused across `docs/` before filing.
+>
+> - **Acceptance:** (1) no fixed pixel ceiling remains as policy. (2) An image refuses only when (a) the machine lacks the memory, as a named refusal and never an abort; (b) its declared geometry cannot be backed by its data (a declared size the data cannot encode); or (c) an operator-set cap, off by default, is exceeded. (3) A crafted header of a few hundred bytes claiming gigapixels is still refused before any large allocation. (4) OCR, deskew, upscale-images and replace-image follow. (5) `ARCHITECTURE.md` §10 wording is reconciled (§10.1 states no image ceiling value today, so the work is the principle, not a number).
+> - **Open:** a design consult is in flight; the Pass may split into `780.x`. **core + cli** (the operator cap needs a CLI flag; GUI setting is `pdfcer-gui`'s).
+> - *FEATURES:* new Planned row (core and cli unticked).
 
 > **`Pass 765.0`-`768.0` SHIPPED (1706th) and `Pass 769.0`-`772.0` SHIPPED (1709th filing, `35c6b75e`, `4213f457`, `a50d4220`, `06dfa82a`); see *Shipped*. No head of Next up beyond the item below.** The `G328`-`G335` ce-dimension requests (operator request `O461`) are all shipped.
 >
