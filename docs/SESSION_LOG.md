@@ -4,6 +4,15 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-11-26 (1725th filing) — CI clippy fix `44816881` for `Pass 780.0`; `v0.179.0` still in progress
+
+**Filed (engineer-reported; no shell here, git, push, CI and the gates not checked from here; operator commits):**
+- `44816881` (`fix(image-codec): const-assert the pixel-ceiling boundary test (Pass 780.0)`): CI run 45831716740 on `11f64401` failed the `cargo clippy -D warnings` job (`--workspace --all-targets --all-features`) on `clippy::assertions_on_constants` in a test in `crates/pdfcer-image-codec/src/lib.rs` added by `1bd09a91`. Fixed with a `const { assert!(..) }` block; test-only, no behaviour change. Both CI clippy commands pass locally on clippy 0.1.99 (workspace all-targets all-features; `-p pdfcer-cli --no-default-features --all-targets`).
+- **Root cause:** the Pass 780.0 pre-commit clippy run omitted `--all-targets` on `pdfcer-image-codec`, so the test module was never linted. Working order: run clippy exactly as CI does (`--workspace --all-targets --all-features`), not per-crate without `--all-targets`.
+- `ROADMAP.md`: dated amendment on the `Pass 780.0` Shipped entry. `FEATURES.md`: no change.
+
+**Decisions made:** none. **Next:** CI green on the filing commit after this fix, then tag `v0.179.0` and continue the release plan from the 1724th entry.
+
 ## 2026-11-26 (1724th filing) — `v0.179.0` bump `90ccebc6` filed; release IN PROGRESS
 
 **Filed (engineer-reported; no shell here, git, push, CI and the gates not checked from here; operator commits):**

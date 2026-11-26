@@ -127,6 +127,7 @@ Engineer-reported; no shell here, so git, CI and the gates were not checked from
 - **Invariants:** `cargo tree` unchanged, no new dependency, no manifest touched. **Delivered as core + cli; no GUI.**
 - **Channel:** `open/reply_G336_a_600_dpi_legal_scan_exceeds_the_image_pixel_ceiling_SHIPPED.md`, INDEX row written.
 - **FEATURES:** no row states the 32 Mpx image limit (the "4 Mpx per raster" and "32 MiB input" figures belong to patterns and SVG import), so no box or clause changed.
+- **Amended 2026-11-26 (1725th filing), `44816881` (`fix(image-codec): const-assert the pixel-ceiling boundary test (Pass 780.0)`), engineer-reported, CI and git not checked from here:** CI run 45831716740 on `11f64401` failed its `cargo clippy -D warnings` job (`--workspace --all-targets --all-features`) with `clippy::assertions_on_constants` on a test line in `crates/pdfcer-image-codec/src/lib.rs` added by this Pass. The assertion is now a `const { assert!(..) }` block; test-only, no behaviour change. Both CI clippy commands (the workspace all-targets all-features run and `-p pdfcer-cli --no-default-features --all-targets`) pass locally on clippy 0.1.99. **Cause:** the pre-commit clippy run for this Pass did not use `--all-targets` on `pdfcer-image-codec`, so the test module was never linted; the "clippy clean" claim above covered less than CI does. v0.179.0 stays in progress; the tag goes on the filing commit after this fix once CI is green.
 
 ### `v0.178.0` PUBLISHED, tag on `5bba0cd0`, 2026-11-26 (1721st filing)
 
