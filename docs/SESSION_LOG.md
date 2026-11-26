@@ -4,6 +4,14 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-11-26 (1719th filing) — `Pass 779.1` SHIPPED (`fbbb02e2`)
+
+**Filed (engineer-reported; no shell here, git and gates not checked from here; operator commits):**
+- `Pass 779.1` `fbbb02e2`: rejoined the `Pass 779.0` per-reason ICC warning in `crates/pdfcer-cli/src/print_vector.rs` (`report_unmodelled`), whose literal had lost a trailing backslash at a line break. Caught by `tools/check-string-gaps.sh` before any push; unpublished. Cause: backslash mangled in a bash-heredoc'd Python edit; rule (use the Write tool for scripts with backslashes) not followed.
+- `ROADMAP.md`: Shipped entry. `FEATURES.md`: unaffected.
+
+**Decisions made:** none. **Next:** no open requests; Next up has no head.
+
 ## 2026-11-26 (1718th filing) — `Pass 779.0` SHIPPED (`688ad325`), operator request `X121`
 
 **Filed (engineer-reported; no shell here, git, push, CI and the gates not checked from here; operator commits):**

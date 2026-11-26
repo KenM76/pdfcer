@@ -112,6 +112,14 @@ wherever it appears.*
 
 ## Shipped
 
+### `Pass 779.1`: rejoin the refused-profile warning; `fbbb02e2`, 2026-11-26 (1719th filing)
+
+Engineer-reported; no shell here, so git, CI and the gates were not checked from here. Never filed as Planned. **Unreleased, unpublished.** Reasoning is in the commit message.
+- **Defect:** the per-reason ICC warning added by `Pass 779.0` (`report_unmodelled` in `crates/pdfcer-cli/src/print_vector.rs`) lost its trailing backslash at a line break, so the literal would have printed a run of spaces mid-sentence.
+- **Caught by:** the pre-push audit `tools/check-string-gaps.sh`, before any push. After the fix: string-gaps PASS, clippy and fmt clean (engineer-reported).
+- **Root cause:** a backslash inside a bash-heredoc'd Python edit script was mangled; the standing rule (write any script containing backslashes with the Write tool) was not followed.
+- **FEATURES:** unaffected (wording fix only).
+
 ### `Pass 779.0`: count refused ICC profiles by reason; `688ad325`, 2026-11-26 (1718th filing), operator request `X121`
 
 Engineer-reported; no shell here, git, push, CI and the gates not checked from here. Never filed as Planned. **Unreleased: on `main` after the `v0.177.0` tag; rides the next release.** Reasoning is in the commit message.
