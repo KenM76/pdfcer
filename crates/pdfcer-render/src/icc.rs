@@ -71,11 +71,11 @@
 //!
 //! Both ends are genuinely optional in a real document, and when either is
 //! missing the honest answer is **not to colour-manage**, falling back to the
-//! previous behaviour rather than inventing a profile. That fallback is the
-//! reason [`IccBridge::build`] returns `Option` rather than `Result`: a
-//! document with no output intent is not malformed, it simply has not said
-//! what device it targets, and guessing would be exactly the "sneaky"
-//! behaviour `CLAUDE.md` rule 4 forbids.
+//! previous behaviour rather than inventing a profile: a document with no
+//! output intent is not malformed, it simply has not said what device it
+//! targets, and guessing would be exactly the "sneaky" behaviour `CLAUDE.md`
+//! rule 4 forbids. A profile that is present but unusable is refused with an
+//! [`IccUnmodelled`] reason, counted per reason in the diagnostics.
 //!
 //! ### Why there is no built-in-sRGB source fallback
 //!
@@ -140,17 +140,54 @@ impl std::fmt::Debug for IccBridge {
     }
 }
 
+/// Why an embedded `ICCBased` profile was not used, so its paints fell back
+/// to Table 66's `/Alternate` (or `/N`) reinterpretation (ISO 32000-2
+/// §8.6.5.5). Each asks something different of the file's author.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[non_exhaustive]
+pub enum IccUnmodelled {
+    /// The embedded profile does not parse: the file carries a broken
+    /// profile.
+    SourceUnparsed,
+    /// The document's `/OutputIntent` profile does not parse. About the
+    /// output intent, not the paint's profile.
+    DestinationUnparsed,
+    /// The profile parses but no transform can be built: icccer does not
+    /// model its class or colour space, or it does not pair with the output
+    /// intent's profile. The profile may be sound.
+    NoChain,
+    /// The transform refuses a probe as wide as the space's `/N`: `/N`
+    /// disagrees with the profile.
+    ProbeRefused,
+}
+
+impl IccUnmodelled {
+    /// Every reason.
+    pub const ALL: [Self; 4] = [
+        Self::SourceUnparsed,
+        Self::DestinationUnparsed,
+        Self::NoChain,
+        Self::ProbeRefused,
+    ];
+
+    const fn index(self) -> usize {
+        match self {
+            Self::SourceUnparsed => 0,
+            Self::DestinationUnparsed => 1,
+            Self::NoChain => 2,
+            Self::ProbeRefused => 3,
+        }
+    }
+}
+
 impl IccBridge {
     /// Build a transform from an embedded source profile to the document's
     /// output-intent destination profile.
     ///
-    /// Returns `None` — never an error — when the transform cannot be built.
-    /// See the module docs: an absent or unparseable profile means "do not
-    /// colour-manage", which is a legitimate document state and not a failure
-    /// pdfcer should surface as one. The caller falls back to the previous
-    /// conversion, and the *disclosure* obligation (rule 4) is met by the
-    /// render diagnostics counting how many paints were bridged without a
-    /// profile, not by an error.
+    /// Fails with the [`IccUnmodelled`] reason when the transform cannot be
+    /// built. That is not a render failure: the caller falls back to the
+    /// previous conversion, and the *disclosure* obligation (rule 4) is met
+    /// by the render diagnostics counting the refused profile by reason.
     ///
     /// # Why the intent is a parameter rather than read from the profile
     ///
@@ -164,10 +201,13 @@ impl IccBridge {
         src_components: usize,
         dst_profile: &[u8],
         conv: Conversion,
-    ) -> Option<Self> {
-        let src = icccer_profile::Profile::parse(src_profile).ok()?;
-        let dst = icccer_profile::Profile::parse(dst_profile).ok()?;
-        let chain = chain_for(conv, |i| icccer_cmm::transform::Chain::new(&src, &dst, i))?;
+    ) -> Result<Self, IccUnmodelled> {
+        let src = icccer_profile::Profile::parse(src_profile)
+            .map_err(|_| IccUnmodelled::SourceUnparsed)?;
+        let dst = icccer_profile::Profile::parse(dst_profile)
+            .map_err(|_| IccUnmodelled::DestinationUnparsed)?;
+        let chain = chain_for(conv, |i| icccer_cmm::transform::Chain::new(&src, &dst, i))
+            .ok_or(IccUnmodelled::NoChain)?;
         // A destination profile that is not 4-component is a perfectly valid
         // profile; it is just not one this bridge can feed a CMYK buffer.
         // Probing with a mid-grey is cheaper and more honest than trusting a
@@ -181,8 +221,11 @@ impl IccBridge {
         // malformed file whose colour we should decline to manage rather than
         // resolve by picking a side.
         let probe = vec![0.5_f64; src_components];
-        let dst_components = chain.convert(&probe).ok()?.len();
-        Some(Self {
+        let dst_components = chain
+            .convert(&probe)
+            .map_err(|_| IccUnmodelled::ProbeRefused)?
+            .len();
+        Ok(Self {
             chain,
             src_components,
             dst_components,
@@ -206,30 +249,34 @@ impl IccBridge {
     /// did (`DestinationProvenance::BuiltInSrgb`), so the substitution is a
     /// disclosed fact rather than a hidden one.
     ///
-    /// Returns `None` — never an error — on an unparseable profile or a
-    /// source model icccer cannot derive, for the same reason [`Self::build`]
-    /// does: the caller falls back to Table 66's reinterpretation and the
-    /// render counts the paint as unmanaged.
+    /// Fails with the [`IccUnmodelled`] reason, as [`Self::build`] does; the
+    /// caller falls back to Table 66's reinterpretation and the render
+    /// counts the paint as unmanaged.
     pub(crate) fn build_to_srgb(
         src_profile: &[u8],
         src_components: usize,
         conv: Conversion,
-    ) -> Option<Self> {
-        let src = icccer_profile::Profile::parse(src_profile).ok()?;
+    ) -> Result<Self, IccUnmodelled> {
+        let src = icccer_profile::Profile::parse(src_profile)
+            .map_err(|_| IccUnmodelled::SourceUnparsed)?;
         let chain = chain_for(conv, |i| {
             icccer_cmm::transform::Chain::with_destination(
                 &src,
                 icccer_cmm::transform::Destination::None,
                 i,
             )
-        })?;
+        })
+        .ok_or(IccUnmodelled::NoChain)?;
         // Same probe as `build`, same reason: exercise the transform that
         // will actually run rather than trust a header field. The constructed
         // destination is three-component by construction, so this also pins
         // the width `convert_to_rgb` checks against.
         let probe = vec![0.5_f64; src_components];
-        let dst_components = chain.convert(&probe).ok()?.len();
-        Some(Self {
+        let dst_components = chain
+            .convert(&probe)
+            .map_err(|_| IccUnmodelled::ProbeRefused)?
+            .len();
+        Ok(Self {
             chain,
             src_components,
             dst_components,
@@ -455,8 +502,9 @@ pub(crate) struct IccBridgeCache {
     managed: std::cell::Cell<usize>,
     unmanaged: std::cell::Cell<usize>,
     /// Distinct embedded profiles icccer would not parse or model, counted
-    /// once per profile per cache (`Diagnostics::icc_profiles_unmodelled`).
-    unmodelled: std::cell::Cell<usize>,
+    /// once per profile per cache under the first reason it was refused
+    /// for, indexed by [`IccUnmodelled::index`].
+    unmodelled: std::cell::Cell<[usize; 4]>,
 }
 
 /// Which destination a cached bridge was built to.
@@ -488,7 +536,7 @@ struct CacheEntry {
     src_components: usize,
     conv: Conversion,
     dest: BridgeDest,
-    bridge: Option<std::sync::Arc<IccBridge>>,
+    bridge: Result<std::sync::Arc<IccBridge>, IccUnmodelled>,
 }
 
 impl std::fmt::Debug for IccBridgeCache {
@@ -508,7 +556,7 @@ impl IccBridgeCache {
             pcs: std::cell::RefCell::new(Vec::new()),
             managed: std::cell::Cell::new(0),
             unmanaged: std::cell::Cell::new(0),
-            unmodelled: std::cell::Cell::new(0),
+            unmodelled: std::cell::Cell::new([0; 4]),
         }
     }
 
@@ -581,9 +629,9 @@ impl IccBridgeCache {
         self.unmanaged.set(self.unmanaged.get().saturating_add(1));
     }
 
-    /// The tallies `(managed, unmanaged, unmodelled)`, for folding into the
-    /// renderer's diagnostics.
-    pub(crate) fn tallies(&self) -> (usize, usize, usize) {
+    /// The tallies `(managed, unmanaged, unmodelled per reason)`, for folding
+    /// into the renderer's diagnostics.
+    pub(crate) fn tallies(&self) -> (usize, usize, [usize; 4]) {
         (
             self.managed.get(),
             self.unmanaged.get(),
@@ -598,15 +646,19 @@ impl IccBridgeCache {
         src_components: usize,
         conv: Conversion,
         dest: BridgeDest,
-        bridge: Option<std::sync::Arc<IccBridge>>,
+        bridge: Result<std::sync::Arc<IccBridge>, IccUnmodelled>,
     ) {
         let mut entries = self.entries.borrow_mut();
-        if bridge.is_none()
+        if let Err(reason) = bridge
             && !entries
                 .iter()
-                .any(|e| e.bridge.is_none() && same_profile(&e.src, src))
+                .any(|e| e.bridge.is_err() && same_profile(&e.src, src))
         {
-            self.unmodelled.set(self.unmodelled.get().saturating_add(1));
+            let mut counts = self.unmodelled.get();
+            if let Some(slot) = counts.get_mut(reason.index()) {
+                *slot = slot.saturating_add(1);
+            }
+            self.unmodelled.set(counts);
         }
         entries.push(CacheEntry {
             src: std::sync::Arc::clone(src),
@@ -668,7 +720,7 @@ impl IccBridgeCache {
             BridgeDest::OutputIntent,
             bridge.clone(),
         );
-        bridge
+        bridge.ok()
     }
 
     /// Fetch or build the **display** bridge for one source profile at one
@@ -690,7 +742,7 @@ impl IccBridgeCache {
         }
         let bridge = IccBridge::build_to_srgb(src, src_components, conv).map(std::sync::Arc::new);
         self.remember(src, src_components, conv, BridgeDest::Srgb, bridge.clone());
-        bridge
+        bridge.ok()
     }
 
     /// One lookup for both routes, so the two cannot come to key differently.
@@ -714,7 +766,7 @@ impl IccBridgeCache {
                     && e.dest == dest
                     && same_profile(&e.src, src)
             })
-            .map(|e| e.bridge.clone())
+            .map(|e| e.bridge.clone().ok())
     }
 }
 
@@ -758,6 +810,104 @@ mod tests {
         let light = shift([0.05, 0.05, 0.05, 0.0]);
         assert!(dark > 0.0, "BPC must change a dark ink");
         assert!(dark > light, "dark {dark} vs light {light}");
+    }
+
+    fn conv() -> Conversion {
+        Conversion::new(RenderingIntent::RelativeColorimetric, false)
+    }
+
+    fn arc(bytes: &[u8]) -> std::sync::Arc<[u8]> {
+        std::sync::Arc::from(bytes)
+    }
+
+    /// `SRC` with header bytes `at..at + 4` replaced.
+    fn patched(at: usize, with: &[u8; 4]) -> Vec<u8> {
+        let mut p = SRC.to_vec();
+        p[at..at + 4].copy_from_slice(with);
+        p
+    }
+
+    /// Refusal counts per reason after `paints` display lookups on a cache
+    /// with an output intent of `dest`, each also tried for ink.
+    fn refusals(dest: &[u8], paints: &[(&[u8], usize)]) -> [usize; 4] {
+        let cache = IccBridgeCache::new(Some(arc(dest)));
+        for (profile, n) in paints {
+            let src = arc(profile);
+            let _ = cache.get_srgb(&src, *n, conv());
+            let _ = cache.get(&src, *n, conv());
+        }
+        cache.tallies().2
+    }
+
+    fn only(reason: IccUnmodelled) -> [usize; 4] {
+        let mut counts = [0; 4];
+        counts[reason.index()] = 1;
+        counts
+    }
+
+    #[test]
+    fn truncated_profile_counts_as_source_unparsed() {
+        assert_eq!(
+            refusals(DST, &[(&SRC[..60], 3)]),
+            only(IccUnmodelled::SourceUnparsed)
+        );
+    }
+
+    #[test]
+    fn rgb_profile_under_n1_counts_as_probe_refused() {
+        assert_eq!(
+            refusals(DST, &[(SRC, 1)]),
+            only(IccUnmodelled::ProbeRefused)
+        );
+    }
+
+    /// A profile connection space of `CMYK` parses, and no chain can
+    /// connect through it.
+    #[test]
+    fn unmodelled_pcs_counts_as_no_chain() {
+        assert_eq!(
+            refusals(DST, &[(&patched(20, b"CMYK"), 3)]),
+            only(IccUnmodelled::NoChain)
+        );
+    }
+
+    #[test]
+    fn broken_output_intent_counts_as_destination_unparsed() {
+        let cache = IccBridgeCache::new(Some(arc(&DST[..60])));
+        assert!(cache.get(&arc(SRC), 3, conv()).is_none());
+        assert_eq!(cache.tallies().2, only(IccUnmodelled::DestinationUnparsed));
+    }
+
+    #[test]
+    fn valid_profile_under_its_own_n_counts_nowhere() {
+        assert_eq!(refusals(DST, &[(SRC, 3)]), [0; 4]);
+    }
+
+    /// Twice by content, not by allocation: two paints of one broken
+    /// profile are one profile.
+    #[test]
+    fn the_same_broken_profile_counts_once() {
+        let broken = &SRC[..60];
+        assert_eq!(
+            refusals(DST, &[(broken, 3), (broken, 3)]),
+            only(IccUnmodelled::SourceUnparsed)
+        );
+    }
+
+    #[test]
+    fn the_total_is_the_sum_of_the_reasons() {
+        let mut d = crate::Diagnostics::default();
+        d.add_icc_unmodelled([1, 2, 3, 4]);
+        assert_eq!(
+            (
+                d.icc_profiles_unparsed,
+                d.icc_output_intent_unparsed,
+                d.icc_profiles_without_chain,
+                d.icc_profiles_probe_refused,
+                d.icc_profiles_unmodelled
+            ),
+            (1, 2, 3, 4, 10)
+        );
     }
 
     #[test]

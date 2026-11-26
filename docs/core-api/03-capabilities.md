@@ -5013,7 +5013,15 @@ and RGB compositing are unaffected. Without it, an `N = 4` colour on the
 screen route (an additive page, the EMF export, the print metafile) is shown
 as the output-intent CMYK its profile converts to, so screen and ink agree;
 an embedded profile icccer cannot model falls back to `/Alternate` and is
-counted in `Diagnostics::icc_profiles_unmodelled`. Persisted as
+counted in `Diagnostics::icc_profiles_unmodelled`, which is the sum of four
+per-reason counts, one per `pdfcer_render::icc::IccUnmodelled` variant
+(`#[non_exhaustive]`): `icc_profiles_unparsed` (`SourceUnparsed`: the
+profile does not parse), `icc_output_intent_unparsed` (`DestinationUnparsed`:
+the output intent's profile does not parse), `icc_profiles_without_chain`
+(`NoChain`: it parses but no transform can be built) and
+`icc_profiles_probe_refused` (`ProbeRefused`: `/N` disagrees with the
+profile). Each distinct profile counts once, under the first reason it was
+refused for. Persisted as
 `Settings::preserve_calibrated_cmyk` (`settings.toml` key
 `preserve_calibrated_cmyk`, default `false`); the CLI flag turns it on for one
 run and never turns off a setting that asked for it.

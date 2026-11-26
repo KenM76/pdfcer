@@ -997,10 +997,7 @@ untiled; {tiled_pages} page(s) were tiled."
                     return exit::RUNTIME_ERROR;
                 }
             };
-            crate::print_vector::report_unmodelled(
-                plan.index,
-                rendered.diagnostics.icc_profiles_unmodelled,
-            );
+            crate::print_vector::report_unmodelled(plan.index, &rendered.diagnostics);
             bitmaps.push(pdfcer_print::PageBitmap {
                 width: rendered.pixmap.width(),
                 height: rendered.pixmap.height(),

@@ -73,24 +73,44 @@ pub(crate) fn report_route(
                     eprintln!("pdfcer: note: page {}: {note}", index + 1);
                 }
             }
-            report_unmodelled(index, export.outcome.diagnostics.icc_profiles_unmodelled);
+            report_unmodelled(index, &export.outcome.diagnostics);
         }
         Err(why) => eprintln!("pdfcer: page {}: raster ({why})", index + 1),
     }
 }
 
-/// Say when page `index` (0-based) used `n` embedded colour profiles that
-/// no transform could be built from, so their colours came from the
+/// Say when page `index` (0-based) used embedded colour profiles that no
+/// transform could be built from, and why, so their colours came from the
 /// profile's `/Alternate` space instead (ISO 32000-2 §8.6.5.5; rule 4).
-pub(crate) fn report_unmodelled(index: usize, n: usize) {
+pub(crate) fn report_unmodelled(index: usize, d: &pdfcer_render::Diagnostics) {
+    let n = d.icc_profiles_unmodelled;
     if n > 0 {
         let s = if n == 1 { "" } else { "s" };
         eprintln!(
-            "pdfcer: page {}: {n} embedded colour profile{s} could not be used; \
-             those colours print from the profile's alternate colour space",
-            index + 1
+            "pdfcer: page {}: {n} embedded colour profile{s} could not be used ({});              those colours print from the profile's alternate colour space",
+            index + 1,
+            unmodelled_reasons(d)
         );
     }
+}
+
+/// The non-zero refusal reasons behind `icc_profiles_unmodelled`, e.g.
+/// `1 unreadable, 2 not matching /N`.
+fn unmodelled_reasons(d: &pdfcer_render::Diagnostics) -> String {
+    [
+        (d.icc_profiles_unparsed, "unreadable"),
+        (
+            d.icc_output_intent_unparsed,
+            "output intent profile unreadable",
+        ),
+        (d.icc_profiles_without_chain, "not convertible"),
+        (d.icc_profiles_probe_refused, "not matching /N"),
+    ]
+    .iter()
+    .filter(|(count, _)| *count > 0)
+    .map(|(count, why)| format!("{count} {why}"))
+    .collect::<Vec<_>>()
+    .join(", ")
 }
 
 /// Why a whole job prints as images: the clause after "every sheet prints

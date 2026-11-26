@@ -397,7 +397,22 @@ pub struct Diagnostics {
     /// under `preserve_calibrated_cmyk` for `N 4`, where no transform was
     /// asked for. The sibling of `color.icc_device_fallback_used`, which
     /// counts a missing `/Alternate`, not a refused profile.
+    ///
+    /// The sum of the four per-reason counts below; a profile counts under
+    /// the first reason it was refused for.
     pub icc_profiles_unmodelled: usize,
+    /// Of `icc_profiles_unmodelled`: the profile does not parse
+    /// ([`IccUnmodelled::SourceUnparsed`](crate::icc::IccUnmodelled)).
+    pub icc_profiles_unparsed: usize,
+    /// Of `icc_profiles_unmodelled`: the output intent's profile does not
+    /// parse ([`IccUnmodelled::DestinationUnparsed`](crate::icc::IccUnmodelled)).
+    pub icc_output_intent_unparsed: usize,
+    /// Of `icc_profiles_unmodelled`: no transform can be built
+    /// ([`IccUnmodelled::NoChain`](crate::icc::IccUnmodelled)).
+    pub icc_profiles_without_chain: usize,
+    /// Of `icc_profiles_unmodelled`: `/N` disagrees with the profile
+    /// ([`IccUnmodelled::ProbeRefused`](crate::icc::IccUnmodelled)).
+    pub icc_profiles_probe_refused: usize,
     /// Process-space sampled images painted under `/OP true` onto a
     /// subtractive buffer, where Table 149's SPOT sub-row could not be
     /// honoured.
@@ -1832,6 +1847,16 @@ pub struct Diagnostics {
 }
 
 impl Diagnostics {
+    /// Fold the ICC cache's per-reason refusal counts, keeping the total
+    /// equal to their sum.
+    pub(crate) fn add_icc_unmodelled(&mut self, [unparsed, dest, no_chain, probe]: [usize; 4]) {
+        self.icc_profiles_unparsed += unparsed;
+        self.icc_output_intent_unparsed += dest;
+        self.icc_profiles_without_chain += no_chain;
+        self.icc_profiles_probe_refused += probe;
+        self.icc_profiles_unmodelled += unparsed + dest + no_chain + probe;
+    }
+
     /// Record a distinct operator/construct name for the sample list.
     fn note(&mut self, name: &[u8]) {
         push_sample(&mut self.sample_ops, &String::from_utf8_lossy(name));
@@ -2019,6 +2044,10 @@ polarity unverifiable (decision 006 R30)",
         self.icc_managed_paints += other.icc_managed_paints;
         self.icc_unmanaged_paints += other.icc_unmanaged_paints;
         self.icc_profiles_unmodelled += other.icc_profiles_unmodelled;
+        self.icc_profiles_unparsed += other.icc_profiles_unparsed;
+        self.icc_output_intent_unparsed += other.icc_output_intent_unparsed;
+        self.icc_profiles_without_chain += other.icc_profiles_without_chain;
+        self.icc_profiles_probe_refused += other.icc_profiles_probe_refused;
         self.overprint_process_images_unsupported += other.overprint_process_images_unsupported;
         self.blend_modes_ignored += other.blend_modes_ignored;
         self.soft_masks_ignored += other.soft_masks_ignored;
@@ -2728,7 +2757,7 @@ fn run_nested(
     let (managed, unmanaged, unmodelled) = interp.icc.tallies();
     interp.diag.icc_managed_paints += managed;
     interp.diag.icc_unmanaged_paints += unmanaged;
-    interp.diag.icc_profiles_unmodelled += unmodelled;
+    interp.diag.add_icc_unmodelled(unmodelled);
     // And the hairline ceiling's tally, for the same reason and by the same
     // route: `stroke_params` takes `&self` and cannot reach `diag` where the
     // capping happens. See `Interpreter::hairline_capped`.
@@ -2902,7 +2931,7 @@ pub(crate) fn run_form_at_on(
     let (managed, unmanaged, unmodelled) = interp.icc.tallies();
     interp.diag.icc_managed_paints += managed;
     interp.diag.icc_unmanaged_paints += unmanaged;
-    interp.diag.icc_profiles_unmodelled += unmodelled;
+    interp.diag.add_icc_unmodelled(unmodelled);
     // And the hairline ceiling's tally, for the same reason and by the same
     // route: `stroke_params` takes `&self` and cannot reach `diag` where the
     // capping happens. See `Interpreter::hairline_capped`.
