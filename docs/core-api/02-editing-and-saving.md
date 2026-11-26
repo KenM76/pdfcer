@@ -1384,9 +1384,18 @@ The two exceptions are `transform_objects` / `transform_preview`
 > that fully represents the clip's annotations: `2` for ordinary content, `3`
 > (`CLIP_VERSION_PRE_MARKUP_CARRY`) when a ce dimension carries a text
 > override, `4` (`CLIP_VERSION_PRE_REPLY_COUNT`, `Pass 270.1`) when a markup
-> carries an author-time property — its dash, opacity, note or author, and `5`
-> (`CLIP_VERSION`, `Pass 253.4`) when the clip broke a reply link (see
-> `replies_unthreaded` below). The copy verb sets the version; the reason is the
+> carries an author-time property — its dash, opacity, note or author, `5`
+> (`CLIP_VERSION_PRE_ANCHORS`, `Pass 253.4`) when the clip broke a reply link
+> (see `replies_unthreaded` below), and `6` (`CLIP_VERSION`, `Pass 770.1`)
+> when a copied ce dimension is anchored. Version 6 appends one COS dict per
+> ce dimension, `<< /Source id /Anchors [...] >>`, carried as
+> `ClipAnnotation::Dimension { source, anchors, .. }` (both fields new; an
+> exhaustive constructor must add them — `source: None, anchors: Vec::new()`
+> is an unanchored ce dimension). On paste an anchor whose target was in the
+> same clip is re-pointed at the pasted copy; one whose target was not is
+> dropped, its ce dimension listed `detached` in `last_anchor_resolutions()`
+> and a `paste:` disclosure pushed. An anchored paste is ONE undo entry. The
+> copy verb sets the version; the reason is the
 > operator's: he runs two builds side by side out of two folders and copies in
 > one to paste in the other, so writing the newest version unconditionally
 > would break every paste between them to protect a field most clips do not
@@ -4535,7 +4544,7 @@ constructed, then committed, under one `&mut`.
 | Place a ce dimension already anchored | `add_dimension_anchored(&mut self, page_index, group, kind: DimensionKind, anchors: &[(usize, Anchor)]) -> Result<(ObjId, DimensionId), EditError>` | `Pass 770.0`. `add_dimension` plus anchors, solved before the first draw, ONE undo entry; the same refusals as above, with nothing placed. CLI: `dimension-add --anchor POINT:TARGET:ROLE` (repeatable). |
 | Read a ce dimension's anchors | `dimension_anchors(&self, dimension) -> Vec<(usize, Anchor, AnchorState)>` | Read-only, solved against the current model; empty for an unknown id. CLI: `dimension-list` prints `    anchor point= target= role= state=solved\|unsolvable reason="…"`. |
 | Which ce dimensions follow a target | `anchor_dependents(&self, target) -> Vec<DimensionId>` | Read-only, model order. Preflight for *"moving this re-measures N ce dimensions"* and *"deleting this detaches N"*. |
-| What the last command re-solved or detached | `last_anchor_resolutions(&self) -> &[Resolved]` | ⚠️ **Cleared by the next commit, undo and redo** — read it straight after the verb. `Resolved { id, before_label, after_label, detached }` (`#[non_exhaustive]`). ★ Disclose each off-canvas: a value changed on a ce dimension the operator did not name. CLI: `  followed dimension=N before= after=` / `  detached dimension=N value=`. |
+| What the last command re-solved or detached | `last_anchor_resolutions(&self) -> &[Resolved]` | ⚠️ **Cleared by the next commit, undo and redo** — read it straight after the verb (also set by `set_centre_mark` and an anchored `paste_objects`, whose `detached` entries are pasted ce dimensions that lost their target). `Resolved { id, before_label, after_label, detached }` (`#[non_exhaustive]`). ★ Disclose each off-canvas: a value changed on a ce dimension the operator did not name. CLI: `  followed dimension=N before= after=` / `  detached dimension=N value=`. |
 | **Switch a closed perimeter ↔ its enclosed AREA** | `set_dimension_area(&mut self, dimension, area: bool) -> Result<(), EditError>` | `Pass 447.0`, G098. Sets `DimensionKind::Perimeter::area`; the vertices are untouched, the label and `/Measure` are re-baked. An area reads in the group's unit squared (`12.96 m²`), the scale applied squared; `/A` carries factor 1 because ISO 32000-1 §12.9 Table 262 applies it to `/X`'s units squared. Refuses a kind with no vertices (`DimensionHasNoVertices`), an open path (`AreaNeedsClosedOutline`) and fewer than three vertices (`AreaNeedsThreeVertices { vertices }`), all before mutating. ⚠️ **1 entry even on a no-op**, like `set_dimension_display`. `add_dimension` with `area: true` applies the same two outline refusals. A document holding an area writes sidecar version 5. |
 | Set a group's drafting standard | `set_group_standard(&mut self, group, standard: DimStandard) -> Result<usize, EditError>` | Count of members regenerated. |
 | Set a group's style defaults | `set_group_style(&mut self, group, style: GroupStyle) -> Result<usize, EditError>` | ⚠️ **Count REGENERATED, not count MOVED.** See §8, trap T-00. `dash`/`opacity` (`Pass 541.0`, G159): see 03's cascade note; an opacity outside `0..=1` or NaN is `MarkupOpacityOutOfRange`, refused before anything is written; a `line_type_scale` that is not finite and positive is `LineTypeScaleOutOfRange` (`Pass 769.0`). `color` (`GroupStyle`, `StyleOverrides`, `StyleDefaults`) is an `annot_author::Color` (`Pass 617.5`, G221): Gray, RGB or CMYK, drawn as `g`/`rg`/`k` in that space with a 1-, 3- or 4-number `/C` and sidecar `/Color`; an RGB with equal components still draws as `g`, and a `vector::Rgb` passes as `rgb.into()`. For a swatch, `Color::to_device_rgb() -> [f64; 3]` (0..1) is what pdfcer renders it as (CMYK through `color::cmyk_to_srgb`; `Pass 617.7`, G223), so a shell never repeats the match. CLI: `group-style --dash 3,1.5 --opacity 0.4`, `--clear dash`; `--color` on both verbs takes `r,g,b`, `#rrggbb` or `MODEL:comps` (`gray:0.5`, `cmyk:0,1,1,0`), and `dimension-list --style` prints the colour back in that form. |

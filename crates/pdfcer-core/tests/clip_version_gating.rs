@@ -47,8 +47,8 @@ use pdfcer_core::document::Document;
 use pdfcer_core::edit::{EditSession, MarkupNote, MarkupOptions};
 use pdfcer_core::page_tree::Rect;
 use pdfcer_core::vector::{
-    CLIP_VERSION, CLIP_VERSION_PRE_LABEL_OVERRIDE, CLIP_VERSION_PRE_REPLY_COUNT, ClipAnnotation,
-    ObjectClip,
+    CLIP_VERSION, CLIP_VERSION_PRE_ANCHORS, CLIP_VERSION_PRE_LABEL_OVERRIDE,
+    CLIP_VERSION_PRE_REPLY_COUNT, ClipAnnotation, ObjectClip,
 };
 
 fn fixture(rel: &str) -> PathBuf {
@@ -272,7 +272,7 @@ fn a_copied_reply_is_counted_and_disclosed_on_paste() {
         clip.replies_unthreaded, 1,
         "only the reply had a link to lose"
     );
-    assert_eq!(clip.version, CLIP_VERSION);
+    assert_eq!(clip.version, CLIP_VERSION_PRE_ANCHORS);
 
     let back = ObjectClip::from_bytes(&clip.to_bytes()).expect("round trip");
     assert_eq!(back.replies_unthreaded, 1);

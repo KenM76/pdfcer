@@ -168,6 +168,7 @@ pub(crate) fn cmd_dimension_centre_mark(args: &CentreMarkEdit<'_>) -> u8 {
         Ok(outcome) => outcome.label_moved,
         Err(err) => return report_edit_error(input, &err),
     };
+    let followed = session.last_anchor_resolutions().to_vec();
     let outcome = match save_edited(
         &mut session,
         &source,
@@ -207,5 +208,6 @@ pub(crate) fn cmd_dimension_centre_mark(args: &CentreMarkEdit<'_>) -> u8 {
     if moved {
         println!("  note: label moved outside the rim to clear the centre mark");
     }
+    crate::dimension::print_anchor_report(&followed);
     finish_edit(input, &outcome)
 }

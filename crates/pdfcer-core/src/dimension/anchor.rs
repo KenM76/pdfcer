@@ -179,7 +179,7 @@ pub enum AnchorState {
 }
 
 /// One ce dimension re-solved because a target it is anchored to changed,
-/// or detached because its target was deleted. Shells list these
+/// or detached because its target was deleted or left out of a paste. Shells list these
 /// off-canvas: the value changed on a ce dimension the operator did not
 /// touch.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -191,8 +191,9 @@ pub struct Resolved {
     pub before_label: String,
     /// Its label after.
     pub after_label: String,
-    /// `true` when the anchor was cleared (its target was deleted) rather
-    /// than followed; the points stayed where they were.
+    /// `true` when an anchor was cleared (its target was deleted, or was not
+    /// in the pasted clip) rather than followed; the points it held stayed
+    /// where they were.
     pub detached: bool,
 }
 
@@ -528,6 +529,34 @@ impl DimensionModel {
         }
         cleared
     }
+}
+
+/// A ce dimension's clipboard anchor carry (clip format 6): `<< /Source id
+/// /Anchors [...] >>`, `/Source` omitted when unknown.
+pub(crate) fn encode_clip_anchors(
+    source: Option<DimensionId>,
+    anchors: &[(usize, Anchor)],
+) -> Object {
+    let mut d = Dict::new();
+    if let Some(id) = source {
+        d.insert(Name::from(b"Source"), Object::Integer(i64::from(id.0)));
+    }
+    put_anchor_keys(&mut d, anchors);
+    Object::Dict(d)
+}
+
+/// Read back [`encode_clip_anchors`]; a malformed carry is no source and no
+/// anchors, which pastes the ce dimension unanchored.
+pub(crate) fn decode_clip_anchors(o: &Object) -> (Option<DimensionId>, Vec<(usize, Anchor)>) {
+    let Some(d) = o.as_dict() else {
+        return (None, Vec::new());
+    };
+    let source = d
+        .get(b"Source")
+        .and_then(Object::as_int)
+        .and_then(|n| u32::try_from(n).ok())
+        .map(DimensionId);
+    (source, read_anchor_keys(d))
 }
 
 /// Write `anchors` as `/Anchors [<< /Point i /Target t /Role /name >> ...]`

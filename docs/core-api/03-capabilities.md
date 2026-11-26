@@ -315,8 +315,15 @@ designing anything in this area; do not re-derive it.
   Moving, rotating or reshaping the target re-solves every dependent in the
   same undo entry; deleting it detaches them (points stay). Verbs, refusals
   and the follow rules: 02's `set_dimension_anchor` row.
+  - Other edits (`Pass 770.1`): `set_centre_mark` re-solves and lists the
+    target's dependents (no point moves; a cleared mark keeps a
+    `MarkCentre` anchor valid). `paste_objects` re-points an anchor at the
+    pasted target when both were copied, and detaches (disclosed) when only
+    the dependent was. Page rotate, crop, media resize and box edits change
+    no user-space coordinate, so anchors are untouched; `scale_pages`
+    refuses a page with ce dimensions; a page copy carries both together.
   - ★ **Disclose** `last_anchor_resolutions()` after every move, rotate,
-    vertex or delete: each `Resolved` is a ce dimension whose value changed
+    vertex, delete, centre-mark change or paste: each `Resolved` is a ce dimension whose value changed
     (or which stopped following) without being named. Show an
     `AnchorState::Unsolvable` reason on the dependent's properties.
   - Snap: `CeDimensionTarget.anchor: Option<Anchor>` (`with_anchor(role)`)

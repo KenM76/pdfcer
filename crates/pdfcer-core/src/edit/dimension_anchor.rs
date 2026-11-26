@@ -193,8 +193,10 @@ impl EditSession {
     }
 
     /// The ce dimensions the last command re-solved through their anchors
-    /// (a target moved, rotated or had a vertex edited) or detached (a
-    /// target was deleted). Cleared by every commit, undo and redo, so it
+    /// (a target moved, rotated, had a vertex edited or its centre mark
+    /// changed; a paste carried target and dependent together) or detached
+    /// (a target was deleted; a paste carried a dependent without its
+    /// target). Cleared by every commit, undo and redo, so it
     /// always describes the newest command only. Shells show it off-canvas:
     /// these are values that changed on ce dimensions the operator did not
     /// select.
@@ -254,7 +256,7 @@ impl EditSession {
     }
 
     /// Refuse `anchor` for the ce dimension `(id, kind, page)`.
-    fn check_anchor(
+    pub(super) fn check_anchor(
         &self,
         model: &DimensionModel,
         (id, kind, page): (DimensionId, &DimensionKind, Option<ObjId>),
@@ -289,7 +291,7 @@ impl EditSession {
     }
 
     /// The page a wired ce dimension is on, from its annotation's `/P`.
-    fn dimension_page(&self, record: &DimensionRecord) -> Option<ObjId> {
+    pub(super) fn dimension_page(&self, record: &DimensionRecord) -> Option<ObjId> {
         self.value(record.annot?)?
             .as_dict()?
             .get(b"P")
@@ -298,7 +300,7 @@ impl EditSession {
 
     /// The caption `id` prints for its measurement (empty for centre
     /// geometry or an unknown id), from the same producer the `/AP` uses.
-    fn measured_label(&self, model: &DimensionModel, id: DimensionId) -> String {
+    pub(super) fn measured_label(&self, model: &DimensionModel, id: DimensionId) -> String {
         let Some(record) = model.dimension(id) else {
             return String::new();
         };
@@ -318,7 +320,10 @@ impl EditSession {
 }
 
 /// Solve `id`'s anchors in place; their states, or `None` for an unknown id.
-fn solve_record(model: &mut DimensionModel, id: DimensionId) -> Option<Vec<AnchorState>> {
+pub(super) fn solve_record(
+    model: &mut DimensionModel,
+    id: DimensionId,
+) -> Option<Vec<AnchorState>> {
     let record = model.dimension(id)?;
     if record.anchors.is_empty() {
         return Some(Vec::new());

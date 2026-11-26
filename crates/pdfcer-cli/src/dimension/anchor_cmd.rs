@@ -99,7 +99,7 @@ pub(crate) fn print_anchor_report(report: &[Resolved]) {
     for r in report {
         if r.detached {
             println!(
-                "  detached dimension={} value={:?} (its target was deleted; it no longer follows anything)",
+                "  detached dimension={} value={:?} (its target was deleted or not pasted with it; it no longer follows it)",
                 r.id.0, r.after_label
             );
         } else {

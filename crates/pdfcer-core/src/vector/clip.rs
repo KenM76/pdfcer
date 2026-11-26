@@ -101,12 +101,24 @@ use super::geometry::{Bounds, Matrix};
 ///
 /// `5` (`Pass 253.4`) appends [`ObjectClip::replies_unthreaded`] after the
 /// annotations, and is emitted only when that count is non-zero.
-pub const CLIP_VERSION: u32 = 5;
+///
+/// `6` (`Pass 770.1`) appends one COS dictionary per ce dimension after its
+/// text override (`/Source`, its id in the copied document, and `/Anchors`),
+/// and is emitted only when some ce dimension in the clip is anchored, so a
+/// paste can re-point each anchor at the pasted copy of its target, or drop
+/// and disclose one whose target was not copied.
+pub const CLIP_VERSION: u32 = 6;
+
+/// The version a clip with no anchored ce dimension is written at, at most.
+///
+/// The `5`-shaped constant for the `6` bump: the reply count is gated on
+/// this, the ce-dimension anchor carry on [`CLIP_VERSION`].
+pub const CLIP_VERSION_PRE_ANCHORS: u32 = 5;
 
 /// The version a clip that broke no reply link is written at, at most.
 ///
 /// The `4`-shaped constant for the `5` bump: the markup author-time carry
-/// is gated on this, the reply count on [`CLIP_VERSION`].
+/// is gated on this, the reply count on [`CLIP_VERSION_PRE_ANCHORS`].
 pub const CLIP_VERSION_PRE_REPLY_COUNT: u32 = 4;
 
 /// The version a clip that carries no markup author-time properties, and no
@@ -422,6 +434,14 @@ pub enum ClipAnnotation {
         /// the operator typed it on, so no destination group can have an
         /// opinion about it.
         label_override: Option<String>,
+        /// The ce dimension's id in the copied document, so an anchor in the
+        /// same clip can be re-pointed at the pasted copy. `None` from a clip
+        /// below format `6`.
+        source: Option<crate::dimension::DimensionId>,
+        /// Its associative anchors, targets named by **source** id. On paste
+        /// an anchor whose target is in the clip follows the pasted target;
+        /// one whose target is not is dropped and disclosed.
+        anchors: Vec<(usize, crate::dimension::Anchor)>,
     },
     /// Any annotation with **no registration outside the page**, carried as
     /// its own dictionary plus the closure it reaches (`Pass 170.0`).
@@ -512,7 +532,8 @@ pub struct ObjectClip {
     /// destination, so it is stripped; the reply pastes as a standalone
     /// comment. The paste reports this count as a disclosure rather than
     /// losing the threading silently. Serialised only at version
-    /// [`CLIP_VERSION`]; a clip with a zero count keeps its older version.
+    /// [`CLIP_VERSION_PRE_ANCHORS`] and above; a clip with a zero count keeps
+    /// its older version.
     pub replies_unthreaded: u64,
 }
 
@@ -890,6 +911,7 @@ impl ObjectClip {
                 {
                     CLIP_VERSION_PRE_REPLY_COUNT
                 }
+                ClipAnnotation::Dimension { anchors, .. } if !anchors.is_empty() => CLIP_VERSION,
                 ClipAnnotation::Dimension {
                     label_override: Some(_),
                     ..
@@ -1009,6 +1031,8 @@ impl ObjectClip {
                     style,
                     kind,
                     label_override,
+                    source,
+                    anchors,
                 } => {
                     out.push(1);
                     put_bytes(&mut out, group_name.as_bytes());
@@ -1042,6 +1066,12 @@ impl ObjectClip {
                             }
                             None => out.push(0),
                         }
+                    }
+                    if self.version >= CLIP_VERSION {
+                        put_cos(
+                            &mut out,
+                            &crate::dimension::encode_clip_anchors(*source, anchors),
+                        );
                     }
                 }
                 ClipAnnotation::Raw(raw) => {
@@ -1083,7 +1113,7 @@ impl ObjectClip {
                 }
             }
         }
-        if self.version >= CLIP_VERSION {
+        if self.version >= CLIP_VERSION_PRE_ANCHORS {
             put_u32(
                 &mut out,
                 u32::try_from(self.replies_unthreaded).unwrap_or(u32::MAX),
@@ -1229,6 +1259,11 @@ impl ObjectClip {
                         } else {
                             None
                         };
+                        let (source, anchors) = if version >= CLIP_VERSION {
+                            crate::dimension::decode_clip_anchors(&r.cos()?)
+                        } else {
+                            (None, Vec::new())
+                        };
                         ClipAnnotation::Dimension {
                             group_name,
                             format,
@@ -1237,6 +1272,8 @@ impl ObjectClip {
                             style,
                             kind: Box::new(kind),
                             label_override,
+                            source,
+                            anchors,
                         }
                     }
                     3 => {
@@ -1285,7 +1322,7 @@ impl ObjectClip {
         }
 
         // Appended after the annotations, so an older payload simply ends here.
-        let replies_unthreaded = if version >= CLIP_VERSION {
+        let replies_unthreaded = if version >= CLIP_VERSION_PRE_ANCHORS {
             u64::from(r.u32()?)
         } else {
             0

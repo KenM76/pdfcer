@@ -155,6 +155,7 @@ pub use regroup::WidgetRegroup;
 mod content_mark;
 mod decoration_refresh;
 mod dimension_anchor;
+mod dimension_anchor_paste;
 mod dimension_centre_mark;
 mod dimension_circle;
 mod dimension_vertex_kind;
@@ -16578,6 +16579,7 @@ impl EditSession {
                 annotations.push(clipped);
             }
         }
+        dimension_anchor_paste::drop_unused_sources(&mut annotations);
 
         Ok(crate::vector::ObjectClip {
             // CONTENT-DEPENDENT (`Pass 175.0`): a clip carrying no ce-dimension
@@ -16587,7 +16589,7 @@ impl EditSession {
             // The reply count needs version 5 only when it is non-zero.
             version: crate::vector::ObjectClip::needed_version(&annotations).max(
                 if replies_unthreaded > 0 {
-                    crate::vector::CLIP_VERSION
+                    crate::vector::CLIP_VERSION_PRE_ANCHORS
                 } else {
                     0
                 },
@@ -16625,37 +16627,10 @@ impl EditSession {
 
         // ce dimension FIRST -- see this function's own note on the order.
         if self.is_ce_dimension(id, &dict) {
-            let model = self.read_dimension_model();
-            if let Some(record) = model.dimensions().iter().find(|d| d.annot == Some(id))
-                && let Some(group) = model.group(record.group)
-            {
-                return Ok(crate::vector::ClipAnnotation::Dimension {
-                    group_name: group.name.clone(),
-                    // `Pass 173.1`: the group's SCALE and standard, and this
-                    // ce dimension's own style overrides. Without the scale a
-                    // pasted ce dimension read differently from the one it was
-                    // copied from, because its label is derived from it -- the
-                    // gap `Pass 120.5`'s acceptance criteria named and
-                    // `Pass 169.0` did not close.
-                    format: group.format,
-                    scale: group.scale,
-                    standard: group.standard,
-                    style: record.style,
-                    // `Pass 175.0`: the operator's text override, if any.
-                    // Same class of fact as `scale` above -- the caption is
-                    // derived from it, so leaving it off makes the pasted ce
-                    // dimension read differently from the copied one.
-                    label_override: record.label_override.clone(),
-                    kind: Box::new(record.kind.clone()),
-                });
-            }
-            // Recognised as a ce dimension but its sidecar record is absent --
-            // a file whose annotation and model disagree. Carried as
-            // unsupported rather than as markup: pasting the outline without
-            // the measurement is the silently-wrong outcome, and `R204`'s
-            // lesson is that a shape which merely LOOKS like markup is the
-            // dangerous case.
-            return Ok(unsupported());
+            // A ce dimension whose sidecar record is absent (annotation and
+            // model disagree) is carried as unsupported, not as markup:
+            // pasting the outline without the measurement is silently wrong.
+            return Ok(self.clip_dimension(id).unwrap_or_else(unsupported));
         }
 
         // THE FOUR REFUSALS. Everything else is carried -- see
@@ -16687,6 +16662,30 @@ impl EditSession {
             }
             Err(_) => self.clip_raw_annotation(annot, id, &dict),
         }
+    }
+
+    /// The clipboard form of the ce dimension on annotation `id`; `None`
+    /// when the model has no record (or group) for it.
+    ///
+    /// Everything its label is derived from travels — the group's scale,
+    /// format and standard, its style and text override — so the paste reads
+    /// the same as the copy; `source` and `anchors` let the paste re-point an
+    /// anchor whose target is in the same clip and disclose one whose is not.
+    fn clip_dimension(&self, id: ObjId) -> Option<crate::vector::ClipAnnotation> {
+        let model = self.read_dimension_model();
+        let record = model.dimensions().iter().find(|d| d.annot == Some(id))?;
+        let group = model.group(record.group)?;
+        Some(crate::vector::ClipAnnotation::Dimension {
+            group_name: group.name.clone(),
+            format: group.format,
+            scale: group.scale,
+            standard: group.standard,
+            style: record.style,
+            label_override: record.label_override.clone(),
+            kind: Box::new(record.kind.clone()),
+            source: Some(record.id),
+            anchors: record.anchors.clone(),
+        })
     }
 
     /// Write a carried `/BM` onto an annotation [`Self::add_markup_with`]
@@ -16980,17 +16979,24 @@ impl EditSession {
     /// difference from the content half and is disclosed: annotations are
     /// authored by `add_markup`/`add_dimension`, each of which is already one
     /// command, and re-plumbing them to share a command with content surgery
-    /// is a larger change than this Pass.
+    /// is a larger change than this Pass. A clip carrying ce-dimension
+    /// anchors is the exception: [`Self::paste_objects_on_layer`] folds the
+    /// whole paste into one entry, so the anchors' outcome undoes with it.
+    ///
+    /// The third value is the anchor report: each anchored ce dimension
+    /// pasted, followed (its target was pasted too) or detached (it was not).
     fn paste_clip_annotations(
         &mut self,
         page_index: usize,
         clip: &crate::vector::ObjectClip,
         at: crate::vector::Matrix,
-    ) -> Result<(u64, Vec<String>), EditError> {
+    ) -> Result<(u64, Vec<String>, Vec<crate::dimension::Resolved>), EditError> {
         use crate::vector::ClipAnnotation;
 
         let mut placed = 0u64;
         let mut disclosures = Vec::new();
+        let mut pasted_ids = BTreeMap::new();
+        let mut anchored = Vec::new();
         let axis_aligned = at.b == 0.0 && at.c == 0.0;
         for annotation in &clip.annotations {
             match annotation {
@@ -17046,6 +17052,8 @@ impl EditSession {
                     style,
                     kind,
                     label_override,
+                    source,
+                    anchors,
                 } => {
                     let (group, adopted) = self.find_or_create_dimension_group_with(
                         group_name, format, *scale, *standard,
@@ -17062,6 +17070,12 @@ impl EditSession {
                     }
                     let moved = crate::dimension::transform_kind(kind, at);
                     let (_, id) = self.add_dimension(page_index, group, moved)?;
+                    if let Some(source) = source {
+                        pasted_ids.insert(*source, id);
+                    }
+                    if !anchors.is_empty() {
+                        anchored.push((id, anchors.clone()));
+                    }
                     // The per-ce-dimension overrides are the BOTTOM tier of
                     // the cascade and belong to this object alone, so they are
                     // applied whether the group was created or matched.
@@ -17110,7 +17124,8 @@ impl EditSession {
                 }
             }
         }
-        Ok((placed, disclosures))
+        let report = self.attach_pasted_anchors(&pasted_ids, &anchored, &mut disclosures)?;
+        Ok((placed, disclosures, report))
     }
 
     /// The id of a dimension group with this name, creating one if the
@@ -17187,6 +17202,12 @@ impl EditSession {
     ///
     /// ONE undoable command, however many objects arrive.
     ///
+    /// A pasted ce dimension anchored to a target pasted with it follows the
+    /// copy of the target; one whose target was not in the clip loses that
+    /// anchor, is listed detached by [`Self::last_anchor_resolutions`] and
+    /// gets a `paste:` disclosure. A clip carrying anchors pastes as one undo
+    /// entry with its annotations, so undo restores the anchors exactly.
+    ///
     /// # Errors
     ///
     /// [`EditError::Clip`] for a payload from a newer build or an inconsistent
@@ -17225,9 +17246,20 @@ impl EditSession {
         at: crate::vector::Matrix,
         layer: Option<ObjId>,
     ) -> Result<PasteOutcome, EditError> {
-        self.on_layer_if(page_index, layer, |s| {
-            s.paste_objects_unlayered(page_index, clip, at)
-        })
+        let run = |s: &mut Self| {
+            s.on_layer_if(page_index, layer, |s| {
+                s.paste_objects_unlayered(page_index, clip, at)
+            })
+        };
+        // A clip carrying ce-dimension anchors pastes as ONE undo entry, so
+        // the anchors' re-pointing or detaching undoes with the paste.
+        let (outcome, report) = if dimension_anchor_paste::clip_carries_anchors(clip) {
+            self.grouped(CommandKind::PasteObjects, run)?
+        } else {
+            run(self)?
+        };
+        self.anchor_report = report;
+        Ok(outcome)
     }
 
     fn paste_objects_unlayered(
@@ -17235,20 +17267,21 @@ impl EditSession {
         page_index: usize,
         clip: &crate::vector::ObjectClip,
         at: crate::vector::Matrix,
-    ) -> Result<PasteOutcome, EditError> {
+    ) -> Result<(PasteOutcome, Vec<crate::dimension::Resolved>), EditError> {
         let (plan, page_id, page_resources) = self.plan_paste_at(page_index, clip, at)?;
         if plan.items == 0 {
-            let (annotations_pasted, mut disclosures) =
+            let (annotations_pasted, mut disclosures, report) =
                 self.paste_clip_annotations(page_index, clip, at)?;
             disclosures.extend(unthreaded_reply_disclosure(clip));
-            return Ok(PasteOutcome {
+            let outcome = PasteOutcome {
                 objects_pasted: 0,
                 annotations_pasted,
                 resources_added: 0,
                 bbox: plan.bbox,
                 replies_unthreaded: clip.replies_unthreaded,
                 disclosures,
-            });
+            };
+            return Ok((outcome, report));
         }
 
         // Import the clip's owned resource closure at fresh object numbers.
@@ -17306,17 +17339,18 @@ impl EditSession {
             removals: Vec::new(),
             trailer: None,
         });
-        let (annotations_pasted, mut disclosures) =
+        let (annotations_pasted, mut disclosures, report) =
             self.paste_clip_annotations(page_index, clip, at)?;
         disclosures.extend(unthreaded_reply_disclosure(clip));
-        Ok(PasteOutcome {
+        let outcome = PasteOutcome {
             objects_pasted: plan.items as u64,
             annotations_pasted,
             resources_added: plan.resources.len() as u64,
             bbox: plan.bbox,
             replies_unthreaded: clip.replies_unthreaded,
             disclosures,
-        })
+        };
+        Ok((outcome, report))
     }
 
     /// Ask what [`Self::paste_objects`] **would** do, without doing it
@@ -33449,7 +33483,7 @@ impl EditSession {
             hand_signature: options.hand_signature.as_deref(),
             ocr_layer: None,
         };
-        let mut paste = self.marked_if(page_index, marks, |s| {
+        let (mut paste, _) = self.marked_if(page_index, marks, |s| {
             s.paste_objects_unlayered(page_index, &clip, crate::vector::Matrix::IDENTITY)
         })?;
         if options.note.is_some() {
@@ -70397,7 +70431,7 @@ fn markup_content_clip(
         max: Point { x: r.urx, y: r.ury },
     };
     ObjectClip {
-        version: crate::vector::CLIP_VERSION,
+        version: crate::vector::CLIP_VERSION_PRE_ANCHORS,
         items: vec![ClipItem {
             bytes,
             ctm: crate::vector::Matrix::IDENTITY,

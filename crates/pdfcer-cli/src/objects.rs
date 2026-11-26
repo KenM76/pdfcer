@@ -714,6 +714,7 @@ pub(crate) fn cmd_object_paste(args: &ObjectPasteArgs<'_>) -> u8 {
             outcome
         }
     };
+    let anchors = session.last_anchor_resolutions().to_vec();
     let Some(output) = args.output else {
         eprintln!("pdfcer: object-paste refused: --output is required unless --preview");
         return exit::EDIT_REFUSED;
@@ -754,6 +755,7 @@ undo_verified={} undo_identical={}",
         u32::from(outcome.undo_verified),
         u32::from(outcome.undo_identical),
     );
+    crate::dimension::print_anchor_report(&anchors);
     finish_edit(args.input, &outcome)
 }
 

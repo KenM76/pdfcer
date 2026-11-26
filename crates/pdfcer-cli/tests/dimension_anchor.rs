@@ -180,3 +180,72 @@ fn refusals_exit_edit_refused_and_write_nothing() {
     );
     assert!(!out.exists());
 }
+
+/// Copy annotations `which` of `path` and paste them 100 pt up.
+fn copy_paste(path: &Path, which: &str, name: &str) -> (i32, String, String) {
+    let clip = temp_out(&format!("{name}.clip"));
+    let copy = [
+        "object-copy",
+        s(path),
+        "--page",
+        "1",
+        "--annotations",
+        which,
+        "--clip",
+        s(&clip),
+    ];
+    let (code, o, e) = run(&copy);
+    assert_eq!(code, 0, "{o}\n{e}");
+    let out = temp_out(&format!("{name}.pdf"));
+    let paste = [
+        "object-paste",
+        s(path),
+        "--page",
+        "1",
+        "--clip",
+        s(&clip),
+        "--translate",
+        "0,100",
+        "--verify-undo",
+        "-o",
+        s(&out),
+    ];
+    run(&paste)
+}
+
+#[test]
+fn pasting_target_and_dependent_prints_the_followed_copy() {
+    let path = anchored("paste-both");
+    let (code, o, e) = copy_paste(&path, "0,1", "paste-both-out");
+    assert_eq!(code, 0, "{e}");
+    assert!(o.contains("  followed dimension=3 "), "{o}");
+    assert!(o.contains("undo_identical=1"), "{o}");
+}
+
+#[test]
+fn pasting_only_the_dependent_prints_and_discloses_the_detach() {
+    let path = anchored("paste-one");
+    let (code, o, e) = copy_paste(&path, "1", "paste-one-out");
+    assert_eq!(code, 0, "{e}");
+    assert!(o.contains("  detached dimension=2 value="), "{o}");
+    assert!(e.contains("anchor(s) were dropped"), "{e}");
+}
+
+#[test]
+fn clearing_the_target_centre_mark_prints_the_followed_dependent() {
+    let path = anchored("mark");
+    let out = temp_out("mark-out.pdf");
+    let args = [
+        "dimension-centre-mark",
+        s(&path),
+        "--dimension",
+        "0",
+        "--clear",
+        "-o",
+        s(&out),
+    ];
+    let (code, o, e) = run(&args);
+    assert_eq!(code, 0, "{e}");
+    assert!(o.contains("  followed dimension=1 "), "{o}");
+    assert!(listed(&out).contains("anchor point="), "{}", listed(&out));
+}

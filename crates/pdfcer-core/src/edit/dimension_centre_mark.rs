@@ -88,6 +88,13 @@ impl EditSession {
     /// spec, and with it the previous label position, which is derived from
     /// the spec rather than stored.
     ///
+    /// The ce dimensions anchored to this one are re-solved in the same
+    /// command and listed by [`Self::last_anchor_resolutions`]. The spec
+    /// changes no anchorable point (a mark's centre is its circle's), so
+    /// they stay attached and on the same point; clearing a radius/diameter
+    /// mark keeps a `mark-centre` anchor on it valid, because the role
+    /// names the circle's centre, not the drawn cross.
+    ///
     /// Setting the current value still commits, as
     /// [`Self::set_dimension_display`] does, so a control press always makes
     /// one undo entry: compare against [`Self::centre_mark_host`] first to
@@ -132,7 +139,8 @@ impl EditSession {
         let label_moved = kind.circular_text_distance() != before;
         record.kind = kind;
 
-        let mut objects = self.regenerate_dimension_writes(&model, &[dimension])?;
+        let (ids, followed) = self.follow_anchors(&mut model, dimension);
+        let mut objects = self.regenerate_dimension_writes(&model, &ids)?;
         objects.push(self.catalog_dimension_write(&model)?);
         self.commit(Command {
             kind: CommandKind::SetCentreMark {
@@ -142,6 +150,7 @@ impl EditSession {
             removals: Vec::new(),
             trailer: None,
         });
+        self.anchor_report = followed;
         Ok(CentreMarkOutcome { label_moved })
     }
 }

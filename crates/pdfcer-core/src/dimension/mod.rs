@@ -109,6 +109,7 @@ pub use anchor::{
     Anchor, AnchorOutcome, AnchorRole, AnchorState, ArcCondition, Resolved, Unsolvable,
     solve_anchors, would_cycle,
 };
+pub(crate) use anchor::{decode_clip_anchors, encode_clip_anchors};
 pub use area::{area_places, area_unit_label, format_area_measurement};
 pub use author::{
     AUTHORED_ANNOT_KEYS, AUTHORED_MEASURE_KEY, AuthoredDimension, DIM_PLACEHOLDER,
