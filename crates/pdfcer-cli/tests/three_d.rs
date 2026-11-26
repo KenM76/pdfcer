@@ -1542,7 +1542,7 @@ fn render_lighting_is_reported_and_threads_draw_the_same_image() {
 /// `3d-render --lens` with `--width 160 --height 100` and `extra`.
 #[cfg(feature = "3d")]
 fn lens_render(tag: &str, extra: &[&str]) -> (Output, PathBuf) {
-    let input = with_prc("render_lens", "assembly.prc");
+    let input = with_prc(&format!("render_lens_{tag}"), "assembly.prc");
     let output = input.with_extension(format!("{tag}.png"));
     let mut args = vec![
         "3d-render",
@@ -1626,7 +1626,7 @@ fn a_fisheye_field_out_of_range_is_refused() {
 /// `extra`.
 #[cfg(feature = "3d")]
 fn panorama_render(tag: &str, ext: &str, extra: &[&str]) -> (Output, PathBuf) {
-    let input = with_prc("render_pano", "assembly.prc");
+    let input = with_prc(&format!("render_pano_{tag}"), "assembly.prc");
     let output = input.with_extension(format!("{tag}.{ext}"));
     let mut args = vec![
         "3d-render",
@@ -1925,7 +1925,7 @@ fn a_360_render_levels_a_pitched_view_and_discloses_it() {
         stdout.contains("the camera was levelled with +y up (as --up asked)"),
         "{stdout}"
     );
-    let flat_render = panorama_render("flat", "png", &["--width", "20", "--height", "20"]);
+    let flat_render = panorama_render("flat_png", "png", &["--width", "20", "--height", "20"]);
     assert!(
         !String::from_utf8_lossy(&flat_render.0.stdout).contains("levelled"),
         "a flat picture is not levelled"
