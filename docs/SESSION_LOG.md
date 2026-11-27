@@ -4,6 +4,15 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-11-26 (1733rd filing) — CI clippy fix `d84ba561` for `Pass 783.0`; `v0.180.0` still in progress
+
+**Filed (engineer-reported; no shell here, git, push, CI and the gates not checked from here; operator commits):**
+- `d84ba561` (`fix(cli): gate the panorama args import on the 3d feature (Pass 783.0)`; parent `0e076565`, the 1732nd filing): found by the `v0.180.0` release gates before any push. `cargo clippy -p pdfcer-cli --no-default-features --all-targets -- -D warnings` (a CI step) failed with unused-imports on `use super::RenderThreeDArgs;` in `threed_cmd/panorama.rs` (added by `5be14814`); its only users are `#[cfg(feature = "3d")]`, so the import now carries the same gate. No behaviour change; that clippy command and `cargo fmt --all --check` green on re-run.
+- **Root cause:** the Pass 783.0 pre-commit checks did not include CI's feature-off clippy step for `pdfcer-cli`. Working order: run CI's clippy steps verbatim, including `--no-default-features`, on any Pass touching a feature-gated CLI module. Origin `main` is `c6bf453b`, which already contains `5be14814`, so CI there may be red on this step (not checked).
+- `ROADMAP.md`: dated amendment on the `Pass 783.0` Shipped entry. `NEXT_SESSION.md`: update line tweaked (the tag now goes on this filing commit once CI is green). `FEATURES.md`: no change.
+
+**Decisions made:** none. **Next:** CI green on the filing commit, tag it, then the `v0.180.0` release plan.
+
 ## 2026-11-26 (1732nd filing) — `v0.180.0` bump `a6f14b22` filed; release IN PROGRESS
 
 **Filed (engineer-reported; no shell here, git, push, CI and the gates not checked from here; operator commits):**
