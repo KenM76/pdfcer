@@ -4,6 +4,18 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-11-27 (1738th filing) — `Pass 781.2.b` shipped: no markup redraw adds a key; `/Border` dash read
+
+**Filed (engineer-reported; no shell here, git, CI and the gates not checked from here; operator commits):**
+- `7790d694` (`fix(core): no markup re-bake adds a key; /Border dash is read (Pass 781.2.b)`). Paste, `set_markup_style`, `reshape_annotation`, `reshape_ink`, `respan_text_markup` and `resize_annotation`'s redraw now write back only what the verb changed (`markup_rebake_keys.rs`, renamed from `markup_paste_keys.rs`): no `/BM` added, `/C /IC /LE /BE` only if set, source `/BS` or `/Border` restored, a changed width or dash patched where the source keeps it, `/BS` added only if the source has neither (disclosed). `read_border_dash` now reads `/Border[3]` (Table 164) when `/BS` is absent. `set_marker_style` and `set_text_annot_style` on a Text note measured clean.
+- Tests: `xcut/tests/rebake.rs` (5) plus 2 unit tests, sabotage-checked in 8 cases; core lib 2604/0/2, core integration 3543/0/2, others 1198, 328, 139, 1; xcut metrics unchanged; gates green.
+- **In progress:** `Pass 781.2.c` (`set_text_annot_style` `redraw_as_plain` on another producer's FreeText adds `/BS` beside `/Border`; on a Callout drops `/LE` silently). ID grep-checked free in `docs/`.
+- Docs: `ROADMAP.md` Shipped entry, Backlog `781.2.b` marked shipped and `781.2.c` added, banner updated. `FEATURES.md` three rows (markup restyle, border dash, markup copy-paste); restyle and border-dash rows trimmed under 1,200 characters and tagged `xc:`.
+
+**Findings:** the 1737th filing commit `64275028` accidentally carried a staged file rename from the concurrent worker, without its `mod` line, so main did not build at `64275028` until `7790d694`. Cause: staging explicit paths does not unstage what is already in the index. **Lesson: check `git diff --cached --stat` before every filing commit.**
+
+**Decisions made:** none new. **Next:** `781.2.c`, then `Pass 781.3`, then `780.1`.
+
 ## 2026-11-27 (1736th filing) — `Pass 781.2.a` shipped: a re-baked markup paste adds no key
 
 **Filed (engineer-reported; no shell here, git, CI and the gates not checked from here; operator commits):**
