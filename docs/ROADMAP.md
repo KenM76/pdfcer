@@ -112,6 +112,17 @@ wherever it appears.*
 
 ## Shipped
 
+### `Pass 784.0`: a render cancel stops inside a large image decode (`G337`, from pdfcer-gui); `3d5dfc5d`, 2026-11-26 (1731st filing)
+
+Engineer-reported; no shell here, so git, CI and the gates were not checked from here. `3d5dfc5d` is on `main`, local, not pushed. **Unreleased; rides the next release.** IDs `784.0`-`784.2` grep-checked unused across `docs/` by this filing. Reasoning is in the commit message.
+- **What it does:** the render interpreter passes its cancel token into a new crate-private `image::decode_cancellable`. It polls between decode stages and once per row in the colour and stencil loops, and skips the paint if the token is set after the minify. A cancelled render returns `Err`; `pdfcer-render` has no decoded-image cache, so no partial texels survive. **No size limit added** (operator ruling: no arbitrary limits).
+- **Measured, 600 dpi copier scan, release build, cancel-to-return:** cancel at 100 ms, render route 1960 ms before, 54-57 ms after; record route 2320 ms before, 56-58 ms after; cancel at 10 ms (inside the JPEG decoder) about 145 ms after; cancel at 1000 ms, scale 2, 12-14 ms after.
+- **Public surface:** new `ImageError::Cancelled` (enum already `non_exhaustive`); core-api `03-capabilities.md` §7.3 updated. **No CLI surface:** one invocation is one render, nothing to cancel.
+- **Tests (engineer-reported):** `pdfcer-render` 593 lib, 708 harnessed (2 ignored), 43 doc, 0 fail. New: five unit tests and `tests/image_decode_cancel.rs` (synthetic 2000x2000 image, registered in `tests/all.rs`). Sabotage: removing the per-row polls fails 2 tests; passing no token fails the ratio test. fmt, clippy `-D warnings`, structure, cross-cutting, public-fns, core-api-verbs, tests-harnessed, string-gaps clean. Structure baseline lost one stale line (`image.rs::decode` now under 80 lines). No manifest change.
+- **Residue filed in Backlog:** `Pass 784.1` (colour loop speed), `Pass 784.2` (decoder per-row hook).
+- **FEATURES:** the existing "Off-thread cancellable rendering" row (core `[x]`, cli `—`, gui `[x]`) gets a clause and `xc: none`; boxes **not** changed to `[ ]` cli / `[ ]` gui as dispatched, because that row's cli is not-applicable and its gui half already shipped. Cross-cutting cells: none.
+- **State after:** Next up unchanged (`Pass 781.2`, then `780.1`). The channel has no open requests; a release comes next.
+
 ### `Pass 783.0`: a partial panorama of a 3D view, levelled or tilted, and its cropped photo-sphere tag (`G338`, operator `O466` via pdfcer-gui); `5be14814`, 2026-11-26 (1730th filing)
 
 Engineer-reported; no shell here, so git, CI and the gates were not checked from here. `5be14814` is on `main`, local, not pushed. **Unreleased; rides the next release (writes `pdfcer1`).** Pass ID 783 grep-checked unused by the engineer. Reasoning is in the commit message.
@@ -40677,6 +40688,8 @@ Grouped by rough Acrobat Pro feature area. Each bucket gets scoped into
 real Pass entries as the engineer reaches it — this list exists so
 nothing gets forgotten, not as a commitment to build in this order.
 
+- **`Pass 784.1` (filed 1731st, residue of `784.0`): speed up the image colour loop.** About 37 ns per texel, which is 1.6 s of the 1.8 s page render on the 600 dpi copier scan. **core.** Caution recorded by the engineer: hoisting the per-texel component cache is unsafe, because the matte undo can carry values across texels. Acceptance: pixel-identical output, measured speed-up on the same scan. *FEATURES:* none (render-internal).
+- **`Pass 784.2` (filed 1731st, residue of `784.0`): a per-row cancel hook inside image decoders.** zune-jpeg and `filters::decode_stream` run whole with no per-row hook, so worst cancel latency inside one image is about 150-170 ms; the loops in `mask.rs` are checked only after each finishes. **core.** Acceptance: cancel inside one large image decode returns well under the 145 ms measured at 10 ms on the 600 dpi scan. May need an upstream or vendored decoder change (rule 13 licence check first). *FEATURES:* none (render-internal).
 - **Cross-cutting coverage arc, decision 228 (filed 1726th; `Pass 781.0` SHIPPED 1728th, `781.1` SHIPPED 1729th, head is `781.2`; acceptance per row in `docs/decisions/228-cross-cutting-coverage.md` "Pass split").** All core unless stated; the rest not started.
   - **`781.1`** SHIPPED (1729th, `3d63a798`); see *Shipped*.
   - **`781.2`** markup paste becomes Raw plus patches, `/AP` re-baked only under a non-translation transform, `MarkupCarry` deleted. **`781.3`** `FIELD_CARRIED_KEYS` inverted to a denylist (`FieldClip`, `FieldClipSet`). **`781.4`** ce dimension clone-then-patch (re-register sidecar, map group, re-bake `/AP` only on scale/format change). **`781.5`** content kinds (ExtGState, `BDC`, `/OC` chain; `ClipItem.kind` becomes `ObjectKind`). **`781.6`** document kinds (outline, attachment, page, layer, named destination).

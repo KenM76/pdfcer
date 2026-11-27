@@ -4,6 +4,16 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-11-26 (1731st filing) — `Pass 784.0` shipped: a render cancel stops inside a large image decode (`G337`)
+
+**Filed (engineer-reported; no shell here, git, push, CI and the gates not checked from here; operator commits):**
+- `3d5dfc5d`, on `main`, local, unpushed. New crate-private `image::decode_cancellable`; polled between stages and per row in the colour and stencil loops; paint skipped if cancelled after the minify. New `ImageError::Cancelled`; core-api §7.3 updated. No CLI surface, no size limit (operator ruling), no manifest change.
+- Measured (600 dpi copier scan, release, cancel-to-return): at 100 ms render route 1960 ms to 54-57 ms, record route 2320 ms to 56-58 ms; at 10 ms about 145 ms; at 1000 ms scale 2 12-14 ms.
+- Tests (engineer-reported): `pdfcer-render` 593 lib, 708 harnessed (2 ignored), 43 doc, 0 fail; 5 unit tests plus `tests/image_decode_cancel.rs`; sabotage fails 2 tests (no per-row polls) and the ratio test (no token); gates clean; structure baseline shrank by one line.
+- `ROADMAP.md`: Shipped entry; Backlog `784.1` (colour loop speed) and `784.2` (decoder per-row hook), IDs grep-checked free. `FEATURES.md`: "Off-thread cancellable rendering" row clause and `xc: none`.
+
+**Decisions made:** none. **Divergence from the dispatch:** that row's boxes were left `[x]` core, `—` cli, `[x]` gui rather than set to `[ ]` cli and gui, since cli is not applicable and gui already shipped. **Still owed:** `784.1`, `784.2`. **Next:** `Pass 781.2`, then `780.1`; the channel has no open requests; a release comes next.
+
 ## 2026-11-26 (1730th filing) — `Pass 783.0` shipped: a partial panorama of a 3D view (`G338`)
 
 **Filed (engineer-reported; no shell here, git, push, CI and the gates not checked from here; operator commits):**
