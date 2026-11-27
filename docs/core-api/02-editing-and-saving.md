@@ -1346,7 +1346,7 @@ The two exceptions are `transform_objects` / `transform_preview`
 >
 > | kind | what happens |
 > |---|---|
-> | markup (`Square`, `Circle`, `Line`, `Ink`, `Polygon`, `Cloud`, `PolyLine`, text markup) | pasted raw; `/AP` kept byte-for-byte under a translation, redrawn from the geometry under a rotation or scale (disclosed, `REDREW`); one undo entry |
+> | markup (`Square`, `Circle`, `Line`, `Ink`, `Polygon`, `Cloud`, `PolyLine`, text markup) | pasted raw; `/AP` kept byte-for-byte under a translation, redrawn from the geometry under a rotation or scale (disclosed, `REDREW`); the redraw writes back no key the source lacked (`/BS`, `/BM`, `/C`, `/LE` stay absent), and a scale patches the border width where the source holds it (`/BS /W`, else `/Border`), adding `/BS` only when neither does (disclosed, `ADDED`); one undo entry |
 > | any other annotation pdfcer does not refuse | pasted raw; under a rotation or scale it is moved, not transformed, and that is disclosed |
 > | **ce dimension** | pasted, with its group |
 > | **widget**, pop-up, pending redaction | **refused by name, with the reason** — a widget carries an `/AcroForm` field registration, and a *renamed* field is a **different field**: any script, calculation order or parent-child relationship naming the old one breaks silently. That is a decision about your form, not a copy |

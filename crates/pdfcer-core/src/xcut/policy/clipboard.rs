@@ -38,8 +38,9 @@ pub(crate) const RAW: &[Change] = &[
 
 /// What a modelled markup's paste declares: the raw route plus the geometry
 /// keys `paste_geometry` translates. Under a rotation or scale its `/AP` is
-/// redrawn from that geometry instead; the runner pastes by translation, so
-/// there `/AP` must arrive unchanged.
+/// redrawn from that geometry instead, and a scale patches the border width
+/// where the source holds it; no other key is added. The runner pastes by
+/// translation, so there `/AP` must arrive unchanged.
 pub(crate) const MARKUP: &[Change] = &[
     Change::Translated("Rect"),
     Change::Translated("QuadPoints"),
@@ -52,6 +53,14 @@ pub(crate) const MARKUP: &[Change] = &[
     Change::Rebaked {
         key: "AP",
         only_when: "a non-translation transform",
+    },
+    Change::Rebaked {
+        key: "Border",
+        only_when: "a scale changes the border width (its width element)",
+    },
+    Change::Rebaked {
+        key: "BS",
+        only_when: "a scale changes the border width (/W; added, and disclosed, only when no /BS or /Border held it)",
     },
     Change::Dropped {
         key: "Popup",

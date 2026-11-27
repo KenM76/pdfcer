@@ -143,3 +143,66 @@ fn a_rotated_markup_paste_rebakes_and_keeps_the_sentinel() {
     );
     assert_eq!(s.undo_depth(), depth + 1, "one paste, one undo step");
 }
+
+/// The top-level keys of `id`'s dictionary, sorted.
+fn key_set(s: &crate::edit::EditSession, id: crate::object::ObjId) -> Vec<String> {
+    let Some(Object::Dict(d)) = s.value(id) else {
+        return Vec::new();
+    };
+    let mut keys: Vec<String> = d
+        .iter()
+        .map(|(k, _)| String::from_utf8_lossy(k.as_bytes()).into_owned())
+        .collect();
+    keys.sort();
+    keys
+}
+
+/// 781.2.a: a rotated or scaled markup paste keeps exactly the source's key
+/// set, less the declared drops. The re-bake writes back only what changed
+/// (ISO 32000-1 §12.5.4: an absent `/BS` already means its default; ISO
+/// 32000-2 §12.5.2 Table 166: `/BM` is optional and the baked `/AP` selects
+/// its own blend mode).
+#[test]
+#[allow(clippy::unwrap_used)]
+fn a_transformed_markup_paste_adds_no_key() {
+    use crate::xcut::policy::clipboard::MARKUP;
+    use crate::xcut::{Change, Expect, Op, expect};
+    let quarter = crate::vector::Matrix::new(0.0, 1.0, -1.0, 0.0, 400.0, 0.0);
+    let turn_and_grow = crate::vector::Matrix::new(0.0, 2.0, -2.0, 0.0, 500.0, 0.0);
+    let dropped: Vec<&str> = MARKUP
+        .iter()
+        .filter_map(|c| match c {
+            Change::Dropped { key, .. } => Some(*key),
+            _ => None,
+        })
+        .collect();
+    let mut faults = Vec::new();
+    let markup = fixture::kinds()
+        .filter(|k| matches!(expect(Op::Paste, *k), Expect::Preserve(c) if c == MARKUP));
+    for kind in markup {
+        for (label, at) in [("rotated", quarter), ("rotated and scaled", turn_and_grow)] {
+            let (mut s, id) = fixture::build(kind);
+            let mut want = key_set(&s, id);
+            want.retain(|k| !dropped.contains(&k.as_str()));
+            let clip = copy(&s, id).unwrap();
+            let outcome = s.paste_objects(0, &clip, at).unwrap();
+            let pasted = *annots(&s, 0).last().unwrap();
+            if !outcome.disclosures.iter().any(|d| d.contains("REDREW")) {
+                faults.push(format!("{kind:?} {label}: not redrawn"));
+            }
+            if kind == ObjectKind::Ink && label == "rotated and scaled" {
+                let dump = super::runner::dump(&s, pasted);
+                let width = dump.0.get("/Border[2]");
+                let want_width = crate::xcut::dump::Canon::Num(4.0);
+                if width != Some(&want_width) {
+                    faults.push(format!("Ink {label}: /Border width {width:?}, want 4"));
+                }
+            }
+            let got = key_set(&s, pasted);
+            if got != want {
+                faults.push(format!("{kind:?} {label}: keys {got:?}, want {want:?}"));
+            }
+        }
+    }
+    assert!(faults.is_empty(), "{faults:#?}");
+}

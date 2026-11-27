@@ -160,6 +160,7 @@ mod dimension_centre_mark;
 mod dimension_circle;
 mod dimension_vertex_kind;
 mod flatten_dimensions;
+mod markup_paste_keys;
 pub use dimension_centre_mark::{CentreMarkHost, CentreMarkOutcome};
 use dimension_vertex_kind::vertex_edited_kind;
 mod dimension_merge;
@@ -16895,10 +16896,11 @@ impl EditSession {
     /// folded into the paste's undo entry.
     ///
     /// Goes through the restyle/reshape regeneration route
-    /// ([`Self::regenerate_markup_appearance`]), so it replaces exactly the
-    /// keys `build_appearance` owns (`/Rect`, `/C`, `/IC`, `/BS`, `/LE`, the
-    /// geometry keys, `/AP`) and keeps every other key, `/BM` included. The
-    /// redraw is disclosed, and so is a `/Square` or `/Circle` whose rotated
+    /// ([`Self::regenerate_markup_appearance`]), then patches the result back
+    /// to the source's key set and order (`markup_paste_keys`): the redraw
+    /// changes `/AP`, `/Rect`, the geometry keys and, under a scale, the
+    /// border width, and adds `/BS` only when no key held that width. The
+    /// redraw is disclosed, and so is that addition and a `/Square` or `/Circle` whose rotated
     /// shape could only be ENCLOSED (§12.5.2: `/Rect` is axis-aligned).
     fn rebake_pasted_markup(
         &mut self,
@@ -16912,10 +16914,17 @@ impl EditSession {
         };
         let read = {
             let graph = self.graph();
-            annot_author::spec_from_dict(&graph, &current)
-                .map(|spec| (spec, annot_author::read_border_dash(&graph, &current)))
+            let source_bs = match current.get(b"BS").map(|o| graph.resolve(o)) {
+                Some(Object::Dict(bs)) => Some(bs.clone()),
+                _ => None,
+            };
+            let width = annot_author::read_border_width(&graph, &current);
+            annot_author::spec_from_dict(&graph, &current).map(|spec| {
+                let dash = annot_author::read_border_dash(&graph, &current);
+                (spec, dash, source_bs, width)
+            })
         };
-        let Ok((spec, dash)) = read else {
+        let Ok((spec, dash, source_bs, source_width)) = read else {
             disclosures.push(format!(
                 "paste: the /{subtype} annotation was placed where it was copied from -- its geometry could not be read back to rotate or scale it."
             ));
@@ -16930,7 +16939,13 @@ impl EditSession {
                 highlighter: annot_author::is_highlighter(&current),
             },
         );
-        let regen = self.regenerate_markup_appearance(annot_id, &current, authored)?;
+        let mut regen = self.regenerate_markup_appearance(annot_id, &current, authored)?;
+        let added = markup_paste_keys::keep_source_keys(
+            &current,
+            source_bs.as_ref(),
+            &mut regen.updated,
+            source_width,
+        );
         self.commit_regenerated_markup(annot_id, regen, CommandKind::PasteObjects);
         if !self.coalesce_last(2, CommandKind::PasteObjects) {
             disclosures.push(format!(
@@ -16940,6 +16955,11 @@ impl EditSession {
         disclosures.push(format!(
             "paste: the /{subtype} annotation was rotated or scaled, so pdfcer REDREW its appearance from its geometry; every key it does not draw from was carried unchanged."
         ));
+        if added == markup_paste_keys::AddedKey::BorderStyle {
+            disclosures.push(format!(
+                "paste: the /{subtype} annotation was scaled, so its border width changed, and it named its width in neither /BS nor /Border -- pdfcer ADDED a /BS entry to record the new width (ISO 32000-1 12.5.4)."
+            ));
+        }
         if enclosed && (at.b != 0.0 || at.c != 0.0) {
             disclosures.push(format!(
                 "paste: a /{subtype} annotation cannot express a rotation -- its geometry is an axis-aligned rectangle (ISO 32000-1 12.5.2 /Rect), so the pasted one ENCLOSES the rotated shape rather than being it."
