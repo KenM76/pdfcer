@@ -4,6 +4,16 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-11-27 (1739th filing) — `Pass 781.2.c` shipped: FreeText restyle adds and drops no key; callouts drawn
+
+**Filed (engineer-reported; no shell here, git, CI and the gates not checked from here; operator commits):**
+- `ab5f40d8` (`fix(core): a FreeText restyle keeps its keys and draws its callout (Pass 781.2.c)`). `FreeTextFrame::callout` drawn with `emit_line_ending`; restyle goes through `keep_markup_source_keys` (`edit/free_text_rebake.rs`); `TextAnnotStyleChange` gains `border_style_added` and `keys_not_drawn`; CLI prints both.
+- Tests: 5 in `xcut/tests/rebake_free_text.rs`, sabotage-checked 8 ways; core and CLI 7818/0/6; gates green.
+- **In progress:** `Pass 781.2.d` (seven Table 179 endings undrawn, Line/PolyLine to check; `derived.rs` draws no callout without `/AP`). Two further Backlog lines, not part of it: stamps and sticky notes on the old restyle path; no CLI verb creates a callout. `781.2.d` grep-checked free in `docs/`.
+- Docs: `ROADMAP.md` Shipped entry, Backlog `781.2.c` marked shipped, `781.2.d` and two lines added, banner updated. `FEATURES.md` rows for FreeText restyle (two) extended and one new callout row, all `xc:` tagged, all under 1,200 characters.
+
+**Decisions made:** none new. **Next:** `781.2.d`, then `Pass 781.3`, then `780.1`.
+
 ## 2026-11-27 (1738th filing) — `Pass 781.2.b` shipped: no markup redraw adds a key; `/Border` dash read
 
 **Filed (engineer-reported; no shell here, git, CI and the gates not checked from here; operator commits):**
