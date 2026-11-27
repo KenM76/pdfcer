@@ -11,6 +11,8 @@ the affected entry. Maintained by `pdfce-librarian`.
 - Tests: new `field_paste_da_fonts.rs` (5), `paste_font_renames.rs` (1), 4 sabotages red; core integration 3559, core unit 2613, doctests 329, CLI integration 1200, CLI unit 139. xcut `kinds_untagged=23 carry_found=5 carry_baseline=5`, no cells changed.
 - Docs: ROADMAP Shipped entry, Backlog `781.3.a` marked shipped, `781.3` entry's "version 2" line and "Still open" corrected; FEATURES single-field and multi-field rows updated.
 
+Commit `af6cf5f1` (the 1741st filing) also deleted the `untagged-kind form.widget` and `untagged-kind form.field` lines from `tools/cross-cutting-baseline.txt`, because the field copy/paste rows now carry `xc: form.widget, form.field`; that baseline file sits under `tools/`, so `check-commits-filed` classes the commit as code, and this entry files it.
+
 **Decisions made:** none new. **Next:** `Pass 780.1`.
 
 ## 2026-11-27 (1741st filing) — `Pass 781.3` and `781.7.g` shipped: a form-field copy is a clone; inherited attributes travel
