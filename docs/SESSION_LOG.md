@@ -4,6 +4,17 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-11-26 (1734th filing) — `v0.180.0` PUBLISHED
+
+**Filed (engineer-reported, engineer's shell; git, CI, GitHub, crates.io and OneDrive not checked from here; operator commits):**
+- Tag `v0.180.0` (object `2a56fbb9`) on `5baf99c4` (the 1733rd filing); `main` pushed to `5baf99c4`, tag pushed alone with the pre-push hook (not `--no-verify`); `ls-remote` peeled tag = `5baf99c4`. CI green run 45939099357 (the earlier push `c6bf453b` was red, run 45932503035, on the feature-off clippy step fixed by `d84ba561`).
+- Carries `781.0`, `781.1`, `783.0` (+ `d84ba561`), `784.0`; bump `a6f14b22`.
+- GitHub: 8 assets, zip `pdfcer-v0.180.0-windows-x64.zip` 33,554,861 bytes. Smoke: `--version` 0.180.0 (`v0.179.0-15-g5baf99c4`), `--panorama` flags listed, PRC panorama render 2048x1024 JPEG with GPano tag, `render-page` OK. OneDrive `pdfcer1` (90,793,470 bytes); **next release writes `pdfcer2`**. `verify-release.py` passed except "working tree clean" (42 standing locals). crates.io: 17 crates at 0.180.0 in two rounds (pdfcer-render, pdfcer-emf failed prepare in round 1, presumably index lag; ok in round 2). 11,499 tests passed, 0 failed; 36/36 audits.
+- Channel: notice `open/notice_2026-11-26_release_v0.180.0.md` plus INDEX row.
+- `ROADMAP.md`: PUBLISHED entry; the 1732nd IN PROGRESS entry marked superseded. `NEXT_SESSION.md`: new newest line. `FEATURES.md`: no change.
+
+**Decisions made:** none. **Next:** `Pass 781.2`, then `780.1`.
+
 ## 2026-11-26 (1733rd filing) — CI clippy fix `d84ba561` for `Pass 783.0`; `v0.180.0` still in progress
 
 **Filed (engineer-reported; no shell here, git, push, CI and the gates not checked from here; operator commits):**

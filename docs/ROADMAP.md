@@ -112,7 +112,19 @@ wherever it appears.*
 
 ## Shipped
 
-### `v0.180.0` version bump `a6f14b22`; release IN PROGRESS, 2026-11-26 (1732nd filing)
+### `v0.180.0` PUBLISHED, 2026-11-26 (1734th filing); the latest release
+
+Engineer-reported (engineer's shell); git, CI, GitHub, crates.io and OneDrive were not checked from here. Annotated tag `v0.180.0` (object `2a56fbb9`) is on `5baf99c4` (the 1733rd filing commit); `main` pushed to `5baf99c4`, the tag pushed alone with the pre-push hook running (not `--no-verify`); `git ls-remote` shows `refs/tags/v0.180.0^{}` = `5baf99c4`. CI green on `5baf99c4` (run 45939099357); the previous push `c6bf453b` was CI red (run 45932503035) on the feature-off clippy step, fixed by `d84ba561` (filed 1733rd) before this push. **Carries** `Pass 781.0` (`0e9223bf`, `5886050b`), `781.1` (`3d63a798`), `783.0` (`5be14814`, `G338`; fix `d84ba561`), `784.0` (`3d5dfc5d`, `G337`); bump `a6f14b22`.
+- **GitHub release:** 8 assets (`gh-release.py` PASS); portable zip `pdfcer-v0.180.0-windows-x64.zip` 33,554,861 bytes, built from `D:\builds\pdfcer-20261126-2315-5baf99c`, staged in `D:\builds\rel180`.
+- **Fresh-folder smoke:** `--version` reports 0.180.0, revision `v0.179.0-15-g5baf99c4` (built before tagging; same commit as the tag). `3d-render --help` lists `--panorama`, `--panorama-vertical`, `--panorama-tilt`, `--panorama-mapping`; a PRC model via `3d-embed` then `3d-render --index 0 --view top --panorama 120 --panorama-vertical 60 --panorama-tilt view` wrote a 2048x1024 JPEG with the GPano tag; `render-page` of `fixtures/synthetic/hello.pdf` OK.
+- **OneDrive:** `deploy-onedrive.py` wrote `pdfcer1` (6 items, 90,793,470 bytes); `pdfcer2` keeps 0.179.0. **The next release writes `pdfcer2`.**
+- **`verify-release.py v0.180.0`:** every check passed except "working tree clean" (42 paths, the standing never-commit locals).
+- **crates.io:** 17 crates at 0.180.0 in two rounds (round 1: 15 ok; pdfcer-render and pdfcer-emf failed "failed to prepare local package for uploading", presumably index lag on the just-published pdfcer-core; both ok in round 2). `cargo publish --no-verify` per crate from a detached worktree at the tag, leaf-first.
+- **Gates before the push:** fmt, both CI clippy commands, rustdoc link-deny, `cargo test --workspace --all-features --no-fail-fast` (11,499 passed, 0 failed), feature-off tests (pdfcer-3d 296, pdfcer-cli bin 132, pdfcer-core 6,305, pdfcer-render doc 42), Linux clippy for pdfcer-cli, aarch64-apple-darwin check, both wasm32 checks, `fuzz cargo check --bins`, 36/36 audits from `check-ci-parity.py --list`, `check-commits-filed.py` clean.
+- **Channel:** `open/notice_2026-11-26_release_v0.180.0.md`, INDEX row at the top of the table.
+- **State after:** Next up `Pass 781.2`, then `780.1`. `FEATURES.md`: no change.
+
+### `v0.180.0` version bump `a6f14b22`; release IN PROGRESS (superseded by the entry above), 2026-11-26 (1732nd filing)
 
 Engineer-reported; no shell here, so git, push, CI and the gates were not checked from here. `a6f14b22` (`chore: bump version to 0.180.0`; parent `c5616e78`) moves all 17 crates in the workspace `Cargo.toml`, `Cargo.lock` and `fuzz/Cargo.lock` to 0.180.0; `cargo check --locked -p pdfcer-cli` passed on it (engineer-reported). **Unreleased: the release is in progress.** It carries, since `v0.179.0` (tag on `dad4f11b`): `Pass 781.0` (`0e9223bf`, `5886050b`), `Pass 781.1` (`3d63a798`), `Pass 783.0` (`5be14814`, `G338`) and `Pass 784.0` (`3d5dfc5d`, `G337`). OneDrive slot `pdfcer1` (`pdfcer2` keeps 0.179.0). The tag goes on the filing commit after CI is green, pushed without `--no-verify`; smoke includes `3d-render --panorama`; the PUBLISHED entry follows.
 
@@ -169,7 +181,7 @@ Engineer-reported; no shell here, so git, CI and the gates were not checked from
 - **FEATURES:** the cross-cutting row stays in Planned with core `[x]` and cli `[x]` (foundation only; markup, dimension, field, content, document kinds and the process gate are open); the annotation copy/paste row clause updated (link actions, `/NM`, `dropped_keys`).
 - **State after:** Next up head is `Pass 781.1`, then `780.1`. `G337` (cancel inside large-image decode) is still open and owed.
 
-### `v0.179.0` PUBLISHED, 2026-11-26 (1727th filing); the latest release
+### `v0.179.0` PUBLISHED, 2026-11-26 (1727th filing); superseded as latest by `v0.180.0`
 
 Engineer-reported; no shell here, so git, CI, GitHub, crates.io and OneDrive were not checked from here. Annotated tag `v0.179.0` (object `dfc3533c`) is on `dad4f11b`; `main` was pushed to `e0e74811` with the tag. CI green on `dad4f11b` (run 45846942261). **Carries `Pass 780.0`** (`1bd09a91` 600 dpi scans, fallible buffers, `G336`; `44816881` clippy const-assert fix); bump `90ccebc6`.
 - **GitHub release:** 8 assets; portable zip `pdfcer-v0.179.0-windows-x64.zip` 33,626,563 bytes, built from `D:\builds\pdfcer-20261126-1100-e0e7481`, staged in `D:\builds\rel179`.
