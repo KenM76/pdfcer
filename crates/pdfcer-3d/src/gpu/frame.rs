@@ -408,10 +408,10 @@ impl Camera {
     ///
     /// # Errors
     ///
-    /// As [`Camera::projection_matrix`], but a fisheye camera is accepted
+    /// As [`Camera::projection_matrix`], but a fisheye or panorama camera is accepted
     /// unless its field is refused ([`RenderError::FisheyeField`]).
     pub fn depth_range(&self, aspect: f64, bounds: &Bounds) -> Result<[f32; 2], RenderError> {
-        if let Projection::Fisheye { .. } = self.projection {
+        if let Projection::Fisheye { .. } | Projection::Panorama { .. } = self.projection {
             return self.lens_range(bounds);
         }
         let (_, near, far) = self.clip_range(aspect, bounds)?;

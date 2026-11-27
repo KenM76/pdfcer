@@ -1,6 +1,7 @@
 //! The camera: where the eye is, what it looks at, and how it projects;
 //! framing a model, picking, the lens and the bounds it frames.
 
+pub(crate) mod band;
 pub(crate) mod bounds;
 #[cfg(test)]
 mod equirect_tests;
@@ -8,6 +9,9 @@ pub(crate) mod lens;
 pub(crate) mod lens_frame;
 #[cfg(test)]
 mod lens_tests;
+pub(crate) mod panorama;
+#[cfg(test)]
+mod panorama_tests;
 pub(crate) mod pick;
 pub(crate) mod pick_index;
 pub(crate) mod projection;

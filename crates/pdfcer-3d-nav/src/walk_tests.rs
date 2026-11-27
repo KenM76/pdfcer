@@ -386,6 +386,7 @@ fn a_nonsense_step_or_a_walker_at_the_edge_of_the_floats_stays_finite() {
     let field = match c.projection {
         Projection::Perspective { fov_y } => fov_y,
         Projection::Fisheye { fov, .. } => fov,
+        Projection::Panorama { vertical, .. } => vertical,
         Projection::Orthographic { height } => height,
     };
     assert!(field.is_finite(), "{c:?}");

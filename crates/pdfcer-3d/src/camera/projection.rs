@@ -55,6 +55,64 @@ pub enum Projection {
         /// The lens curve.
         mapping: FisheyeMapping,
     },
+    /// A part of the sphere round the eye: `horizontal` degrees of
+    /// longitude, centred on the look direction and turning about the
+    /// camera's up, by `vertical` degrees of latitude centred `pitch`
+    /// degrees above the camera's horizon (the plane square to its up).
+    /// Pixel position (x, y) of a w × h picture shows longitude
+    /// λ = (x/w − ½)·`horizontal` to the right of the look direction; its
+    /// latitude is as [`PanoramaMapping`] states. The horizon is a straight
+    /// row wherever it falls in the picture.
+    ///
+    /// `horizontal` is above 0 and at most 360, `vertical` above 0 and at
+    /// most 180, `pitch` finite. Under
+    /// [`PanoramaMapping::Equirectangular`] a band reaching past a pole is
+    /// moved, keeping its height, until it ends there: the centre latitude
+    /// drawn is `pitch` clamped to ±(90 − `vertical`/2). Under
+    /// [`PanoramaMapping::Cylindrical`] the band must lie strictly between
+    /// the poles (`|pitch| + vertical/2 < 90`). Anything else is refused
+    /// with [`RenderError::PanoramaField`](crate::RenderError::PanoramaField).
+    /// [`Camera::panorama`](crate::Camera::panorama) builds a levelled or
+    /// tilted one from a view; 360 × 180 at pitch 0 is the whole sphere
+    /// [`FisheyeMapping::Equirectangular`] draws.
+    ///
+    /// Only the band is drawn: the picture's pixels, and the cube faces
+    /// that own one of them ([`crate::FrameLens`]), not the sphere. The
+    /// GPU lens ([`crate::FrameLens::new`]) draws only the whole sphere and
+    /// refuses a smaller band; the CPU renderer ([`crate::render`]) draws
+    /// any.
+    Panorama {
+        /// Longitude across the picture's width, degrees.
+        horizontal: f64,
+        /// Latitude across the picture's height, degrees.
+        vertical: f64,
+        /// Latitude of the band's middle above the camera's horizon,
+        /// degrees.
+        pitch: f64,
+        /// How latitude runs down the picture.
+        mapping: PanoramaMapping,
+    },
+}
+
+/// How a [`Projection::Panorama`] spaces latitude down the picture, the
+/// band's top row at latitude t = centre + `vertical`/2 and its bottom at
+/// b = centre − `vertical`/2.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
+#[non_exhaustive]
+pub enum PanoramaMapping {
+    /// Rows evenly spaced in latitude: y/h runs from t at the top to b at
+    /// the bottom. Pixels are square when w/h = `horizontal`/`vertical`.
+    /// The photo-sphere tag describes this projection.
+    #[default]
+    Equirectangular,
+    /// Rows evenly spaced in tan(latitude), from tan t at the top to tan b
+    /// at the bottom: the picture a camera swung round a vertical axis
+    /// takes, so vertical lines stay straight and nothing near the horizon
+    /// is squeezed, at the cost of stretching towards the top and bottom.
+    /// Pixels are square at the horizon when
+    /// w/h = `horizontal` (radians) / (tan t − tan b). No photo-sphere tag
+    /// describes it.
+    Cylindrical,
 }
 
 /// The curve of a [`Projection::Fisheye`] lens: how a direction θ off the

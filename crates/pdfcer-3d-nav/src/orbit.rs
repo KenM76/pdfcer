@@ -258,7 +258,9 @@ impl Orbit {
         let offset = [dot(v, right), dot(v, image_up)];
         let distance = match camera.projection {
             Projection::Orthographic { height } => height / 2.0 / half_fov().tan(),
-            Projection::Perspective { .. } | Projection::Fisheye { .. } => depth,
+            Projection::Perspective { .. }
+            | Projection::Fisheye { .. }
+            | Projection::Panorama { .. } => depth,
         };
         if finite(&point) && offset.iter().all(|c| c.is_finite()) && positive(distance) {
             self.anchor = Some(Anchor {

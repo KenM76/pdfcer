@@ -67,11 +67,13 @@ pub use camera::bounds::Bounds;
 #[cfg(feature = "render")]
 pub use camera::lens::{FrameLens, LENS_LINE_PIECES, LensFace};
 #[cfg(feature = "render")]
+pub use camera::panorama::{PanoramaExtent, PanoramaTilt};
+#[cfg(feature = "render")]
 pub use camera::pick::{Hit, Ray, pick};
 #[cfg(feature = "render")]
 pub use camera::pick_index::PickIndex;
 #[cfg(feature = "render")]
-pub use camera::projection::{FisheyeMapping, Projection};
+pub use camera::projection::{FisheyeMapping, PanoramaMapping, Projection};
 #[cfg(feature = "render")]
 pub use camera::sphere::DEFAULT_FOV_Y;
 pub use error::PrcError;

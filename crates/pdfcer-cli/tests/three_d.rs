@@ -2179,3 +2179,159 @@ fn a_view_measures_request_that_makes_no_sense_is_refused() {
         assert!(err.contains(says), "{extra:?}: {err}");
     }
 }
+
+/// `panorama_render` that must succeed: its stdout and the file's bytes.
+#[cfg(feature = "3d")]
+fn panorama_ok(tag: &str, ext: &str, extra: &[&str]) -> (String, PathBuf) {
+    let (out, output) = panorama_render(tag, ext, extra);
+    assert!(
+        out.status.success(),
+        "{}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+    (String::from_utf8_lossy(&out.stdout).into_owned(), output)
+}
+
+/// A 120° x 40° `--panorama` JPEG is the strip alone, sized from one side
+/// at the angles' ratio, tagged with its crop of the whole sphere.
+#[cfg(feature = "3d")]
+#[test]
+fn a_partial_panorama_jpeg_carries_its_crop_of_the_sphere() {
+    let extra = [
+        "--panorama",
+        "120",
+        "--panorama-vertical",
+        "40",
+        "--width",
+        "120",
+    ];
+    let (stdout, output) = panorama_ok("strip", "jpg", &extra);
+    assert!(
+        stdout.contains("width=120 height=40 projection=panorama-equirectangular"),
+        "{stdout}"
+    );
+    assert!(
+        stdout.contains("note: panorama: 120 x 40 degrees round the eye, levelled"),
+        "{stdout}"
+    );
+    assert!(stdout.contains("carries the photo-sphere (GPano) tag with the crop"));
+    let bytes = std::fs::read(&output).unwrap();
+    for (field, value) in [
+        ("FullPanoWidthPixels", 360),
+        ("FullPanoHeightPixels", 180),
+        ("CroppedAreaImageWidthPixels", 120),
+        ("CroppedAreaImageHeightPixels", 40),
+        ("CroppedAreaLeftPixels", 120),
+        ("CroppedAreaTopPixels", 70),
+    ] {
+        let tag = format!("<GPano:{field}>{value}</GPano:{field}>");
+        assert!(holds(&bytes, &tag), "{tag}");
+    }
+}
+
+/// The strip's pixels are the whole sphere's at the same angles: only the
+/// strip is drawn, and drawn as the sphere draws it. Tilted with a view
+/// looking 45° down, a 360° x 90° band is the sphere's lower half (rows 90 to
+/// 180). One eye for both, since a fitted camera's distance depends on the
+/// picture's shape.
+#[cfg(feature = "3d")]
+#[test]
+fn a_partial_panorama_is_the_spheres_pixels_at_its_angles() {
+    let plain = [
+        "--lighting",
+        "none",
+        "--no-ambient-occlusion",
+        "--eye",
+        "2.5,0.5,5",
+        "--target",
+        "2.5,5.5,0",
+    ];
+    let mut sphere = vec!["--360", "--width", "360", "--height", "180"];
+    sphere.extend_from_slice(&plain);
+    let (_, whole) = panorama_ok("whole", "png", &sphere);
+    let mut strip = vec![
+        "--panorama",
+        "360",
+        "--panorama-vertical",
+        "90",
+        "--panorama-tilt",
+    ];
+    strip.push("view");
+    strip.extend_from_slice(&["--width", "360", "--height", "90"]);
+    strip.extend_from_slice(&plain);
+    let (_, part) = panorama_ok("part", "png", &strip);
+    let (whole, part) = (png_pixels(&whole), png_pixels(&part));
+    assert_eq!(part.len(), 360 * 90 * 4);
+    let mut differ = 0;
+    for y in 0..90 {
+        for x in 0..360 {
+            let s = (y * 360 + x) * 4;
+            let w = ((y + 90) * 360 + x) * 4;
+            if part[s..s + 4] != whole[w..w + 4] {
+                differ += 1;
+            }
+        }
+    }
+    assert_eq!(differ, 0, "pixels differ");
+    assert!(
+        part.chunks(4).any(|p| p != [255, 255, 255, 255]),
+        "the model is drawn"
+    );
+}
+
+/// A cylindrical panorama is untagged and says so; tilted with a view
+/// looking straight down, an equirectangular band stops at the pole, and a
+/// cylindrical one, which cannot reach it, is refused.
+#[cfg(feature = "3d")]
+#[test]
+fn a_cylindrical_panorama_is_untagged_and_a_tilted_one_stops_at_the_pole() {
+    let cyl = ["--panorama", "150", "--panorama-vertical", "50"];
+    let mut extra = cyl.to_vec();
+    extra.extend_from_slice(&["--panorama-mapping", "cylindrical", "--height", "30"]);
+    let (stdout, output) = panorama_ok("cyl", "jpg", &extra);
+    assert!(
+        stdout.contains("projection=panorama-cylindrical"),
+        "{stdout}"
+    );
+    assert!(stdout.contains("a cylindrical panorama carries no photo-sphere tag"));
+    assert!(!holds(&std::fs::read(&output).unwrap(), "GPano"));
+
+    let tilt = ["--panorama", "90", "--panorama-vertical", "40"];
+    let mut extra = tilt.to_vec();
+    extra.extend_from_slice(&["--panorama-tilt", "view", "--width", "45"]);
+    let (stdout, output) = panorama_ok("tilt", "jpg", &extra);
+    assert!(
+        stdout.contains("tilted with the view: centred -70.000 degrees"),
+        "{stdout}"
+    );
+    assert!(holds(
+        &std::fs::read(&output).unwrap(),
+        "<GPano:CroppedAreaTopPixels>70</GPano:CroppedAreaTopPixels>"
+    ));
+    extra.extend_from_slice(&["--panorama-mapping", "cylindrical"]);
+    let (out, output) = panorama_render("tilt_cyl", "jpg", &extra);
+    assert_eq!(out.status.code(), Some(9));
+    let stderr = String::from_utf8_lossy(&out.stderr);
+    assert!(stderr.contains("Cylindrical panorama's angles"), "{stderr}");
+    assert!(!output.exists());
+}
+
+/// The panorama options need `--panorama`, which takes no other lens and
+/// only angles above 0 and at most 360.
+#[cfg(feature = "3d")]
+#[test]
+fn panorama_options_refuse_what_they_cannot_draw() {
+    for extra in [
+        &["--panorama", "90", "--lens", "flat"][..],
+        &["--panorama", "90", "--360"],
+        &["--panorama", "90", "--ortho"],
+        &["--panorama", "0"],
+        &["--panorama", "361"],
+        &["--panorama", "90", "--panorama-vertical", "181"],
+        &["--panorama-vertical", "40"],
+        &["--panorama-tilt", "view"],
+    ] {
+        let (out, _) = panorama_render("refused", "png", extra);
+        assert_eq!(out.status.code(), Some(2), "{extra:?}");
+    }
+}

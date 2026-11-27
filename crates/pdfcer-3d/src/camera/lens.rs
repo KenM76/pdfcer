@@ -6,16 +6,18 @@
 //! pixel is y down with pixel `(i, j)`'s centre at `(i + 0.5, j + 0.5)`. A
 //! direction θ off the axis lands at r = f·g(θ) from the picture centre
 //! ([`FisheyeMapping`]), f fixed by the field across the picture's height.
-//! The equirectangular panorama is the one map that is not radial: it maps
-//! longitude across and latitude up, f being its denser axis's pixels per
-//! radian.
+//! A panorama (the equirectangular sphere, or a [`Projection::Panorama`]
+//! band, [`Band`]) is the one map that is not radial: it maps longitude
+//! across and latitude up, f being its denser axis's pixels per radian at
+//! the horizon.
 
 use crate::camera::Camera;
+use crate::camera::band::Band;
 use crate::camera::pick::Ray;
 use crate::render::raster::View;
 use crate::render::{FisheyeMapping, Projection, RenderError};
 use crate::vec3::{add, dot, length, normalize, scale, sub};
-use std::f64::consts::{FRAC_PI_2, PI, TAU};
+use std::f64::consts::{FRAC_PI_2, PI};
 
 /// How many straight pieces a line or wire segment is cut into under a
 /// fisheye lens: each piece's ends are lens-projected exactly and the
@@ -63,6 +65,8 @@ pub(crate) struct Lens {
     height: f64,
     /// The faces' near-plane distance: 1e-4 of the eye-to-target distance.
     pub(crate) near: f64,
+    /// The part of the sphere a panorama shows; `None` for a radial lens.
+    pub(crate) band: Option<Band>,
 }
 
 /// The views a lens picture is composed from.
@@ -97,23 +101,41 @@ impl Lens {
     /// # Errors
     ///
     /// [`RenderError::FisheyeField`] for a field the lens's mapping does
-    /// not draw, or one too small for a finite scale.
+    /// not draw, or one too small for a finite scale;
+    /// [`RenderError::PanoramaField`] for a panorama band it does not draw.
     pub(crate) fn for_camera(
         camera: &Camera,
         width: u32,
         height: u32,
     ) -> Result<Option<Lens>, RenderError> {
-        let Projection::Fisheye { fov, mapping } = camera.projection else {
-            return Ok(None);
+        let (w, h) = (f64::from(width), f64::from(height));
+        let (mapping, band, refused) = match camera.projection {
+            Projection::Fisheye { fov, mapping } => {
+                let refused = RenderError::FisheyeField { mapping };
+                if !mapping.accepts(fov) {
+                    return Err(refused);
+                }
+                let band = (mapping == FisheyeMapping::Equirectangular).then_some(Band::SPHERE);
+                (mapping, band, refused)
+            }
+            Projection::Panorama {
+                horizontal,
+                vertical,
+                pitch,
+                mapping,
+            } => {
+                let band = Band::new(horizontal, vertical, pitch, mapping)?;
+                let refused = RenderError::PanoramaField { mapping };
+                (FisheyeMapping::Equirectangular, Some(band), refused)
+            }
+            Projection::Perspective { .. } | Projection::Orthographic { .. } => return Ok(None),
         };
-        let refused = RenderError::FisheyeField { mapping };
-        if !mapping.accepts(fov) {
-            return Err(refused);
-        }
-        let focal = if mapping == FisheyeMapping::Equirectangular {
-            (f64::from(width) / TAU).max(f64::from(height) / PI)
-        } else {
-            f64::from(height) / 2.0 / mapping.radius(fov.to_radians() / 2.0)
+        let focal = match (band, camera.projection) {
+            (Some(band), _) => band.focal(w, h),
+            (None, Projection::Fisheye { fov, .. }) => {
+                h / 2.0 / mapping.radius(fov.to_radians() / 2.0)
+            }
+            (None, _) => f64::NAN,
         };
         if !(focal.is_finite() && focal > 0.0) {
             return Err(refused);
@@ -122,9 +144,10 @@ impl Lens {
         Ok(Some(Lens {
             mapping,
             focal,
-            width: f64::from(width),
-            height: f64::from(height),
+            width: w,
+            height: h,
             near: (distance * 1e-4).max(f64::MIN_POSITIVE),
+            band,
         }))
     }
 
@@ -132,9 +155,8 @@ impl Lens {
     /// `y`), `None` outside the lens's picture circle (never for the
     /// panorama).
     pub(crate) fn direction(&self, x: f64, y: f64) -> Option<[f64; 3]> {
-        if self.mapping == FisheyeMapping::Equirectangular {
-            let lambda = (x / self.width - 0.5) * TAU;
-            let phi = (0.5 - y / self.height) * PI;
+        if let Some(band) = self.band {
+            let (lambda, phi) = band.angles(x / self.width, y / self.height);
             return Some([
                 phi.cos() * lambda.sin(),
                 phi.sin(),
@@ -157,8 +179,8 @@ impl Lens {
     /// The picture position camera-space point `c` is drawn at; `None`
     /// straight behind the eye, at the eye, or not finite.
     pub(crate) fn pixel(&self, [x, y, z]: [f64; 3]) -> Option<[f64; 2]> {
-        if self.mapping == FisheyeMapping::Equirectangular {
-            return self.panorama_pixel([x, y, z]);
+        if let Some(band) = self.band {
+            return self.panorama_pixel(band, [x, y, z]);
         }
         let (cx, cy) = (self.width / 2.0, self.height / 2.0);
         let rho = x.hypot(y);
@@ -181,17 +203,16 @@ impl Lens {
     }
 
     /// [`Self::pixel`] for the panorama: longitude atan2(x, z) across,
-    /// latitude up; straight behind lands on the right edge.
-    fn panorama_pixel(&self, [x, y, z]: [f64; 3]) -> Option<[f64; 2]> {
+    /// latitude up; straight behind lands half a turn right of the centre
+    /// (the right edge of the whole sphere). A direction outside a band
+    /// lands outside the picture.
+    fn panorama_pixel(&self, band: Band, [x, y, z]: [f64; 3]) -> Option<[f64; 2]> {
         let rho = x.hypot(z);
         if !(rho.is_finite() && y.is_finite()) || (rho == 0.0 && y == 0.0) {
             return None;
         }
-        let (lambda, phi) = (x.atan2(z), y.atan2(rho));
-        Some([
-            (lambda / TAU + 0.5) * self.width,
-            (0.5 - phi / PI) * self.height,
-        ])
+        let [u, v] = band.fractions([x, y, z])?;
+        Some([u * self.width, v * self.height])
     }
 
     /// Whether the piece from camera-space `ca` to `cb`, drawn at pixels
@@ -199,14 +220,14 @@ impl Lens {
     /// when it passes behind the eye, where its pixels lie on opposite
     /// sides of the centre; under the panorama when it crosses the
     /// left/right seam, where its pixels lie more than half the picture
-    /// apart.
+    /// apart (half a turn of longitude, which a band's picture may not hold).
     pub(crate) fn splits(
         &self,
         (ca, cb): ([f64; 3], [f64; 3]),
         (p, q): ([f64; 2], [f64; 2]),
     ) -> bool {
-        if self.mapping == FisheyeMapping::Equirectangular {
-            return (p[0] - q[0]).abs() > self.width / 2.0;
+        if let Some(band) = self.band {
+            return (p[0] - q[0]).abs() > band.circle(self.width) / 2.0;
         }
         ca[2] < 0.0 && cb[2] < 0.0 && ca[0] * cb[0] + ca[1] * cb[1] < 0.0
     }
@@ -215,28 +236,27 @@ impl Lens {
     /// the panorama's seam, the half-plane straight behind the eye (x = 0,
     /// z < 0); `None` for any other lens or a segment that does not cross.
     pub(crate) fn seam(&self, a: [f64; 3], b: [f64; 3]) -> Option<f64> {
-        if self.mapping != FisheyeMapping::Equirectangular || a[0] * b[0] >= 0.0 {
+        if self.band.is_none() || a[0] * b[0] >= 0.0 {
             return None;
         }
         let s = a[0] / (a[0] - b[0]);
         (a[2] + s * (b[2] - a[2]) < 0.0 && s.is_finite()).then_some(s)
     }
 
-    /// The picture x of the seam edge on the side of picture x `x`.
+    /// The picture x of the seam on the side of picture x `x`: the edge of
+    /// the whole sphere's picture, outside a narrower band's.
     pub(crate) fn seam_edge(&self, x: f64) -> f64 {
-        if x < self.width / 2.0 {
-            0.0
-        } else {
-            self.width
-        }
+        let half = self.band.map_or(self.width, |b| b.circle(self.width)) / 2.0;
+        let mid = self.width / 2.0;
+        if x < mid { mid - half } else { mid + half }
     }
 
     /// The angle off the axis at the picture's corners; `None` when they
-    /// lie outside the picture circle. The panorama's corners are straight
-    /// up and down, but it shows straight behind, so it reads as π.
+    /// lie outside the picture circle. A panorama reads as the widest angle
+    /// its band shows ([`Band::max_angle`]), π for the whole sphere.
     fn corner_angle(&self) -> Option<f64> {
-        if self.mapping == FisheyeMapping::Equirectangular {
-            return Some(PI);
+        if let Some(band) = self.band {
+            return Some(band.max_angle());
         }
         let rc = (self.width / 2.0).hypot(self.height / 2.0);
         self.mapping.angle(rc / self.focal)
@@ -251,6 +271,9 @@ impl Lens {
     /// 90° of the axis: tan θ / r grows with r under both mappings, so the
     /// corner's ratio bounds every pixel.
     fn reach(&self) -> Option<(f64, f64)> {
+        if let Some(band) = self.band {
+            return band.reach();
+        }
         let theta = self.corner_angle().filter(|&t| t < FRAC_PI_2)?;
         let k = theta.tan() / (self.width / 2.0).hypot(self.height / 2.0);
         Some((k * self.width / 2.0, k * self.height / 2.0))
@@ -266,7 +289,10 @@ impl Lens {
         if let Some((tx, ty)) = self.reach().filter(|&(tx, ty)| tx <= 1.0 && ty <= 1.0) {
             return Layout::Narrow { tx, ty };
         }
-        let d = self.focal * self.mapping.density(self.max_angle());
+        let d = match self.band {
+            Some(band) => band.density(self.width, self.height),
+            None => self.focal * self.mapping.density(self.max_angle()),
+        };
         let cap = (2.0 * self.width.max(self.height)).min(f64::from(MAX_FACE_SIDE));
         Layout::Cube {
             side: (2.0 * d).ceil().clamp(1.0, cap) as u32,
@@ -499,8 +525,10 @@ impl FrameLens {
     ///
     /// [`RenderError::Size`] for an empty image;
     /// [`RenderError::Camera`] for a planar camera, or one
-    /// [`crate::render`] refuses; [`RenderError::FisheyeField`] for a
-    /// field the lens does not draw.
+    /// [`crate::render`] refuses, or a [`Projection::Panorama`] band
+    /// narrower than the whole sphere (the shaders map the whole picture
+    /// onto the sphere); [`RenderError::FisheyeField`] or
+    /// [`RenderError::PanoramaField`] for a field the lens does not draw.
     ///
     /// # Examples
     ///
@@ -522,6 +550,11 @@ impl FrameLens {
         }
         let lens = Lens::for_camera(camera, width, height)?
             .ok_or(RenderError::Camera("the camera is not a fisheye"))?;
+        if lens.band.is_some_and(|b| b != Band::SPHERE) {
+            return Err(RenderError::Camera(
+                "the GPU lens draws only the whole panorama sphere",
+            ));
+        }
         let layout = lens.layout();
         let faces = faces(camera, &lens, layout, |c| lens.host_draws(layout, c))?;
         let narrow = |m: [[f64; 3]; 3]| m.map(|v| v.map(|c| c as f32));

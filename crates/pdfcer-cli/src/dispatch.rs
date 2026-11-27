@@ -508,6 +508,7 @@ pub(crate) fn run() -> ExitCode {
             mode,
             light,
             meter,
+            panorama,
             surface,
             shadow_map_size,
             no_ambient_occlusion,
@@ -529,7 +530,8 @@ pub(crate) fn run() -> ExitCode {
             } else {
                 lens
             };
-            let (width, height) = crate::threed_cmd::picture_size(lens, width, height);
+            let (width, height) = crate::threed_cmd::panorama_size(&panorama, fov, width, height)
+                .unwrap_or_else(|| crate::threed_cmd::picture_size(lens, width, height));
             cmd_render_3d(&RenderThreeDArgs {
                 input: &input,
                 index,
@@ -561,6 +563,7 @@ pub(crate) fn run() -> ExitCode {
                 mode,
                 light,
                 meter: &meter,
+                panorama: &panorama,
                 surface: &surface,
                 shadow_map_size,
                 ambient_occlusion: !no_ambient_occlusion,

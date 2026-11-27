@@ -23,7 +23,7 @@ pub(crate) mod work;
 use crate::TriangleMesh;
 use crate::camera::Camera;
 pub use crate::camera::bounds::Bounds;
-pub use crate::camera::projection::{FisheyeMapping, Projection};
+pub use crate::camera::projection::{FisheyeMapping, PanoramaMapping, Projection};
 use crate::lighting::bounce::BounceLight;
 use crate::lighting::gloss::Gloss;
 use crate::lighting::{LightFrame, LightingScheme, Shader};

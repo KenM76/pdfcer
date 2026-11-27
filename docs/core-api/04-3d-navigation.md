@@ -50,7 +50,7 @@ halved until the eye is finite), and nothing is indexed by a number.
 | How walking behaves | `Rules { solid, level, speed, stairs }`; `CLIMB` is the highest obstacle climbed with `stairs` on, as a share of eye height | `walk.rs` |
 | Ray-cast the shown model, cached | `Solids::default()`, `solids.hit(&meshes, version, shown, &ray) -> Option<Hit>`; `forget()` drops the index | `solids.rs` |
 | Shape a gamepad stick tilt | `shaped(tilt: f32) -> f64` (small dead zone, then squared; past ±1 is ±1, NaN is 0) | `stick.rs` |
-| A flat, fisheye or automatic lens | `Lens { kind: LensKind, curve: FisheyeMapping, auto_at }`; `fisheye_at(fov)`, `widest()`, `projection(fov)`, `applied(camera)`; `is_fisheye(&camera)` | `lens.rs` |
+| A flat, fisheye or automatic lens | `Lens { kind: LensKind, curve: FisheyeMapping, auto_at }`; `fisheye_at(fov)`, `widest()`, `projection(fov)`, `applied(camera)`; `is_fisheye(&camera)` (true for a fisheye or a panorama) | `lens.rs` |
 | Lens limits | `FLAT_WIDEST` (100°), `FISHEYE_WIDEST` (180°), `AUTO_RANGE` (40°..=100°), `CURVES` (the offered fisheye mappings; not `Equirectangular`, which has no field to zoom — a `curve` of it makes `projection` always draw 360°), `LensKind::ALL` | `lens.rs` |
 | Can I walk from the saved view's eye? | `aim.eye_inside(&bounds) -> Result<[f64; 3], NotInside>` | `saved.rs` |
 | Keep a framed saved view's scale | pass `Some(ViewFrame { position, height })` to `camera` / `zoom_at`; applied only while orthographic and `orbit.framed` | `saved.rs` |

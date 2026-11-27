@@ -3,7 +3,7 @@
 
 use super::RenderThreeDArgs;
 use crate::LensArg;
-use pdfcer_3d::{Camera, FisheyeMapping, Projection, RenderError, TriangleMesh};
+use pdfcer_3d::{Camera, FisheyeMapping, PanoramaMapping, Projection, RenderError, TriangleMesh};
 use pdfcer_core::threed::{SavedViewAim, ThreeDSavedView, ViewFit};
 
 /// The camera `3d-render` uses, and a sentence saying why.
@@ -77,7 +77,8 @@ pub(super) fn aim_camera(
 /// The camera `3d-render` draws through: fitted to the model along `aim`
 /// (in perspective for a fisheye), moved to `--eye`, placed by the opening
 /// view's framing (an orthographic placement, so not under a fisheye), then
-/// given `--lens` and `--fov`.
+/// given `--lens` and `--fov`; a `--panorama` is then levelled as a 360°
+/// picture is and given its band.
 pub(super) fn place_camera(
     a: &RenderThreeDArgs<'_>,
     (meshes, framed): (&[TriangleMesh], &[Option<[u8; 4]>]),
@@ -91,14 +92,15 @@ pub(super) fn place_camera(
         LensArg::Stereographic => Some(FisheyeMapping::Stereographic),
         LensArg::Equirectangular => Some(FisheyeMapping::Equirectangular),
     };
-    let perspective = !aim.ortho || mapping.is_some();
+    let panorama = super::panorama::extent(a);
+    let perspective = !aim.ortho || mapping.is_some() || panorama.is_some();
     let mut camera =
         Camera::fit_coloured(meshes, framed, aim.direction, aim.up, perspective, aspect)?;
     if let Some(eye) = a.eye {
         camera.eye = eye;
         camera.target = target;
     }
-    if let (Some(saved), None) = (&aim.framing, mapping) {
+    if let (Some(saved), None, None) = (&aim.framing, mapping, panorama) {
         saved.frame(&mut camera);
     }
     if let Some(mapping) = mapping {
@@ -115,6 +117,10 @@ pub(super) fn place_camera(
     } else if let Projection::Perspective { fov_y } = &mut camera.projection {
         *fov_y = a.fov.unwrap_or(30.0);
     }
+    if let Some(extent) = panorama {
+        let front = camera.up;
+        camera = camera.panorama(level_up(&camera, a, aim), front, extent)?;
+    }
     Ok(camera)
 }
 
@@ -125,11 +131,16 @@ pub(super) fn place_camera(
 /// that axis. A camera that cannot be levelled is left for the renderer to
 /// refuse.
 fn levelled(camera: Camera, a: &RenderThreeDArgs<'_>, aim: &Aim) -> Camera {
-    let up = match a.up {
+    let up = level_up(&camera, a, aim);
+    camera.levelled_panorama(up, camera.up).unwrap_or(camera)
+}
+
+/// The up a panorama is levelled with, as [`levelled`] states.
+fn level_up(camera: &Camera, a: &RenderThreeDArgs<'_>, aim: &Aim) -> [f64; 3] {
+    match a.up {
         None if aim.framing.is_some() => nearest_axis(camera.up),
         up => up.unwrap_or_default().vector(),
-    };
-    camera.levelled_panorama(up, camera.up).unwrap_or(camera)
+    }
 }
 
 /// The signed model axis nearest `up`, z winning ties, then y.
@@ -185,5 +196,10 @@ pub(super) fn projection_name(projection: Projection) -> &'static str {
             ..
         } => "equirectangular",
         Projection::Fisheye { .. } => "fisheye-equidistant",
+        Projection::Panorama {
+            mapping: PanoramaMapping::Cylindrical,
+            ..
+        } => "panorama-cylindrical",
+        Projection::Panorama { .. } => "panorama-equirectangular",
     }
 }

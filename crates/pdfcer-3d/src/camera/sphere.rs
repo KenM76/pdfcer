@@ -174,7 +174,8 @@ impl Camera {
 
     /// The height of the scene the camera shows at its target, in model
     /// units: an orthographic projection's height, or `2 · d · tan(fov / 2)`
-    /// for perspective and fisheye, where `d` is the eye-to-target distance
+    /// for perspective, fisheye and panorama (its `vertical` angle), where
+    /// `d` is the eye-to-target distance
     /// and `fov` is clamped to 179°.
     ///
     /// Finite for any camera whose eye, target and projection are finite: the
@@ -185,6 +186,7 @@ impl Camera {
             Projection::Orthographic { height } => return height,
             Projection::Perspective { fov_y } => fov_y,
             Projection::Fisheye { fov, .. } => fov,
+            Projection::Panorama { vertical, .. } => vertical,
         };
         let d = sub(self.target, self.eye);
         // `span` halves a difference that overflows; measure half and double

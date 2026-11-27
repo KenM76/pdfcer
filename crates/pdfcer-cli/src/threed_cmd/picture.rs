@@ -1,6 +1,6 @@
 //! The file `3d-render` writes: a PNG, or a JPEG when the output is named
-//! `.jpg` or `.jpeg`; a 360° panorama JPEG carries the photo-sphere (GPano)
-//! XMP tag photo viewers open it by.
+//! `.jpg` or `.jpeg`; a 360° or equirectangular partial panorama JPEG
+//! carries the photo-sphere (GPano) XMP tag photo viewers open it by.
 
 use super::RenderThreeDArgs;
 use crate::LensArg;
@@ -39,12 +39,11 @@ pub(super) fn refusal(a: &RenderThreeDArgs<'_>) -> Option<&'static str> {
 #[cfg(feature = "3d")]
 pub(super) fn encode(
     a: &RenderThreeDArgs<'_>,
+    camera: &pdfcer_3d::Camera,
     mut rgba: Vec<u8>,
     (width, height): (u32, u32),
 ) -> Result<Vec<u8>, String> {
-    use pdfcer_render::export::{
-        JpegOptions, encode_jpeg, encode_png, insert_jpeg_xmp, photo_sphere_xmp,
-    };
+    use pdfcer_render::export::{JpegOptions, encode_jpeg, encode_png, insert_jpeg_xmp};
     // The pixmap holds premultiplied alpha; glass over a transparent
     // background leaves partly transparent pixels.
     for [r, g, b, alpha] in rgba.as_chunks_mut::<4>().0 {
@@ -60,10 +59,10 @@ pub(super) fn encode(
         return encode_png(&pixmap, None).map_err(err);
     }
     let jpeg = encode_jpeg(&pixmap, &JpegOptions::default()).map_err(err)?;
-    if a.lens == LensArg::Equirectangular {
-        return insert_jpeg_xmp(&jpeg, &photo_sphere_xmp(width, height)).map_err(err);
+    match super::panorama::sphere_xmp(camera, (width, height)) {
+        Some(xmp) => insert_jpeg_xmp(&jpeg, &xmp).map_err(err),
+        None => Ok(jpeg),
     }
-    Ok(jpeg)
 }
 
 /// The `note: photo sphere:` lines for a 360° panorama.

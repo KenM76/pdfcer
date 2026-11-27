@@ -99,7 +99,7 @@ impl View {
                     aspect,
                 })
             }
-            Projection::Fisheye { .. } => Err(RenderError::Camera(
+            Projection::Fisheye { .. } | Projection::Panorama { .. } => Err(RenderError::Camera(
                 "a fisheye lens has no single planar view",
             )),
         }

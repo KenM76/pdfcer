@@ -170,6 +170,7 @@ builds `--no-default-features`, so both configurations compile.
 | The model point under a pixel of a 3D render (`G245`) | `Camera::ray_through(x, y, w, h)` → `pdfcer_3d::pick(&meshes, &ray) -> Option<Hit>` — `pdfcer-3d/src/camera/pick.rs` | §12.2 |
 | The image position of a model point (`X056`): draw a measurement, label or marker over a render | `Camera::pixel_of(point, width, height) -> Option<[f64; 2]>`, y down, the inverse of `ray_through` under every projection and lens. `None`: nearer than the near plane or behind the eye (orthographic draws behind it), at the eye, straight behind a radial fisheye, a non-finite point, a zero size, or a camera the renderer refuses. Outside the picture or past a fisheye's circle is a position, not `None`, so a line can be clipped. Under the 360° panorama every direction has a position: straight behind lands on the left or right edge, straight up or down on the top or bottom edge, and two positions more than half the width apart mean the line between them crosses the seam and must be split there — `pdfcer-3d/src/camera/pick.rs` | §12.2 |
 | Level a camera for a 360° picture (`X055`) | `Camera::levelled_panorama(self, up, front) -> Option<Camera>`: same eye and distance, target turned level with `up`, `up` as the camera's up, projection `Fisheye { fov: 360, Equirectangular }`, so the horizon is flat. `front` is the heading when the camera looks straight along `up`. Neither need be unit. `None`: `up` zero or not finite, eye equals target, or no heading and `front` along `up` — `pdfcer-3d/src/camera/sphere.rs` | §12.2 |
+| A partial panorama of a view (`G338`): a horizontal × vertical angle round the eye, levelled or tilted | `Camera::panorama(self, up, front, PanoramaExtent { horizontal, vertical: Option<f64>, tilt: PanoramaTilt, mapping: PanoramaMapping }) -> Result<Camera, RenderError>`: levelled as `levelled_panorama`, projection `Panorama { horizontal, vertical, pitch, mapping }`. `vertical: None` takes the view's own (perspective `fov_y`, fisheye `fov` capped at 180, a panorama's `vertical`; orthographic errs `Camera`). `PanoramaTilt::Level` (default) centres the band on the horizon; `View` on asin(look · up), moved inside the poles. Errs `Camera` when it cannot be levelled, `PanoramaField` for angles it does not draw — `pdfcer-3d/src/camera/panorama.rs` | §12.2 |
 | Repeated picks on one model, skipping hidden parts (`G251`) | `PickIndex::new(&meshes)` once, then `index.pick(&ray)` or `index.pick_where(&ray, max_distance, |mesh| visible[mesh])` -> `Option<Hit>`; same answers as `pick`, ties to the lower (mesh, triangle); rebuild when the meshes change — `pdfcer-3d/src/camera/pick_index.rs` | §12.2 |
 | Ray queries through holes and see-through surfaces (closest-hit, any-hit) | `index.first_hit(&ray, max_distance, |mesh| visible[mesh], |hit, weights| is_hole)` -> `Option<Hit>`: nearest hit not reported clear (cut-out holes); `index.transmittance(&ray, max_distance, include, |hit, weights| share)` -> `f64` in 0..=1: product of each surface's share let through (0 opaque, `1 - alpha` see-through, 1 hole), stops at the first 0, clamps out-of-range and NaN to 0..=1. `weights` are the hit's barycentric weights on the triangle's corners, for sampling texture alpha — `pdfcer-3d/src/camera/pick_index.rs` | §12.2 |
 | Orbit, walk, lens and fit for an interactive 3D viewer (`X047`) | the `pdfcer-3d-nav` crate — see [`04-3d-navigation.md`](04-3d-navigation.md) | — |
@@ -4879,6 +4880,26 @@ let image = render_coloured(&meshes, &colours, &camera, &RenderOptions { width: 
   lines crossing the seam behind the eye are cut there); anything else is
   `RenderError::FisheyeField { mapping }`. `FisheyeMapping` is
   `#[non_exhaustive]`.
+  `Projection::Panorama { horizontal, vertical, pitch, mapping:
+  PanoramaMapping }` (`G338`) is part of that sphere: longitude
+  λ = (x/w − 0.5)·horizontal across, latitude centred on `pitch` (degrees
+  above the horizon) spanning `vertical` down. `horizontal` is above 0 and
+  at most 360, `vertical` above 0 and at most 180. Under
+  `PanoramaMapping::Equirectangular` (default) rows are evenly spaced in
+  latitude and a band past a pole is moved back to stop at it (the
+  centre clamped to ±(90 − vertical/2)); under `Cylindrical` rows are
+  evenly spaced in tan(latitude), so verticals stay straight, and a band
+  reaching a pole (|pitch| + vertical/2 ≥ 90) is refused. Anything else
+  is `RenderError::PanoramaField { mapping }`. Only the strip is drawn:
+  the cube faces no band pixel looks through are skipped, a band within
+  90° of the look direction is one planar face, and `MAX_RENDER_PIXELS`
+  counts the strip's own `width × height`. Square pixels when
+  `width / height = horizontal / vertical` (equirectangular). 360 × 180
+  at pitch 0 equirectangular draws pixel for pixel what the
+  `Fisheye { 360, Equirectangular }` sphere draws. `FrameLens::new`
+  (the GPU lens) accepts only that whole band and errs `Camera` for any
+  other; a partial band is drawn by the CPU renderer. `PanoramaMapping`
+  and `PanoramaTilt` are `#[non_exhaustive]`.
   `render_model` / `render_coloured` draw it with lights, shadows, AO,
   gloss, lines and points following the lens. `Projection` is not
   `#[non_exhaustive]`: a shell matching it exhaustively must add the arm.

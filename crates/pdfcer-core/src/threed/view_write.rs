@@ -124,7 +124,7 @@ impl ThreeDSavedView {
     ///
     /// `None` when the eye is on the target, `up` is parallel to the look
     /// direction, `aspect` is not positive, a number is not finite, or the
-    /// camera is a fisheye: a 3D view's projection `/Subtype` is only `O`
+    /// camera is a fisheye or a panorama: a 3D view's projection `/Subtype` is only `O`
     /// or `P` (ISO 32000-1:2008 Table 305), so no saved view
     /// carries a lens.
     ///
@@ -174,7 +174,7 @@ impl ThreeDSavedView {
             }
             pdfcer_3d::Projection::Orthographic { height } => (height.is_finite() && height > 0.0)
                 .then(|| view.with_orthographic(1.0 / height, OrthoBinding::Height)),
-            pdfcer_3d::Projection::Fisheye { .. } => None,
+            pdfcer_3d::Projection::Fisheye { .. } | pdfcer_3d::Projection::Panorama { .. } => None,
         }
     }
 }

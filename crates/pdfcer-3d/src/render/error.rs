@@ -2,7 +2,7 @@
 
 #[cfg(doc)]
 use crate::Camera;
-use crate::FisheyeMapping;
+use crate::{FisheyeMapping, PanoramaMapping};
 
 /// Why [`crate::render`] or [`Camera::fit`] refused.
 #[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
@@ -35,6 +35,15 @@ pub enum RenderError {
     FisheyeField {
         /// The lens asked for.
         mapping: FisheyeMapping,
+    },
+    /// A [`crate::Projection::Panorama`] band `mapping` does not draw: an
+    /// angle not finite, `horizontal` not above 0 or above 360, `vertical`
+    /// not above 0 or above 180, or (for
+    /// [`PanoramaMapping::Cylindrical`]) a band reaching a pole.
+    #[error("a {mapping:?} panorama's angles lie outside the band it draws")]
+    PanoramaField {
+        /// The panorama asked for.
+        mapping: PanoramaMapping,
     },
     /// The pixel lies outside a fisheye lens's picture circle: no direction
     /// is drawn there ([`Camera::ray_through`]).

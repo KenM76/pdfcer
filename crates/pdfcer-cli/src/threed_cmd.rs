@@ -13,6 +13,7 @@ mod light_map;
 mod lights;
 mod meter;
 mod mode;
+mod panorama;
 #[cfg(feature = "3d")]
 mod pick;
 mod picture;
@@ -32,6 +33,7 @@ pub(crate) use light_args::LightArgs;
 pub(crate) use lights::{LightArg, parse_light};
 pub(crate) use meter::MeterArgs;
 pub(crate) use mode::RenderModeArgs;
+pub(crate) use panorama::{PanoramaArgs, panorama_size};
 pub(crate) use picture::picture_size;
 #[cfg(feature = "3d")]
 use scheme::render_lighting;
@@ -487,6 +489,7 @@ pub(crate) struct RenderThreeDArgs<'a> {
     pub(crate) mode: RenderModeArgs,
     pub(crate) light: LightArgs,
     pub(crate) meter: &'a MeterArgs,
+    pub(crate) panorama: &'a PanoramaArgs,
     pub(crate) surface: &'a SurfaceArgs,
     pub(crate) shadow_map_size: u32,
     pub(crate) ambient_occlusion: bool,
@@ -601,7 +604,7 @@ fn render_from_bytes(
         Ok(drawn) => drawn,
         Err(why) => return refuse(why),
     };
-    let png = match picture::encode(a, image.rgba, (image.width, image.height)) {
+    let png = match picture::encode(a, &camera, image.rgba, (image.width, image.height)) {
         Ok(bytes) => bytes,
         Err(why) => return refuse(why),
     };
@@ -631,6 +634,7 @@ fn render_from_bytes(
     picture::print_note(a);
     exposure_notes.iter().for_each(|n| println!("{n}"));
     aim::print_level_note(a, &camera);
+    panorama::print_note(a, &camera);
     let uncoloured = model.meshes.len() - model.colours.iter().flatten().count();
     let translucent = model
         .colours

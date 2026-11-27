@@ -115,9 +115,12 @@ impl Lens {
     }
 }
 
-/// Whether `camera` is drawn through a fisheye.
+/// Whether `camera` is drawn through a lens: a fisheye or a panorama.
 pub fn is_fisheye(camera: &Camera) -> bool {
-    matches!(camera.projection, Projection::Fisheye { .. })
+    matches!(
+        camera.projection,
+        Projection::Fisheye { .. } | Projection::Panorama { .. }
+    )
 }
 
 #[cfg(test)]

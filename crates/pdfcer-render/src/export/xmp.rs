@@ -43,15 +43,83 @@ pub const MAX_JPEG_XMP_PACKET: usize = 65_502;
 /// assert!(xmp.contains("<GPano:FullPanoWidthPixels>2048</GPano:FullPanoWidthPixels>"));
 /// ```
 pub fn photo_sphere_xmp(width: u32, height: u32) -> String {
+    packet([width, height], [width, height], [0, 0])
+}
+
+/// The GPano XMP packet for an equirectangular picture `width` × `height`
+/// showing part of the sphere: `horizontal` degrees of longitude centred
+/// ahead, by `vertical` degrees of latitude centred `pitch` degrees above
+/// the horizon, moved inside the poles as pdfcer-3d's
+/// `Projection::Panorama` draws it (centre clamped to
+/// ±(90 − `vertical`/2)).
+///
+/// GPano describes a part as a crop of the full sphere it would have been
+/// (`FullPanoWidthPixels` × `FullPanoHeightPixels`, "the width of what the
+/// full photo sphere would have been"), with the picture's own size as the
+/// cropped area and the crop's place as the column and row of its left and
+/// top edges. So, at the picture's own pixels per degree:
+///
+/// - full width = round(`width` · 360 / `horizontal`), full height =
+///   round(`height` · 180 / `vertical`), neither below the picture's;
+/// - left = (full width − `width`) / 2 rounded down, so the crop's centre
+///   is the full sphere's centre, the heading a viewer opens on;
+/// - top = round((90 − top latitude) / 180 · full height), held within
+///   0 and full height − `height`.
+///
+/// 360 × 180 gives exactly [`photo_sphere_xmp`]. Pixels are square when
+/// `width` / `height` = `horizontal` / `vertical`; otherwise the full
+/// sphere is not 2:1 and a viewer may stretch the picture.
+///
+/// `None` when an angle is outside 0 < `horizontal` ≤ 360,
+/// 0 < `vertical` ≤ 180, `pitch` is not finite, the picture is empty, or
+/// the full sphere is wider or taller than `u32`.
+///
+/// # Example
+///
+/// ```
+/// use pdfcer_render::export::partial_photo_sphere_xmp;
+/// let xmp = partial_photo_sphere_xmp(2000, 500, 180.0, 45.0, 0.0).unwrap();
+/// assert!(xmp.contains("<GPano:FullPanoWidthPixels>4000</GPano:FullPanoWidthPixels>"));
+/// assert!(xmp.contains("<GPano:CroppedAreaLeftPixels>1000</GPano:CroppedAreaLeftPixels>"));
+/// assert!(xmp.contains("<GPano:CroppedAreaTopPixels>750</GPano:CroppedAreaTopPixels>"));
+/// ```
+#[must_use]
+pub fn partial_photo_sphere_xmp(
+    width: u32,
+    height: u32,
+    horizontal: f64,
+    vertical: f64,
+    pitch: f64,
+) -> Option<String> {
+    let angles = horizontal > 0.0 && horizontal <= 360.0 && vertical > 0.0 && vertical <= 180.0;
+    if !angles || !pitch.is_finite() || width == 0 || height == 0 {
+        return None;
+    }
+    let pixels = |v: f64| (v.is_finite() && v <= f64::from(u32::MAX)).then_some(v as u32);
+    let full_w = pixels((f64::from(width) * 360.0 / horizontal).round())?.max(width);
+    let full_h = pixels((f64::from(height) * 180.0 / vertical).round())?.max(height);
+    let half = vertical / 2.0;
+    let top_lat = pitch.clamp(half - 90.0, 90.0 - half) + half;
+    let top = ((90.0 - top_lat) / 180.0 * f64::from(full_h)).round();
+    let top = top.clamp(0.0, f64::from(full_h - height)) as u32;
+    Some(packet(
+        [width, height],
+        [full_w, full_h],
+        [(full_w - width) / 2, top],
+    ))
+}
+
+/// The packet for a crop `cropped` of a `full` sphere at `[left, top]`.
+fn packet(cropped: [u32; 2], full: [u32; 2], [left, top]: [u32; 2]) -> String {
     let fields = [
         ("UsePanoramaViewer", "True".to_owned()),
         ("ProjectionType", "equirectangular".to_owned()),
-        ("CroppedAreaImageWidthPixels", width.to_string()),
-        ("CroppedAreaImageHeightPixels", height.to_string()),
-        ("FullPanoWidthPixels", width.to_string()),
-        ("FullPanoHeightPixels", height.to_string()),
-        ("CroppedAreaLeftPixels", "0".to_owned()),
-        ("CroppedAreaTopPixels", "0".to_owned()),
+        ("CroppedAreaImageWidthPixels", cropped[0].to_string()),
+        ("CroppedAreaImageHeightPixels", cropped[1].to_string()),
+        ("FullPanoWidthPixels", full[0].to_string()),
+        ("FullPanoHeightPixels", full[1].to_string()),
+        ("CroppedAreaLeftPixels", left.to_string()),
+        ("CroppedAreaTopPixels", top.to_string()),
         ("StitchingSoftware", "pdfcer".to_owned()),
     ];
     let mut body = String::new();
@@ -189,6 +257,54 @@ mod tests {
         assert!(xmp.contains("xmlns:GPano=\"http://ns.google.com/photos/1.0/panorama/\""));
         assert!(xmp.starts_with("<?xpacket begin=\"\u{FEFF}\" id=\"W5M0MpCehiHzreSzNTczkc9d\"?>"));
         assert!(xmp.ends_with("<?xpacket end=\"w\"?>"));
+    }
+
+    /// GPano's own worked partial example, a 2300 x 1042 crop of a
+    /// 4000 x 2000 sphere at row 128, is the band those numbers describe,
+    /// centred across; the whole band is the whole-sphere packet.
+    #[test]
+    fn a_partial_sphere_is_a_centred_crop_of_the_sphere_it_would_be() {
+        let (h, v) = (2300.0 * 360.0 / 4000.0, 1042.0 * 180.0 / 2000.0);
+        let top_lat = 90.0 - 128.0 * 180.0 / 2000.0;
+        let xmp = partial_photo_sphere_xmp(2300, 1042, h, v, top_lat - v / 2.0).unwrap();
+        assert_eq!(field(&xmp, "FullPanoWidthPixels"), "4000");
+        assert_eq!(field(&xmp, "FullPanoHeightPixels"), "2000");
+        assert_eq!(field(&xmp, "CroppedAreaImageWidthPixels"), "2300");
+        assert_eq!(field(&xmp, "CroppedAreaImageHeightPixels"), "1042");
+        assert_eq!(field(&xmp, "CroppedAreaLeftPixels"), "850");
+        assert_eq!(field(&xmp, "CroppedAreaTopPixels"), "128");
+        assert_eq!(
+            partial_photo_sphere_xmp(4000, 2000, 360.0, 180.0, 0.0).unwrap(),
+            photo_sphere_xmp(4000, 2000)
+        );
+    }
+
+    /// A band pitched past a pole is drawn ending at it, and tagged so; a
+    /// full turn has no left offset; bad angles are refused.
+    #[test]
+    fn a_partial_sphere_at_a_pole_or_with_bad_angles() {
+        let up = partial_photo_sphere_xmp(3600, 400, 360.0, 40.0, 85.0).unwrap();
+        assert_eq!(field(&up, "FullPanoWidthPixels"), "3600");
+        assert_eq!(field(&up, "FullPanoHeightPixels"), "1800");
+        assert_eq!(field(&up, "CroppedAreaLeftPixels"), "0");
+        assert_eq!(field(&up, "CroppedAreaTopPixels"), "0");
+        let down = partial_photo_sphere_xmp(3600, 400, 360.0, 40.0, -30.0).unwrap();
+        assert_eq!(field(&down, "CroppedAreaTopPixels"), "1000");
+        for (h, v, p) in [
+            (0.0, 40.0, 0.0),
+            (361.0, 40.0, 0.0),
+            (90.0, 0.0, 0.0),
+            (90.0, 180.5, 0.0),
+            (90.0, 40.0, f64::NAN),
+            (f64::NAN, 40.0, 0.0),
+        ] {
+            assert_eq!(
+                partial_photo_sphere_xmp(100, 50, h, v, p),
+                None,
+                "{h} {v} {p}"
+            );
+        }
+        assert_eq!(partial_photo_sphere_xmp(u32::MAX, 50, 1.0, 40.0, 0.0), None);
     }
 
     /// The segment lands after SOI and the JFIF APP0, its length counts

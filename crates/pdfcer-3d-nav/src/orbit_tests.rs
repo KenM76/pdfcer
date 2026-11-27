@@ -435,7 +435,9 @@ fn shown(c: &Camera, p: [f64; 3]) -> [f64; 2] {
     let v = sub(p, c.eye);
     let h = match c.projection {
         Projection::Perspective { fov_y } => 2.0 * dot(v, f) * (fov_y / 2.0).to_radians().tan(),
-        Projection::Fisheye { .. } => unreachable!("orbit tests use flat lenses"),
+        Projection::Fisheye { .. } | Projection::Panorama { .. } => {
+            unreachable!("orbit tests use flat lenses")
+        }
         Projection::Orthographic { height } => height,
     };
     [dot(v, r) / h, dot(v, u) / h]

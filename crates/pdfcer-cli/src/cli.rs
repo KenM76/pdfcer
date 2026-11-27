@@ -3370,6 +3370,14 @@ pub(crate) enum Command {
     /// no such tag and shows flat. Place the camera inside the model with
     /// `--eye` for a walk-through panorama.
     ///
+    /// `--panorama DEG` draws only part of that sphere: DEG degrees across,
+    /// `--panorama-vertical` (default 180, or `view` for `--fov`) down,
+    /// centred on the view's heading, levelled or tilted with the view
+    /// (`--panorama-tilt`), equirectangular or cylindrical
+    /// (`--panorama-mapping`). Only the strip's pixels are drawn. An
+    /// equirectangular `.jpg` carries the photo-sphere tag with its crop of
+    /// the whole sphere; a cylindrical one is untagged.
+    ///
     /// Refuses a U3D model, a model with no triangles, an image larger
     /// than 64 megapixels, and `--transparent` into a JPEG. Exit 9 when
     /// refused, with the reason.
@@ -3413,15 +3421,18 @@ pub(crate) enum Command {
         /// Field of view across the image's height, degrees. Default: 30
         /// for `flat`, which must stay below 180; 180 for a fisheye, which
         /// reaches 360 (`equidistant`) or below 360 (`stereographic`);
-        /// exactly 360, the default, for `equirectangular`.
+        /// exactly 360, the default, for `equirectangular`. With
+        /// `--panorama-vertical view`, the panorama's vertical angle.
         #[arg(long, value_parser = parse_fov)]
         fov: Option<f64>,
-        /// Image width, pixels. Default: 1024; for a panorama, twice the
-        /// height (2048 when neither is given).
+        /// Image width, pixels. Default: 1024; for `--360`, twice the
+        /// height (2048 when neither is given); for `--panorama`, the
+        /// angles' ratio to the height (see there).
         #[arg(long)]
         width: Option<u32>,
-        /// Image height, pixels. Default: 768; for a panorama, half the
-        /// width (1024 when neither is given).
+        /// Image height, pixels. Default: 768; for `--360`, half the
+        /// width (1024 when neither is given); for `--panorama`, the
+        /// angles' ratio to the width (see there).
         #[arg(long)]
         height: Option<u32>,
         /// Leave the background transparent instead of white.
@@ -3517,6 +3528,8 @@ pub(crate) enum Command {
         light: crate::threed_cmd::LightArgs,
         #[command(flatten)]
         meter: crate::threed_cmd::MeterArgs,
+        #[command(flatten)]
+        panorama: Box<crate::threed_cmd::PanoramaArgs>,
         #[command(flatten)]
         surface: crate::threed_cmd::SurfaceArgs,
         /// Draw without ambient occlusion. By default creases, corners and

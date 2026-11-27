@@ -20,7 +20,8 @@ fn panorama(width: u32, height: u32) -> Lens {
         .unwrap()
 }
 
-fn close(a: [f64; 3], b: [f64; 3]) -> bool {
+/// Whether two directions agree to 1e-9.
+pub(super) fn close(a: [f64; 3], b: [f64; 3]) -> bool {
     length(sub(a, b)) < 1e-9
 }
 

@@ -62,7 +62,7 @@ mod jxl;
 #[cfg(feature = "jxl-write")]
 pub use jxl::{JxlEncoded, JxlOptions, encode_jxl};
 mod xmp;
-pub use xmp::{MAX_JPEG_XMP_PACKET, insert_jpeg_xmp, photo_sphere_xmp};
+pub use xmp::{MAX_JPEG_XMP_PACKET, insert_jpeg_xmp, partial_photo_sphere_xmp, photo_sphere_xmp};
 
 /// A DPI value the file formats can carry. Both write it as an integer
 /// (pixels per metre for PNG, dots per inch for JFIF), so the same
