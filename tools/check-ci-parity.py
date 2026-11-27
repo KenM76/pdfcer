@@ -167,6 +167,9 @@ LOCAL = {
     "tools/check-test-temp-unique.py": "python tools/check-test-temp-unique.py",
     "tools/check-public-fns-documented.py": "python tools/check-public-fns-documented.py",
     "tools/check-cited-commits-exist.py": "python tools/check-cited-commits-exist.py",
+    "tools/check-cross-cutting.py": (
+        "python tools/check-cross-cutting.py && python tools/check-cross-cutting.py --self-test"
+    ),
     "tools/check-ci-parity.py": "python tools/check-ci-parity.py",
     "tools/check-ci-job-names.py": "python tools/check-ci-job-names.py",
 }

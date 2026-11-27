@@ -390,7 +390,7 @@ jobs:
   # and the COUNT is the part that decays, so the count is the part a gate
   # can falsify.
   audits:
-    name: repository audits (33 checks)
+    name: repository audits (35 checks)
     runs-on: ubuntu-latest
     steps:
       # ★ FULL HISTORY REQUIRED, and its absence was SILENT.
@@ -701,6 +701,15 @@ jobs:
       # DEBT, not an allowlist -- the gate fails on anything outside it.
       - name: check every public fn has a doc comment
         run: python tools/check-public-fns-documented.py
+
+      # Decision 228: the ObjectKind x Op matrix is fresh and parses, every
+      # pending Pass it names is filed and unshipped, FEATURES.md rows changed
+      # since XCUT_BASE carry an `xc:` tag, and no new field-by-field carry
+      # appears. Needs the full history above (it diffs against XCUT_BASE).
+      - name: check the cross-cutting matrix, tags and carries
+        run: python tools/check-cross-cutting.py
+      - name: self-test the cross-cutting gate
+        run: python tools/check-cross-cutting.py --self-test
 
       # Every command THIS FILE runs has a local story: covered by the gate
       # sweep, covered by a named local stand-in, or deliberately CI-only.

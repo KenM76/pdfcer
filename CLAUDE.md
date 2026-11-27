@@ -181,6 +181,14 @@ The distinction is provenance, not representation. Binding in every reply,
 commit, doc, RAG entry and **subagent dispatch**. When the operator says
 "dimension" unqualified, echo back the qualified term.
 
+### 16. Cross-cutting coverage
+
+Every feature works across every cross-cutting operation (copy/paste, undo,
+save, export, …) without the operator asking. Each Pass scopes its
+`ObjectKind` × `Op` cells at filing; carry is only by clone-then-patch;
+changed `FEATURES.md` rows carry `xc:` tags. Enforced by the `xcut` gate
+test and `tools/check-cross-cutting.py`. `docs/decisions/228-cross-cutting-coverage.md`.
+
 ## Typical session
 
 1. Read `docs/NEXT_SESSION.md`.

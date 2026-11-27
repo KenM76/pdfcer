@@ -162,6 +162,20 @@ Pass complete → librarian gets: what shipped, exact commit hashes, test
 counts, `cargo tree` result, packaging smoke result if relevant, and the
 `FEATURES.md` rows affected.
 
+### Cross-cutting coverage (decision 228)
+
+- Every new Pass scopes its `ObjectKind` × `Op` cells at filing: which
+  cells of `docs/cross-cutting.md` it drives, and which stay `pass:<id>`.
+- A new kind or op updates every `xcut/policy` table and the fixture in the
+  same Pass, and regenerates the matrix (`PDFCER_BLESS=1`).
+- Every `FEATURES.md` row the dispatch touches gets `<!-- xc: <kind id>, … -->`
+  or `<!-- xc: none "reason" -->`; name the tags in the librarian dispatch.
+- Carry only via `xcut::carry::clone_then_patch`. No new `*_CARRIED_KEYS`,
+  `*_CARRY_KEYS` or `struct *Carry`; `tools/cross-cutting-baseline.txt`
+  only shrinks.
+- `tools/check-cross-cutting.py` enforces all of this; never move its
+  `XCUT_BASE`.
+
 ## Project geography
 
 | Path | Role |

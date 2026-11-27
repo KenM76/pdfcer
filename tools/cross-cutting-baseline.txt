@@ -1,0 +1,54 @@
+# Shrink-only debt for tools/check-cross-cutting.py (decision 228). A new
+# violation fails; an entry that no longer occurs fails as STALE -- delete it.
+#
+# carry <path>::<name>: a field-by-field carry. The first two are real key
+# carries (Passes 781.2, 781.3 delete them); the rest are outcome counters
+# named *Carry -- renaming one to *Outcome/*Report deletes its line.
+carry crates/pdfcer-core/src/annot_author.rs::MarkupCarry
+carry crates/pdfcer-core/src/formclip.rs::FIELD_CARRIED_KEYS
+carry crates/pdfcer-cli/src/ce_dimension_report.rs::CeCarry
+carry crates/pdfcer-core/src/edit/dimension_merge.rs::DimensionCarry
+carry crates/pdfcer-core/src/edit/insert_fields.rs::FieldCarry
+carry crates/pdfcer-core/src/edit/insert_outline.rs::Carry
+carry crates/pdfcer-core/src/edit/insert_outline.rs::OutlineCarry
+#
+# untagged-kind <id>: a kind no FEATURES.md row tags yet. Delete the line in
+# the same commit as the first `<!-- xc: ... -->` tag naming it.
+untagged-kind content.path
+untagged-kind content.text
+untagged-kind content.image_xobject
+untagged-kind content.inline_image
+untagged-kind content.form_xobject
+untagged-kind annot.text
+untagged-kind annot.free_text
+untagged-kind annot.callout
+untagged-kind annot.line
+untagged-kind annot.ce_dimension
+untagged-kind annot.square
+untagged-kind annot.circle
+untagged-kind annot.polygon
+untagged-kind annot.polyline
+untagged-kind annot.highlight
+untagged-kind annot.underline
+untagged-kind annot.strikeout
+untagged-kind annot.squiggly
+untagged-kind annot.caret
+untagged-kind annot.replace_text
+untagged-kind annot.stamp
+untagged-kind annot.ink
+untagged-kind annot.popup
+untagged-kind annot.file_attachment
+untagged-kind annot.sound
+untagged-kind annot.screen
+untagged-kind annot.three_d
+untagged-kind annot.link
+untagged-kind annot.redact
+untagged-kind annot.watermark
+untagged-kind annot.unknown
+untagged-kind form.widget
+untagged-kind form.field
+untagged-kind doc.page
+untagged-kind doc.outline_item
+untagged-kind doc.attachment
+untagged-kind doc.layer
+untagged-kind doc.named_dest
