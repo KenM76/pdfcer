@@ -4,6 +4,21 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-11-27 (1746th filing) — `Pass 780.2` shipped: evidence bounds for image decode
+
+**Filed (engineer-reported; no shell here, git, CI and the gates not checked from here):**
+- `c2212de2` (`feat(image-codec): evidence bounds refuse geometry the data cannot hold (Pass 780.2)`). A declared geometry the data cannot back is refused before allocation: DCT 65535^2 under 800 bytes (1 bit/block progressive, 2 bits/block sequential), JPX 65,536 tiles from 310 bytes (no-data stream admitted to 4096 tiles), CCITT 600 bytes declaring 65535 rows (10 bytes admit 81 rows, refuse 82). Boundary tests at bound and one bit short; peak heap under 1 MiB (counting allocator). Error names both figures; `refusal_key()` gives `image/evidence/{dct,jpx,ccitt}`. Old ceilings remain until `780.5`.
+- API: `ImageCodecError::DeclaredGeometryExceedsData`, `DeclaredGeometry` (`non_exhaustive`), `refusal_key()`; core-api `01-reading-and-model.md` updated.
+- Corpus: 3037 local files / 357 images, before and after identical, zero new refusals; the 1109-file real-world corpus was NOT run (not on this machine).
+- Same commit: JP2 box-walk overflow panic fixed (fuzz-found, regression test); CI red on `3742ee55` and `0635db9e` fixed (clippy `zeroed` unused under `--no-default-features`; ungated `780.1` JPX test).
+- Tests: default 123 lib, 17 integration, 7 doc; `--no-default-features` 91 / 14 / 7; fuzz 15,502 DCT, 34,820 CCITT, 74,011 JPX runs clean; sabotage and off-by-one both go red; clippy clean in 4 feature combinations.
+- Also filed: `0635db9e` (the 1745th filing commit; it edited `tools/cross-cutting-baseline.txt`, so the commits-filed gate counts it as a code commit).
+- Docs: ROADMAP Shipped entry, arc bullet marked shipped, Next-up banner now `780.3`, Backlog `780.2.a` added (grep-checked free across `*.md`); FEATURES "No fixed image-size ceiling" row note updated, `xc:` tag kept, nothing ticked.
+
+**Unmet, filed as `780.2.a`:** real-world corpus run; DCT DNL (height redefined after first scan); arithmetic-coded DCT (T.81 G.1.3); JBIG2 and JXL bounds (Flate is `780.6`).
+
+**Decisions made:** none. **Next:** `Pass 780.3` (budget live).
+
 ## 2026-11-27 (1745th filing) — `Pass 780.1` shipped: measured peak-memory predictors for image decode (inert)
 
 **Filed (engineer-reported; no shell here, git, CI and the gates not checked from here):**
