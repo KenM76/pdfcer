@@ -122,6 +122,7 @@ Engineer-reported; no shell here, so git, CI and the gates were not checked from
 - **Also in the commit:** `docs/cross-cutting.md` re-blessed; `docs/core-api/02-editing-and-saving.md` paste row updated; GUI channel note `E070` written (tells the GUI about the `781.2` API removal).
 - **Still open, in progress as `Pass 781.2.b` (Backlog):** Highlight restyle still adds `/BM` when the source had none; a dash in `/Border[3]` is not read on paste; the added-`/BS` disclosure has unit coverage only (needs a fixture with neither `/Border` nor `/BS`).
 - **FEATURES:** the markup copy-paste row gains one clause (a rotate or scale keeps the key set); boxes and `xc:` tag unchanged.
+- **Related commit:** `c0f89112` (the 1735th filing commit) tagged the markup FEATURES rows with `xc:` and shrank `tools/cross-cutting-baseline.txt` by 11 `untagged-kind` lines (annot.square, circle, line, polygon, polyline, highlight, underline, strikeout, squiggly, replace_text, ink), per decision 228.
 - **State after:** Next up head is `Pass 781.3`, then `780.1`. `781.2.b` in progress.
 
 ### `Pass 781.2`: markup paste is Raw plus patches, `MarkupCarry` deleted (decision 228); `9afbd477`, 2026-11-27 (1735th filing)
