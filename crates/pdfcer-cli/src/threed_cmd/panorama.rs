@@ -1,6 +1,7 @@
 //! `3d-render --panorama`: part of the sphere round the eye, a chosen
 //! horizontal and vertical angle, levelled or tilted with the view.
 
+#[cfg(feature = "3d")]
 use super::RenderThreeDArgs;
 
 /// The `3d-render` options that draw a partial panorama.
