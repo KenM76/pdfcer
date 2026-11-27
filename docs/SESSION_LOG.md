@@ -4,6 +4,15 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-11-27 (1740th filing) — `Pass 781.2.d` shipped: all ten line endings paint; callout derived without `/AP`
+
+**Filed (engineer-reported; no shell here, git, CI and the gates not checked from here; operator commits):**
+- `be177b42` (`fix(core): paint every Table 179 line ending; derive callouts (Pass 781.2.d)`). New `annot_author/line_ending.rs`; `LineEnding` has ten variants (breaking; core-api 02/03 updated; GUI note E071). `derived.rs` builds a callout with no `/AP` via `FreeTextFrame.callout`. CLI `--line-endings` takes every Table 179 name.
+- Tests: new `tests/line_ending_styles.rs` (9) plus additions; 17 sabotage cases fail; gates green; no cross-cutting cell changes. Also cites `35765966` (1739th), which deleted two untagged-kind baseline lines.
+- Docs: `ROADMAP.md` Shipped entry, Backlog line marked shipped, banner updated; `FEATURES.md` two rows updated and under 1,200 characters.
+
+**Decisions made:** none new. **Next:** `Pass 781.3`, then `780.1`; the `781.2.x` chain is done.
+
 ## 2026-11-27 (1739th filing) — `Pass 781.2.c` shipped: FreeText restyle adds and drops no key; callouts drawn
 
 **Filed (engineer-reported; no shell here, git, CI and the gates not checked from here; operator commits):**
