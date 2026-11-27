@@ -140,6 +140,7 @@ use pdfcer_core::settings::CmykIntent;
 use pdfcer_core::view::DocumentView;
 use tiny_skia::{Pixmap, PremultipliedColorU8};
 
+use crate::cancel::RenderCancel;
 use crate::color::ColorDiagnostics;
 use crate::font::RenderPolicy;
 use crate::gstate::Rgb;
@@ -225,6 +226,11 @@ pub enum ImageError {
     /// (decision 226). The payload is the refused size in bytes.
     #[error("not enough memory for the image ({0} bytes needed)")]
     AllocationFailed(u64),
+    /// The render's [`RenderCancel`] was set while the image decoded. Not a
+    /// fidelity shortfall: the interpreter neither counts nor notes it, and
+    /// the render returns [`crate::RenderError::Cancelled`].
+    #[error("image decode cancelled by the caller")]
+    Cancelled,
 }
 
 /// Which of §8.9.6.1's transparency mechanisms supplied an image's alpha.
@@ -766,22 +772,47 @@ pub fn decode(
     policy: RenderPolicy,
     icc: IccContext<'_>,
 ) -> Result<DecodedImage, ImageError> {
+    decode_cancellable(doc, dict, raw, resources, fill, origin, policy, icc, None)
+}
+
+/// [`decode`], polling `cancel` between decode stages and once per texel
+/// row, so a render cancelled during a large image stops within one row
+/// instead of after the whole image (request G337).
+///
+/// The filter chain and the terminal codec run whole: `zune-jpeg` and
+/// `filters::decode_stream` expose no row-level hook. A cancel set during
+/// them is seen as they return, before the texel loop starts.
+///
+/// # Errors
+///
+/// As [`decode`], plus [`ImageError::Cancelled`] once `cancel` is set. No
+/// partial pixmap is returned.
+#[allow(clippy::too_many_arguments)] // decode's eight, plus the token
+pub(crate) fn decode_cancellable(
+    doc: &DocumentView<'_>,
+    dict: &Dict,
+    raw: &[u8],
+    resources: &Dict,
+    fill: Rgb,
+    origin: ImageOrigin,
+    policy: RenderPolicy,
+    icc: IccContext<'_>,
+    cancel: Option<&RenderCancel>,
+) -> Result<DecodedImage, ImageError> {
     let width = positive_dimension(doc, dict, b"Width")?;
     let height = positive_dimension(doc, dict, b"Height")?;
 
-    // Ceiling FIRST — before the filter chain runs and before any
-    // pixmap allocation (module docs / ARCHITECTURE.md §10.1). The
-    // codec layer applies the same ceiling to the *codestream's* own
-    // declared geometry; this one covers the dictionary's, which is
-    // what sizes the pixmap.
+    // Ceiling FIRST -- before the filter chain runs and before any pixmap
+    // allocation (ARCHITECTURE.md §10.1). The codec layer applies the same
+    // ceiling to the codestream's own declared geometry; this one covers the
+    // dictionary's, which is what sizes the pixmap.
     if u64::from(width).saturating_mul(u64::from(height)) > MAX_IMAGE_PIXELS {
         return Err(ImageError::TooLarge);
     }
+    check_cancel(cancel)?;
 
-    // `DCT-A1` (R169) travels with the decode rather than being read
-    // from anywhere ambient: the polarity rule changes the SAMPLES, so a
-    // cached or re-run decode under a different setting must be a
-    // different call, not the same call with a different global.
+    // `DCT-A1` (R169) travels with the decode rather than being read from
+    // anywhere ambient: the polarity rule changes the SAMPLES.
     let coded = image_codec::decode_image_view_with(
         doc,
         dict,
@@ -790,45 +821,21 @@ pub fn decode(
         policy.cmyk_jpeg_polarity,
     )
     .map_err(map_codec_error)?;
+    check_cancel(cancel)?;
 
-    let mut notes = ImageNotes {
-        codec_geometry_mismatch: coded.notes.geometry_mismatch,
-        dct_cmyk_image: coded.notes.cmyk_image,
-        dct_cmyk_polarity_unverifiable: coded.notes.cmyk_polarity_unverifiable,
-        jpx_smask_in_data_preblended: coded.notes.jpx_smask_in_data_preblended,
-        jxl_nonstandard: coded.notes.jxl_nonstandard,
-        lzw_framing_anomalies: coded.notes.lzw_framing_anomalies,
-        ..ImageNotes::default()
-    };
-    // §8.9.6.2: an image mask is a completely different object — no
-    // colour space, no colour conversion, `Decode` is a polarity bit.
-    // Step 1 of the precedence ladder in this function's docs: it
-    // short-circuits before any mask is even looked for.
+    let mut notes = codec_notes(&coded);
+    // §8.9.6.2: an image mask has no colour space and no colour conversion;
+    // `Decode` is a polarity bit. Step 1 of the precedence ladder on
+    // [`decode`]: it short-circuits before any mask is looked for.
     if matches!(
         dict.get(b"ImageMask").map(|o| doc.resolve(o)),
         Some(Object::Boolean(true))
     ) {
-        return decode_stencil(dict, &coded, width, height, fill, notes);
+        return decode_stencil(dict, &coded, (width, height), fill, notes, cancel);
     }
-
     let mut tr = resolve_transparency(doc, dict, &coded, resources, &mut notes);
-    if let Some(plane) = &tr.alpha
-        && plane.dimensions() != (width, height)
-    {
-        notes.mask_resampled = true;
-        // Table 145's `Width` row: "**If a `Matte` entry … is present,
-        // shall be the same as the `Width` value of the parent image**;
-        // otherwise independent of it." A mismatched `/Matte` mask is
-        // therefore non-conformant, and un-premultiplying with a
-        // resampled α would divide each sample by an alpha that is not
-        // its own — recovering colours from the wrong equation. The
-        // ALPHA is still honoured (that half is conformant either way);
-        // only the colour correction is dropped, by name.
-        if tr.matte.is_some() {
-            tr.matte = None;
-            notes.matte_not_undone = Some("matte/dimension-mismatch");
-        }
-    }
+    drop_resampled_matte(&mut tr, (width, height), &mut notes);
+    check_cancel(cancel)?;
 
     decode_sampled(
         doc,
@@ -843,7 +850,49 @@ pub fn decode(
         tr.matte.as_deref(),
         policy,
         icc,
+        cancel,
     )
+}
+
+/// [`ImageError::Cancelled`] once `cancel` is set.
+fn check_cancel(cancel: Option<&RenderCancel>) -> Result<(), ImageError> {
+    if cancel.is_some_and(RenderCancel::is_cancelled) {
+        Err(ImageError::Cancelled)
+    } else {
+        Ok(())
+    }
+}
+
+/// The codec layer's own findings, carried into the image's notes.
+fn codec_notes(coded: &CodedImage) -> ImageNotes {
+    ImageNotes {
+        codec_geometry_mismatch: coded.notes.geometry_mismatch,
+        dct_cmyk_image: coded.notes.cmyk_image,
+        dct_cmyk_polarity_unverifiable: coded.notes.cmyk_polarity_unverifiable,
+        jpx_smask_in_data_preblended: coded.notes.jpx_smask_in_data_preblended,
+        jxl_nonstandard: coded.notes.jxl_nonstandard,
+        lzw_framing_anomalies: coded.notes.lzw_framing_anomalies,
+        ..ImageNotes::default()
+    }
+}
+
+/// Note a mask whose size differs from the image's, and drop its `/Matte`.
+///
+/// Table 145's `Width` row: with a `Matte` entry the mask "shall be the same
+/// as the `Width` value of the parent image". A mismatched `/Matte` mask is
+/// therefore non-conformant, and un-premultiplying with a resampled alpha
+/// would divide each sample by an alpha that is not its own. The ALPHA is
+/// still honoured; only the colour correction is dropped, by name.
+fn drop_resampled_matte(tr: &mut Transparency<'_>, size: (u32, u32), notes: &mut ImageNotes) {
+    if let Some(plane) = &tr.alpha
+        && plane.dimensions() != size
+    {
+        notes.mask_resampled = true;
+        if tr.matte.is_some() {
+            tr.matte = None;
+            notes.matte_not_undone = Some("matte/dimension-mismatch");
+        }
+    }
 }
 
 /// Whichever alpha source won [`decode`]'s precedence ladder, plus the
@@ -1120,10 +1169,10 @@ fn map_codec_error(err: ImageCodecError) -> ImageError {
 fn decode_stencil(
     dict: &Dict,
     coded: &CodedImage,
-    width: u32,
-    height: u32,
+    (width, height): (u32, u32),
     fill: Rgb,
     mut notes: ImageNotes,
+    cancel: Option<&RenderCancel>,
 ) -> Result<DecodedImage, ImageError> {
     let data = &coded.samples;
     if let Some(bpc) = dict.get(b"BitsPerComponent").and_then(Object::as_int)
@@ -1170,6 +1219,7 @@ fn decode_stencil(
 
     let texels = pixmap.pixels_mut();
     for y in 0..height as usize {
+        check_cancel(cancel)?;
         let row_bit_base = y.saturating_mul(stride).saturating_mul(8);
         for x in 0..width as usize {
             let raw = read_sample(data, row_bit_base + x * layout.bits as usize, layout.bits);
@@ -1239,6 +1289,7 @@ fn decode_sampled(
     matte: Option<&[f32]>,
     policy: RenderPolicy,
     icc: IccContext<'_>,
+    cancel: Option<&RenderCancel>,
 ) -> Result<DecodedImage, ImageError> {
     // Two independent operator choices ride in on `policy` here, and they
     // touch different halves of the loop below: `cmyk_intent` decides
@@ -1660,6 +1711,8 @@ fn decode_sampled(
     let mut ink_incomplete = false;
 
     for y in 0..height as usize {
+        // Per row: one relaxed load against `width` texels of colour work.
+        check_cancel(cancel)?;
         let row_bit_base = y.saturating_mul(stride).saturating_mul(8);
         for x in 0..width as usize {
             let first = x.saturating_mul(layout.components);
@@ -3712,5 +3765,194 @@ mod tests {
         // half of the `carries_ink` test. Both halves are needed; asserted
         // together so a "simplification" that drops one is caught here.
         assert!(matches!(indexed, Space::Indexed { ink: Some(_), .. }));
+    }
+
+    /// A one-page document whose `/X1` XObject is a `w` x `h` image stream
+    /// built from `dict_extra` and `data`, returned with its page.
+    fn image_doc(
+        dict_extra: &str,
+        data: &[u8],
+    ) -> (
+        pdfcer_core::document::Document,
+        pdfcer_core::page_tree::Page,
+    ) {
+        let mut stream = format!(
+            "<< /Type /XObject /Subtype /Image {dict_extra} /Length {} >>\nstream\n",
+            data.len()
+        )
+        .into_bytes();
+        stream.extend_from_slice(data);
+        stream.extend_from_slice(b"\nendstream");
+        let objects: [Vec<u8>; 4] = [
+            b"<< /Type /Catalog /Pages 2 0 R >>".to_vec(),
+            b"<< /Type /Pages /Kids [3 0 R] /Count 1 /MediaBox [0 0 10 10] >>".to_vec(),
+            b"<< /Type /Page /Parent 2 0 R /Resources << /XObject << /X1 4 0 R >> >> >>".to_vec(),
+            stream,
+        ];
+        let mut buf = b"%PDF-1.4\n".to_vec();
+        let mut offsets = Vec::new();
+        for (i, body) in objects.iter().enumerate() {
+            offsets.push(buf.len());
+            buf.extend_from_slice(format!("{} 0 obj\n", i + 1).as_bytes());
+            buf.extend_from_slice(body);
+            buf.extend_from_slice(b"\nendobj\n");
+        }
+        let xref_at = buf.len();
+        buf.extend_from_slice(b"xref\n0 5\n0000000000 65535 f\r\n");
+        for off in offsets {
+            buf.extend_from_slice(format!("{off:010} 00000 n\r\n").as_bytes());
+        }
+        buf.extend_from_slice(
+            format!("trailer\n<< /Size 5 /Root 1 0 R >>\nstartxref\n{xref_at}\n%%EOF\n").as_bytes(),
+        );
+        let doc = pdfcer_core::document::Document::from_bytes(buf).unwrap();
+        let page = pdfcer_core::page_tree::pages(&doc).unwrap().remove(0);
+        (doc, page)
+    }
+
+    /// Run `f` over `/X1`'s dictionary, raw bytes and coded samples.
+    fn with_image<R>(
+        dict_extra: &str,
+        data: &[u8],
+        f: impl FnOnce(&DocumentView<'_>, &Dict, &[u8], &CodedImage, &Dict) -> R,
+    ) -> R {
+        let (doc, page) = image_doc(dict_extra, data);
+        let view = doc.view();
+        let xobjects = page
+            .resources
+            .get(b"XObject")
+            .map(|o| view.resolve(o))
+            .and_then(Object::as_dict)
+            .unwrap();
+        let Some(Object::Stream(stream)) = xobjects.get(b"X1").map(|o| view.resolve(o)) else {
+            panic!("X1 is a stream")
+        };
+        let raw = view.slice(stream.data_span).unwrap();
+        let coded = image_codec::decode_image_view_with(
+            &view,
+            &stream.dict,
+            raw,
+            false,
+            RenderPolicy::default().cmyk_jpeg_polarity,
+        )
+        .unwrap();
+        f(&view, &stream.dict, raw, &coded, &page.resources)
+    }
+
+    const GRAY_4X4: &str = "/Width 4 /Height 4 /ColorSpace /DeviceGray /BitsPerComponent 8";
+    const MASK_8X2: &str = "/Width 8 /Height 2 /ImageMask true /BitsPerComponent 1";
+
+    fn cancelled() -> RenderCancel {
+        let token = RenderCancel::new();
+        token.cancel();
+        token
+    }
+
+    fn sampled(cancel: Option<&RenderCancel>) -> Result<DecodedImage, ImageError> {
+        with_image(GRAY_4X4, &[0x80; 16], |view, dict, _, coded, resources| {
+            decode_sampled(
+                view,
+                dict,
+                coded,
+                4,
+                4,
+                resources,
+                ImageNotes::default(),
+                None,
+                None,
+                None,
+                RenderPolicy::default(),
+                IccContext::unmanaged(),
+                cancel,
+            )
+        })
+    }
+
+    fn stencil(cancel: Option<&RenderCancel>) -> Result<DecodedImage, ImageError> {
+        with_image(MASK_8X2, &[0xF0, 0x0F], |_, dict, _, coded, _| {
+            decode_stencil(
+                dict,
+                coded,
+                (8, 2),
+                Rgb::BLACK,
+                ImageNotes::default(),
+                cancel,
+            )
+        })
+    }
+
+    /// G337: the colour loop is where a large image spends its time (1.6 s
+    /// of 1.8 s on a 600 dpi scan), so it must see the token per row, not
+    /// only at the stage boundaries `decode_cancellable` checks.
+    #[test]
+    fn the_sampled_texel_loop_stops_on_a_cancelled_token() {
+        assert!(matches!(
+            sampled(Some(&cancelled())),
+            Err(ImageError::Cancelled)
+        ));
+    }
+
+    #[test]
+    fn the_sampled_texel_loop_runs_with_no_token_or_an_unset_one() {
+        assert_eq!(sampled(None).unwrap().pixmap.width(), 4);
+        assert_eq!(
+            sampled(Some(&RenderCancel::new())).unwrap().pixmap.width(),
+            4
+        );
+    }
+
+    #[test]
+    fn the_stencil_row_loop_stops_on_a_cancelled_token() {
+        assert!(matches!(
+            stencil(Some(&cancelled())),
+            Err(ImageError::Cancelled)
+        ));
+    }
+
+    #[test]
+    fn the_stencil_row_loop_runs_with_an_unset_token() {
+        assert_eq!(
+            stencil(Some(&RenderCancel::new())).unwrap().pixmap.width(),
+            8
+        );
+    }
+
+    /// The stage-boundary checks, on both the sampled and the stencil route,
+    /// and the public `decode` staying uncancellable (it passes no token).
+    #[test]
+    fn decode_cancellable_refuses_a_cancelled_token_on_both_routes() {
+        let token = cancelled();
+        for (extra, data) in [(GRAY_4X4, &[0x80u8; 16][..]), (MASK_8X2, &[0xF0, 0x0F][..])] {
+            with_image(extra, data, |view, dict, raw, _, resources| {
+                let run = |cancel| {
+                    decode_cancellable(
+                        view,
+                        dict,
+                        raw,
+                        resources,
+                        Rgb::BLACK,
+                        ImageOrigin::XObject,
+                        RenderPolicy::default(),
+                        IccContext::unmanaged(),
+                        cancel,
+                    )
+                };
+                assert!(matches!(run(Some(&token)), Err(ImageError::Cancelled)));
+                assert!(run(None).is_ok());
+                assert!(
+                    decode(
+                        view,
+                        dict,
+                        raw,
+                        resources,
+                        Rgb::BLACK,
+                        ImageOrigin::XObject,
+                        RenderPolicy::default(),
+                        IccContext::unmanaged(),
+                    )
+                    .is_ok()
+                );
+            });
+        }
     }
 }

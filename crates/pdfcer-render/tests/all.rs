@@ -49,6 +49,7 @@ mod group_ungroup;
 mod hairline_minimum;
 mod huge_content_streams_draw;
 mod icc_rgb;
+mod image_decode_cancel;
 mod image_stamp_transparency;
 mod image_transparency;
 mod ink_answered_before_rendering;

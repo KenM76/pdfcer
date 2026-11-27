@@ -473,7 +473,6 @@ fn pdfcer-render/src/display_list.rs::replay_ops
 fn pdfcer-emf/src/lib.rs::write_ops
 fn pdfcer-render/src/font/select.rs::candidate_names
 fn pdfcer-render/src/font/webfont.rs::wrap_cff
-fn pdfcer-render/src/image.rs::decode
 fn pdfcer-render/src/image.rs::decode_sampled
 fn pdfcer-render/src/image.rs::decode_stencil
 fn pdfcer-render/src/image.rs::resolve_indexed

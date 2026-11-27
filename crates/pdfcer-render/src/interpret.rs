@@ -8730,7 +8730,7 @@ impl<'a> Interpreter<'a> {
             self.diag.rendering_intents_set += 1;
         }
 
-        match image::decode(
+        match image::decode_cancellable(
             doc,
             dict,
             raw,
@@ -8751,6 +8751,7 @@ impl<'a> Interpreter<'a> {
             // document names a destination, so an additive page without one
             // costs nothing more than before.
             crate::image::IccContext::managed(&self.icc, self.conversion(image_intent)),
+            self.cancel,
         ) {
             Ok(decoded) => {
                 // Cloned rather than moved: `ImageNotes` stopped being `Copy`
@@ -8894,6 +8895,11 @@ impl<'a> Interpreter<'a> {
                     crate::cmyk_buffer::SpotSource::Paint
                 };
                 let decoded = self.area_averaged(decoded);
+                // The paint is the last whole-image step; a cancel set during
+                // the minify skips it (G337).
+                if self.cancel.is_some_and(RenderCancel::is_cancelled) {
+                    return;
+                }
                 // A STENCIL MASK ON AN INK PAGE IS A FILL WITH AN IMAGE'S
                 // SHAPE (`Pass 238.0`). §8.9.6.2 makes it "a region of the
                 // page to be painted with the current colour", and the
@@ -8948,6 +8954,8 @@ impl<'a> Interpreter<'a> {
                 );
                 self.diag.images_rendered += 1;
             }
+            // Not a shortfall: the render itself returns `Cancelled`.
+            Err(ImageError::Cancelled) => {}
             Err(err) => {
                 // Nothing drawn. Counted, named, never approximated.
                 // The three codec-specific buckets are counted

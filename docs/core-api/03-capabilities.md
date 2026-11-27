@@ -5364,7 +5364,15 @@ identically under wasm"* (`cancel.rs`). `new()`, `cancel()`
   receiver would discard the result while the worker carried on painting for
   another 58 seconds — still occupying a core."*
 - **Granularity is one operator** (`cancel.rs`) — worst-case latency
-  *"a third of a millisecond, not the whole render."*
+  *"a third of a millisecond, not the whole render."* **Inside an image
+  `Do`** (G337) the token is polled between decode stages and once per texel
+  row (`image::decode_cancellable`), and the paint is skipped if it is set
+  after the minify. The filter chain and terminal codec (`zune-jpeg`,
+  `filters::decode_stream`) still run whole, so the bound inside an image is
+  one codec call: ~150 ms on a 5100 x 8400 600 dpi DCT scan (release),
+  against 1.96 s before. `image::ImageError::Cancelled` is internal to that
+  route — the interpreter neither counts nor notes it, and the caller sees
+  only `RenderError::Cancelled`. The public `image::decode` takes no token.
 - **`RenderError::Cancelled` is NOT a failure** (`lib.rs`): *"It means
   the answer stopped being wanted … a caller should discard it silently rather
   than surfacing it."* It is an error variant only because a cancelled render
