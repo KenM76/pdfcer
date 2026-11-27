@@ -4,6 +4,15 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-11-27 (1742nd filing) — `Pass 781.3.a` shipped: a pasted field keeps every font its `/DA` strings name
+
+**Filed (engineer-reported; no shell here, git, CI and the gates not checked from here):**
+- `7f2d4025` (`fix(core): every font a pasted field's /DA strings name lands in /DR (Pass 781.3.a)`). Field and widget `/DA` fonts installed on Ctrl+V, Ctrl+Shift+V and multi-field paste; a clashing font name gets a fresh name (never one the clip itself installs) with every pasted `/DA` rewritten and disclosed. `FieldClip::carried_fonts()`, `FieldPasteOutcome::font_renames`; clip version 3, older refused; CLI prints `fonts=`, `font_renames=`; core-api updated; GUI note E073.
+- Tests: new `field_paste_da_fonts.rs` (5), `paste_font_renames.rs` (1), 4 sabotages red; core integration 3559, core unit 2613, doctests 329, CLI integration 1200, CLI unit 139. xcut `kinds_untagged=23 carry_found=5 carry_baseline=5`, no cells changed.
+- Docs: ROADMAP Shipped entry, Backlog `781.3.a` marked shipped, `781.3` entry's "version 2" line and "Still open" corrected; FEATURES single-field and multi-field rows updated.
+
+**Decisions made:** none new. **Next:** `Pass 780.1`.
+
 ## 2026-11-27 (1741st filing) — `Pass 781.3` and `781.7.g` shipped: a form-field copy is a clone; inherited attributes travel
 
 **Filed (engineer-reported; no shell here, git, CI and the gates not checked from here; operator commits):**

@@ -112,17 +112,29 @@ wherever it appears.*
 
 ## Shipped
 
+### `Pass 781.3.a`: a pasted field keeps every font its `/DA` strings name; `7f2d4025`, 2026-11-27 (1742nd filing)
+
+Engineer-reported; no shell here, so git, CI and the gates were not checked from here. Reasoning is in the commit message. **Unreleased; rides the next release.** Specs: ISO 32000-2 §12.7.3.3, §12.7.4.3.
+- **What changed.** Before, only the inherited font travelled, so a widget whose `/DA` named a different font regenerated in a fallback font. Now the field's own `/DA` and each widget's `/DA` fonts all land in `/DR`.
+- **Every paste route.** Ctrl+V, Ctrl+Shift+V (add a widget; now installs that widget's font) and multi-field paste.
+- **Name clashes.** A font name already bound to a different font gets a fresh name for the copied font, and every pasted `/DA` is rewritten. The fresh name never takes a name the clip itself installs (`Cour` becomes `Cour_2`, not `Cour_1`, when the clip carries `Cour_1`). The rename is disclosed.
+- **API.** New `FieldClip::carried_fonts()` and `FieldPasteOutcome::font_renames`. `FIELD_CLIP_VERSION` is **3**; older clips are refused. CLI: `copy-field` prints `fonts=`, `paste-field` prints `font_renames=From>To`, `paste-fields` prints the rename count. `docs/core-api` updated; GUI note **E073** written.
+- **Tests (engineer-reported):** new `crates/pdfcer-core/tests/field_paste_da_fonts.rs` (5) and `crates/pdfcer-cli/tests/paste_font_renames.rs` (1); all 4 sabotages went red. Passed counts: core integration 3559, core unit 2613, doctests 329; CLI integration 1200, CLI unit 139; no failures.
+- **xcut:** `kinds_untagged=23 carry_found=5 carry_baseline=5`; no cells changed.
+- **FEATURES:** single-field row (boxes unchanged; clip version 3, fonts, `font_renames`) and multi-field row (core [x] cli [x] gui [ ] unchanged) updated, both under 1,200 characters and keeping `xc: form.widget, form.field`.
+- **State after:** Next up head stays `Pass 780.1`. Swept ROADMAP and FEATURES for "version 2" and "only the inherited font" claims: the `781.3` entry's version-2 line is corrected with a pointer; `781.3`'s "Still open" is updated.
+
 ### `Pass 781.3`: a form-field copy is a clone, `FIELD_CARRIED_KEYS` deleted; `Pass 781.7.g` inherited attributes written (decision 228); `5779b513`, 2026-11-27 (1741st filing)
 
 Engineer-reported; no shell here, so git, CI and the gates were not checked from here. Reasoning is in the commit message. **Unreleased; rides the next release.** Specs: ISO 32000-2 §12.7.4 (field dictionaries, inheritance).
 - **Clone-then-patch.** The `FIELD_CARRIED_KEYS` allowlist is deleted and its carry line removed from the cross-cutting baseline. Private and unknown keys now survive on the field and both widgets (a sentinel key in the test).
 - **Inherited attributes travel (781.7.g).** On a synthetic form, `copy-field grp.a` gave `value=0 font=- objects=0` before and gives `value=1 font=Helv inherited=FT,Ff,V,DV,DA,Q objects=1` now. Inherited `/FT /Ff /V /DV /DA /Q` are written onto the pasted field; the font is installed in `/DR` and disclosed.
 - **Identity.** `/NM` is regenerated unique on the page. `/StructParent`, `/Popup`, `/IRT` are dropped, counted and disclosed. Apart from those disclosures, CLI output matches the old build.
-- **API.** New `FieldClip::inherited_keys()`; `FieldPasteOutcome` gains `materialized_keys` and `dropped_keys` (`non_exhaustive`, not breaking). The field clip is **version 2**; a version-1 clip is refused. `docs/core-api` updated; GUI channel note **E072** written.
+- **API.** New `FieldClip::inherited_keys()`; `FieldPasteOutcome` gains `materialized_keys` and `dropped_keys` (`non_exhaustive`, not breaking). The field clip was **version 2** here; it is version 3 since `781.3.a`. `docs/core-api` updated; GUI channel note **E072** written.
 - **Tests (engineer-reported):** new `crates/pdfcer-core/tests/field_paste_inherited.rs` (2) and an xcut two-kid Field fixture; five sabotages each turned a test red. Passed counts: core lib 2613/0/2, core integration 3554/0/2, CLI 1199/0/2, others 329, 139, 1. Two function splits for the 80-line limit came after the full run; targeted suites were re-run green after them.
 - **xcut:** `cells=1444 run=136 preserve=128 refused=8 pending=1308` (was `run=127 preserve=119 pending=1317` at the 1738th); nine Widget/Field cells flipped to ok. Two code-structure baseline entries deleted. The engineer deletes the two `untagged-kind` baseline lines in the same commit.
 - **FEATURES:** the single-field copy/paste row (core [x] cli [x] gui [x] unchanged, trimmed under 1,200 characters) and the multi-field row (core [x] cli [x] gui [ ] unchanged) updated; both tagged `xc: form.widget, form.field`.
-- **Still open:** `781.3.a` (Backlog, in progress): a kid's own `/DA` naming a font other than the inherited one gets no `/DR` install on paste. Widget `/OC` (`781.7.f`) and `/StructParent` rebuild (`781.7.k`) remain; `781.3` now drops and discloses `/StructParent` for widgets.
+- **Still open:** `781.3.a` shipped at the 1742nd (see above). Widget `/OC` (`781.7.f`) and `/StructParent` rebuild (`781.7.k`) remain; `781.3` now drops and discloses `/StructParent` for widgets.
 - **State after:** Next up head is `Pass 780.1`. Order used: `781.4` (ce dimension) is in Backlog, not Next up, and no recorded order ranks it before `780.1`; the banners since the 1728th put `780.1` directly after the current `781.x` head, and decision 228's Pass split lists no position for `780.1`. So `780.1` takes the head and `781.4` stays in Backlog behind it; flagged to the operator, not a re-ranking.
 
 ### `Pass 781.2.d`: all ten line endings paint; a callout with no `/AP` is derived; `be177b42`, 2026-11-27 (1740th filing)
@@ -40790,7 +40802,7 @@ nothing gets forgotten, not as a commitment to build in this order.
   - **`781.2.d`** SHIPPED (1740th, `be177b42`); see *Shipped*. Was: seven of ten Table 179 endings kept but not drawn, and no callout derived with no `/AP`; both closed.
   - **Not part of `781.2.d`, filed 1739th, each its own line:** (i) stamps and sticky notes still restyle through the old path, not the key-set rule; (ii) no CLI verb creates a callout (core, cli; would add a FEATURES row).
   - **`781.3`** SHIPPED (1741st, `5779b513`); see *Shipped*. Was: `FIELD_CARRIED_KEYS` inverted to a denylist (`FieldClip`, `FieldClipSet`); done as clone-then-patch, the allowlist deleted.
-  - **`781.3.a`** (IN PROGRESS, filed 1741st; ID grep-checked free in `docs/`): a kid's own `/DA` naming a font other than the one inherited does not get that font installed in `/DR` on paste. Core. Found by `781.3`.
+  - **`781.3.a`** SHIPPED (1742nd, `7f2d4025`); see *Shipped*. Was: a kid's own `/DA` naming a font other than the one inherited got no `/DR` install on paste.
   - **`781.4`** ce dimension clone-then-patch (re-register sidecar, map group, re-bake `/AP` only on scale/format change). **`781.5`** content kinds (ExtGState, `BDC`, `/OC` chain; `ClipItem.kind` becomes `ObjectKind`). **`781.6`** document kinds (outline, attachment, page, layer, named destination).
   - **`782.0`** Undo/Redo/Save. **`782.1`** Move/Transform/Align/Restack/Group/Ungroup/LayerAssign. **`782.2`** Delete and page routes. **`782.3`** Redact/Sanitize (`Remove`). **`782.4`** Flatten/Print/exports/PDF-A convert. **`782.5`** `read-probe`. **`782.6`** StructureTags/Search/Compare/HitTest/Properties/CliVerb/CoreApiDoc, matrix `pending=0`.
   - **`781.7.x` audit gaps, priority order, one row each (a day or less):**
