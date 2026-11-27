@@ -4,6 +4,15 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-11-27 (1741st filing) — `Pass 781.3` and `781.7.g` shipped: a form-field copy is a clone; inherited attributes travel
+
+**Filed (engineer-reported; no shell here, git, CI and the gates not checked from here; operator commits):**
+- `5779b513` (`fix(core): a field copy travels whole and keeps what it inherited (Pass 781.3, 781.7.g)`). `FIELD_CARRIED_KEYS` deleted; inherited `/FT /Ff /V /DV /DA /Q` written onto the pasted field and the font installed in `/DR`; `/NM` regenerated; `/StructParent`, `/Popup`, `/IRT` dropped and disclosed. `FieldClip::inherited_keys()`, `FieldPasteOutcome::{materialized_keys, dropped_keys}`; field clip version 2 (version 1 refused). core-api updated; GUI note E072.
+- Tests: new `tests/field_paste_inherited.rs` (2) plus an xcut two-kid Field fixture, five sabotages red; core lib 2613/0/2, core integration 3554/0/2, CLI 1199/0/2. xcut `cells=1444 run=136 preserve=128 refused=8 pending=1308`; two code-structure baseline entries deleted.
+- Docs: `ROADMAP.md` Shipped entry, Backlog `781.3` and `781.7.g` marked shipped, `781.3.a` added (in progress), notes on `781.7.f`, `781.7.k`, `781.7.m`, banner updated; `FEATURES.md` single-field and multi-field copy/paste rows updated, tagged `xc: form.widget, form.field`, both under 1,200 characters. The operator deletes the two `untagged-kind` baseline lines in the same commit.
+
+**Decisions made:** none new. **Next:** `Pass 780.1` (order: `781.4` is in Backlog and no recorded order ranks it ahead; operator may re-rank); `781.3.a` in progress.
+
 ## 2026-11-27 (1740th filing) — `Pass 781.2.d` shipped: all ten line endings paint; callout derived without `/AP`
 
 **Filed (engineer-reported; no shell here, git, CI and the gates not checked from here; operator commits):**

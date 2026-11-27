@@ -29,8 +29,6 @@ untagged-kind annot.link
 untagged-kind annot.redact
 untagged-kind annot.watermark
 untagged-kind annot.unknown
-untagged-kind form.widget
-untagged-kind form.field
 untagged-kind doc.page
 untagged-kind doc.outline_item
 untagged-kind doc.attachment
