@@ -10,6 +10,7 @@ the affected entry. Maintained by `pdfce-librarian`.
 - `2c060e12` (`perf(render): a cancel stops inside an image decode, not after it (Pass 784.2)`). `cancel_latency`, 600 dpi scan, release, 16 delays x 3 runs: median 75.6 ms to 12.6 ms (render) / 12.5 ms (record), worst 403 ms to 27.6 / 36.3 ms; full-render median 1844 to 1830 ms (-0.8%, noise). Filters poll per 64 KiB and predictor row; JPEG via a local `PolledCursor` (no vendoring, no manifest change); lazy fallible remux grid, chunked 4 MiB zero-fill, per-band minify, per-row masks. New `decode_stream_cancellable`, `decode_image_view_cancellable`, `Cancelled` and `AllocationFailed` variants; core-api §7.3 updated.
 - Tests: 13 new, sabotage-checked; 2006 passed, 0 failed, 2 ignored over model, image-codec, jpeg-remux, render; wider earlier run 9244 passed; fuzz targets ran briefly, no crashes; gates green, one structure-baseline entry removed.
 - Docs: ROADMAP Shipped entry, Backlog `784.2` marked shipped, `784.2.a` added (grep-checked free across `docs/`); FEATURES cancel row's latency figure corrected (was "worst 150-170 ms"); `784.1` stays open.
+- Also filed here: `0fa19d4f`, the 1743rd filing, additionally deleted the `untagged-kind annot.ce_dimension` line from `tools/cross-cutting-baseline.txt`; `check-commits-filed` classes that commit as code because it touched `tools/`, so this entry files it.
 
 **Decisions made:** none. **Next:** `Pass 780.1`.
 
