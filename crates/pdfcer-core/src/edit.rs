@@ -160,6 +160,7 @@ mod dimension_centre_mark;
 mod dimension_circle;
 mod dimension_vertex_kind;
 mod flatten_dimensions;
+mod free_text_rebake;
 mod markup_rebake_keys;
 pub use dimension_centre_mark::{CentreMarkHost, CentreMarkOutcome};
 use dimension_vertex_kind::vertex_edited_kind;
@@ -22766,6 +22767,16 @@ pub struct TextAnnotStyleChange {
     pub text_style_written: bool,
     /// Whether a `/Stamp`'s label was replaced or reset.
     pub label_written: bool,
+    /// Whether a `/FreeText` gained a `/BS` it did not have: the width or
+    /// dash changed and the source named its border in neither `/BS` nor
+    /// `/Border` (ISO 32000-1 §12.5.4).
+    pub border_style_added: bool,
+    /// Keys a `/FreeText` keeps in its dictionary that pdfcer's redrawn
+    /// appearance does not depict: `LE` (a callout ending other than
+    /// `None`, `OpenArrow` or `ClosedArrow`, Table 179), `CL` (a callout
+    /// line that is not 4 or 6 numbers) and `BE` (a cloudy border; pdfcer
+    /// draws it straight). Empty when the redraw depicts every key.
+    pub keys_not_drawn: Vec<String>,
 }
 
 /// What [`EditSession::place_page_artwork`] placed, and what it decided
@@ -38649,29 +38660,10 @@ impl EditSession {
 
         let mut original = annot_author::text_spec_from_dict(&self.graph(), &current)?;
 
-        // THE STAMP'S OWN WORDS, RECOVERED BEFORE THE RE-BAKE
-        // (`Pass 292.0`) — and the defect this fixes was live, not
-        // theoretical.
-        //
-        // `text_spec_from_dict` returns `label: None` for a `/Stamp`, by
-        // design: a stamp's `/Contents` is a comment ABOUT the stamp and must
-        // not drive its face. But `None` rebuilds as the stamp NAME's default
-        // label, so re-baking a stamp from that spec replaces its face. An
-        // operator who changed the colour of a stamp reading
-        // `APPROVED FOR CONSTRUCTION` got one reading `DRAFT` — measured on a
-        // real file, from a control captioned "colour".
-        //
-        // `R245` again, and it is the exact shape: the recovery EXISTS and
-        // the resize route already calls it (`resize_annotation`, via
-        // `recover_stamp_parameters` + `apply_stamp_parameters`). This verb
-        // re-bakes the same annotation family and did not. A capability
-        // present on one route of two.
-        //
-        // `None` means the appearance is not one pdfcer can describe —
-        // Acrobat's custom stamps are artwork, not a laid-out label — and is
-        // reported through `stamp_appearance_was_foreign` rather than
-        // silently accepted, because the re-bake below is about to replace
-        // that artwork with pdfcer's plainer rendering.
+        // A stamp's face words come from its appearance, not `/Contents`
+        // (the spec reads `label: None`, which rebuilds the name's default
+        // label). `None` here is artwork pdfcer cannot describe, reported as
+        // foreign because the re-bake replaces it.
         let stamp_recovered = if target.subtype == b"Stamp" {
             self.recover_stamp_parameters(&current)
         } else {
@@ -38683,18 +38675,9 @@ impl EditSession {
         let stamp_appearance_was_foreign =
             target.subtype == b"Stamp" && stamp_recovered.is_none() && current.contains_key(b"AP");
 
-        // MEASURE `multiline` BEFORE RE-BAKING. The reader cannot report
-        // it (§12.5.6.6 gives the subtype no such key) and always says
-        // `false`, so baking that value back UN-WRAPS a wrapped text box --
-        // silently, from a control whose caption says "colour". That is the
-        // defect `Pass 253.5` fixes, and it shipped in `Pass 253.2` because
-        // this verb re-bakes a `/FreeText` and did not do what
-        // `set_markup_note` had been doing correctly one verb away.
-        //
-        // Measured against the ORIGINAL spec, whose text is what drew the
-        // appearance on disk. `None` means neither layout reproduces those
-        // bytes -- the appearance is foreign -- and is reported rather than
-        // silently treated as `false`.
+        // `multiline` has no key (§12.5.6.6), so it is measured against the
+        // appearance on disk; `None` means neither layout reproduces it (a
+        // foreign appearance), reported rather than treated as `false`.
         let measured_multiline = self.measure_free_text_multiline(&current, &original);
         let is_free_text = matches!(original, annot_author::TextAnnotSpec::FreeText { .. });
         let foreign_appearance =
@@ -38713,12 +38696,6 @@ impl EditSession {
 
         let amended = apply_text_annot_style(original, style, multiline);
         let authored = annot_author::build_text_annotation(&amended)?;
-        // The fit outcome of THIS re-bake (`Pass 292.0`). A size change can
-        // make a label stop fitting the box it is in, and the answer to
-        // "what happened to my rectangle" has to come from the same
-        // computation that moved it — never from a caller re-deriving the
-        // fit rule, which would be a second implementation drifting from the
-        // first.
         let stamp_label_fit = authored.stamp_label_fit;
         let rect_after = authored.rect;
 
@@ -38732,6 +38709,11 @@ impl EditSession {
                 rect: authored.rect,
             },
         )?;
+        let kept = if is_free_text {
+            self.keep_free_text_source_keys(&current, &mut regen.updated, style)
+        } else {
+            free_text_rebake::FreeTextKeysKept::default()
+        };
         let mut rich_text_dropped = Vec::new();
         if rich_text {
             for key in [&b"RC"[..], b"DS"] {
@@ -38771,6 +38753,8 @@ impl EditSession {
                 || style.dash.is_some(),
             text_style_written: style.text_color.is_some() || style.font.is_some(),
             label_written: style.label.is_some(),
+            border_style_added: kept.border_style_added,
+            keys_not_drawn: kept.keys_not_drawn,
         })
     }
 

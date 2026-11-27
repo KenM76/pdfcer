@@ -123,6 +123,7 @@ pub fn free_text_preview(spec: &TextAnnotSpec) -> Result<Option<FreeTextPreview>
         color,
         quadding,
         multiline,
+        frame,
         ..
     } = spec
     else {
@@ -130,11 +131,13 @@ pub fn free_text_preview(spec: &TextAnnotSpec) -> Result<Option<FreeTextPreview>
     };
     let authored = build_text_annotation(spec)?;
     let rect = positive_rect(*rect);
+    // A callout lays its text out in the `/RD` box, as the builder does.
+    let text_box = super::free_text_callout::text_box(rect.width(), rect.height(), frame);
     let bbox = Rect {
         llx: 0.0,
         lly: 0.0,
-        urx: rect.width(),
-        ury: rect.height(),
+        urx: text_box.width(),
+        ury: text_box.height(),
     };
     let (da, resources) = free_text_da(*font, *font_size, *color);
     let layout = vartext::layout_variable_text(bbox, text, &da, *quadding, *multiline, &resources)?;

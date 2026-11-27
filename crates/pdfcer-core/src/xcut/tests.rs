@@ -13,4 +13,5 @@ mod fixture;
 mod matrix_doc;
 mod negative;
 mod rebake;
+mod rebake_free_text;
 mod runner;

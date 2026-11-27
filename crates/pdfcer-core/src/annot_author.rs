@@ -1191,6 +1191,7 @@ pub fn text_spec_from_dict<G: ObjectGraph + ?Sized>(
                 frame: FreeTextFrame {
                     fill: read_color(graph, annot, FREE_TEXT_FILL_KEY),
                     dash: read_border_dash(graph, annot),
+                    callout: free_text_callout::read_callout(graph, annot),
                 },
             })
         }
@@ -3281,11 +3282,14 @@ pub(crate) use button_icon::{ButtonIcon, push_button_with_icon};
 pub use button_icon::{CaptionPosition, IconFit, IconScaleWhen, IconScaling};
 
 mod derived;
+mod free_text_callout;
 mod list_box;
 mod text_preview;
 pub use derived::{
     DERIVED_SUBTYPES, DerivedAppearance, FreeTextC, NotDerived, PlacedAppearance, derive_appearance,
 };
+pub use free_text_callout::FreeTextCallout;
+pub(crate) use free_text_callout::keys_not_drawn as free_text_keys_not_drawn;
 pub(crate) use list_box::build_list_box_appearance;
 pub use text_preview::{FreeTextPreview, free_text_preview};
 
@@ -3532,6 +3536,10 @@ pub struct FreeTextFrame {
     /// `/BS /D`: a dashed border; `None` is solid (Table 168). Drawn only
     /// with a border.
     pub dash: Option<BorderDash>,
+    /// `/IT /FreeTextCallout`: the `/CL` line and its `/LE` ending, drawn in
+    /// the border colour (else black) at the border width (else 1), with
+    /// the box and text in the `/RD` inner rectangle. `None` is a plain box.
+    pub callout: Option<FreeTextCallout>,
 }
 
 /// A text-bearing annotation to author (Pass 6.2). See the module section
@@ -5251,8 +5259,8 @@ fn free_text(
     frame: &FreeTextFrame,
 ) -> Result<AuthoredTextAnnot, VarTextError> {
     let rect = positive_rect(rect);
-    let w = rect.width();
-    let h = rect.height();
+    let text_box = free_text_callout::text_box(rect.width(), rect.height(), frame);
+    let (w, h) = (text_box.width(), text_box.height());
     let bbox = Rect {
         llx: 0.0,
         lly: 0.0,
@@ -5265,8 +5273,18 @@ fn free_text(
 
     // The frame is drawn OUTSIDE the /Tx text block (so the text clip does
     // not cut it) and before it, so the text sits on the fill.
-    let mut content = free_text_frame(w, h, border, border_width, frame);
-    content.extend_from_slice(&va.content);
+    let mut boxed = free_text_frame(w, h, border, border_width, frame);
+    boxed.extend_from_slice(&va.content);
+    let mut content = frame.callout.as_ref().map_or_else(Vec::new, |c| {
+        let width = if border_width > 0.0 {
+            border_width
+        } else {
+            1.0
+        };
+        let stroke = border.unwrap_or(Color::Gray(0.0));
+        c.paint((rect.llx, rect.lly), stroke, width)
+    });
+    content.extend(free_text_callout::placed(text_box, boxed));
 
     let mut annot = base_annot(b"FreeText", rect);
     annot.insert(Name::from(b"DA"), Object::String(da));
@@ -5284,6 +5302,9 @@ fn free_text(
     }
     if let Some(fill) = frame.fill {
         annot.insert(Name::from(FREE_TEXT_FILL_KEY), fill.to_array());
+    }
+    if let Some(callout) = &frame.callout {
+        callout.write_keys(&mut annot);
     }
 
     Ok(AuthoredTextAnnot {

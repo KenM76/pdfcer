@@ -220,10 +220,26 @@ fn report_text_annot_style(input: &Path, change: &TextAnnotStyleChange) {
             change.rich_text_dropped.join(", ")
         );
     }
+    if change.border_style_added {
+        eprintln!(
+            "pdfcer: {}: the text box named its border width in neither /BS nor /Border, so \
+             pdfcer ADDED a /BS entry to record the new width or dash (ISO 32000-1 12.5.4).",
+            input.display()
+        );
+    }
+    if !change.keys_not_drawn.is_empty() {
+        eprintln!(
+            "pdfcer: {}: kept /{} unchanged, but the redrawn appearance does not draw it (a \
+             callout ending or line pdfcer cannot paint, or a cloudy border drawn straight).",
+            input.display(),
+            change.keys_not_drawn.join(", /"),
+        );
+    }
     println!(
         "  obj={} subtype={} icon_written={} color_written={} font_size_written={} \
          opacity_written={} frame_written={} text_style_written={} label_written={} \
-         rect={:.2},{:.2},{:.2},{:.2} was_foreign={} rich_text_dropped={} appearance={}",
+         rect={:.2},{:.2},{:.2},{:.2} was_foreign={} rich_text_dropped={} \
+         border_style_added={} keys_not_drawn={} appearance={}",
         change.annot_id.num,
         change.subtype,
         u32::from(change.icon_written),
@@ -239,6 +255,12 @@ fn report_text_annot_style(input: &Path, change: &TextAnnotStyleChange) {
         change.rect_after.ury,
         u32::from(change.appearance_was_foreign),
         change.rich_text_dropped.len(),
+        u32::from(change.border_style_added),
+        if change.keys_not_drawn.is_empty() {
+            "-".to_owned()
+        } else {
+            change.keys_not_drawn.join(",")
+        },
         match change.appearance {
             pdfcer_core::edit::AppearanceWrite::InPlace(_) => "in-place",
             pdfcer_core::edit::AppearanceWrite::Created(_) => "created",
