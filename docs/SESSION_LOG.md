@@ -4,6 +4,15 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-11-26 (1732nd filing) — `v0.180.0` bump `a6f14b22` filed; release IN PROGRESS
+
+**Filed (engineer-reported; no shell here, git, push, CI and the gates not checked from here; operator commits):**
+- `a6f14b22` (`chore: bump version to 0.180.0`; parent `c5616e78`, the 1731st filing): all 17 crates in the workspace `Cargo.toml`, `Cargo.lock` and `fuzz/Cargo.lock` to 0.180.0. `cargo check --locked -p pdfcer-cli` passed on it.
+- Release `v0.180.0` in progress: carries `Pass 781.0` (`0e9223bf`, `5886050b`), `781.1` (`3d63a798`), `783.0` (`5be14814`, `G338`) and `784.0` (`3d5dfc5d`, `G337`) since `v0.179.0` (tag on `dad4f11b`). OneDrive slot `pdfcer1`; `pdfcer2` keeps 0.179.0. Plan: change-scoped gates, push `main`, CI green, tag on the filing commit (no `--no-verify`), package, smoke including `3d-render --panorama`, gh-release, deploy to `pdfcer1`, `verify-release.py`, `cargo publish` leaf-first.
+- `ROADMAP.md`: Shipped entry for the bump. `FEATURES.md`: no change.
+
+**Decisions made:** none. **Next:** CI green on the filing commit, then the release plan above.
+
 ## 2026-11-26 (1731st filing) — `Pass 784.0` shipped: a render cancel stops inside a large image decode (`G337`)
 
 **Filed (engineer-reported; no shell here, git, push, CI and the gates not checked from here; operator commits):**

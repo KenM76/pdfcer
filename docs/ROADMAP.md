@@ -112,6 +112,10 @@ wherever it appears.*
 
 ## Shipped
 
+### `v0.180.0` version bump `a6f14b22`; release IN PROGRESS, 2026-11-26 (1732nd filing)
+
+Engineer-reported; no shell here, so git, push, CI and the gates were not checked from here. `a6f14b22` (`chore: bump version to 0.180.0`; parent `c5616e78`) moves all 17 crates in the workspace `Cargo.toml`, `Cargo.lock` and `fuzz/Cargo.lock` to 0.180.0; `cargo check --locked -p pdfcer-cli` passed on it (engineer-reported). **Unreleased: the release is in progress.** It carries, since `v0.179.0` (tag on `dad4f11b`): `Pass 781.0` (`0e9223bf`, `5886050b`), `Pass 781.1` (`3d63a798`), `Pass 783.0` (`5be14814`, `G338`) and `Pass 784.0` (`3d5dfc5d`, `G337`). OneDrive slot `pdfcer1` (`pdfcer2` keeps 0.179.0). The tag goes on the filing commit after CI is green, pushed without `--no-verify`; smoke includes `3d-render --panorama`; the PUBLISHED entry follows.
+
 ### `Pass 784.0`: a render cancel stops inside a large image decode (`G337`, from pdfcer-gui); `3d5dfc5d`, 2026-11-26 (1731st filing)
 
 Engineer-reported; no shell here, so git, CI and the gates were not checked from here. `3d5dfc5d` is on `main`, local, not pushed. **Unreleased; rides the next release.** IDs `784.0`-`784.2` grep-checked unused across `docs/` by this filing. Reasoning is in the commit message.
