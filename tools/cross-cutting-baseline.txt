@@ -17,7 +17,6 @@ untagged-kind content.image_xobject
 untagged-kind content.inline_image
 untagged-kind content.form_xobject
 untagged-kind annot.text
-untagged-kind annot.ce_dimension
 untagged-kind annot.caret
 untagged-kind annot.stamp
 untagged-kind annot.popup

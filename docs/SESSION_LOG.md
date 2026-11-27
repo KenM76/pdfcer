@@ -4,6 +4,16 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-11-27 (1743rd filing) — `Pass 781.4` shipped: ce dimension copy, cut, paste and duplicate are clone-then-patch
+
+**Filed (engineer-reported; no shell here, git, CI and the gates not checked from here):**
+- `90db137a` (`fix(core): a ce dimension clip travels whole (Pass 781.4)`). Before, a duplicated linear ce dimension had its `/AP` redrawn, `/NM` not regenerated, `/T` and private key/stream lost, `/OC` rebound to Default; after, `/AP` bytes equal the source and every key is carried, one undo entry. Paste re-registers sidecar and group (style travels), regenerates `/NM`, drops and discloses `/Popup /IRT /StructParent`, swaps `/OC` for the source group's layer, keeps `/AP` only for a same-settings translate else "REDREW". `CLIP_VERSION` 7, an old ce dimension clip refused (`ClipError::Content`); core-api updated; GUI note E074.
+- Tests: new `ce_dimension_clip_carry.rs` (3) plus a refusal test in `clip_version_gating.rs`, 3 sabotages red; core and CLI 7845 passed, 0 failed, 4 ignored. xcut `kinds_untagged=23 carry_found=5 carry_baseline=5`; `annot.ce_dimension` Copy/Cut/Paste/Duplicate ok.
+- Docs: ROADMAP Shipped entry, Backlog `781.4` marked shipped, `781.4.a` and `781.4.b` added; FEATURES new ce dimension copy row (tagged `xc: annot.ce_dimension`), general copy/paste row corrected.
+- Amendment (same day): the `FEATURES.md` general copy/paste row still said a `MarkupSpec` is encoded from its own fields, never via the authored annotation dictionary; stale since `Pass 781.2` (`9afbd477`: raw annotation dictionary plus objects, patched on paste; `MarkupCarry` removed). That clause rewritten; ce dimension correction untouched.
+
+**Decisions made:** none new. **Next:** `Pass 780.1`.
+
 ## 2026-11-27 (1742nd filing) — `Pass 781.3.a` shipped: a pasted field keeps every font its `/DA` strings name
 
 **Filed (engineer-reported; no shell here, git, CI and the gates not checked from here):**

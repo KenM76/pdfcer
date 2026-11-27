@@ -112,6 +112,18 @@ wherever it appears.*
 
 ## Shipped
 
+### `Pass 781.4`: ce dimension copy, cut, paste and duplicate are clone-then-patch (decision 228); `90db137a`, 2026-11-27 (1743rd filing)
+
+Engineer-reported; no shell here, so git, CI and the gates were not checked from here. Reasoning is in the commit message. **Unreleased; rides the next release.**
+- **Measured, synthetic linear ce dimension duplicated with translate (10,-10).** Before: `/AP` redrawn (bytes and BBox changed), `/NM` not regenerated, `/T`, the private key and the private stream lost, `/OC` rebound to the Default layer. After: `/AP` bytes equal the source, every key carried, one undo entry, the sidecar names the stream actually shown.
+- **What paste patches.** Re-registers the sidecar and the group (group style now travels); regenerates `/NM`; drops `/Popup`, `/IRT`, `/StructParent`, counts them in `dropped_keys` and discloses them; swaps `/OC` when it named the source group's layer; keeps `/AP` only for a translate into a group with the same format, scale, standard and style, otherwise redraws and discloses "REDREW".
+- **API.** `CLIP_VERSION` is **7**; `CLIP_VERSION_PRE_DIMENSION_CARRY` is 6. An old ce dimension clip is refused with `ClipError::Content`. `ClipAnnotation::Dimension` gains `group_style` and `raw`. `docs/core-api/02-editing-and-saving.md` updated; GUI note **E074** written.
+- **Tests (engineer-reported):** core and CLI 7845 passed, 0 failed, 4 ignored; new `tests/ce_dimension_clip_carry.rs` (3) and a refusal test in `clip_version_gating.rs`; 3 sabotages went red.
+- **xcut:** `kinds_untagged=23 carry_found=5 carry_baseline=5`; the `annot.ce_dimension` Copy, Cut, Paste and Duplicate cells are ok. The engineer deletes the `untagged-kind annot.ce_dimension` baseline line in the same commit.
+- **FEATURES:** new row "Copy, cut, paste and duplicate a ce dimension" (core [x], cli [x] inherited from the general copy/paste row, gui [ ]), tagged `xc: annot.ce_dimension`; the general copy/paste row's claim that a `DimensionKind` is encoded from its own fields was corrected.
+- **Still open:** `781.4.a`, `781.4.b` (Backlog); `/OC` unbound stays `781.7.f`.
+- **State after:** Next up head stays `Pass 780.1`; `781.4` shipped.
+
 ### `Pass 781.3.a`: a pasted field keeps every font its `/DA` strings name; `7f2d4025`, 2026-11-27 (1742nd filing)
 
 Engineer-reported; no shell here, so git, CI and the gates were not checked from here. Reasoning is in the commit message. **Unreleased; rides the next release.** Specs: ISO 32000-2 §12.7.3.3, §12.7.4.3.
@@ -40803,7 +40815,9 @@ nothing gets forgotten, not as a commitment to build in this order.
   - **Not part of `781.2.d`, filed 1739th, each its own line:** (i) stamps and sticky notes still restyle through the old path, not the key-set rule; (ii) no CLI verb creates a callout (core, cli; would add a FEATURES row).
   - **`781.3`** SHIPPED (1741st, `5779b513`); see *Shipped*. Was: `FIELD_CARRIED_KEYS` inverted to a denylist (`FieldClip`, `FieldClipSet`); done as clone-then-patch, the allowlist deleted.
   - **`781.3.a`** SHIPPED (1742nd, `7f2d4025`); see *Shipped*. Was: a kid's own `/DA` naming a font other than the one inherited got no `/DR` install on paste.
-  - **`781.4`** ce dimension clone-then-patch (re-register sidecar, map group, re-bake `/AP` only on scale/format change). **`781.5`** content kinds (ExtGState, `BDC`, `/OC` chain; `ClipItem.kind` becomes `ObjectKind`). **`781.6`** document kinds (outline, attachment, page, layer, named destination).
+  - **`781.4`** SHIPPED (1743rd, `90db137a`); see *Shipped*. Was: ce dimension clone-then-patch (re-register sidecar, map group, re-bake `/AP` only on scale/format change).
+  - **`781.4.a`** an `/AP` with more than one state (`/R` or `/D`) is always redrawn on paste rather than kept. **`781.4.b`** `clip.rs` `to_bytes` and `from_bytes` are still over 80 lines (structure debt).
+  - **`781.5`** content kinds (ExtGState, `BDC`, `/OC` chain; `ClipItem.kind` becomes `ObjectKind`). **`781.6`** document kinds (outline, attachment, page, layer, named destination).
   - **`782.0`** Undo/Redo/Save. **`782.1`** Move/Transform/Align/Restack/Group/Ungroup/LayerAssign. **`782.2`** Delete and page routes. **`782.3`** Redact/Sanitize (`Remove`). **`782.4`** Flatten/Print/exports/PDF-A convert. **`782.5`** `read-probe`. **`782.6`** StructureTags/Search/Compare/HitTest/Properties/CliVerb/CoreApiDoc, matrix `pending=0`.
   - **`781.7.x` audit gaps, priority order, one row each (a day or less):**
     - **`781.7.a`** pdf dimension Line/Polygon/PolyLine paste drops `/Measure /IT /LL /LLE /LLO /Cap /CP /CO` (largest gap; a pdf dimension pastes as a plain line).
