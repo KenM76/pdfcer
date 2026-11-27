@@ -4,6 +4,19 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-11-27 (1745th filing) — `Pass 780.1` shipped: measured peak-memory predictors for image decode (inert)
+
+**Filed (engineer-reported; no shell here, git, CI and the gates not checked from here):**
+- `e4ac6574` (`feat(image-codec): measured peak-memory predictors per decode path (Pass 780.1)`). Acceptance `measured <= predicted <= 1.5 x measured` met on 52 of 52 cases, ratios 1.000 to 1.272 (worst DCT RGB 2x4 non-interleaved), across raw/1-bit, Flate (+PNG predictor), DCT (all eight sampling factors, baseline/non-interleaved/progressive, RGB/Gray; CMYK/YCCK baseline and non-interleaved), single-tile JPX 1/3/4 components, JBIG2 generic/text/halftone (whole-page and inset), CCITT G4. Measured by a hand-written peak-counting `GlobalAlloc` in `tests/peak_memory.rs`; wasm32 checks pass. Inert: no budget enforced, `780.0` ceilings unchanged until `780.5` (decision 227).
+- API: `pdfcer_image_codec::peak` (also `pdfcer_core::image_codec::peak`): `DecodeLimits`, `predict_peak`, `codec_working_bytes`; core-api `01-reading-and-model.md` updated. Dev-dependency `jpeg-encoder` (already in `PRIOR_ART.md`).
+- Tests: image-codec 122 unit, 8 integration, 5 doc passing; one sabotage red; fuzz `image_peak_predict` 114,360 runs clean; spec librarian filed `filter__jpx_codestream_main_header.md`.
+- Docs: ROADMAP Shipped entry, arc bullet marked shipped, Next-up banner now `780.2`, Backlog `780.1.a` added (grep-checked free across all `*.md`); FEATURES "No fixed image-size ceiling" row notes the predictors are inert, nothing ticked.
+- Amendment (same filing): that FEATURES row now carries `<!-- xc: content.image_xobject, content.inline_image -->` (it failed the cross-cutting gate untagged); the two `untagged-kind` baseline lines for those kinds in `tools/cross-cutting-baseline.txt` are deleted in the filing commit.
+
+**Unmet, filed as `780.1.a`:** progressive CMYK/YCCK unmeasured; multi-tile JPX unmeasured; remux length estimated 5/4 x input + 1 KiB, not read from headers.
+
+**Decisions made:** none. **Next:** `Pass 780.2` (evidence bounds).
+
 ## 2026-11-27 (1744th filing) — `Pass 784.2` shipped: a render cancel stops inside a single image decode
 
 **Filed (engineer-reported; no shell here, git, CI and the gates not checked from here):**

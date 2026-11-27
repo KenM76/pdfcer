@@ -13,8 +13,6 @@ carry crates/pdfcer-core/src/edit/insert_outline.rs::OutlineCarry
 # the same commit as the first `<!-- xc: ... -->` tag naming it.
 untagged-kind content.path
 untagged-kind content.text
-untagged-kind content.image_xobject
-untagged-kind content.inline_image
 untagged-kind content.form_xobject
 untagged-kind annot.text
 untagged-kind annot.caret
