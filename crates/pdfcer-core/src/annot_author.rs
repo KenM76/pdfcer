@@ -689,11 +689,11 @@ pub fn rect_inside_differences<G: ObjectGraph + ?Sized>(graph: &G, annot: &Dict)
 ///   §8.6.3 does (1 = DeviceGray, 3 = DeviceRGB, 4 = DeviceCMYK). A
 ///   **zero-length** array is the standard's own spelling of "no colour",
 ///   so it reads as `None`, not as an error.
-/// * `/LE` — Table 176 line endings. A value outside the three pdfcer
-///   authors degrades to [`LineEnding::None`] rather than failing the
-///   whole read: the ending is cosmetic, the line is not, and refusing to
-///   recolour a line because its arrowhead is a `/Butt` would be a refusal
-///   with no upside. **This is the one lossy step**, and callers disclose
+/// * `/LE` — Table 179 line endings. A name outside the table
+///   degrades to [`LineEnding::None`] rather than failing the whole read:
+///   the ending is cosmetic, the line is not, and refusing to recolour a
+///   line because its ending is misspelled would be a refusal with no
+///   upside. **This is the one lossy step**, and callers disclose
 ///   it rather than let it pass silently.
 ///
 /// # Round-trip note the caller must not miss
@@ -1403,8 +1403,8 @@ fn read_appearance_font<G: ObjectGraph + ?Sized>(
     crate::fontdata::std14_by_base_font(&String::from_utf8_lossy(base.as_bytes()))
 }
 
-/// Read `/LE` (Table 176), degrading anything outside the three pdfcer
-/// authors to [`LineEnding::None`].
+/// Read `/LE` (Table 179), degrading a name outside the table to
+/// [`LineEnding::None`].
 ///
 /// Degrading rather than failing: see [`spec_from_dict`]'s note — this is
 /// the one lossy step, and it is lossy in a direction the caller can
@@ -1413,14 +1413,7 @@ fn read_line_endings<G: ObjectGraph + ?Sized>(graph: &G, annot: &Dict) -> (LineE
     let Some(Object::Array(items)) = annot.get(b"LE").map(|o| graph.resolve(o)) else {
         return (LineEnding::None, LineEnding::None);
     };
-    let read = |i: usize| match items.get(i).map(|o| graph.resolve(o)) {
-        Some(Object::Name(n)) => match n.as_bytes() {
-            b"OpenArrow" => LineEnding::OpenArrow,
-            b"ClosedArrow" => LineEnding::ClosedArrow,
-            _ => LineEnding::None,
-        },
-        _ => LineEnding::None,
-    };
+    let read = |i: usize| line_ending_of(items.get(i).map(|o| graph.resolve(o)));
     (read(0), read(1))
 }
 
@@ -1467,31 +1460,6 @@ fn read_rect<G: ObjectGraph + ?Sized>(graph: &G, annot: &Dict, key: &[u8]) -> Op
     match read_numbers(graph, annot, key).as_slice() {
         &[x1, y1, x2, y2] => Some(Rect::from_corners(x1, y1, x2, y2)),
         _ => None,
-    }
-}
-
-/// A line-ending style (`/LE`, §12.5.6.7 Table 176). Pass 6.1 authors the
-/// two Acrobat draws by default plus `None`; the full Table 176 set is a
-/// documented not-yet-authored remainder.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum LineEnding {
-    /// `/None` — no ending shape.
-    None,
-    /// `/OpenArrow` — an open (unfilled) arrowhead. Acrobat's default at
-    /// both ends (`markup__shape_and_line_annotations.md`).
-    OpenArrow,
-    /// `/ClosedArrow` — a closed (filled) arrowhead.
-    ClosedArrow,
-}
-
-impl LineEnding {
-    /// The `/LE` name bytes.
-    const fn name(self) -> &'static [u8] {
-        match self {
-            Self::None => b"None",
-            Self::OpenArrow => b"OpenArrow",
-            Self::ClosedArrow => b"ClosedArrow",
-        }
     }
 }
 
@@ -1834,33 +1802,6 @@ const fn text_markup_token(kind: TextMarkupKind) -> &'static [u8] {
         TextMarkupKind::StrikeOut => b"strikeout",
         TextMarkupKind::Squiggly => b"squiggly",
     }
-}
-
-fn line_ending_of(obj: Option<&Object>) -> LineEnding {
-    match obj {
-        Some(Object::Name(n)) => match n.as_bytes() {
-            b"OpenArrow" => LineEnding::OpenArrow,
-            b"ClosedArrow" => LineEnding::ClosedArrow,
-            _ => LineEnding::None,
-        },
-        _ => LineEnding::None,
-    }
-}
-
-fn endings_of(obj: Option<&Object>) -> (LineEnding, LineEnding) {
-    match obj {
-        Some(Object::Array(a)) if a.len() == 2 => {
-            (line_ending_of(a.first()), line_ending_of(a.get(1)))
-        }
-        _ => (LineEnding::None, LineEnding::None),
-    }
-}
-
-fn endings_object(endings: (LineEnding, LineEnding)) -> Object {
-    Object::Array(vec![
-        Object::Name(Name::from(endings.0.name())),
-        Object::Name(Name::from(endings.1.name())),
-    ])
 }
 
 fn rect_object(r: Rect) -> Object {
@@ -2501,8 +2442,7 @@ fn line(
 ) -> AuthoredAppearance {
     // Arrowheads and stroke width extend past the endpoints; the margin
     // must contain them.
-    let arrow_len = arrow_length(width);
-    let margin = (width / 2.0).max(arrow_len);
+    let margin = ending_margin(width, endings);
     let rect = bounds_of([start, end].into_iter(), margin);
 
     let mut annot = base_annot(b"Line", rect);
@@ -2549,68 +2489,6 @@ fn line(
         ap_dict: form_dict(rect, Dict::new()),
         ap_content: b.into_bytes(),
         rect,
-    }
-}
-
-/// The arrowhead length pdfcer uses for a given line width (pdfcer's own
-/// choice — the exact Acrobat scaling is undocumented). Scales with width
-/// and has a floor so a thin line still gets a visible head.
-fn arrow_length(width: f64) -> f64 {
-    (width * 4.0).max(8.0)
-}
-
-/// Emit one line ending at `tip`, with the shaft arriving from `other`.
-/// `None` emits nothing; `OpenArrow` strokes a `<` outline; `ClosedArrow`
-/// strokes a triangle, filled in the current fill colour when `filled`.
-fn emit_line_ending(
-    b: &mut ContentBuilder,
-    tip: (f64, f64),
-    other: (f64, f64),
-    ending: LineEnding,
-    width: f64,
-    filled: bool,
-) {
-    if ending == LineEnding::None {
-        return;
-    }
-    let dx = tip.0 - other.0;
-    let dy = tip.1 - other.1;
-    let len = (dx * dx + dy * dy).sqrt();
-    if len < f64::EPSILON {
-        return; // zero-length line: no meaningful direction
-    }
-    // Unit vector pointing from `other` toward `tip` (the direction the
-    // arrow points).
-    let (ux, uy) = (dx / len, dy / len);
-    let a = arrow_length(width);
-    // Half-angle of the arrowhead ≈ 22.5° ⇒ half-width = a·tan(22.5°).
-    let half = a * 0.414_213_562_373_095;
-    // The two barb points, back `a` along the shaft and ±half across it.
-    let bx = tip.0 - ux * a;
-    let by = tip.1 - uy * a;
-    // Perpendicular unit vector.
-    let (px, py) = (-uy, ux);
-    let barb1 = (bx + px * half, by + py * half);
-    let barb2 = (bx - px * half, by - py * half);
-    match ending {
-        LineEnding::OpenArrow => {
-            b.move_to(barb1.0, barb1.1);
-            b.line_to(tip.0, tip.1);
-            b.line_to(barb2.0, barb2.1);
-            b.paint(Paint::Stroke);
-        }
-        LineEnding::ClosedArrow => {
-            b.move_to(tip.0, tip.1);
-            b.line_to(barb1.0, barb1.1);
-            b.line_to(barb2.0, barb2.1);
-            b.close_subpath();
-            b.paint(if filled {
-                Paint::FillStroke
-            } else {
-                Paint::Stroke
-            });
-        }
-        LineEnding::None => {}
     }
 }
 
@@ -2949,7 +2827,7 @@ fn with_polyline_endings(
         }
     }
     base.ap_content.extend_from_slice(&b.into_bytes());
-    let margin = (width / 2.0).max(arrow_length(width));
+    let margin = ending_margin(width, endings);
     let rect = bounds_of(vertices.iter().copied(), margin);
     base.rect = rect;
     base.annot.insert(Name::from(b"Rect"), rect_array(rect));
@@ -3283,6 +3161,7 @@ pub use button_icon::{CaptionPosition, IconFit, IconScaleWhen, IconScaling};
 
 mod derived;
 mod free_text_callout;
+mod line_ending;
 mod list_box;
 mod text_preview;
 pub use derived::{
@@ -3290,6 +3169,8 @@ pub use derived::{
 };
 pub use free_text_callout::FreeTextCallout;
 pub(crate) use free_text_callout::keys_not_drawn as free_text_keys_not_drawn;
+pub use line_ending::LineEnding;
+use line_ending::{emit_line_ending, ending_margin, endings_object, endings_of, line_ending_of};
 pub(crate) use list_box::build_list_box_appearance;
 pub use text_preview::{FreeTextPreview, free_text_preview};
 

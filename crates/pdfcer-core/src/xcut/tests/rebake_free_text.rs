@@ -150,19 +150,38 @@ fn a_redrawn_callout_draws_its_line_and_arrowhead() {
     );
 }
 
-/// A callout ending pdfcer does not paint (`/Square`) and a cloudy `/BE`
-/// stay in the dictionary and are named in the outcome, never dropped
-/// silently.
+fn callout_with(le: &str) -> (EditSession, ObjId) {
+    fixture::build_with_border(
+        ObjectKind::FreeText,
+        &format!(
+            "/Border [0 0 2] /IT /FreeTextCallout /CL [100 100 150 120] /LE /{le}              /RD [5 5 5 5] /BE << /S /C /I 1 >>"
+        ),
+    )
+}
+
+/// Every Table 179 style is drawn, so none is reported; the cloudy `/BE`
+/// (drawn straight) still is, and the dictionary keeps both.
+#[test]
+fn every_table_179_callout_ending_is_drawn_not_reported() {
+    for ending in crate::annot_author::LineEnding::ALL {
+        let le = String::from_utf8_lossy(ending.name()).into_owned();
+        let (mut s, id) = callout_with(&le);
+        let before = key_set(&s, id);
+        let change = restyle(&mut s, id, colour());
+        assert_eq!(key_set(&s, id), before, "/{le}");
+        assert_eq!(change.keys_not_drawn, vec!["BE".to_owned()], "/{le}");
+    }
+}
+
+/// A callout ending outside Table 179 and a cloudy `/BE` stay in the
+/// dictionary and are named in the outcome, never dropped silently.
 #[test]
 fn an_undrawable_callout_ending_is_kept_and_reported() {
-    let (mut s, id) = fixture::build_with_border(
-        ObjectKind::FreeText,
-        "/Border [0 0 2] /IT /FreeTextCallout /CL [100 100 150 120] /LE /Square /RD [5 5 5 5] \n         /BE << /S /C /I 1 >>",
-    );
+    let (mut s, id) = callout_with("Arrow");
     let before = key_set(&s, id);
     let change = restyle(&mut s, id, colour());
     assert_eq!(key_set(&s, id), before);
-    assert!(matches!(dict(&s, id).get(b"LE"), Some(Object::Name(n)) if n.as_bytes() == b"Square"));
+    assert!(matches!(dict(&s, id).get(b"LE"), Some(Object::Name(n)) if n.as_bytes() == b"Arrow"));
     assert_eq!(
         change.keys_not_drawn,
         vec!["LE".to_owned(), "BE".to_owned()]

@@ -1823,9 +1823,10 @@ disclosures, each named in the annotation's note:
 | `RenderOptions::with_free_text_c(mode)` | `const fn`, carried into `RenderPolicy::free_text_c`. The persisted choice is `Settings::free_text_c` (key `free_text_c`). CLI `--free-text-c fill` or `border` on `render-page` and `export-image`; without the flag the CLI uses the setting. |
 | font | the `/DA` font name resolved through the AcroForm `/DR /Font` (§12.7.3.3) to a standard-14 `/BaseFont`; anything else draws in Helvetica, noted `font /<name> … drawn in Helvetica`. |
 | other notes | `/RC` present: rich-text styling not reproduced; `0 Tf`: the chosen size; characters outside WinAnsi drawn as `?`. |
+| callout (`Pass 781.2.d`) | `/IT /FreeTextCallout` with a 4- or 6-number `/CL` is drawn by the restyle's own builder (`FreeTextFrame::callout`): the line and its `/LE` ending (any Table 179 style, never filled: FreeText has no ending interior) across `/Rect`, the box and text in the `/RD` inner rectangle. Notes: `callout line (/CL) drawn` (plus `; its /LE ending sized by pdfcer` when it has one, Table 179 sizes none); `callout line drawn in black: no key states its colour` under `Fill`; `/CL not drawn: no /IT /FreeTextCallout` for `/CL` without the intent; `callout ending (/LE) not drawn: not a Table 179 style`; `border effect (/BE) drawn straight`. |
 
-Declined: a callout (`/CL` or `/IT /FreeTextCallout`); rich text with no plain
-`/Contents`; a missing or unreadable `/DA`.
+Declined: a callout whose `/CL` is not four or six numbers; rich text with no
+plain `/Contents`; a missing or unreadable `/DA`.
 
 **The derivation is core's (`Pass 646.23`)**, shared by render and the opt-in
 bake verb (`EditSession::bake_missing_appearances`, 02), so the two cannot
@@ -2424,7 +2425,8 @@ document — that is what makes rule-4 disclosure cheap here.
 `Circle`, `Line`, `Ink`, `Polygon`, `PolyLine`, `TextMarkup`. `TextAnnotSpec`
 (`#[non_exhaustive]`) — `FreeText`, `Sticky`, `Stamp`. Supporting:
 `Color`, `Quad` + `Quad::from_rect(rect)`,
-`TextMarkupKind`, `LineEnding`, `StickyIcon`,
+`TextMarkupKind`, `LineEnding` (all ten ISO 32000-2 Table 179 styles since
+`Pass 781.2.d`; `ALL`, `name`, `from_name`), `StickyIcon`,
 `StampName` (14 names). For a page-level file attachment:
 `FileAttachmentSpec` (`#[non_exhaustive]`; build with `new`) and
 `AttachmentIcon` (`Pass 261.0`). For a caret: `CaretSpec` (`#[non_exhaustive]`;

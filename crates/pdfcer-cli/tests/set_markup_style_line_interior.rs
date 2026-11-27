@@ -9,7 +9,7 @@ use std::process::Command;
 const BIN: &str = env!("CARGO_BIN_EXE_pdfcer");
 
 /// One `/Line` with a closed arrowhead at its end and no `/IC`.
-fn fixture() -> PathBuf {
+fn fixture(tag: &str) -> PathBuf {
     let bodies = [
         "<< /Type /Catalog /Pages 2 0 R >>",
         "<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
@@ -33,15 +33,14 @@ fn fixture() -> PathBuf {
         format!("trailer\n<< /Size {size} /Root 1 0 R >>\nstartxref\n{xref_at}\n%%EOF\n")
             .as_bytes(),
     );
-    let path =
-        std::env::temp_dir().join(format!("pdfcer_line_interior_{}.pdf", std::process::id()));
+    let path = std::env::temp_dir().join(format!("pdfcer_line_{tag}_{}.pdf", std::process::id()));
     std::fs::write(&path, buf).unwrap();
     path
 }
 
 #[test]
 fn interior_on_a_line_writes_ic() {
-    let input = fixture();
+    let input = fixture("interior");
     let output = input.with_extension("out.pdf");
     let out = Command::new(BIN)
         .arg("set-markup-style")
@@ -58,4 +57,42 @@ fn interior_on_a_line_writes_ic() {
     for f in [input, output] {
         let _ = std::fs::remove_file(f);
     }
+}
+
+fn restyle_endings(input: &PathBuf, value: &str) -> (std::process::Output, PathBuf) {
+    let output = input.with_extension(format!("{}.pdf", value.replace(',', "_")));
+    let out = Command::new(BIN)
+        .arg("set-markup-style")
+        .arg(input)
+        .args(["--page", "1", "--index", "0", "--line-endings", value, "-o"])
+        .arg(&output)
+        .output()
+        .unwrap();
+    (out, output)
+}
+
+/// `--line-endings` takes every ISO 32000-2 Table 179 style by name, in any
+/// case, and writes it as `/LE`.
+#[test]
+fn line_endings_take_every_table_179_style() {
+    let input = fixture("endings");
+    for style in pdfcer_core::annot_author::LineEnding::ALL {
+        let name = String::from_utf8_lossy(style.name()).into_owned();
+        let value = format!("{},{name}", name.to_ascii_lowercase());
+        let (out, output) = restyle_endings(&input, &value);
+        assert!(out.status.success(), "{value}: {out:?}");
+        let saved = std::fs::read(&output).unwrap();
+        let appended = &saved[std::fs::metadata(&input).unwrap().len() as usize..];
+        let text = String::from_utf8_lossy(appended);
+        assert!(
+            text.contains(&format!("/LE [/{name} /{name}]")),
+            "{value}: {text}"
+        );
+        let _ = std::fs::remove_file(output);
+    }
+    let (out, _) = restyle_endings(&input, "arrow,none");
+    assert!(!out.status.success());
+    let err = String::from_utf8_lossy(&out.stderr);
+    assert!(err.contains("`arrow` is not one of"), "{err}");
+    let _ = std::fs::remove_file(input);
 }

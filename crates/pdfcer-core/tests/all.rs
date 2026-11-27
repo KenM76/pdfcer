@@ -162,6 +162,7 @@ mod insert_pages_struct_dest;
 mod layer_edit;
 mod layers;
 mod leaked_page_state;
+mod line_ending_styles;
 mod line_interior;
 mod link_author;
 mod link_read;

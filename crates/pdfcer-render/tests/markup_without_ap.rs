@@ -250,12 +250,9 @@ fn ic_makes_c_the_border() {
 }
 
 #[test]
-fn a_callout_rich_only_or_daless_free_text_is_declined() {
+fn a_malformed_callout_rich_only_or_daless_free_text_is_declined() {
     for (annot, why) in [
-        (
-            free_text("/IT /FreeTextCallout /CL [10 10 40 40]"),
-            "callout",
-        ),
+        (free_text("/IT /FreeTextCallout /CL [10 10 40]"), "callout"),
         (
             "<< /Type /Annot /Subtype /FreeText /RC (<body>Hi</body>) /DA (/Helv 12 Tf 0 g) \
              /Rect [40 40 260 120] >>"
@@ -272,6 +269,32 @@ fn a_callout_rich_only_or_daless_free_text_is_declined() {
         assert_eq!(drawn(&out, "FreeText"), 0, "{why}");
         assert!(notes(&out).contains(why), "{why}: {}", notes(&out));
     }
+}
+
+/// A callout with no `/AP` is drawn from its keys (Table 174): the `/CL` line
+/// and its `/Square` ending (Table 179) cross `/Rect`'s margin in `/C`, the
+/// box sits inside `/RD`, and the look says the ending was sized by pdfcer.
+#[test]
+fn a_callout_is_drawn_from_its_line_ending_and_inset_box() {
+    let out = one(&free_text(
+        "/IT /FreeTextCallout /CL [60 60 100 60 140 80] /LE /Square /RD [100 0 0 0]          /C [1 0 0] /IC [1 1 0] /BS << /W 3 >>",
+    ));
+    assert_eq!(drawn(&out, "FreeText"), 1);
+    assert_eq!(pixel(&out, 80, 60), (255, 0, 0), "on the callout line");
+    assert_eq!(pixel(&out, 54, 57), (255, 0, 0), "the square's left side");
+    // FreeText has no ending interior key (FT-A1): `/IC` fills the box only.
+    assert_eq!(
+        pixel(&out, 58, 63),
+        (255, 255, 255),
+        "the square is unfilled"
+    );
+    assert_eq!(pixel(&out, 60, 100), (255, 255, 255), "outside the box");
+    assert_eq!(pixel(&out, 200, 100), (255, 255, 0), "the box fill");
+    assert!(
+        notes(&out).contains("callout line (/CL) drawn"),
+        "{}",
+        notes(&out)
+    );
 }
 
 /// Table 174 `/RD`: the box is drawn in `/Rect` less the differences.

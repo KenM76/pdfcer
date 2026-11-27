@@ -7,13 +7,15 @@
 //! reason or, where ISO 32000 leaves it open, settled and disclosed in
 //! [`DerivedAppearance::notes`].
 //!
-//! `/FreeText` (ISO 32000-1 Table 174) has two such gaps:
+//! `/FreeText` (ISO 32000-1 Table 174) has three such gaps:
 //!
 //! - **The font.** `/DA` names a resource; §12.7.3.3 resolves it against the
 //!   AcroForm `/DR` (pdf-issues #726, spec RAG FT-A4). A `/DR` entry naming a
 //!   standard-14 font is used; anything else draws in Helvetica, noted.
 //! - **What `/C` colours.** No key carries a FreeText fill (FT-A1).
 //!   [`FreeTextC`] chooses, unless `/IC` is present.
+//! - **A callout's ending size.** Table 179 sizes no `/LE` style (spec RAG
+//!   ARR-A1); the callout is drawn by the restyle's own builder and noted.
 
 use super::{ColorEntry, MarkupSpec, Rect, TextAnnotSpec};
 use crate::fontdata::{self, Std14};
@@ -176,9 +178,9 @@ fn subtype_of<G: ObjectGraph + ?Sized>(graph: &G, dict: &Dict) -> String {
 /// [`NotDerived`] for a subtype outside [`DERIVED_SUBTYPES`]; a `/Line` that
 /// is a pdf dimension (`/Cap true`, `/LL` or `/IT /LineDimension`); no device
 /// colour (a closed shape: neither `/C` nor `/IC`); malformed geometry or a
-/// 2.0 `/Path`-only shape; a FreeText callout (`/CL`,
-/// `/IT /FreeTextCallout`), rich text with no plain `/Contents`, or a
-/// missing or unreadable `/DA`.
+/// 2.0 `/Path`-only shape; a FreeText callout (`/IT /FreeTextCallout`)
+/// whose `/CL` is not four or six numbers, rich text with no plain
+/// `/Contents`, or a missing or unreadable `/DA`.
 pub fn derive_appearance<G: ObjectGraph + ?Sized>(
     graph: &G,
     dict: &Dict,
@@ -295,9 +297,11 @@ fn resolve_font<G: ObjectGraph + ?Sized>(graph: &G, da: &[u8]) -> (Std14, Option
 
 /// Why this FreeText cannot be drawn without guessing, if it cannot.
 fn free_text_decline<G: ObjectGraph + ?Sized>(graph: &G, dict: &Dict) -> Option<NotDerived> {
-    if dict.get(b"CL").is_some() || name_is(graph, dict, b"IT", b"FreeTextCallout") {
+    if name_is(graph, dict, b"IT", b"FreeTextCallout")
+        && super::free_text_callout::read_callout(graph, dict).is_none()
+    {
         return Some(NotDerived::new(
-            "it is a callout (/CL), which pdfcer does not draw without /AP",
+            "it is a callout whose /CL is not four or six numbers",
         ));
     }
     let plain_empty = string_bytes(graph, dict, b"Contents").is_none_or(|s| s.is_empty());
@@ -307,6 +311,36 @@ fn free_text_decline<G: ObjectGraph + ?Sized>(graph: &G, dict: &Dict) -> Option<
         ));
     }
     None
+}
+
+/// What a derived FreeText settled or left undrawn about its callout and
+/// border: the callout itself, `/CL` without the callout intent (Table 174:
+/// "meaningful only if IT is FreeTextCallout"), and each key
+/// [`super::free_text_keys_not_drawn`] names.
+fn callout_notes<G: ObjectGraph + ?Sized>(
+    graph: &G,
+    dict: &Dict,
+    callout: Option<&super::FreeTextCallout>,
+) -> Vec<String> {
+    let mut notes = Vec::new();
+    match callout {
+        Some(c) if c.ending != super::LineEnding::None => {
+            notes.push("callout line (/CL) drawn; its /LE ending sized by pdfcer".to_owned());
+        }
+        Some(_) => notes.push("callout line (/CL) drawn".to_owned()),
+        None if dict.get(b"CL").is_some() => {
+            notes.push("/CL not drawn: no /IT /FreeTextCallout".to_owned());
+        }
+        None => {}
+    }
+    for key in super::free_text_keys_not_drawn(graph, dict) {
+        notes.push(match key.as_str() {
+            "LE" => "callout ending (/LE) not drawn: not a Table 179 style".to_owned(),
+            "BE" => "border effect (/BE) drawn straight".to_owned(),
+            other => format!("/{other} not drawn"),
+        });
+    }
+    notes
 }
 
 /// A FreeText's look from `/DA`, `/Contents`, `/Q`, `/Rect` less `/RD`.
@@ -331,8 +365,12 @@ fn free_text<G: ObjectGraph + ?Sized>(
         ..
     } = &mut spec
     {
-        // Table 174 /RD: the text and border sit in the inner rectangle.
-        if let Some(inner) = super::rect_inside_differences(graph, dict) {
+        // Table 174 /RD: the text and border sit in the inner rectangle. A
+        // callout keeps /Rect, its line crossing the margin; the baker
+        // insets its text box by /RD itself.
+        if frame.callout.is_none()
+            && let Some(inner) = super::rect_inside_differences(graph, dict)
+        {
             *rect = inner;
         }
         // The inner rectangle is "where the text should be displayed": wrap.
@@ -347,7 +385,11 @@ fn free_text<G: ObjectGraph + ?Sized>(
             if dict.get(b"BS").is_some() {
                 notes.push("border not drawn: no key states its colour".to_owned());
             }
+            if frame.callout.is_some() {
+                notes.push("callout line drawn in black: no key states its colour".to_owned());
+            }
         }
+        notes.extend(callout_notes(graph, dict, frame.callout.as_ref()));
     }
     if dict.get(b"RC").is_some() {
         notes.push("rich text (/RC) styling not reproduced; drawn from /Contents".to_owned());

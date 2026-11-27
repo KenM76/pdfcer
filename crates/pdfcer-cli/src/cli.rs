@@ -1479,12 +1479,15 @@ pub(crate) enum Command {
         /// conformant and accepted.
         #[arg(long, value_name = "INTENSITY")]
         cloud: Option<f64>,
-        /// Line endings at the start and end, `START,END`, each `none`,
-        /// `open` or `closed` (`/LE`, ISO 32000-1 Table 176).
+        /// Line endings at the start and end, `START,END`, each one of
+        /// `none`, `square`, `circle`, `diamond`, `openarrow`,
+        /// `closedarrow`, `butt`, `ropenarrow`, `rclosedarrow`, `slash`
+        /// (`/LE`, ISO 32000-2 Table 179), or `open`/`closed` for short.
         ///
         /// `line` and `polyline` only. Absent: `open,open` on a line,
         /// `none,none` on a polyline. On a polyline the heads follow the
-        /// first and last segments; `--fill` fills `closed` heads.
+        /// first and last segments; `--fill` fills the closed shapes
+        /// (square, circle, diamond and both closed arrows).
         #[arg(long, value_name = "START,END")]
         line_endings: Option<String>,
         /// Whole-annotation opacity `/CA`, `0.0`-`1.0` (ISO 32000-1
@@ -8838,8 +8841,10 @@ pub(crate) enum Command {
         /// `Square` and `Polygon` only; refused by name elsewhere.
         #[arg(long, value_name = "0-2|none")]
         cloud: Option<String>,
-        /// Line endings `START,END`, each `none`, `open` or `closed`
-        /// (`/LE`, ISO 32000-1 Table 176); or `none` alone to remove `/LE`.
+        /// Line endings `START,END`, each one of `none`, `square`, `circle`,
+        /// `diamond`, `openarrow`, `closedarrow`, `butt`, `ropenarrow`,
+        /// `rclosedarrow`, `slash` (`/LE`, ISO 32000-2 Table 179), or
+        /// `open`/`closed` for short; or `none` alone to remove `/LE`.
         ///
         /// OMITTING THIS PRESERVES THE EXISTING ENDINGS. `Line` and
         /// `PolyLine` only; refused by name elsewhere.

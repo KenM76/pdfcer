@@ -25,12 +25,13 @@ pub(crate) struct MarkupStyleArg<'a> {
     pub(crate) line_endings: Option<&'a str>,
 }
 
-/// Parse `START,END`, each `none`, `open` or `closed` (ISO 32000-1
-/// Table 176's `/None`, `/OpenArrow`, `/ClosedArrow`).
+/// Parse `START,END`, each a `/LE` style of ISO 32000-2 Table 179 (32000-1
+/// Table 176) in any case (`square`, `ropenarrow`, ...), or the short forms
+/// `open` and `closed` for `/OpenArrow` and `/ClosedArrow`.
 ///
 /// # Errors
 ///
-/// Not exactly two comma-separated names, or a name outside the three.
+/// Not exactly two comma-separated names, or a name outside the table.
 pub(crate) fn parse_line_endings(
     raw: &str,
 ) -> Result<
@@ -41,13 +42,22 @@ pub(crate) fn parse_line_endings(
     String,
 > {
     use pdfcer_core::annot_author::LineEnding;
-    let one = |s: &str| match s.trim().to_ascii_lowercase().as_str() {
-        "none" => Ok(LineEnding::None),
-        "open" => Ok(LineEnding::OpenArrow),
-        "closed" => Ok(LineEnding::ClosedArrow),
-        other => Err(format!(
-            "--line-endings: `{other}` is not `none`, `open` or `closed`"
-        )),
+    let one = |s: &str| {
+        let s = s.trim();
+        match s.to_ascii_lowercase().as_str() {
+            "open" => return Ok(LineEnding::OpenArrow),
+            "closed" => return Ok(LineEnding::ClosedArrow),
+            _ => {}
+        }
+        LineEnding::ALL
+            .into_iter()
+            .find(|e| e.name().eq_ignore_ascii_case(s.as_bytes()))
+            .ok_or_else(|| {
+                format!(
+                    "--line-endings: `{s}` is not one of none, open, closed, square, circle, \
+                     diamond, openarrow, closedarrow, butt, ropenarrow, rclosedarrow, slash"
+                )
+            })
     };
     match raw.split(',').collect::<Vec<_>>().as_slice() {
         [start, end] => Ok((one(start)?, one(end)?)),
@@ -1889,8 +1899,8 @@ pub(crate) fn report_dropped(input: &Path, dropped: &[pdfcer_core::edit::Dropped
                  explicit geometry keys) directly."
             }
             DroppedProperty::LineEnding => {
-                "a /LE line ending outside None/OpenArrow/ClosedArrow: it regenerates \
-                 as no ending."
+                "a /LE line ending outside ISO 32000-2 Table 179: it regenerates as \
+                 no ending."
             }
             _ => {
                 "the previous appearance stream was NOT one pdfcer would have drawn \

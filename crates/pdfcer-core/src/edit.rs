@@ -5958,14 +5958,13 @@ fn dropped_properties<G: ObjectGraph + ?Sized>(
             out.push(DroppedProperty::DashPattern);
         }
     }
-    // An /LE naming something outside the three pdfcer authors. Checked
-    // against the FILE rather than against the spec, because
-    // `spec_from_dict` has already degraded it to `None` — which is
-    // exactly why the loss has to be detected here and not there.
+    // An /LE naming something outside Table 179. Checked against the FILE
+    // rather than against the spec, because `spec_from_dict` has already
+    // degraded it to `None` — which is why the loss is detected here.
     if let Some(Object::Array(items)) = annot.get(b"LE").map(|o| graph.resolve(o))
         && items.iter().any(|item| {
             matches!(graph.resolve(item), Object::Name(n)
-                if !matches!(n.as_bytes(), b"None" | b"OpenArrow" | b"ClosedArrow"))
+                if crate::annot_author::LineEnding::from_name(n.as_bytes()).is_none())
         })
     {
         out.push(DroppedProperty::LineEnding);
@@ -6693,10 +6692,8 @@ pub enum DroppedProperty {
     /// inset from `/Rect`. pdfcer derives its geometry from `/Rect` (or
     /// from the explicit geometry keys) directly.
     RectDifferences,
-    /// `/LE` named a line ending outside the three pdfcer authors
-    /// (`/None`, `/OpenArrow`, `/ClosedArrow`) — a `/Butt`, `/Diamond`,
-    /// `/Circle`, `/Square`, `/ROpenArrow`, `/RClosedArrow` or `/Slash`
-    /// (Table 176). It regenerates as no ending.
+    /// `/LE` named a line ending outside ISO 32000-2 Table 179 (every
+    /// style in the table is drawn). It regenerates as no ending.
     LineEnding,
     /// The original `/AP` `/N` was **replaced**, and its bytes were not
     /// what pdfcer would have drawn from the annotation's own declared
@@ -66269,7 +66266,7 @@ endstream",
                 "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 300 200] /Resources << >> \
                  /Annots [4 0 R] >>",
                 "<< /Type /Annot /Subtype /Line /Rect [10 10 100 40] /L [10 10 100 40] \
-                 /C [1 0 0] /LE [/Diamond /ClosedArrow] >>",
+                 /C [1 0 0] /LE [/Arrow /ClosedArrow] >>",
             ],
             "",
         );
@@ -66296,6 +66293,43 @@ endstream",
             le[1].as_name().map(|n| n.as_bytes().to_vec()),
             Some(b"ClosedArrow".to_vec())
         );
+    }
+
+    /// Every Table 179 style is drawn, so a restyle keeps it and reports
+    /// nothing lost.
+    #[test]
+    fn a_table_179_line_ending_survives_a_restyle_unreported() {
+        let bytes = build(
+            &[
+                "<< /Type /Catalog /Pages 2 0 R >>",
+                "<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
+                "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 300 200] /Resources << >>                  /Annots [4 0 R] >>",
+                "<< /Type /Annot /Subtype /Line /Rect [10 10 100 40] /L [10 10 100 40]                  /C [1 0 0] /LE [/Diamond /RClosedArrow] >>",
+            ],
+            "",
+        );
+        let mut s = session(bytes);
+        let change = s
+            .set_markup_style(
+                ObjId::new(4, 0),
+                &MarkupStyle {
+                    width: Some(2.0),
+                    ..MarkupStyle::default()
+                },
+            )
+            .unwrap();
+        assert!(!change.dropped.contains(&DroppedProperty::LineEnding));
+        let Some(Object::Dict(after)) = s.value(ObjId::new(4, 0)) else {
+            panic!("annot");
+        };
+        let names: Vec<Vec<u8>> = match after.get(b"LE") {
+            Some(Object::Array(le)) => le
+                .iter()
+                .filter_map(|n| n.as_name().map(|n| n.as_bytes().to_vec()))
+                .collect(),
+            other => panic!("/LE {other:?}"),
+        };
+        assert_eq!(names, vec![b"Diamond".to_vec(), b"RClosedArrow".to_vec()]);
     }
 
     #[test]
