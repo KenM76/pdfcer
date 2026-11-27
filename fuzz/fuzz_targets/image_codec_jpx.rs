@@ -92,6 +92,9 @@
 
 #![no_main]
 
+#[path = "../evidence_oracle.rs"]
+mod evidence_oracle;
+
 use libfuzzer_sys::fuzz_target;
 use pdfcer_core::document::Document;
 use pdfcer_core::image_codec::decode_image;
@@ -150,7 +153,8 @@ fuzz_target!(|data: &[u8]| {
     // spec, which is precisely the input a fuzzer should be steering
     // into the adapter's fallback.
     bare.insert(Name::from(b"SMaskInData"), Object::Integer(byte(2) % 5 - 1));
-    let _ = decode_image(&doc, &bare, codestream, false);
+    let out = decode_image(&doc, &bare, codestream, false);
+    evidence_oracle::assert_evidence_holds(&out, codestream.len());
 
     // The same codestream under a dictionary that states BOTH of the
     // entries Table 89 tells a reader to ignore, with values chosen to
@@ -171,7 +175,8 @@ fuzz_target!(|data: &[u8]| {
         Name::from(b"Decode"),
         Object::Array(vec![Object::Integer(1), Object::Integer(0)]),
     );
-    let _ = decode_image(&doc, &stated, codestream, false);
+    let out = decode_image(&doc, &stated, codestream, false);
+    evidence_oracle::assert_evidence_holds(&out, codestream.len());
 
     // §7.4.9 / §8.9.7: JPXDecode is forbidden in an inline image. The
     // rejection happens before any byte is touched, so this call is

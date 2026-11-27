@@ -3065,6 +3065,14 @@ image, decoded or not; render counts it in
 and `MaskRefusal::AllocationFailed(u64)`, key `mask/allocation-failed`)
 means the image is within the ceilings but the allocator refused it; it
 is a refusal, never an abort.
+`DeclaredGeometryExceedsData { codec, declared: DeclaredGeometry, min_bytes,
+have_bytes }` (`evidence.rs`, decision 227) refuses a DCT, JPX or CCITT
+codestream that declares more geometry than its bytes could encode, before
+anything is sized from it; `Display` names both figures.
+`DeclaredGeometry` (`#[non_exhaustive]`): `Pixels{width,height} |
+Tiles{count} | Rows{rows}`. `ImageCodecError::refusal_key() -> Option<&'static
+str>` gives `image/evidence/{dct,jpx,ccitt}` for it, `None` otherwise.
+Render surfaces it as `ImageError::UnsupportedFilter(message)`.
 
 `image_codec::jxl` exports `is_jxl(&[u8]) -> bool` and
 `decode_pixels(&[u8]) -> Result<JxlPixels, ImageCodecError>` (frame 0, 8-bit,
@@ -3226,7 +3234,8 @@ f.eval_into(&inputs, &mut buf)?;                           // function.rs
 | DCT progressive scans | `dct::MAX_PROGRESSIVE_SCANS` = 100 *(private)* | `Corrupt` |
 | JPX/JXL working memory, JPEG remux grid | `MAX_DECODER_WORKING_BYTES` = 512 MiB (fixed, not derived from the pixel ceiling) | `TooLarge` |
 | Any large sample/texel/mask buffer | allocator refusal | `AllocationFailed` |
-| JPX tile count | `jpx::MAX_TILES` = 4096 *(private)* | `TooLarge` |
+| Declared geometry vs. data (evidence, checked first) | DCT: first scan's fewest-block component x 2 bits (sequential) or 1 bit (progressive DC); JPX: 14 bytes per tile past `MAX_TILES`; CCITT: `Rows` <= 8 x len + 1 | `DeclaredGeometryExceedsData` |
+| JPX tile count | `jpx::MAX_TILES` = 4096 *(private)*: tiles up to it need no evidence | `DeclaredGeometryExceedsData` |
 | JPX component bit depth | `jpx::MAX_COMPONENT_BIT_DEPTH` = 31 *(private)* | `FeatureUnsupported` |
 | CCITT/JBIG2 sink budget | `BilevelSink::budget` (latched, since vendor sinks are infallible) | `TooLarge` |
 | Type-4 PS stack | `PS_STACK_LIMIT` = 100 — **spec floor+ceiling**, not policy | `StackOverflow{limit}` |

@@ -121,6 +121,11 @@ pub mod jpx;
 pub mod jxl;
 pub mod peak;
 
+/// Evidence bounds: declared geometry checked against the codestream's own
+/// length (decision 227).
+mod evidence;
+pub use evidence::DeclaredGeometry;
+
 /// Shared 1-bit sample packing for the two fax codecs. Private: it is an
 /// implementation detail of [`ccitt`] and [`jbig2`], not part of the
 /// crate's API surface.
@@ -197,6 +202,7 @@ pub const MAX_DECODER_WORKING_BYTES: u64 = 1 << 29;
 
 /// A zeroed buffer of `len` bytes, or [`ImageCodecError::AllocationFailed`]
 /// when the allocator refuses it.
+#[cfg(any(feature = "jpx", feature = "jxl"))]
 pub(crate) fn zeroed(len: usize) -> Result<Vec<u8>, ImageCodecError> {
     zeroed_polled(len, &|| false)
 }
@@ -521,6 +527,26 @@ pub enum ImageCodecError {
     /// [`MAX_IMAGE_SAMPLE_BYTES`]).
     #[error("image exceeds pdfcer's decode ceilings ({MAX_IMAGE_PIXELS} pixels max)")]
     TooLarge,
+    /// The codestream declares more geometry than its own bytes could
+    /// encode (decision 227): any conforming encoding of `declared` takes
+    /// at least `min_bytes`, and the codec was handed `have_bytes`. Refused
+    /// before anything is sized from the declared geometry.
+    /// [`ImageCodecError::refusal_key`] names the codec's bound.
+    #[error(
+        "{} data declares {declared} but is {have_bytes} bytes; encoding that takes at \
+         least {min_bytes} bytes",
+        .codec.name()
+    )]
+    DeclaredGeometryExceedsData {
+        /// Which codec's bound refused it.
+        codec: Codec,
+        /// The geometry the codestream or its parameters declared.
+        declared: DeclaredGeometry,
+        /// Fewest bytes any conforming encoding of `declared` takes.
+        min_bytes: u64,
+        /// Bytes the codec was given.
+        have_bytes: u64,
+    },
     /// The allocator refused a buffer the image needed. The image is
     /// within pdfcer's ceilings; the machine lacks the memory (decision
     /// 226). Never an abort, because on wasm32 an abort traps the module.
@@ -1291,11 +1317,20 @@ mod tests {
 
     #[test]
     fn a_codestream_past_max_image_pixels_is_refused_before_allocating() {
-        // 65535 x 65535 = 4.3 Gpx. Refused on the declared geometry, not
-        // after a 17 GiB allocation attempt (rule R25).
+        // 65535 x 65535 = 4.3 Gpx from 393 bytes. Evidence refuses it first:
+        // 1x1-sampled 3-component baseline, so each component has 8192^2
+        // blocks at 2 bits each, 16 MiB of entropy data at the least.
         assert_eq!(
             decode_fixture(fixtures::RGB_HUGE_DIMS, &dct_dict(65535, 65535)).unwrap_err(),
-            ImageCodecError::TooLarge
+            ImageCodecError::DeclaredGeometryExceedsData {
+                codec: Codec::Dct,
+                declared: DeclaredGeometry::Pixels {
+                    width: 65535,
+                    height: 65535
+                },
+                min_bytes: 1 << 24,
+                have_bytes: fixtures::RGB_HUGE_DIMS.len() as u64,
+            }
         );
     }
 
@@ -1326,7 +1361,10 @@ mod tests {
     fn one_row_past_max_image_pixels_is_refused() {
         // 11586^2 = MAX_IMAGE_PIXELS + 17,668; 11585^2 is under it.
         const { assert!(11586u64 * 11586 > MAX_IMAGE_PIXELS && 11585u64 * 11585 <= MAX_IMAGE_PIXELS) };
-        let bytes = rgb_with_sof_dims(11586, 11586);
+        // Padded past EOI so the evidence bound (1449^2 blocks x 2 bits)
+        // is met and the pixel ceiling is what refuses it.
+        let mut bytes = rgb_with_sof_dims(11586, 11586);
+        bytes.resize(bytes.len() + 1449 * 1449 / 4 + 1, 0);
         assert_eq!(
             decode_fixture(&bytes, &dct_dict(11586, 11586)).unwrap_err(),
             ImageCodecError::TooLarge
@@ -1800,6 +1838,20 @@ mod tests {
         }
     }
 
+    #[cfg(feature = "jpx")]
+    #[test]
+    fn a_jp2_box_length_near_usize_max_is_corrupt_not_a_panic() {
+        // LBox = 1, XLBox = u64::MAX - 3 (ISO/IEC 15444-1 I.4): the box
+        // walk steps to four bytes short of usize::MAX, where `pos + 4`
+        // overflowed. Found by `image_codec_jpx` once the tile count ran
+        // before `Image::new`.
+        let mut data = vec![0, 0, 0, 1];
+        data.extend_from_slice(b"jP  ");
+        data.extend_from_slice(&(u64::MAX - 3).to_be_bytes());
+        let err = decode_fixture(&data, &jpx_gray_dict()).unwrap_err();
+        assert!(matches!(err, ImageCodecError::Corrupt { .. }), "{err:?}");
+    }
+
     // Needs the `jpx` codec compiled in; see the feature block in Cargo.toml.
     #[cfg(feature = "jpx")]
     #[test]
@@ -1812,8 +1864,8 @@ mod tests {
         // of work for half a megapixel of output.
         //
         // Neither MAX_IMAGE_PIXELS (512 Kpx is 1/64th of it) nor the
-        // sample/working-set ceilings see this, which is exactly why
-        // MAX_TILES exists (rule R25).
+        // sample/working-set ceilings see this; evidence does, since each
+        // tile past MAX_TILES needs a 14-byte minimal tile-part.
         //
         // Built by rewriting the fixture's SIZ marker, so the rest of
         // the main header stays valid and the parse genuinely reaches
@@ -1828,7 +1880,12 @@ mod tests {
         }
         assert_eq!(
             decode_fixture(&shredded, &jpx_gray_dict()).unwrap_err(),
-            ImageCodecError::TooLarge,
+            ImageCodecError::DeclaredGeometryExceedsData {
+                codec: Codec::Jpx,
+                declared: DeclaredGeometry::Tiles { count: 65_536 },
+                min_bytes: 65_536 * 14,
+                have_bytes: shredded.len() as u64,
+            },
             "a 65,536-tile grid must be refused before any tile is built"
         );
     }
@@ -2136,8 +2193,12 @@ mod tests {
             (b"Columns", Object::Integer(65535)),
             (b"Rows", Object::Integer(65535)),
         ]);
+        // Padded so the 65535 rows have the 8192 bytes evidence asks for
+        // and the pixel ceiling is what refuses them.
+        let mut padded = fixtures_bilevel::CCITT_G4_16X4.to_vec();
+        padded.resize(8192, 0);
         assert_eq!(
-            decode_fixture(fixtures_bilevel::CCITT_G4_16X4, &dict).unwrap_err(),
+            decode_fixture(&padded, &dict).unwrap_err(),
             ImageCodecError::TooLarge
         );
         // A width past MAX_IMAGE_DIMENSION is refused on its own.

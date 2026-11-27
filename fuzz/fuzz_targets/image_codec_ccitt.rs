@@ -60,6 +60,9 @@
 
 #![no_main]
 
+#[path = "../evidence_oracle.rs"]
+mod evidence_oracle;
+
 use libfuzzer_sys::arbitrary::{self, Arbitrary};
 use libfuzzer_sys::fuzz_target;
 use pdfcer_core::document::Document;
@@ -211,8 +214,10 @@ fuzz_target!(|input: Input<'_>| {
     // Both origins: `CCF` is a legal inline abbreviation (Table 94), so
     // the inline path reaches the same decoder through different
     // dictionary normalization.
-    let _ = decode_image(&doc, &dict, input.data, false);
-    let _ = decode_image(&doc, &dict, input.data, true);
+    for inline in [false, true] {
+        let out = decode_image(&doc, &dict, input.data, inline);
+        evidence_oracle::assert_evidence_holds(&out, input.data.len());
+    }
 
     // The polarity branch that the flags above may not have selected.
     // `/BlackIs1` is the one Table 11 parameter that changes what the

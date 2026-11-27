@@ -56,6 +56,9 @@
 
 #![no_main]
 
+#[path = "../evidence_oracle.rs"]
+mod evidence_oracle;
+
 use libfuzzer_sys::fuzz_target;
 use pdfcer_core::document::Document;
 use pdfcer_core::image_codec::decode_image;
@@ -117,8 +120,10 @@ fuzz_target!(|data: &[u8]| {
 
     // Both origins: §8.9.7's inline rules are a different code path,
     // and `DCT` is legal inline while `JBIG2Decode`/`JPXDecode` are not.
-    let _ = decode_image(&doc, &dict, codestream, false);
-    let _ = decode_image(&doc, &dict, codestream, true);
+    for inline in [false, true] {
+        let out = decode_image(&doc, &dict, codestream, inline);
+        evidence_oracle::assert_evidence_holds(&out, codestream.len());
+    }
 
     // The same bytes routed as an ASCII85-armoured codestream, which is
     // a real and legal chain shape and exercises the byte-stream

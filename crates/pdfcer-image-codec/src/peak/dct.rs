@@ -4,17 +4,24 @@
 
 use super::{be, len};
 
-/// Frame and first-scan header fields the prediction needs.
-struct Header {
+/// Frame and first-scan header fields the prediction and the evidence
+/// bound ([`crate::evidence`]) need.
+pub(crate) struct Header {
     /// SOF marker low byte: 0/1 sequential Huffman, 2 progressive.
-    process: u8,
-    precision: u8,
-    width: u64,
-    height: u64,
+    pub(crate) process: u8,
+    pub(crate) precision: u8,
+    pub(crate) width: u64,
+    pub(crate) height: u64,
     /// `(H, V)` per frame component, in frame order (T.81 B.2.2).
-    sampling: Vec<(u64, u64)>,
+    pub(crate) sampling: Vec<(u64, u64)>,
+    /// Component identifier Ci per frame component, in frame order.
+    pub(crate) ids: Vec<u8>,
     /// Ns of the first scan (T.81 B.2.3).
-    first_scan_components: u64,
+    pub(crate) first_scan_components: u64,
+    /// Scan component selectors Csj of the first scan (T.81 B.2.3).
+    pub(crate) first_scan_selectors: Vec<u8>,
+    /// Ss of the first scan; 0 is a DC scan (T.81 B.2.3, G.1.1.1.1).
+    pub(crate) first_scan_ss: u8,
 }
 
 /// Working bytes above `data` for a DCT decode, or `None` for a process
@@ -149,7 +156,7 @@ impl Geometry {
 /// Walks marker segments from SOI to the first SOS (T.81 B.1.1.2, B.2).
 /// Each step consumes at least two bytes, so the walk is bounded by
 /// `data.len()`.
-fn header(data: &[u8]) -> Option<Header> {
+pub(crate) fn header(data: &[u8]) -> Option<Header> {
     if data.get(..2)? != [0xFF, 0xD8] {
         return None;
     }
@@ -175,7 +182,21 @@ fn header(data: &[u8]) -> Option<Header> {
             }
             0xDA => {
                 let mut f = frame?;
+                let ns = usize::from(*payload.first()?);
                 f.first_scan_components = u64::from(*payload.first()?);
+                // A short scan header leaves the selectors empty, which the
+                // evidence bound reads as "no opinion".
+                if let Some(ss) = payload.get(1 + 2 * ns) {
+                    f.first_scan_ss = *ss;
+                    f.first_scan_selectors = payload
+                        .get(1..1 + 2 * ns)
+                        .unwrap_or_default()
+                        .as_chunks::<2>()
+                        .0
+                        .iter()
+                        .map(|&[cs, _]| cs)
+                        .collect();
+                }
                 return Some(f);
             }
             0xD9 => return None,
@@ -200,6 +221,14 @@ fn sof(marker: u8, p: &[u8]) -> Option<Header> {
             .iter()
             .map(|&[_, hv, _]| (u64::from(hv >> 4), u64::from(hv & 0x0F)))
             .collect(),
+        ids: specs
+            .as_chunks::<3>()
+            .0
+            .iter()
+            .map(|&[c, _, _]| c)
+            .collect(),
         first_scan_components: 0,
+        first_scan_selectors: Vec::new(),
+        first_scan_ss: 0,
     })
 }

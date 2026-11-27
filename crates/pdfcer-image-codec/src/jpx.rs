@@ -231,9 +231,9 @@
 //! first minute of its first campaign. It is a CPU-exhaustion vector,
 //! not a memory one, so neither [`MAX_IMAGE_PIXELS`] nor
 //! `MAX_WORKING_BYTES` sees it: 512 Kpx is two orders of magnitude
-//! inside both. `MAX_TILES` is the guard that does, and it is a
-//! textbook case for rule R25 — a ceiling nobody would have thought to
-//! write until a fuzzer wrote the input that needs it.
+//! inside both. The guard that sees it is evidence (decision 227): past
+//! `MAX_TILES`, each tile must be backed by the 14 bytes its minimal
+//! tile-part takes, and 310 bytes cannot back 65,536 tiles.
 //!
 //! ## Upstream's admitted gaps become named diagnostics (rule R27)
 //!
@@ -276,7 +276,8 @@ use pdfcer_model::view::DocumentView;
 /// number the fuzz target's `-rss_limit_mb` is reasoned against.
 const MAX_WORKING_BYTES: u64 = MAX_DECODER_WORKING_BYTES;
 
-/// Maximum number of T.800 tiles pdfcer will decode in one image.
+/// Tile count up to which no evidence is asked for; past it each tile
+/// needs a minimal tile-part's bytes (`crate::evidence::jpx_tiles`).
 ///
 /// A tile grid is declared independently of the image size (`XTsiz` and
 /// `YTsiz` may each be as small as 1), and `hayro-jpeg2000` builds and
@@ -294,8 +295,7 @@ const MAX_WORKING_BYTES: u64 = MAX_DECODER_WORKING_BYTES;
 /// pathological case at roughly half a second instead of eight.
 ///
 /// Like every ceiling in this module it is pdfcer's own number, not a
-/// vendor default (rule R25), and it is validated against the corpus's
-/// veraPDF implementation-limits files before shipping.
+/// vendor default (rule R25).
 const MAX_TILES: u64 = 4096;
 
 /// Highest per-component bit depth pdfcer will scale from.
@@ -337,6 +337,9 @@ enum SMaskInData {
 ///
 /// # Errors
 ///
+/// - [`ImageCodecError::DeclaredGeometryExceedsData`] when the SIZ tile
+///   grid is past [`MAX_TILES`] and the data is too short to hold a
+///   minimal tile-part per tile;
 /// - [`ImageCodecError::TooLarge`] when the codestream's declared
 ///   geometry crosses [`MAX_IMAGE_PIXELS`], [`MAX_IMAGE_DIMENSION`],
 ///   [`MAX_IMAGE_SAMPLE_BYTES`] or [`MAX_WORKING_BYTES`];
@@ -415,6 +418,9 @@ pub(super) fn decode(
         target_resolution: None,
     };
 
+    if let Some(tiles) = tile_count(data) {
+        crate::evidence::jpx_tiles(tiles, MAX_TILES, data.len())?;
+    }
     let image = Image::new(data, &settings).map_err(|e| map_error(e, data))?;
     let (width, height) = (image.width(), image.height());
     let color = image.color_space().clone();
@@ -444,18 +450,6 @@ pub(super) fn decode(
     // constructible from a JP2 box set, so the guard is stated here too.
     if colour_channels == 0 {
         return Err(corrupt("codestream declares no colour channels"));
-    }
-    // The tile grid is declared independently of the image size, so this
-    // is a THIRD ceiling and not a restatement of the first two: the
-    // fuzz-found 512 x 1024 / 65,536-tile codestream is two orders of
-    // magnitude inside both of the above. `hayro-jpeg2000` keeps the
-    // tile parameters private, so they are re-read from the SIZ marker
-    // here — a bounded, fixed-offset read on a segment `Image::new` has
-    // already validated. `None` means the marker could not be located,
-    // which cannot happen after a successful parse; the guard declines
-    // to refuse an image on the strength of its own second-guessing.
-    if tile_count(data).is_some_and(|tiles| tiles > MAX_TILES) {
-        return Err(ImageCodecError::TooLarge);
     }
 
     let smask = smask_in_data(doc, dict);
@@ -968,19 +962,18 @@ fn unsupported_marker_feature(data: &[u8]) -> &'static str {
 /// the tile count is the quantity that bounds *decode work*, which no
 /// pixel or byte ceiling can see (see [`MAX_TILES`]).
 ///
-/// This is a fixed-offset read into a segment `Image::new` has already
-/// parsed and validated, so it is a second look rather than a second
-/// parser: SIZ is at a known position (T.800 A.5.1) and every field is
-/// a fixed-width big-endian integer.
+/// It runs before `Image::new`, so it is total on unvalidated bytes: SIZ
+/// is at a known position (T.800 A.5.1) and every field is a fixed-width
+/// big-endian integer.
 ///
 /// ```text
 /// +0 SOC | +2 SIZ | +4 Lsiz | +6 Rsiz | +8 Xsiz | +12 Ysiz
 /// +16 XOsiz | +20 YOsiz | +24 XTsiz | +28 YTsiz | +32 XTOsiz | +36 YTOsiz
 /// ```
 ///
-/// Returns `None` when the codestream cannot be located or the segment
-/// is short — cases that cannot follow a successful parse, and which the
-/// caller deliberately treats as "no opinion" rather than as a refusal.
+/// Returns `None` when the codestream cannot be located, the segment is
+/// short or a tile size is zero; the caller treats that as "no opinion"
+/// and leaves the refusal to `Image::new`.
 fn tile_count(data: &[u8]) -> Option<u64> {
     let soc = codestream_start(data)?;
     if data.get(soc + 2..soc + 4) != Some(&[0xFF, 0x51]) {
@@ -993,10 +986,10 @@ fn tile_count(data: &[u8]) -> Option<u64> {
     };
     let (x_size, y_size) = (be32(8)?, be32(12)?);
     let (x_tile, y_tile) = (be32(24)?, be32(28)?);
+    if x_tile == 0 || y_tile == 0 {
+        return None;
+    }
     let (x_tile_offset, y_tile_offset) = (be32(32)?, be32(36)?);
-    // A zero tile size and an offset past the image are both rejected by
-    // `size_marker` upstream, but this function must be total on its own
-    // terms: it also runs on inputs the fuzzer builds by hand.
     let across = x_size.checked_sub(x_tile_offset)?.div_ceil(x_tile.max(1));
     let down = y_size.checked_sub(y_tile_offset)?.div_ceil(y_tile.max(1));
     Some(across.saturating_mul(down))
@@ -1018,22 +1011,28 @@ fn codestream_start(data: &[u8]) -> Option<usize> {
     // end of the file".
     let mut pos = 0usize;
     for _ in 0..MAX_MARKERS_WALKED {
-        let lbox: [u8; 4] = data.get(pos..pos + 4)?.try_into().ok()?;
-        let kind = data.get(pos + 4..pos + 8)?;
+        // `pos` can sit past the end once a box claims a huge length.
+        let lbox: [u8; 4] = span(data, pos, 4)?.try_into().ok()?;
+        let kind = span(data, pos.checked_add(4)?, 4)?;
         let mut length = u64::from(u32::from_be_bytes(lbox));
         let mut header = 8usize;
         if length == 1 {
-            let xl: [u8; 8] = data.get(pos + 8..pos + 16)?.try_into().ok()?;
+            let xl: [u8; 8] = span(data, pos.checked_add(8)?, 8)?.try_into().ok()?;
             length = u64::from_be_bytes(xl);
             header = 16;
         } else if length == 0 {
             length = (data.len() - pos) as u64;
         }
         if kind == b"jp2c" {
-            return Some(pos + header);
+            return pos.checked_add(header);
         }
         let step = usize::try_from(length).ok()?.max(header);
         pos = pos.checked_add(step)?;
     }
     None
+}
+
+/// `data[at..at + len]`, `None` when out of range or `at + len` overflows.
+fn span(data: &[u8], at: usize, len: usize) -> Option<&[u8]> {
+    data.get(at..at.checked_add(len)?)
 }

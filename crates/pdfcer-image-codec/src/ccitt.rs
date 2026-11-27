@@ -192,6 +192,8 @@ impl Default for Params {
 ///
 /// # Errors
 ///
+/// [`ImageCodecError::DeclaredGeometryExceedsData`] when `Rows` exceeds
+/// what the data could code at one bit per row;
 /// [`ImageCodecError::TooLarge`] when `Columns`/`Rows` cross a pdfcer
 /// ceiling or the sink's byte budget is exhausted mid-decode;
 /// [`ImageCodecError::FeatureUnsupported`] with the key
@@ -219,8 +221,15 @@ pub(super) fn decode(
         return Err(ImageCodecError::TooLarge);
     }
 
-    let ceiling = row_ceiling(columns);
-    let rows = declared_rows(doc, &params, dict).unwrap_or(ceiling);
+    // Evidence first (decision 227): a declared row count the data cannot
+    // code is refused by name; an undeclared one is capped by the data.
+    let by_data = u32::try_from(crate::evidence::ccitt_max_rows(data.len())).unwrap_or(u32::MAX);
+    let ceiling = row_ceiling(columns).min(by_data);
+    let declared = declared_rows(doc, &params, dict);
+    if let Some(rows) = declared {
+        crate::evidence::ccitt_rows(rows, data.len())?;
+    }
+    let rows = declared.unwrap_or(ceiling);
     if u64::from(columns).saturating_mul(u64::from(rows)) > MAX_IMAGE_PIXELS {
         return Err(ImageCodecError::TooLarge);
     }
@@ -380,13 +389,6 @@ fn settings(params: &Params, columns: u32, rows: u32) -> DecodeSettings {
     }
 }
 
-/// The row count Table 11 lets pdfcer know in advance, if any.
-///
-/// `/Rows` first ("the height of the image in scan lines"), then the
-/// image dictionary's `/Height` — the fallback decision 005 §1.2 named
-/// as one of the two mechanical reasons this codec needs `&Document` at
-/// all. `None` means neither is usable and the caller falls back to
-/// [`row_ceiling`].
 /// `/Columns` and the declared row count exactly as [`decode`] reads them,
 /// for the peak predictor (decision 227).
 pub(crate) fn declared_geometry(
@@ -398,6 +400,13 @@ pub(crate) fn declared_geometry(
     (params.columns, declared_rows(doc, &params, dict))
 }
 
+/// The row count Table 11 lets pdfcer know in advance, if any.
+///
+/// `/Rows` first ("the height of the image in scan lines"), then the
+/// image dictionary's `/Height` — the fallback decision 005 §1.2 named
+/// as one of the two mechanical reasons this codec needs `&Document` at
+/// all. `None` means neither is usable and the caller falls back to
+/// [`row_ceiling`], capped by what the data can code.
 fn declared_rows(doc: &DocumentView<'_>, params: &Params, dict: &Dict) -> Option<u32> {
     u32::try_from(params.rows)
         .ok()

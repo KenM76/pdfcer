@@ -76,7 +76,7 @@ unsafe impl GlobalAlloc for Counting {
 static COUNTING: Counting = Counting;
 
 /// Peak bytes live above the starting level while `f` runs.
-fn peak_of<T>(f: impl FnOnce() -> T) -> (usize, T) {
+pub(crate) fn peak_of<T>(f: impl FnOnce() -> T) -> (usize, T) {
     let start = LIVE.with(Cell::get);
     PEAK.with(|p| p.set(start));
     let out = f();
@@ -84,7 +84,7 @@ fn peak_of<T>(f: impl FnOnce() -> T) -> (usize, T) {
     (peak.saturating_sub(start), out)
 }
 
-fn empty_document() -> Document {
+pub(crate) fn empty_document() -> Document {
     let mut buf = b"%PDF-1.7\n".to_vec();
     let mut offsets = Vec::new();
     for (num, body) in [
@@ -105,7 +105,13 @@ fn empty_document() -> Document {
     Document::from_bytes(buf).expect("synthetic document parses")
 }
 
-fn image_dict(filter: Option<&[u8]>, width: u32, height: u32, bpc: i64, cs: &[u8]) -> Dict {
+pub(crate) fn image_dict(
+    filter: Option<&[u8]>,
+    width: u32,
+    height: u32,
+    bpc: i64,
+    cs: &[u8],
+) -> Dict {
     let mut d = Dict::new();
     if let Some(f) = filter {
         d.insert(Name::from(&b"Filter"[..]), Object::Name(Name::from(f)));
@@ -142,7 +148,7 @@ fn check(label: &str, dict: &Dict, raw: &[u8]) {
 }
 
 /// A deterministic, non-flat test picture of `channels` interleaved bytes.
-fn picture(width: u32, height: u32, channels: usize) -> Vec<u8> {
+pub(crate) fn picture(width: u32, height: u32, channels: usize) -> Vec<u8> {
     let mut px = Vec::with_capacity(width as usize * height as usize * channels);
     for y in 0..height {
         for x in 0..width {
@@ -155,7 +161,7 @@ fn picture(width: u32, height: u32, channels: usize) -> Vec<u8> {
     px
 }
 
-fn jpeg(
+pub(crate) fn jpeg(
     width: u32,
     height: u32,
     colour: jpeg_encoder::ColorType,
@@ -244,7 +250,8 @@ fn be32(out: &mut Vec<u8>, v: u32) {
 /// A single-tile J2K codestream (T.800 Annex A) whose packets are all
 /// empty: every code-block is zero, which is what the decoder's buffers
 /// are sized by regardless.
-fn j2k(width: u32, height: u32, comps: u16, levels: u8) -> Vec<u8> {
+#[cfg(feature = "jpx")]
+pub(crate) fn j2k(width: u32, height: u32, comps: u16, levels: u8) -> Vec<u8> {
     let mut o = vec![0xFF, 0x4F, 0xFF, 0x51];
     o.extend_from_slice(&(38 + 3 * comps).to_be_bytes());
     o.extend_from_slice(&[0, 0]);
@@ -359,11 +366,12 @@ fn jbig2_text(page_w: u32, page_h: u32, w: u32, h: u32, x: u32, y: u32) -> Vec<u
     out
 }
 
-fn coded(filter: &[u8], width: u32, height: u32, bpc: i64, cs: &[u8]) -> Dict {
+pub(crate) fn coded(filter: &[u8], width: u32, height: u32, bpc: i64, cs: &[u8]) -> Dict {
     image_dict(Some(filter), width, height, bpc, cs)
 }
 
 /// Single-tile codestreams; multi-tile files are not measured.
+#[cfg(feature = "jpx")]
 #[test]
 fn jpx_one_to_four_components() {
     for (w, h, n, levels) in [

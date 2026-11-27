@@ -198,8 +198,10 @@ pub(crate) const MAX_REMUX_BLOCKS: usize = (MAX_DECODER_WORKING_BYTES / 128) as 
 ///
 /// [`ImageCodecError::FeatureUnsupported`] for arithmetic-coded,
 /// lossless, differential or non-8-bit JPEG and for an Adobe transform
-/// byte outside 0–2; [`ImageCodecError::TooLarge`] when a pdfcer ceiling
-/// is crossed; [`ImageCodecError::Corrupt`] for anything `zune-jpeg`
+/// byte outside 0–2; [`ImageCodecError::DeclaredGeometryExceedsData`]
+/// when the frame declares more blocks than the first scan's bytes could
+/// code; [`ImageCodecError::TooLarge`] when a pdfcer ceiling is crossed;
+/// [`ImageCodecError::Corrupt`] for anything `zune-jpeg`
 /// rejects; [`ImageCodecError::Cancelled`] once `cancelled` answers
 /// `true`, which the entropy decoder asks every few KiB of codestream
 /// ([`polled`]).
@@ -213,6 +215,7 @@ pub(super) fn decode(
     cancelled: &dyn Fn() -> bool,
 ) -> Result<CodedImage, ImageCodecError> {
     let frame = sniff(data)?;
+    crate::evidence::dct(data)?;
     // zune-jpeg 0.5.15 mis-reads subsampled components coded in separate
     // scans; the lossless one-scan rewrite decodes to the same pixels. Any
     // remux error falls back to the original bytes for zune to judge. A

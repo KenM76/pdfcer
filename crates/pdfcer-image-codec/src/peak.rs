@@ -14,7 +14,7 @@
 //! Nothing in this module refuses anything yet; the budget goes live in a
 //! later Pass and the existing ceiling constants stay in force until then.
 
-mod dct;
+pub(crate) mod dct;
 mod jbig2;
 #[cfg(feature = "jpx")]
 mod jpx;
