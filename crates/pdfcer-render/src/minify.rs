@@ -47,21 +47,36 @@ fn axis(texels: u32, device: f32) -> u32 {
 /// vectorisable add), then across `fx` columns. Each block then divides by
 /// a per-band constant through a reciprocal multiply instead of a hardware
 /// divide, which was most of the cost.
-pub(crate) fn box_reduce(src: &Pixmap, fx: u32, fy: u32) -> Option<Pixmap> {
+///
+/// `cancelled` is asked before each band; `None` once it answers `true`,
+/// as for a failed allocation.
+pub(crate) fn box_reduce(
+    src: &Pixmap,
+    fx: u32,
+    fy: u32,
+    cancelled: &dyn Fn() -> bool,
+) -> Option<Pixmap> {
     let (w, h) = (src.width() as usize, src.height() as usize);
     let (fxu, fyu) = (fx as usize, fy as usize);
     let (rw, rh) = (w.div_ceil(fxu), h.div_ceil(fyu));
     let mut out = Pixmap::new(u32::try_from(rw).ok()?, u32::try_from(rh).ok()?)?;
     // A u16 column sum holds up to 257 rows of 255.
-    if fy <= 257 {
-        reduce_bands::<u16>(src.data(), w, (fxu, fyu), out.data_mut());
+    let done = if fy <= 257 {
+        reduce_bands::<u16>(src.data(), w, (fxu, fyu), out.data_mut(), cancelled)
     } else {
-        reduce_bands::<u32>(src.data(), w, (fxu, fyu), out.data_mut());
-    }
-    Some(out)
+        reduce_bands::<u32>(src.data(), w, (fxu, fyu), out.data_mut(), cancelled)
+    };
+    done.then_some(out)
 }
 
-fn reduce_bands<T>(src: &[u8], w: usize, (fx, fy): (usize, usize), out: &mut [u8])
+/// `false` when `cancelled` stopped it part-way.
+fn reduce_bands<T>(
+    src: &[u8],
+    w: usize,
+    (fx, fy): (usize, usize),
+    out: &mut [u8],
+    cancelled: &dyn Fn() -> bool,
+) -> bool
 where
     T: Copy + Default + core::ops::AddAssign + From<u8>,
     u64: From<T>,
@@ -73,6 +88,9 @@ where
         .chunks(stride * fy)
         .zip(out.chunks_exact_mut(dst_stride))
     {
+        if cancelled() {
+            return false;
+        }
         col.fill(T::default());
         for row in band.chunks_exact(stride) {
             for (c, &v) in col.iter_mut().zip(row) {
@@ -96,6 +114,7 @@ where
             dst.copy_from_slice(&[r.min(a), g.min(a), b.min(a), a]);
         }
     }
+    true
 }
 
 /// Rounded division by a fixed `n`. For `n < 2^24` it multiplies by
@@ -125,8 +144,13 @@ impl Divisor {
 }
 
 /// `decoded` with every pixmap box-reduced by `(fx, fy)`: all of them or,
-/// if an allocation fails, none, so the routes never see mismatched grids.
-pub(crate) fn reduce_decoded(mut decoded: DecodedImage, (fx, fy): (u32, u32)) -> DecodedImage {
+/// if an allocation fails or `cancelled` answers `true` part-way, none, so
+/// the routes never see mismatched grids.
+pub(crate) fn reduce_decoded(
+    mut decoded: DecodedImage,
+    (fx, fy): (u32, u32),
+    cancelled: &dyn Fn() -> bool,
+) -> DecodedImage {
     if (fx, fy) == (1, 1) {
         return decoded;
     }
@@ -138,7 +162,10 @@ pub(crate) fn reduce_decoded(mut decoded: DecodedImage, (fx, fy): (u32, u32)) ->
         targets.extend([&mut op.tints.cmy, &mut op.tints.k]);
         targets.extend(op.spots.iter_mut().map(|s| &mut s.tint));
     }
-    let reduced: Option<Vec<Pixmap>> = targets.iter().map(|p| box_reduce(p, fx, fy)).collect();
+    let reduced: Option<Vec<Pixmap>> = targets
+        .iter()
+        .map(|p| box_reduce(p, fx, fy, cancelled))
+        .collect();
     if let Some(reduced) = reduced {
         for (dst, px) in targets.into_iter().zip(reduced) {
             *dst = px;
@@ -213,10 +240,22 @@ mod tests {
             *px = PremultipliedColorU8::from_rgba(c(31), c(57), c(13), a).unwrap();
         }
         for (fx, fy) in [(2, 2), (3, 3), (5, 7), (7, 1), (1, 9), (36, 300), (4, 260)] {
-            let fast = box_reduce(&src, fx, fy).unwrap();
+            let fast = box_reduce(&src, fx, fy, &|| false).unwrap();
             let plain = box_reduce_reference(&src, fx, fy).unwrap();
             assert_eq!(fast.data(), plain.data(), "{fx} x {fy}");
         }
+    }
+
+    #[test]
+    fn a_reduction_stops_at_the_band_the_poll_fires_on() {
+        let src = pixmap(64, 400, |x, y| ((x + y) % 256) as u8);
+        let calls = std::cell::Cell::new(0u32);
+        let poll = || {
+            calls.set(calls.get() + 1);
+            calls.get() >= 10
+        };
+        assert!(box_reduce(&src, 4, 4, &poll).is_none());
+        assert_eq!(calls.get(), 10, "asked once per band, and not after");
     }
 
     #[test]
@@ -234,7 +273,7 @@ mod tests {
         // One-pixel vertical hairline every 4 columns: bilinear at 4:1 can
         // miss it entirely; the box keeps a quarter of it in every block.
         let src = pixmap(16, 8, |x, _| if x % 4 == 1 { 0 } else { 255 });
-        let out = box_reduce(&src, 4, 4).unwrap();
+        let out = box_reduce(&src, 4, 4, &|| false).unwrap();
         assert_eq!((out.width(), out.height()), (4, 2));
         for p in out.pixels() {
             assert_eq!(p.red(), 191);
@@ -244,7 +283,7 @@ mod tests {
     #[test]
     fn a_partial_last_block_averages_only_what_exists() {
         let src = pixmap(5, 1, |x, _| if x == 4 { 100 } else { 0 });
-        let out = box_reduce(&src, 2, 1).unwrap();
+        let out = box_reduce(&src, 2, 1, &|| false).unwrap();
         assert_eq!(out.width(), 3);
         let reds: Vec<u8> = out.pixels().iter().map(|p| p.red()).collect();
         assert_eq!(reds, [0, 0, 100]);

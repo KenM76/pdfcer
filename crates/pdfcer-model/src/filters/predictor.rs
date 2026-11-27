@@ -133,10 +133,29 @@ impl Params {
 /// [`FilterError::RaggedRows`] if the length isn't a whole number of
 /// rows; [`FilterError::UnknownPngTag`] for a PNG row tag outside 0–4.
 pub fn unpredict(data: Vec<u8>, params: &Params) -> Result<Vec<u8>, FilterError> {
+    unpredict_polled(data, params, &super::never_cancelled)
+}
+
+/// [`unpredict`], asking `cancelled` once per row
+/// ([`super::decode_stream_cancellable`]).
+pub(super) fn unpredict_polled(
+    data: Vec<u8>,
+    params: &Params,
+    cancelled: &dyn Fn() -> bool,
+) -> Result<Vec<u8>, FilterError> {
     if params.predictor >= 10 {
-        unpredict_png(data, params)
+        unpredict_png(data, params, cancelled)
     } else {
-        unpredict_tiff(data, params)
+        unpredict_tiff(data, params, cancelled)
+    }
+}
+
+/// [`FilterError::Cancelled`] once `cancelled` answers `true`.
+fn poll(cancelled: &dyn Fn() -> bool) -> Result<(), FilterError> {
+    if cancelled() {
+        Err(FilterError::Cancelled)
+    } else {
+        Ok(())
     }
 }
 
@@ -148,7 +167,11 @@ pub fn unpredict(data: Vec<u8>, params: &Params) -> Result<Vec<u8>, FilterError>
 /// `tag + row_data_bytes`; output rows drop the tag. `Prior` of the
 /// first row is all zeros; `Raw(x < 0)` is 0 (RFC 2083 §6.1 boundary
 /// rules).
-fn unpredict_png(data: Vec<u8>, params: &Params) -> Result<Vec<u8>, FilterError> {
+fn unpredict_png(
+    data: Vec<u8>,
+    params: &Params,
+    cancelled: &dyn Fn() -> bool,
+) -> Result<Vec<u8>, FilterError> {
     let row_len = params.row_data_bytes();
     let png_row = row_len
         .checked_add(1)
@@ -163,66 +186,75 @@ fn unpredict_png(data: Vec<u8>, params: &Params) -> Result<Vec<u8>, FilterError>
     let mut row: Vec<u8> = vec![0; row_len];
 
     for chunk in data.chunks_exact(png_row) {
+        poll(cancelled)?;
         let (tag, filt) = chunk.split_first().ok_or(FilterError::RaggedRows)?;
         row.clear();
         row.extend_from_slice(filt);
-        match tag {
-            0 => {} // None: Raw(x) = Filt(x)
-            1 => {
-                // Sub: Raw(x) = Filt(x) + Raw(x − bpp)
-                for x in bpp..row_len {
-                    let left = row.get(x - bpp).copied().unwrap_or(0);
-                    if let Some(v) = row.get_mut(x) {
-                        *v = v.wrapping_add(left);
-                    }
-                }
-            }
-            2 => {
-                // Up: Raw(x) = Filt(x) + Prior(x)
-                for (v, &p) in row.iter_mut().zip(prior.iter()) {
-                    *v = v.wrapping_add(p);
-                }
-            }
-            3 => {
-                // Average: inner sum computed WIDE, not mod 256
-                // (module docs / RFC 2083 §6.4).
-                for x in 0..row_len {
-                    let left = if x >= bpp {
-                        row.get(x - bpp).copied().unwrap_or(0)
-                    } else {
-                        0
-                    };
-                    let above = prior.get(x).copied().unwrap_or(0);
-                    let avg = ((u16::from(left) + u16::from(above)) / 2) as u8;
-                    if let Some(v) = row.get_mut(x) {
-                        *v = v.wrapping_add(avg);
-                    }
-                }
-            }
-            4 => {
-                // Paeth: Raw(x) = Filt(x) + Paeth(left, above, upper-left)
-                for x in 0..row_len {
-                    let (left, upleft) = if x >= bpp {
-                        (
-                            row.get(x - bpp).copied().unwrap_or(0),
-                            prior.get(x - bpp).copied().unwrap_or(0),
-                        )
-                    } else {
-                        (0, 0)
-                    };
-                    let above = prior.get(x).copied().unwrap_or(0);
-                    let predicted = paeth_predictor(left, above, upleft);
-                    if let Some(v) = row.get_mut(x) {
-                        *v = v.wrapping_add(predicted);
-                    }
-                }
-            }
-            &t => return Err(FilterError::UnknownPngTag(t)),
-        }
+        unfilter_png_row(*tag, &mut row, &prior, bpp)?;
         out.extend_from_slice(&row);
         std::mem::swap(&mut prior, &mut row);
     }
     Ok(out)
+}
+
+/// Reverses one PNG row filter in place (RFC 2083 §6), `prior` being the
+/// previous decoded row.
+fn unfilter_png_row(tag: u8, row: &mut [u8], prior: &[u8], bpp: usize) -> Result<(), FilterError> {
+    let row_len = row.len();
+    match tag {
+        0 => {} // None: Raw(x) = Filt(x)
+        1 => {
+            // Sub: Raw(x) = Filt(x) + Raw(x − bpp)
+            for x in bpp..row_len {
+                let left = row.get(x - bpp).copied().unwrap_or(0);
+                if let Some(v) = row.get_mut(x) {
+                    *v = v.wrapping_add(left);
+                }
+            }
+        }
+        2 => {
+            // Up: Raw(x) = Filt(x) + Prior(x)
+            for (v, &p) in row.iter_mut().zip(prior.iter()) {
+                *v = v.wrapping_add(p);
+            }
+        }
+        3 => {
+            // Average: inner sum computed WIDE, not mod 256
+            // (module docs / RFC 2083 §6.4).
+            for x in 0..row_len {
+                let left = if x >= bpp {
+                    row.get(x - bpp).copied().unwrap_or(0)
+                } else {
+                    0
+                };
+                let above = prior.get(x).copied().unwrap_or(0);
+                let avg = ((u16::from(left) + u16::from(above)) / 2) as u8;
+                if let Some(v) = row.get_mut(x) {
+                    *v = v.wrapping_add(avg);
+                }
+            }
+        }
+        4 => {
+            // Paeth: Raw(x) = Filt(x) + Paeth(left, above, upper-left)
+            for x in 0..row_len {
+                let (left, upleft) = if x >= bpp {
+                    (
+                        row.get(x - bpp).copied().unwrap_or(0),
+                        prior.get(x - bpp).copied().unwrap_or(0),
+                    )
+                } else {
+                    (0, 0)
+                };
+                let above = prior.get(x).copied().unwrap_or(0);
+                let predicted = paeth_predictor(left, above, upleft);
+                if let Some(v) = row.get_mut(x) {
+                    *v = v.wrapping_add(predicted);
+                }
+            }
+        }
+        t => return Err(FilterError::UnknownPngTag(t)),
+    }
+    Ok(())
 }
 
 /// RFC 2083 §6.6 `PaethPredictor`, transcribed exactly — including the
@@ -322,7 +354,11 @@ fn filter_row(tag: u8, row: &[u8], prior: &[u8], bpp: usize, out: &mut [u8]) {
 /// same algorithm on every row, per **component** (not per byte),
 /// arithmetic modulo 2^BitsPerComponent (TIFF 6.0 §14's "normal two's
 /// complement arithmetic does just what we want").
-fn unpredict_tiff(mut data: Vec<u8>, params: &Params) -> Result<Vec<u8>, FilterError> {
+fn unpredict_tiff(
+    mut data: Vec<u8>,
+    params: &Params,
+    cancelled: &dyn Fn() -> bool,
+) -> Result<Vec<u8>, FilterError> {
     let row_len = params.row_data_bytes();
     if row_len == 0 || !data.len().is_multiple_of(row_len) {
         return Err(FilterError::RaggedRows);
@@ -334,6 +370,7 @@ fn unpredict_tiff(mut data: Vec<u8>, params: &Params) -> Result<Vec<u8>, FilterE
             // One byte per component; left neighbor is `colors` bytes
             // back ("subtract red from red, green from green…").
             for row in data.chunks_exact_mut(row_len) {
+                poll(cancelled)?;
                 for x in colors..row_len {
                     let left = row.get(x - colors).copied().unwrap_or(0);
                     if let Some(v) = row.get_mut(x) {
@@ -347,6 +384,7 @@ fn unpredict_tiff(mut data: Vec<u8>, params: &Params) -> Result<Vec<u8>, FilterE
             // high-order first); add modulo 2^16.
             let stride = colors * 2;
             for row in data.chunks_exact_mut(row_len) {
+                poll(cancelled)?;
                 for x in (stride..row_len.saturating_sub(1)).step_by(2) {
                     let left_hi = row.get(x - stride).copied().unwrap_or(0);
                     let left_lo = row.get(x - stride + 1).copied().unwrap_or(0);
@@ -374,6 +412,7 @@ fn unpredict_tiff(mut data: Vec<u8>, params: &Params) -> Result<Vec<u8>, FilterE
             let comps_per_row = params.columns as usize * colors;
             let mask = (1u16 << n) as u8 - 1;
             for row in data.chunks_exact_mut(row_len) {
+                poll(cancelled)?;
                 let mut comps = unpack_bits(row, n, comps_per_row);
                 for i in colors..comps.len() {
                     let left = comps.get(i - colors).copied().unwrap_or(0);

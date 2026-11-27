@@ -39,16 +39,28 @@ use crate::object::Dict;
 /// [`FilterError`] — corrupt/truncated zlib data, ceiling crossed, or
 /// invalid/inconsistent predictor parameters.
 pub fn decode(data: &[u8], parms: Option<&Dict>) -> Result<Vec<u8>, FilterError> {
-    let inflated = inflate_bounded(data)?;
+    decode_polled(data, parms, &super::never_cancelled)
+}
+
+/// [`decode`] under a cancel poll ([`super::decode_stream_cancellable`]).
+pub(super) fn decode_polled(
+    data: &[u8],
+    parms: Option<&Dict>,
+    cancelled: &dyn Fn() -> bool,
+) -> Result<Vec<u8>, FilterError> {
+    let inflated = inflate_bounded(data, cancelled)?;
     match predictor::Params::from_dict(parms)? {
         None => Ok(inflated),
-        Some(p) => predictor::unpredict(inflated, &p),
+        Some(p) => predictor::unpredict_polled(inflated, &p, cancelled),
     }
 }
 
 /// Incremental, ceiling-bounded zlib inflation (module docs).
-fn inflate_bounded(data: &[u8]) -> Result<Vec<u8>, FilterError> {
-    super::drain(&mut Inflate::new(std::borrow::Cow::Borrowed(data)))
+fn inflate_bounded(data: &[u8], cancelled: &dyn Fn() -> bool) -> Result<Vec<u8>, FilterError> {
+    super::drain(
+        &mut Inflate::new(std::borrow::Cow::Borrowed(data)),
+        cancelled,
+    )
 }
 
 /// One zlib stream inflated a chunk at a time ([`super::Pull`]).

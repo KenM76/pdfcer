@@ -16,6 +16,8 @@ pub(crate) struct Component {
     /// `ceil(yi / 8)` with `xi = ceil(X * Hi / Hmax)` (T.81 A.1.1, A.2.2).
     pub(crate) own_w: usize,
     pub(crate) own_h: usize,
+    /// `grid_w * grid_h` blocks; empty until a scan needs decoding, so a
+    /// stream that is not rewritten never pays for the grid.
     pub(crate) blocks: Vec<[i16; 64]>,
     /// Extent the component's scan filled, once it has been decoded.
     pub(crate) filled: Option<(usize, usize)>,
@@ -149,6 +151,7 @@ impl<'a> Walk<'a> {
         if self.scans == 0 && comps.len() == frame.comps.len() {
             return Ok((false, start));
         }
+        allocate(&mut frame.comps)?;
         let end = entropy_end(data, start);
         let ecs = data
             .get(start..end)
@@ -236,7 +239,7 @@ fn frame<'a>(p: &[u8], max_blocks: usize) -> Result<Option<Parsed<'a>>, RemuxErr
             grid_h: mcuy * v,
             own_w: (width * h).div_ceil(hmax).div_ceil(8),
             own_h: (height * v).div_ceil(vmax).div_ceil(8),
-            blocks: vec![[0; 64]; mcux * h * mcuy * v],
+            blocks: Vec::new(),
             filled: None,
         })
         .collect();
@@ -246,6 +249,18 @@ fn frame<'a>(p: &[u8], max_blocks: usize) -> Result<Option<Parsed<'a>>, RemuxErr
         mcuy,
         comps,
     }))
+}
+
+/// Gives every component its zeroed block grid, once.
+fn allocate(comps: &mut [Component]) -> Result<(), RemuxError> {
+    for c in comps.iter_mut().filter(|c| c.blocks.is_empty()) {
+        let blocks = c.grid_w * c.grid_h;
+        c.blocks
+            .try_reserve_exact(blocks)
+            .map_err(|_| RemuxError::AllocationFailed { blocks })?;
+        c.blocks.resize(blocks, [0; 64]);
+    }
+    Ok(())
 }
 
 /// Parses a scan header (T.81 B.2.3) and resolves its tables.

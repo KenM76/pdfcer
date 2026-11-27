@@ -192,7 +192,13 @@ fn whole<'a>(
     notes: &mut super::FilterNotes,
 ) -> Result<Source<'a>, FilterError> {
     Ok(Source::Bytes {
-        data: Cow::Owned(super::apply_one(name, parms, &input, notes)?),
+        data: Cow::Owned(super::apply_one(
+            name,
+            parms,
+            &input,
+            notes,
+            &super::never_cancelled,
+        )?),
         pos: 0,
     })
 }

@@ -8895,8 +8895,8 @@ impl<'a> Interpreter<'a> {
                     crate::cmyk_buffer::SpotSource::Paint
                 };
                 let decoded = self.area_averaged(decoded);
-                // The paint is the last whole-image step; a cancel set during
-                // the minify skips it (G337).
+                // A cancel set during the minify, which asks the token per
+                // band, skips the paint (G337).
                 if self.cancel.is_some_and(RenderCancel::is_cancelled) {
                     return;
                 }
@@ -9460,7 +9460,8 @@ impl<'a> Interpreter<'a> {
             return decoded;
         }
         let factors = crate::minify::factors(w, h, self.gs.current.ctm);
-        crate::minify::reduce_decoded(decoded, factors)
+        let cancelled = || self.cancel.is_some_and(RenderCancel::is_cancelled);
+        crate::minify::reduce_decoded(decoded, factors, &cancelled)
     }
 
     /// Drawn larger than its pixel grid on either axis.

@@ -775,13 +775,17 @@ pub fn decode(
     decode_cancellable(doc, dict, raw, resources, fill, origin, policy, icc, None)
 }
 
-/// [`decode`], polling `cancel` between decode stages and once per texel
-/// row, so a render cancelled during a large image stops within one row
-/// instead of after the whole image (request G337).
+/// [`decode`], polling `cancel` throughout, so a render cancelled during a
+/// large image stops within a fraction of a millisecond of work instead
+/// of after the whole image (request G337).
 ///
-/// The filter chain and the terminal codec run whole: `zune-jpeg` and
-/// `filters::decode_stream` expose no row-level hook. A cancel set during
-/// them is seen as they return, before the texel loop starts.
+/// The token is asked inside the filter chain (every 64 KiB of output and
+/// every predictor row), inside a `DCTDecode` scan (every ~4 KiB of
+/// codestream), before every row of an `/SMask` or `/Mask` plane, and
+/// before every texel row. What still runs whole: a progressive JPEG's
+/// final IDCT pass and the CCITT, JBIG2, JPX and JXL codecs, whose
+/// cancel is seen as they return
+/// ([`image_codec::decode_image_view_cancellable`]).
 ///
 /// # Errors
 ///
@@ -813,12 +817,14 @@ pub(crate) fn decode_cancellable(
 
     // `DCT-A1` (R169) travels with the decode rather than being read from
     // anywhere ambient: the polarity rule changes the SAMPLES.
-    let coded = image_codec::decode_image_view_with(
+    let poll = || cancel.is_some_and(RenderCancel::is_cancelled);
+    let coded = image_codec::decode_image_view_cancellable(
         doc,
         dict,
         raw,
         origin == ImageOrigin::Inline,
         policy.cmyk_jpeg_polarity,
+        &poll,
     )
     .map_err(map_codec_error)?;
     check_cancel(cancel)?;
@@ -833,7 +839,7 @@ pub(crate) fn decode_cancellable(
     ) {
         return decode_stencil(dict, &coded, (width, height), fill, notes, cancel);
     }
-    let mut tr = resolve_transparency(doc, dict, &coded, resources, &mut notes);
+    let mut tr = resolve_transparency(doc, dict, &coded, resources, &mut notes, &poll);
     drop_resampled_matte(&mut tr, (width, height), &mut notes);
     check_cancel(cancel)?;
 
@@ -929,6 +935,7 @@ fn resolve_transparency<'a>(
     coded: &CodedImage,
     resources: &Dict,
     notes: &mut ImageNotes,
+    cancelled: &dyn Fn() -> bool,
 ) -> Transparency<'a> {
     let none = Transparency {
         alpha: None,
@@ -938,7 +945,7 @@ fn resolve_transparency<'a>(
 
     // Rung 2 — `/SMask`.
     if let Some(entry) = dict.get(b"SMask") {
-        return match mask::soft_mask_plane(doc, entry, resources) {
+        return match mask::soft_mask_plane_polled(doc, entry, resources, cancelled) {
             Ok(soft) => {
                 notes.mask_applied = Some(MaskApplied::SoftMask);
                 Transparency {
@@ -967,7 +974,7 @@ fn resolve_transparency<'a>(
                     ..none
                 }
             }
-            _ => match mask::stencil_plane(doc, entry) {
+            _ => match mask::stencil_plane_polled(doc, entry, cancelled) {
                 Ok(plane) => {
                     notes.mask_applied = Some(MaskApplied::Stencil);
                     Transparency {
@@ -1088,7 +1095,10 @@ fn positive_dimension(doc: &DocumentView<'_>, dict: &Dict, key: &[u8]) -> Result
 /// name so the diagnostics can say *which* codec is missing (the
 /// operator's next question is always "so what do I need?").
 fn map_filter_error(err: FilterError) -> ImageError {
-    ImageError::UnsupportedFilter(err.to_string())
+    match err {
+        FilterError::Cancelled => ImageError::Cancelled,
+        other => ImageError::UnsupportedFilter(other.to_string()),
+    }
 }
 
 /// Turn a codec failure into an image failure, keeping the three
@@ -1113,6 +1123,7 @@ fn try_pixmap(width: u32, height: u32) -> Result<Pixmap, ImageError> {
 fn map_codec_error(err: ImageCodecError) -> ImageError {
     match err {
         ImageCodecError::Filter(inner) => map_filter_error(inner),
+        ImageCodecError::Cancelled => ImageError::Cancelled,
         ImageCodecError::FeatureUnsupported { feature } => ImageError::CodecFeature(feature),
         ImageCodecError::TooLarge => ImageError::TooLarge,
         ImageCodecError::AllocationFailed { bytes } => ImageError::AllocationFailed(bytes),
@@ -3954,5 +3965,161 @@ mod tests {
                 );
             });
         }
+    }
+
+    /// A poll that answers `true` from its `fire_at`th call on, counting calls.
+    fn counting(calls: &std::cell::Cell<u32>, fire_at: u32) -> impl Fn() -> bool + '_ {
+        move || {
+            calls.set(calls.get() + 1);
+            calls.get() >= fire_at
+        }
+    }
+
+    /// How often `run` asks an uncancelled poll, then that firing a tenth of
+    /// the way in returns `refused` having asked at most a few more times:
+    /// the poll is inside the work, not only around it.
+    fn assert_polled_throughout<T>(
+        run: impl Fn(&dyn Fn() -> bool) -> T,
+        refused: impl Fn(&T) -> bool,
+        at_least: u32,
+    ) {
+        let calls = std::cell::Cell::new(0);
+        let whole = run(&counting(&calls, u32::MAX));
+        assert!(!refused(&whole), "the uncancelled run is refused");
+        let total = calls.get();
+        assert!(total >= at_least, "polled only {total} times");
+
+        let calls = std::cell::Cell::new(0);
+        let fire_at = total / 10;
+        let cut = run(&counting(&calls, fire_at));
+        assert!(refused(&cut), "a cancel mid-way is not refused");
+        assert!(
+            calls.get() <= fire_at + 3,
+            "kept working after the cancel: {} polls against {fire_at}",
+            calls.get()
+        );
+    }
+
+    fn polled_decode(
+        view: &DocumentView<'_>,
+        dict: &Dict,
+        raw: &[u8],
+        poll: &dyn Fn() -> bool,
+    ) -> Result<CodedImage, ImageCodecError> {
+        image_codec::decode_image_view_cancellable(
+            view,
+            dict,
+            raw,
+            false,
+            RenderPolicy::default().cmyk_jpeg_polarity,
+            poll,
+        )
+    }
+
+    fn is_cancelled(r: &Result<CodedImage, ImageCodecError>) -> bool {
+        matches!(
+            r,
+            Err(ImageCodecError::Cancelled | ImageCodecError::Filter(FilterError::Cancelled))
+        )
+    }
+
+    fn zlib(data: &[u8]) -> Vec<u8> {
+        use std::io::Write as _;
+        let mut enc = flate2::write::ZlibEncoder::new(Vec::new(), flate2::Compression::fast());
+        enc.write_all(data).unwrap();
+        enc.finish().unwrap()
+    }
+
+    #[test]
+    fn a_large_flate_image_decode_stops_mid_chain() {
+        let side = 2048usize;
+        let plain: Vec<u8> = (0..side * side).map(|i| (i % 251) as u8).collect();
+        let dict = format!(
+            "/Width {side} /Height {side} /ColorSpace /DeviceGray /BitsPerComponent 8 \
+             /Filter /FlateDecode"
+        );
+        let (doc, page) = image_doc(&dict, &zlib(&plain));
+        let view = doc.view();
+        let (dict, raw) = x1(&view, &page);
+        // 4 MiB of output: 64 chunk polls.
+        assert_polled_throughout(|p| polled_decode(&view, dict, raw, p), is_cancelled, 60);
+    }
+
+    #[test]
+    fn a_jpeg_decode_stops_inside_the_entropy_scan() {
+        let (w, h) = (1024u16, 1024u16);
+        let rgb: Vec<u8> = (0..usize::from(w) * usize::from(h) * 3)
+            .map(|i| ((i * 37) % 256) as u8)
+            .collect();
+        let mut jpeg = Vec::new();
+        jpeg_encoder::Encoder::new(&mut jpeg, 90)
+            .encode(&rgb, w, h, jpeg_encoder::ColorType::Rgb)
+            .unwrap();
+        let dict = format!(
+            "/Width {w} /Height {h} /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode"
+        );
+        let (doc, page) = image_doc(&dict, &jpeg);
+        let view = doc.view();
+        let (dict, raw) = x1(&view, &page);
+        assert_polled_throughout(|p| polled_decode(&view, dict, raw, p), is_cancelled, 50);
+    }
+
+    #[test]
+    fn a_soft_mask_plane_stops_per_row() {
+        let (doc, page) = image_doc(
+            "/Width 16 /Height 400 /ColorSpace /DeviceGray /BitsPerComponent 8",
+            &[0x80; 16 * 400],
+        );
+        let view = doc.view();
+        let entry = x1_entry(&page);
+        assert_polled_throughout(
+            |p| crate::mask::soft_mask_plane_polled(&view, entry, &page.resources, p),
+            |r| matches!(r, Err(crate::mask::MaskRefusal::Cancelled)),
+            400,
+        );
+    }
+
+    #[test]
+    fn a_stencil_mask_plane_stops_per_row() {
+        let (doc, page) = image_doc(
+            "/Width 16 /Height 400 /ImageMask true /BitsPerComponent 1",
+            &[0xF0; 2 * 400],
+        );
+        let view = doc.view();
+        let entry = x1_entry(&page);
+        assert_polled_throughout(
+            |p| crate::mask::stencil_plane_polled(&view, entry, p),
+            |r| matches!(r, Err(crate::mask::MaskRefusal::Cancelled)),
+            400,
+        );
+    }
+
+    #[test]
+    fn a_cancel_from_either_layer_is_a_cancelled_image() {
+        assert!(matches!(
+            map_codec_error(ImageCodecError::Cancelled),
+            ImageError::Cancelled
+        ));
+        assert!(matches!(
+            map_codec_error(ImageCodecError::Filter(FilterError::Cancelled)),
+            ImageError::Cancelled
+        ));
+    }
+
+    fn x1_entry(page: &pdfcer_core::page_tree::Page) -> &Object {
+        let Some(Object::Dict(xobjects)) = page.resources.get(b"XObject") else {
+            panic!("inline /XObject dict")
+        };
+        xobjects.get(b"X1").unwrap()
+    }
+
+    fn x1<'v>(
+        view: &'v DocumentView<'_>,
+        page: &'v pdfcer_core::page_tree::Page,
+    ) -> (&'v Dict, &'v [u8]) {
+        let Object::Stream(stream) = view.resolve(x1_entry(page)) else {
+            panic!("X1 is a stream")
+        };
+        (&stream.dict, view.slice(stream.data_span).unwrap())
     }
 }

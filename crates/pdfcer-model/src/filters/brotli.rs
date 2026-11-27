@@ -76,10 +76,19 @@ use crate::object::Dict;
 /// [`FilterError`] — corrupt or truncated Brotli data, the output ceiling
 /// crossed, or invalid/inconsistent predictor parameters.
 pub fn decode(data: &[u8], parms: Option<&Dict>) -> Result<Vec<u8>, FilterError> {
-    let plain = decompress_bounded(data)?;
+    decode_polled(data, parms, &super::never_cancelled)
+}
+
+/// [`decode`] under a cancel poll ([`super::decode_stream_cancellable`]).
+pub(super) fn decode_polled(
+    data: &[u8],
+    parms: Option<&Dict>,
+    cancelled: &dyn Fn() -> bool,
+) -> Result<Vec<u8>, FilterError> {
+    let plain = decompress_bounded(data, cancelled)?;
     match predictor::Params::from_dict(parms)? {
         None => Ok(plain),
-        Some(p) => predictor::unpredict(plain, &p),
+        Some(p) => predictor::unpredict_polled(plain, &p, cancelled),
     }
 }
 
@@ -126,8 +135,11 @@ pub fn encode(data: &[u8], quality: u32) -> std::io::Result<Vec<u8>> {
 /// The check is applied **per chunk, before extending**, so a hostile stream
 /// costs at most [`super::MAX_DECODED_LEN`] plus one chunk rather than whatever it
 /// claimed.
-fn decompress_bounded(data: &[u8]) -> Result<Vec<u8>, FilterError> {
-    super::drain(&mut Unbrotli::new(std::borrow::Cow::Borrowed(data)))
+fn decompress_bounded(data: &[u8], cancelled: &dyn Fn() -> bool) -> Result<Vec<u8>, FilterError> {
+    super::drain(
+        &mut Unbrotli::new(std::borrow::Cow::Borrowed(data)),
+        cancelled,
+    )
 }
 
 /// One Brotli stream decompressed a chunk at a time ([`super::Pull`]).

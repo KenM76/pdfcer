@@ -148,7 +148,6 @@
 //! living with negatives.
 
 use zune_jpeg::JpegDecoder;
-use zune_jpeg::zune_core::bytestream::ZCursor;
 use zune_jpeg::zune_core::colorspace::ColorSpace;
 use zune_jpeg::zune_core::options::DecoderOptions;
 
@@ -158,7 +157,9 @@ use super::{
 };
 use crate::CmykJpegPolarity;
 
+mod polled;
 mod sniff;
+use polled::PolledCursor;
 use sniff::{Frame, sniff};
 // decision 018: the codecs resolve indirect entries through a `DocumentView`
 // rather than a `&Document`, so an image whose dictionary lives in an
@@ -199,7 +200,9 @@ const MAX_REMUX_BLOCKS: usize = (MAX_DECODER_WORKING_BYTES / 128) as usize;
 /// lossless, differential or non-8-bit JPEG and for an Adobe transform
 /// byte outside 0–2; [`ImageCodecError::TooLarge`] when a pdfcer ceiling
 /// is crossed; [`ImageCodecError::Corrupt`] for anything `zune-jpeg`
-/// rejects.
+/// rejects; [`ImageCodecError::Cancelled`] once `cancelled` answers
+/// `true`, which the entropy decoder asks every few KiB of codestream
+/// ([`polled`]).
 pub(super) fn decode(
     doc: &DocumentView<'_>,
     data: &[u8],
@@ -207,6 +210,7 @@ pub(super) fn decode(
     dict: &Dict,
     polarity: CmykJpegPolarity,
     notes: &mut CodecNotes,
+    cancelled: &dyn Fn() -> bool,
 ) -> Result<CodedImage, ImageCodecError> {
     let frame = sniff(data)?;
     // zune-jpeg 0.5.15 mis-reads subsampled components coded in separate
@@ -218,6 +222,9 @@ pub(super) fn decode(
         .ok()
         .flatten();
     let data = remuxed.as_deref().unwrap_or(data);
+    if cancelled() {
+        return Err(ImageCodecError::Cancelled);
+    }
 
     // Table 13's three-level precedence chain, in the spec's own order.
     let effective_transform = match frame.adobe_transform {
@@ -238,8 +245,10 @@ pub(super) fn decode(
         .jpeg_set_max_scans(MAX_PROGRESSIVE_SCANS)
         .jpeg_set_out_colorspace(request);
 
-    let mut decoder = JpegDecoder::new_with_options(ZCursor::new(data), options);
-    decoder.decode_headers().map_err(corrupt)?;
+    let mut decoder = JpegDecoder::new_with_options(PolledCursor::new(data, cancelled), options);
+    decoder
+        .decode_headers()
+        .map_err(|e| cancel_or(cancelled, e))?;
 
     let info = decoder
         .info()
@@ -257,8 +266,12 @@ pub(super) fn decode(
         .filter(|&n| n <= MAX_IMAGE_SAMPLE_BYTES)
         .ok_or(ImageCodecError::TooLarge)?;
 
-    let mut samples = super::zeroed(buffer_size)?;
-    decoder.decode_into(&mut samples).map_err(corrupt)?;
+    let mut samples = super::zeroed_polled(buffer_size, cancelled)?;
+    let decoded = decoder.decode_into(&mut samples);
+    if cancelled() {
+        return Err(ImageCodecError::Cancelled);
+    }
+    decoded.map_err(corrupt)?;
 
     // The one colour operation this module performs, and only because
     // zune-jpeg has no YCCK→CMYK arm (module docs). It is the inverse
@@ -618,6 +631,16 @@ fn geometry_disagrees(doc: &DocumentView<'_>, dict: &Dict, width: u32, height: u
 // ---------------------------------------------------------------------------
 // Error mapping
 // ---------------------------------------------------------------------------
+
+/// A decoder error, unless the poll fired: then the error is the
+/// cancelled read, not a damaged stream.
+fn cancel_or(cancelled: &dyn Fn() -> bool, e: zune_jpeg::errors::DecodeErrors) -> ImageCodecError {
+    if cancelled() {
+        ImageCodecError::Cancelled
+    } else {
+        corrupt(e)
+    }
+}
 
 /// Wrap a `zune-jpeg` failure as a structured pdfcer error.
 ///

@@ -83,7 +83,18 @@ const EOD: u8 = 128;
 /// assert_eq!(runlength::decode(encoded).unwrap(), b"abczzz");
 /// ```
 pub fn decode(data: &[u8]) -> Result<Vec<u8>, FilterError> {
-    super::drain(&mut RunLength::new(std::borrow::Cow::Borrowed(data)))
+    decode_polled(data, &super::never_cancelled)
+}
+
+/// [`decode`] under a cancel poll ([`super::decode_stream_cancellable`]).
+pub(super) fn decode_polled(
+    data: &[u8],
+    cancelled: &dyn Fn() -> bool,
+) -> Result<Vec<u8>, FilterError> {
+    super::drain(
+        &mut RunLength::new(std::borrow::Cow::Borrowed(data)),
+        cancelled,
+    )
 }
 
 /// One RunLengthDecode stream decoded about [`super::CHUNK`] bytes at a

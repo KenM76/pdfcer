@@ -5367,12 +5367,17 @@ identically under wasm"* (`cancel.rs`). `new()`, `cancel()`
   another 58 seconds — still occupying a core."*
 - **Granularity is one operator** (`cancel.rs`) — worst-case latency
   *"a third of a millisecond, not the whole render."* **Inside an image
-  `Do`** (G337) the token is polled between decode stages and once per texel
-  row (`image::decode_cancellable`), and the paint is skipped if it is set
-  after the minify. The filter chain and terminal codec (`zune-jpeg`,
-  `filters::decode_stream`) still run whole, so the bound inside an image is
-  one codec call: ~150 ms on a 5100 x 8400 600 dpi DCT scan (release),
-  against 1.96 s before. `image::ImageError::Cancelled` is internal to that
+  `Do`** (G337) the token is polled cooperatively throughout
+  (`image::decode_cancellable`): the filter chain every 64 KiB of output and
+  every predictor row (`filters::decode_stream_cancellable`), the DCT
+  decoder every ~1024 entropy-coded reads, after the remux and between 4 MiB
+  chunks of its sample-buffer fill (`image_codec::decode_image_view_cancellable`),
+  `/SMask` and `/Mask` planes per row, texels per row, and the minify per
+  band. Measured on a 5100 x 8400 600 dpi DCT scan (release), a cancel at any
+  point returns in a median 12.5 ms, worst 36 ms (was 76 ms / 403 ms), with
+  no throughput change. Still run whole: a progressive JPEG's final pass,
+  CCITT, JBIG2, JPX and JXL decodes, and the remux rewrite when a
+  non-interleaved scan needs one. `image::ImageError::Cancelled` is internal to that
   route — the interpreter neither counts nor notes it, and the caller sees
   only `RenderError::Cancelled`. The public `image::decode` takes no token.
 - **`RenderError::Cancelled` is NOT a failure** (`lib.rs`): *"It means

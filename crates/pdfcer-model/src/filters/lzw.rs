@@ -153,10 +153,20 @@ pub fn decode(
     parms: Option<&Dict>,
     notes: &mut FilterNotes,
 ) -> Result<Vec<u8>, FilterError> {
-    let decompressed = decompress_bounded(data, early_change(parms), notes)?;
+    decode_polled(data, parms, notes, &super::never_cancelled)
+}
+
+/// [`decode`] under a cancel poll ([`super::decode_stream_cancellable`]).
+pub(super) fn decode_polled(
+    data: &[u8],
+    parms: Option<&Dict>,
+    notes: &mut FilterNotes,
+    cancelled: &dyn Fn() -> bool,
+) -> Result<Vec<u8>, FilterError> {
+    let decompressed = decompress_bounded(data, early_change(parms), notes, cancelled)?;
     match predictor::Params::from_dict(parms)? {
         None => Ok(decompressed),
-        Some(p) => predictor::unpredict(decompressed, &p),
+        Some(p) => predictor::unpredict_polled(decompressed, &p, cancelled),
     }
 }
 
@@ -186,9 +196,10 @@ fn decompress_bounded(
     data: &[u8],
     early_change: bool,
     notes: &mut FilterNotes,
+    cancelled: &dyn Fn() -> bool,
 ) -> Result<Vec<u8>, FilterError> {
     let mut lzw = Lzw::new(std::borrow::Cow::Borrowed(data), early_change);
-    let out = super::drain(&mut lzw);
+    let out = super::drain(&mut lzw, cancelled);
     notes.lzw_framing_anomalies += lzw.anomalies;
     out
 }

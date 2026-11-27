@@ -197,10 +197,25 @@ pub const MAX_DECODER_WORKING_BYTES: u64 = 1 << 29;
 /// A zeroed buffer of `len` bytes, or [`ImageCodecError::AllocationFailed`]
 /// when the allocator refuses it.
 pub(crate) fn zeroed(len: usize) -> Result<Vec<u8>, ImageCodecError> {
+    zeroed_polled(len, &|| false)
+}
+
+/// [`zeroed`], asking `cancelled` before every 4 MiB written: filling a
+/// page-sized sample buffer is tens of milliseconds on its own.
+pub(crate) fn zeroed_polled(
+    len: usize,
+    cancelled: &dyn Fn() -> bool,
+) -> Result<Vec<u8>, ImageCodecError> {
+    const STEP: usize = 4 << 20;
     let mut buf = Vec::new();
     buf.try_reserve_exact(len)
         .map_err(|_| ImageCodecError::AllocationFailed { bytes: len as u64 })?;
-    buf.resize(len, 0);
+    while buf.len() < len {
+        if cancelled() {
+            return Err(ImageCodecError::Cancelled);
+        }
+        buf.resize(len.min(buf.len().saturating_add(STEP)), 0);
+    }
     Ok(buf)
 }
 
@@ -539,6 +554,12 @@ pub enum ImageCodecError {
     /// chained after it.
     #[error("/Filter chain has an image codec that is not the final filter")]
     CodecNotTerminal,
+    /// The caller's cancel poll answered `true` mid-decode
+    /// ([`decode_image_view_cancellable`]). A cancel inside the filter
+    /// prefix arrives as [`ImageCodecError::Filter`] carrying
+    /// [`FilterError::Cancelled`] instead; callers treat both alike.
+    #[error("image decode cancelled by the caller")]
+    Cancelled,
 }
 
 /// Which terminal codec a `/Filter` chain ends in, if any — so callers
@@ -674,6 +695,71 @@ pub fn decode_image_view_with(
     inline: bool,
     polarity: CmykJpegPolarity,
 ) -> Result<CodedImage, ImageCodecError> {
+    decode_image_view_cancellable(doc, dict, raw, inline, polarity, &|| false)
+}
+
+/// [`decode_image_view_with`], abandoning the decode once `cancelled`
+/// answers `true`.
+///
+/// Where the poll is asked, and so how long a cancel waits:
+///
+/// - **filter prefix** -- before each stage, every 64 KiB of Flate, LZW,
+///   Brotli or RunLength output, and every `/Predictor` row
+///   ([`filters::decode_stream_cancellable`]);
+/// - **`DCTDecode`** -- every ~4 KiB of entropy-coded data, inside the
+///   scan. A progressive JPEG's final dequantise-and-IDCT pass reads no
+///   input and runs whole;
+/// - **`CCITTFaxDecode`, `JBIG2Decode`, `JPXDecode`, `JXLDecode`** -- not
+///   inside the codec; the poll is asked once it returns.
+///
+/// The poll should be cheap (an atomic load); it runs thousands of times
+/// on a large image. A decode that is never cancelled is identical to
+/// [`decode_image_view_with`], output and notes alike.
+///
+/// # Errors
+///
+/// As [`decode_image`], plus [`ImageCodecError::Cancelled`] or
+/// [`ImageCodecError::Filter`]`(`[`FilterError::Cancelled`]`)` once the
+/// poll fires. No partial image is returned.
+///
+/// # Examples
+///
+/// ```
+/// use std::sync::atomic::{AtomicBool, Ordering};
+///
+/// use pdfcer_image_codec::{
+///     CmykJpegPolarity, CodedImage, ImageCodecError, decode_image_view_cancellable,
+/// };
+/// use pdfcer_model::object::Dict;
+/// use pdfcer_model::view::DocumentView;
+///
+/// /// Decode an image a UI thread may abandon by setting `stop`.
+/// fn decode_unless_stopped(
+///     view: &DocumentView<'_>,
+///     dict: &Dict,
+///     raw: &[u8],
+///     stop: &AtomicBool,
+/// ) -> Result<Option<CodedImage>, ImageCodecError> {
+///     let polarity = CmykJpegPolarity::default();
+///     let poll = || stop.load(Ordering::Relaxed);
+///     match decode_image_view_cancellable(view, dict, raw, false, polarity, &poll) {
+///         Ok(image) => Ok(Some(image)),
+///         Err(e) if stop.load(Ordering::Relaxed) => {
+///             let _ = e; // `Cancelled`, or `Filter(FilterError::Cancelled)`
+///             Ok(None)
+///         }
+///         Err(e) => Err(e),
+///     }
+/// }
+/// ```
+pub fn decode_image_view_cancellable(
+    doc: &DocumentView<'_>,
+    dict: &Dict,
+    raw: &[u8],
+    inline: bool,
+    polarity: CmykJpegPolarity,
+    cancelled: &dyn Fn() -> bool,
+) -> Result<CodedImage, ImageCodecError> {
     let names = filters::filter_names(dict)?;
 
     // Locate the terminal codec. A codec anywhere but the last position
@@ -719,7 +805,7 @@ pub fn decode_image_view_with(
     // Byte-stream prefix: everything except the terminal codec.
     let prefix_len = names.len() - usize::from(codec.is_some());
     let mut filter_notes = FilterNotes::default();
-    let data = filters::decode_prefix(dict, raw, prefix_len, &mut filter_notes)?;
+    let data = filters::decode_prefix_polled(dict, raw, prefix_len, &mut filter_notes, cancelled)?;
 
     let mut notes = CodecNotes {
         lzw_framing_anomalies: filter_notes.lzw_framing_anomalies,
@@ -731,8 +817,8 @@ pub fn decode_image_view_with(
     };
 
     let parms = codec_parms(dict, names.len());
-    match codec {
-        Codec::Dct => dct::decode(doc, &data, parms, dict, polarity, &mut notes),
+    let decoded = match codec {
+        Codec::Dct => dct::decode(doc, &data, parms, dict, polarity, &mut notes, cancelled),
         Codec::Ccitt => ccitt::decode(doc, &data, parms, dict, &mut notes),
         Codec::Jbig2 => jbig2::decode(doc, &data, parms, dict, &mut notes),
         // No `parms` argument: Table 6 gives `JPXDecode` no parameters
@@ -757,7 +843,11 @@ pub fn decode_image_view_with(
         Codec::Jxl => Err(ImageCodecError::FeatureUnsupported {
             feature: "JXL/not-built",
         }),
+    };
+    if cancelled() {
+        return Err(ImageCodecError::Cancelled);
     }
+    decoded
 }
 
 /// Build the [`CodedImage`] for a chain with **no** terminal codec.

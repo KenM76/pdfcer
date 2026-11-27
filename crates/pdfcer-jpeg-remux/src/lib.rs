@@ -52,6 +52,12 @@ pub enum RemuxError {
         /// The `max_blocks` the caller passed.
         ceiling: usize,
     },
+    /// The allocator refused the coefficient grid.
+    #[error("could not allocate {blocks} coefficient blocks")]
+    AllocationFailed {
+        /// Blocks the grid needed.
+        blocks: usize,
+    },
 }
 
 /// Rewrites `data` as one interleaved scan when it is an 8-bit sequential

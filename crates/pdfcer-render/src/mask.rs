@@ -189,6 +189,10 @@ pub enum MaskRefusal {
     /// which is worse than masking none.
     #[error("colour-key /Mask array length is not 2 x the component count")]
     ColourKeyLength,
+    /// The render was cancelled while the mask decoded. Never shown as a
+    /// refusal: the image it belongs to is abandoned with it.
+    #[error("mask decode cancelled by the caller")]
+    Cancelled,
 }
 
 /// A zeroed alpha plane, allocated fallibly.
@@ -200,6 +204,56 @@ fn zeroed_alpha(width: u32, height: u32) -> Result<Vec<u8>, MaskRefusal> {
         .map_err(|_| MaskRefusal::AllocationFailed(len as u64))?;
     alpha.resize(len, 0);
     Ok(alpha)
+}
+
+/// A `width × height` alpha plane whose texel `(x, y)` is `alpha_of` the
+/// `bits`-deep sample at that position of `samples` (rows `stride` bytes
+/// apart), asking `cancelled` before each row.
+fn fill_alpha(
+    (width, height): (u32, u32),
+    samples: &[u8],
+    (stride, bits): (usize, u32),
+    cancelled: &dyn Fn() -> bool,
+    alpha_of: impl Fn(u32) -> u8,
+) -> Result<Vec<u8>, MaskRefusal> {
+    let mut alpha = zeroed_alpha(width, height)?;
+    for y in 0..height as usize {
+        if cancelled() {
+            return Err(MaskRefusal::Cancelled);
+        }
+        let row_bit_base = y.saturating_mul(stride).saturating_mul(8);
+        for x in 0..width as usize {
+            let raw = read_sample(samples, row_bit_base + x * bits as usize, bits);
+            if let Some(slot) = alpha.get_mut(y * width as usize + x) {
+                *slot = alpha_of(raw);
+            }
+        }
+    }
+    Ok(alpha)
+}
+
+/// The decoded mask stream, or the refusal: a cancel stays a cancel.
+fn decode_mask_samples(
+    doc: &DocumentView<'_>,
+    dict: &Dict,
+    raw: &[u8],
+    cancelled: &dyn Fn() -> bool,
+) -> Result<image_codec::CodedImage, MaskRefusal> {
+    image_codec::decode_image_view_cancellable(
+        doc,
+        dict,
+        raw,
+        false,
+        image_codec::CmykJpegPolarity::default(),
+        cancelled,
+    )
+    .map_err(|e| {
+        if cancelled() {
+            MaskRefusal::Cancelled
+        } else {
+            MaskRefusal::Undecodable(e.to_string())
+        }
+    })
 }
 
 impl MaskRefusal {
@@ -220,6 +274,7 @@ impl MaskRefusal {
             Self::TooLarge => "mask/too-large",
             Self::AllocationFailed(_) => "mask/allocation-failed",
             Self::ColourKeyLength => "mask/colour-key-length",
+            Self::Cancelled => "mask/cancelled",
         }
     }
 }
@@ -633,6 +688,17 @@ pub fn soft_mask_plane(
     entry: &Object,
     resources: &Dict,
 ) -> Result<SoftMask, MaskRefusal> {
+    soft_mask_plane_polled(doc, entry, resources, &|| false)
+}
+
+/// [`soft_mask_plane`], asking `cancelled` inside the decode and before
+/// each row; [`MaskRefusal::Cancelled`] once it answers `true`.
+pub(crate) fn soft_mask_plane_polled(
+    doc: &DocumentView<'_>,
+    entry: &Object,
+    resources: &Dict,
+    cancelled: &dyn Fn() -> bool,
+) -> Result<SoftMask, MaskRefusal> {
     let (dict, raw) = mask_stream(doc, entry)?;
     let (width, height) = mask_dimensions(doc, dict)?;
 
@@ -656,9 +722,81 @@ pub fn soft_mask_plane(
         ));
     }
 
-    let coded = image_codec::decode_image_view(doc, dict, raw, false)
-        .map_err(|e| MaskRefusal::Undecodable(e.to_string()))?;
+    let coded = decode_mask_samples(doc, dict, raw, cancelled)?;
+    check_soft_mask_space(doc, dict, resources, &coded)?;
 
+    let (bits, sample_width) = soft_mask_bits(doc, dict, &coded, width)?;
+
+    // §8.9.5.2 unchanged: `y = Dmin + x·(Dmax − Dmin)/(2ⁿ − 1)`. Table
+    // 145 restricts only the DEFAULT (`[0 1]`), not the semantics, so
+    // the ordinary transform applies: a mask with no `/Decode` maps
+    // sample 0 to alpha 0 (transparent) and the maximum sample to alpha
+    // 1 (opaque). `/Decode [1 0]` is the sanctioned inversion and MUST
+    // survive as a negative slope — the same trap `image.rs` names for
+    // colour.
+    let max_sample = ((1u32 << bits.min(16)) - 1) as f32;
+    let (dmin, dmax) = match decode_pairs(dict) {
+        Some(pairs) => pairs.first().copied().unwrap_or((0.0, 1.0)),
+        None => (0.0, 1.0),
+    };
+    let slope = (dmax - dmin) / max_sample;
+
+    let stride = row_stride(sample_width, 1, bits).map_err(|_| MaskRefusal::TooLarge)?;
+    let alpha = fill_alpha(
+        (width, height),
+        &coded.samples,
+        (stride, bits),
+        cancelled,
+        |raw| ((dmin + raw as f32 * slope).clamp(0.0, 1.0) * 255.0).round() as u8,
+    )?;
+
+    Ok(SoftMask {
+        plane: AlphaPlane {
+            width,
+            height,
+            alpha,
+        },
+        matte: matte_components(doc, dict),
+    })
+}
+
+/// The bit depth and sample-row width a soft mask's samples are read at.
+fn soft_mask_bits(
+    doc: &DocumentView<'_>,
+    dict: &Dict,
+    coded: &image_codec::CodedImage,
+    width: u32,
+) -> Result<(u32, u32), MaskRefusal> {
+    // Bit depth: the dictionary's, unless a codec delivered something
+    // else (`SampleLayout`'s rule in `image.rs`, restated for the one
+    // component a mask has). JPX ignores the dictionary outright.
+    let declared = dict
+        .get(b"BitsPerComponent")
+        .map(|o| doc.resolve(o))
+        .and_then(Object::as_int)
+        .filter(|v| matches!(v, 1 | 2 | 4 | 8 | 16))
+        .map(|v| v as u32);
+    let bits = match (coded.codec, declared) {
+        (Some(_), _) if coded.bits_per_component > 0 => u32::from(coded.bits_per_component),
+        (_, Some(v)) => v,
+        (None, None) => return Err(MaskRefusal::Malformed("/SMask has no /BitsPerComponent")),
+        (Some(_), None) => 8,
+    };
+    let sample_width = if coded.codec.is_some() && coded.width > 0 {
+        coded.width
+    } else {
+        width
+    };
+    Ok((bits, sample_width))
+}
+
+/// Refuse a soft mask whose colour space is not single-component.
+fn check_soft_mask_space(
+    doc: &DocumentView<'_>,
+    dict: &Dict,
+    resources: &Dict,
+    coded: &image_codec::CodedImage,
+) -> Result<(), MaskRefusal> {
     // Table 145: `ColorSpace` is "Required; shall be DeviceGray". pdfcer
     // accepts any space that carries ONE component per sample —
     // `DeviceGray`, `CalGray`, and `ICCBased` with `/N 1` — because
@@ -698,63 +836,7 @@ pub fn soft_mask_plane(
             space.components()
         )));
     }
-
-    // Bit depth: the dictionary's, unless a codec delivered something
-    // else (`SampleLayout`'s rule in `image.rs`, restated for the one
-    // component a mask has). JPX ignores the dictionary outright.
-    let declared = dict
-        .get(b"BitsPerComponent")
-        .map(|o| doc.resolve(o))
-        .and_then(Object::as_int)
-        .filter(|v| matches!(v, 1 | 2 | 4 | 8 | 16))
-        .map(|v| v as u32);
-    let bits = match (coded.codec, declared) {
-        (Some(_), _) if coded.bits_per_component > 0 => u32::from(coded.bits_per_component),
-        (_, Some(v)) => v,
-        (None, None) => return Err(MaskRefusal::Malformed("/SMask has no /BitsPerComponent")),
-        (Some(_), None) => 8,
-    };
-    let sample_width = if coded.codec.is_some() && coded.width > 0 {
-        coded.width
-    } else {
-        width
-    };
-
-    // §8.9.5.2 unchanged: `y = Dmin + x·(Dmax − Dmin)/(2ⁿ − 1)`. Table
-    // 145 restricts only the DEFAULT (`[0 1]`), not the semantics, so
-    // the ordinary transform applies: a mask with no `/Decode` maps
-    // sample 0 to alpha 0 (transparent) and the maximum sample to alpha
-    // 1 (opaque). `/Decode [1 0]` is the sanctioned inversion and MUST
-    // survive as a negative slope — the same trap `image.rs` names for
-    // colour.
-    let max_sample = ((1u32 << bits.min(16)) - 1) as f32;
-    let (dmin, dmax) = match decode_pairs(dict) {
-        Some(pairs) => pairs.first().copied().unwrap_or((0.0, 1.0)),
-        None => (0.0, 1.0),
-    };
-    let slope = (dmax - dmin) / max_sample;
-
-    let stride = row_stride(sample_width, 1, bits).map_err(|_| MaskRefusal::TooLarge)?;
-    let mut alpha = zeroed_alpha(width, height)?;
-    for y in 0..height as usize {
-        let row_bit_base = y.saturating_mul(stride).saturating_mul(8);
-        for x in 0..width as usize {
-            let raw = read_sample(&coded.samples, row_bit_base + x * bits as usize, bits);
-            let value = (dmin + raw as f32 * slope).clamp(0.0, 1.0);
-            if let Some(slot) = alpha.get_mut(y * width as usize + x) {
-                *slot = (value * 255.0).round() as u8;
-            }
-        }
-    }
-
-    Ok(SoftMask {
-        plane: AlphaPlane {
-            width,
-            height,
-            alpha,
-        },
-        matte: matte_components(doc, dict),
-    })
+    Ok(())
 }
 
 /// Decode an explicit `/Mask` image XObject into alpha (§8.9.6.3).
@@ -789,6 +871,16 @@ pub fn soft_mask_plane(
 /// [`MaskRefusal`] — the base image is drawn opaque and the refusal is
 /// counted by name.
 pub fn stencil_plane(doc: &DocumentView<'_>, entry: &Object) -> Result<AlphaPlane, MaskRefusal> {
+    stencil_plane_polled(doc, entry, &|| false)
+}
+
+/// [`stencil_plane`], asking `cancelled` inside the decode and before
+/// each row; [`MaskRefusal::Cancelled`] once it answers `true`.
+pub(crate) fn stencil_plane_polled(
+    doc: &DocumentView<'_>,
+    entry: &Object,
+    cancelled: &dyn Fn() -> bool,
+) -> Result<AlphaPlane, MaskRefusal> {
     let (dict, raw) = mask_stream(doc, entry)?;
     let (width, height) = mask_dimensions(doc, dict)?;
 
@@ -805,8 +897,7 @@ pub fn stencil_plane(doc: &DocumentView<'_>, entry: &Object) -> Result<AlphaPlan
         ));
     }
 
-    let coded = image_codec::decode_image_view(doc, dict, raw, false)
-        .map_err(|e| MaskRefusal::Undecodable(e.to_string()))?;
+    let coded = decode_mask_samples(doc, dict, raw, cancelled)?;
 
     // The sample value that MASKS (hides the base image). Default
     // `/Decode [0 1]` → 0 marks the page → 0 SHOWS, so 1 hides.
@@ -837,17 +928,19 @@ pub fn stencil_plane(doc: &DocumentView<'_>, entry: &Object) -> Result<AlphaPlan
     };
     let stride = row_stride(sample_width, 1, bits).map_err(|_| MaskRefusal::TooLarge)?;
 
-    let mut alpha = zeroed_alpha(width, height)?;
-    for y in 0..height as usize {
-        let row_bit_base = y.saturating_mul(stride).saturating_mul(8);
-        for x in 0..width as usize {
-            let raw = read_sample(&coded.samples, row_bit_base + x * bits as usize, bits);
-            let sample = u32::from(raw != 0);
-            if let Some(slot) = alpha.get_mut(y * width as usize + x) {
-                *slot = if sample == hidden_sample { 0 } else { 255 };
+    let alpha = fill_alpha(
+        (width, height),
+        &coded.samples,
+        (stride, bits),
+        cancelled,
+        |raw| {
+            if u32::from(raw != 0) == hidden_sample {
+                0
+            } else {
+                255
             }
-        }
-    }
+        },
+    )?;
 
     Ok(AlphaPlane {
         width,

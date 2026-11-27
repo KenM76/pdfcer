@@ -81,6 +81,9 @@ pub mod ascii;
 /// `/BrotliDecode` — a PDF Association EXTENSION, not ISO 32000-2. See the
 /// module docs before believing any citation you find for it.
 pub mod brotli;
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::indexing_slicing)] // test assertions
+mod cancel_tests;
 pub mod flate;
 pub mod lzw;
 pub mod predictor;
@@ -115,10 +118,17 @@ pub(crate) trait Pull {
     fn pull(&mut self, out: &mut Vec<u8>) -> Result<bool, FilterError>;
 }
 
-/// Run `p` to its end under [`MAX_DECODED_LEN`].
-pub(crate) fn drain(p: &mut impl Pull) -> Result<Vec<u8>, FilterError> {
+/// Run `p` to its end under [`MAX_DECODED_LEN`], asking `cancelled`
+/// before every [`CHUNK`]-sized pull.
+pub(crate) fn drain(
+    p: &mut impl Pull,
+    cancelled: &dyn Fn() -> bool,
+) -> Result<Vec<u8>, FilterError> {
     let mut out = Vec::new();
     loop {
+        if cancelled() {
+            return Err(FilterError::Cancelled);
+        }
         let done = p.pull(&mut out)?;
         if out.len() > MAX_DECODED_LEN {
             return Err(FilterError::OutputTooLarge);
@@ -127,6 +137,11 @@ pub(crate) fn drain(p: &mut impl Pull) -> Result<Vec<u8>, FilterError> {
             return Ok(out);
         }
     }
+}
+
+/// The poll the uncancellable entry points pass: never cancelled.
+pub(crate) fn never_cancelled() -> bool {
+    false
 }
 
 /// A filter-decode error.
@@ -189,6 +204,10 @@ pub enum FilterError {
     /// `/Filter` held something other than a name or array of names.
     #[error("malformed /Filter entry")]
     BadFilterEntry,
+    /// The caller's cancel poll answered `true` mid-decode
+    /// ([`decode_stream_cancellable`]); no partial output is returned.
+    #[error("decode cancelled by the caller")]
+    Cancelled,
 }
 
 /// Divergences that did **not** stop a stream from decoding.
@@ -243,6 +262,52 @@ pub fn decode_stream_with_notes(
     Ok((data, notes))
 }
 
+/// [`decode_stream_with_notes`], abandoning the decode once `cancelled`
+/// returns `true`.
+///
+/// `cancelled` is polled before each filter stage, before every
+/// 64 KiB chunk the Flate, LZW, Brotli and RunLength decoders produce,
+/// and once per row of a `/Predictor` stage, so a caller that stops
+/// wanting a large stream waits for one chunk or row rather than the
+/// whole decode. `ASCIIHexDecode` and `ASCII85Decode` run each stage
+/// whole. The [`MAX_DECODED_LEN`] ceiling applies unchanged.
+///
+/// The poll is a plain closure so the caller chooses the flag (an
+/// `AtomicBool`, a render token, a deadline); it should be cheap, since
+/// it runs once per chunk and row.
+///
+/// # Errors
+///
+/// As [`decode_stream`], plus [`FilterError::Cancelled`] once
+/// `cancelled` returns `true`. No partial output is returned.
+///
+/// # Examples
+///
+/// ```
+/// use pdfcer_model::filters::{FilterError, decode_stream_cancellable};
+/// use pdfcer_model::object::{Dict, Name, Object};
+///
+/// let mut dict = Dict::new();
+/// dict.insert(Name::from(b"Filter"), Object::Name(Name::from(b"ASCIIHexDecode")));
+///
+/// let (bytes, _notes) = decode_stream_cancellable(&dict, b"4869>", &|| false)?;
+/// assert_eq!(bytes, b"Hi");
+///
+/// let refused = decode_stream_cancellable(&dict, b"4869>", &|| true);
+/// assert_eq!(refused, Err(FilterError::Cancelled));
+/// # Ok::<(), FilterError>(())
+/// ```
+pub fn decode_stream_cancellable(
+    dict: &Dict,
+    raw: &[u8],
+    cancelled: &dyn Fn() -> bool,
+) -> Result<(Vec<u8>, FilterNotes), FilterError> {
+    let filters = filter_names(dict)?;
+    let mut notes = FilterNotes::default();
+    let data = decode_prefix_polled(dict, raw, filters.len(), &mut notes, cancelled)?;
+    Ok((data, notes))
+}
+
 /// Apply the first `take` filters of `dict`'s chain to `raw`.
 ///
 /// Exists so `pdfcer_core::image_codec` can run the **byte-stream prefix**
@@ -264,11 +329,31 @@ pub fn decode_prefix(
     take: usize,
     notes: &mut FilterNotes,
 ) -> Result<Vec<u8>, FilterError> {
+    decode_prefix_polled(dict, raw, take, notes, &never_cancelled)
+}
+
+/// [`decode_prefix`] under a cancel poll, as [`decode_stream_cancellable`]
+/// describes.
+///
+/// # Errors
+///
+/// As [`decode_prefix`], plus [`FilterError::Cancelled`].
+#[doc(hidden)] // workspace-internal: called by pdfcer-image-codec, not API
+pub fn decode_prefix_polled(
+    dict: &Dict,
+    raw: &[u8],
+    take: usize,
+    notes: &mut FilterNotes,
+    cancelled: &dyn Fn() -> bool,
+) -> Result<Vec<u8>, FilterError> {
     let filters = filter_names(dict)?;
     let mut data: Vec<u8> = raw.to_vec();
     for (i, name) in filters.iter().enumerate().take(take) {
+        if cancelled() {
+            return Err(FilterError::Cancelled);
+        }
         let parms = decode_parms_for(dict, i, filters.len());
-        data = apply_one(name, parms, &data, notes)?;
+        data = apply_one(name, parms, &data, notes, cancelled)?;
     }
     Ok(data)
 }
@@ -284,9 +369,10 @@ fn apply_one(
     parms: Option<&Dict>,
     data: &[u8],
     notes: &mut FilterNotes,
+    cancelled: &dyn Fn() -> bool,
 ) -> Result<Vec<u8>, FilterError> {
     match name {
-        b"FlateDecode" | b"Fl" => flate::decode(data, parms),
+        b"FlateDecode" | b"Fl" => flate::decode_polled(data, parms, cancelled),
         // EXTN-BROTLI-1 §5.2. NO ABBREVIATION: the extension defines none,
         // and Table 92's abbreviations exist for inline images, which this
         // filter `SHALL NOT` be used for. MuPDF accepts a `/Br` alias that
@@ -294,14 +380,14 @@ fn apply_one(
         // the specification, and pdfcer does not follow it. Accepting `/Br`
         // would make pdfcer read files no conformant writer produces and no
         // other reader agrees on.
-        b"BrotliDecode" => brotli::decode(data, parms),
+        b"BrotliDecode" => brotli::decode_polled(data, parms, cancelled),
         // §7.4.2/§7.4.3 — parameterless (Table 6), so `parms` is
         // deliberately not forwarded.
         b"ASCIIHexDecode" | b"AHx" => ascii::decode_hex(data),
         b"ASCII85Decode" | b"A85" => ascii::decode_85(data),
-        b"LZWDecode" | b"LZW" => lzw::decode(data, parms, notes),
+        b"LZWDecode" | b"LZW" => lzw::decode_polled(data, parms, notes, cancelled),
         // §7.4.5 — parameterless (Table 6).
-        b"RunLengthDecode" | b"RL" => runlength::decode(data),
+        b"RunLengthDecode" | b"RL" => runlength::decode_polled(data, cancelled),
         // Image codecs are a TERMINAL stage, not a byte-stream filter
         // (R23). Named separately so the operator-facing message says
         // "wrong entry point", not "unsupported".
@@ -425,7 +511,7 @@ mod tests {
     #[test]
     fn br_is_not_accepted_as_an_abbreviation_for_brotli() {
         let mut notes = FilterNotes::default();
-        let e = apply_one(b"Br", None, b"anything", &mut notes).unwrap_err();
+        let e = apply_one(b"Br", None, b"anything", &mut notes, &never_cancelled).unwrap_err();
         assert_eq!(e, FilterError::UnsupportedFilter("Br".into()));
     }
 
@@ -443,7 +529,14 @@ mod tests {
         // silently ignored; what must happen is that the BROTLI decoder
         // refuses it, which is a differently-shaped error from
         // `UnsupportedFilter` and is what distinguishes "wired" from "not".
-        let e = apply_one(b"BrotliDecode", None, &[0xff; 32], &mut notes).unwrap_err();
+        let e = apply_one(
+            b"BrotliDecode",
+            None,
+            &[0xff; 32],
+            &mut notes,
+            &never_cancelled,
+        )
+        .unwrap_err();
         assert!(
             !matches!(e, FilterError::UnsupportedFilter(_)),
             "/BrotliDecode must reach its decoder, got {e:?}"
