@@ -2978,7 +2978,7 @@ pub(crate) fn print_field_clip_line(
         |r| format!("{},{},{},{}", r.llx, r.lly, r.urx, r.ury),
     );
     println!(
-        "{verb} {source}field={:?} type={} button={} widgets={} value={} actions={} calc={} tooltip={} font={} bbox={bbox} objects={} -> {}; bytes={bytes}",
+        "{verb} {source}field={:?} type={} button={} widgets={} value={} actions={} calc={} tooltip={} font={} inherited={} bbox={bbox} objects={} -> {}; bytes={bytes}",
         clip.source_name(),
         clip.field_type().map_or("-", field_type_token),
         clip.button_kind().map_or("-", button_kind_token),
@@ -2994,9 +2994,25 @@ pub(crate) fn print_field_clip_line(
             || "-".to_owned(),
             |f| String::from_utf8_lossy(f).into_owned()
         ),
+        key_list(clip.inherited_keys()),
         clip.object_count(),
         file.display(),
     );
+}
+
+/// A comma-separated key list, or `-` when empty.
+pub(crate) fn key_list(keys: &[String]) -> String {
+    if keys.is_empty() {
+        "-".to_owned()
+    } else {
+        keys.join(",")
+    }
+}
+
+/// `Key:count` pairs for dropped keys, or `-` when none were dropped.
+pub(crate) fn dropped_list(dropped: &std::collections::BTreeMap<String, u64>) -> String {
+    let parts: Vec<String> = dropped.iter().map(|(k, n)| format!("{k}:{n}")).collect();
+    key_list(&parts)
 }
 
 /// The `inspect-field-clip` token for a field type (`/FT` spelling).
@@ -3106,7 +3122,7 @@ pub(crate) fn cmd_paste_field(args: &PasteFieldArgs<'_>) -> u8 {
     };
     let r = &saved.report;
     println!(
-        "paste-field {} clip={} source_field={:?} policy={} page={} rect={},{},{},{} field={} {} widgets={} created={} merged={} mode={} -> {}; changed={} objects={} appended={} out_bytes={} undo_verified={} undo_identical={} radio_state={}",
+        "paste-field {} clip={} source_field={:?} policy={} page={} rect={},{},{},{} field={} {} widgets={} created={} merged={} mode={} -> {}; changed={} objects={} appended={} out_bytes={} undo_verified={} undo_identical={} radio_state={} materialized={} dropped={}",
         args.input.display(),
         args.clip.display(),
         clip.source_name(),
@@ -3134,6 +3150,8 @@ pub(crate) fn cmd_paste_field(args: &PasteFieldArgs<'_>) -> u8 {
         u32::from(saved.undo_verified),
         u32::from(saved.undo_identical),
         outcome.radio_on_state.as_deref().unwrap_or("-"),
+        key_list(&outcome.materialized_keys),
+        dropped_list(&outcome.dropped_keys),
     );
     finish_edit(args.input, &saved)
 }

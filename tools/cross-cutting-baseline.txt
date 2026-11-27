@@ -1,10 +1,8 @@
 # Shrink-only debt for tools/check-cross-cutting.py (decision 228). A new
 # violation fails; an entry that no longer occurs fails as STALE -- delete it.
 #
-# carry <path>::<name>: a field-by-field carry. The first is a real key
-# carry (Pass 781.3 deletes it); the rest are outcome counters named *Carry
-# -- renaming one to *Outcome/*Report deletes its line.
-carry crates/pdfcer-core/src/formclip.rs::FIELD_CARRIED_KEYS
+# carry <path>::<name>: an outcome counter named *Carry -- renaming one to
+# *Outcome/*Report deletes its line.
 carry crates/pdfcer-cli/src/ce_dimension_report.rs::CeCarry
 carry crates/pdfcer-core/src/edit/dimension_merge.rs::DimensionCarry
 carry crates/pdfcer-core/src/edit/insert_fields.rs::FieldCarry

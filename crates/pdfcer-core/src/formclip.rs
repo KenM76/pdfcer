@@ -26,37 +26,44 @@
 //!
 //! # What a clip is
 //!
-//! A [`FieldClip`] is *everything a terminal field IS, minus its identity*:
+//! A [`FieldClip`] is *everything a terminal field IS, minus its identity*.
+//! Both halves are cloned whole (decision 228's carry rule), so a key nobody
+//! listed, including an Annex E `XX` private key, travels by default:
 //!
-//! | half | keys | why |
+//! | half | carried | stripped |
 //! |---|---|---|
-//! | field | `/FT` `/Ff` `/V` `/DV` `/AA` `/Opt` `/MaxLen` `/Q` `/TI` `/I` `/RV` `/DS` `/TM` `/TU` `/DA` `/Lock` `/SV` | Table 220/222 — what a *field* owns |
-//! | widget | `/Rect` `/AP` `/AS` `/MK` `/F` `/BS` `/Border` `/OC` `/H` `/A` `/C` `/CA` | Table 164/166/189 — what a *widget* owns |
-//! | closure | every object those two reach | so the clip survives leaving the document |
-//! | `/DR` font | the `/Font` entry the field's `/DA` names | so `/DA` still resolves in the destination |
+//! | field | every key, plus the inheritable attributes it gets from an ancestor | `/T` `/Parent` `/Kids` `/Type` |
+//! | widget | every key | `/P` `/Parent` `/Type` `/Subtype` `/T` `/Kids`; marked: `/StructParent` `/NM` `/Popup` `/IRT` |
+//! | closure | every object those two reach | |
+//! | `/DR` font | the `/Font` entry the field's `/DA` names | |
 //!
-//! **`/T` is never carried.** It is the field's identity, and the identity is
-//! the operator's decision, supplied through [`FieldPastePolicy`]. So are
-//! `/Parent` and `/Kids`: they describe where the field sat in *its* tree.
+//! A merged (Shape A) dictionary splits along `forms_author`'s
+//! `WIDGET_KEYS_TO_MOVE` / `FIELD_ONLY_KEYS`; a key in neither list is
+//! carried on both halves.
 //!
-//! Four widget keys are dropped at **copy** time rather than at paste time,
-//! deliberately, so a serialised clip carries nothing that can dangle:
+//! **`/T`, `/Parent` and `/Kids` are never carried.** They are the field's
+//! identity and its place in the source tree; the identity is the operator's
+//! decision, supplied through [`FieldPastePolicy`].
 //!
-//! - **`/P`** — names the source page. A page reference in another document is
-//!   not merely wrong, it resolves to something unrelated.
-//! - **`/Parent`** — rewritten by the paste to the field it lands under.
-//! - **`/StructParent`** — an index into the *source's* `/StructTreeRoot`
-//!   `/ParentTree` (§14.7.4.4). pdfcer has no structure-tree writer, so
-//!   carrying the number would point the destination's tag tree at an
-//!   arbitrary element. Disclosed on paste into a tagged document.
-//! - **`/NM`** — §12.5.2 requires an annotation name to be unique *within its
-//!   page*. Carrying one guarantees the opposite the moment a clip is pasted
-//!   twice onto one page.
-//! - **`/M`** — the source annotation's modification date. A pasted widget is
-//!   a **new** annotation; carrying somebody else's timestamp is a claim
-//!   about an object that did not exist when it was made. pdfcer never reads a
-//!   clock (R80's discipline), so it cannot write a true one either — it
-//!   writes none, and says so.
+//! **Inherited attributes are materialised.** A pasted field leaves its
+//! parent, so `/FT` `/Ff` `/V` `/DV` `/DA` `/Q` `/MaxLen` (and a button's
+//! `/Opt`) that the field inherited (§12.7.3.1 Table 220), and the
+//! `/AcroForm` `/DA`/`/Q` defaults of a variable-text field (Table 218), are
+//! written onto the clip's field half and listed by
+//! [`FieldClip::inherited_keys`]; the paste discloses the ones it plants.
+//!
+//! The widget strips name the source document only:
+//!
+//! - **`/P`**, **`/Parent`** — re-supplied by the paste.
+//! - **`/NM`** — §12.5.2 requires an annotation name unique on its page; the
+//!   paste writes a fresh one.
+//! - **`/StructParent`** — an index into the source's `/ParentTree`
+//!   (§14.7.4.4); dropped and disclosed.
+//! - **`/Popup`**, **`/IRT`** — references to source annotations; dropped
+//!   and disclosed.
+//!
+//! The marked strips travel as `null` (`xcut::carry`), which is how the
+//! paste counts them for its disclosure.
 //!
 //! # The two chords, and why they are one verb
 //!
@@ -163,8 +170,7 @@
 //! `MAX_NESTING_DEPTH`, and count-guarded by [`MAX_CLIP_OBJECTS`] and
 //! [`MAX_CLIP_WIDGETS`] so a hostile length prefix cannot make it allocate.
 
-use crate::forms::{self, ButtonKind, FieldType};
-use crate::graph::ObjectGraph;
+use crate::forms::{ButtonKind, FieldType};
 use crate::object::{Dict, Name, ObjId, Object, Stream};
 use crate::page_tree::Rect;
 use crate::span::ByteSpan;
@@ -172,6 +178,8 @@ use crate::vector::clip::{ClipError, ClipObject, rebuild_stream};
 use crate::view::DocumentView;
 use std::collections::BTreeMap;
 
+mod copy;
+pub(crate) use copy::build_field_clip;
 mod set;
 pub use set::{
     FIELD_CLIP_SET_MAGIC, FieldClipSet, FieldCopyNaming, FieldSetPasteOutcome, FieldSetPastePolicy,
@@ -184,7 +192,7 @@ pub use set::{
 /// [`CLIP_VERSION`](crate::vector::clip::CLIP_VERSION): the two payloads have
 /// different magic, different shapes and different reasons to change, so one
 /// shared number would force a version bump on both whenever either moved.
-pub const FIELD_CLIP_VERSION: u32 = 1;
+pub const FIELD_CLIP_VERSION: u32 = 2;
 
 /// The twelve-byte signature every field-clip payload starts with.
 ///
@@ -218,40 +226,6 @@ const MAX_CLIP_DEPTH: usize = 32;
 /// ([`Closure::pin_self`]). An Annex E third-class name, so no producer's
 /// indirect object can collide with it.
 pub(crate) const CLIP_SELF_MARKER: &[u8] = b"XXpdfcerClipSelf";
-
-/// Field-half keys that are the field's **identity or structure**, and are
-/// therefore never carried.
-///
-/// `/T` is the name the policy supplies. `/Parent` and `/Kids` describe where
-/// the field sat in the source's field tree, which the paste rebuilds.
-const FIELD_IDENTITY_KEYS: &[&[u8]] = &[b"T", b"Parent", b"Kids", b"Type"];
-
-/// Widget-half keys dropped at copy time because they name something that
-/// exists only in the source document.
-///
-/// See the module docs for the per-key reasoning — each of these is a
-/// deliberate drop with a stated cause, not a shortcut.
-const WIDGET_SOURCE_BOUND_KEYS: &[&[u8]] = &[
-    b"P",
-    b"Parent",
-    b"StructParent",
-    b"NM",
-    b"M",
-    b"Type",
-    b"Subtype",
-];
-
-/// The field-half keys a clip carries.
-///
-/// Derived from [`crate::forms_author::FIELD_ONLY_KEYS`] plus the three
-/// variable-text/permission keys that live on a field but are in neither of
-/// that module's two lists (`/DA` because a *merged* field carries it as both
-/// halves, `/TU` and `/Lock`/`/SV` because they were never part of the
-/// promotion question those lists answer).
-const FIELD_CARRIED_KEYS: &[&[u8]] = &[
-    b"FT", b"Ff", b"V", b"DV", b"AA", b"Opt", b"MaxLen", b"Q", b"TI", b"I", b"RV", b"DS", b"TM",
-    b"TU", b"DA", b"Lock", b"SV",
-];
 
 /// One widget on the clipboard: its dictionary and where it sat.
 #[derive(Debug, Clone, PartialEq)]
@@ -322,6 +296,9 @@ pub struct FieldClip {
     /// name as written in the `/DA`, and the clip-local object holding the
     /// font dictionary.
     pub(crate) da_font: Option<(Vec<u8>, u32)>,
+    /// The field-half keys materialised from the source's ancestors or its
+    /// `/AcroForm` defaults rather than read off the field itself.
+    pub(crate) inherited: Vec<String>,
     /// The source field's fully-qualified name — for seeding a rename box.
     pub(crate) source_name: String,
     /// The source field's resolved `/FT`.
@@ -436,6 +413,16 @@ impl FieldClip {
         self.da_font.as_ref().map(|(name, _)| name.as_slice())
     }
 
+    /// The field-half keys the clip materialised because the source field
+    /// inherited them (§12.7.3.1 Table 220) from an ancestor, or from the
+    /// `/AcroForm` `/DA`/`/Q` defaults (Table 218): a pasted field leaves its
+    /// parent, so it must carry them itself. Empty when the field set all of
+    /// them.
+    #[must_use]
+    pub fn inherited_keys(&self) -> &[String] {
+        &self.inherited
+    }
+
     /// How many objects the clip's owned closure holds.
     #[must_use]
     pub fn object_count(&self) -> usize {
@@ -502,6 +489,14 @@ impl FieldClip {
             None => out.push(0),
         }
 
+        put_u32(
+            &mut out,
+            u32::try_from(self.inherited.len()).unwrap_or(u32::MAX),
+        );
+        for key in &self.inherited {
+            put_bytes(&mut out, key.as_bytes());
+        }
+
         put_objects(&mut out, &self.objects);
         out
     }
@@ -524,13 +519,7 @@ impl FieldClip {
         if r.take(FIELD_CLIP_MAGIC.len())? != FIELD_CLIP_MAGIC.as_slice() {
             return Err(ClipError::NotAClip);
         }
-        let version = r.u32()?;
-        if version > FIELD_CLIP_VERSION {
-            return Err(ClipError::NewerFormat {
-                found: version,
-                supported: FIELD_CLIP_VERSION,
-            });
-        }
+        let version = check_version(r.u32()?)?;
         let source_name = String::from_utf8_lossy(&r.bytes()?).into_owned();
         let field_type = field_type_of_tag(r.byte()?);
         let button_kind = button_kind_of_tag(r.byte()?);
@@ -571,6 +560,17 @@ impl FieldClip {
             None
         };
 
+        let inherited_count = r.u32()? as usize;
+        if inherited_count > MAX_INHERITED_KEYS {
+            return Err(ClipError::Content(format!(
+                "the clip names {inherited_count} inherited keys; a field has at most {MAX_INHERITED_KEYS}"
+            )));
+        }
+        let mut inherited = Vec::with_capacity(inherited_count);
+        for _ in 0..inherited_count {
+            inherited.push(String::from_utf8_lossy(&r.bytes()?).into_owned());
+        }
+
         let objects = read_objects(&mut r)?;
 
         Ok(Self {
@@ -579,10 +579,32 @@ impl FieldClip {
             widgets,
             objects,
             da_font,
+            inherited,
             source_name,
             field_type,
             button_kind,
         })
+    }
+}
+
+/// The most inherited-key names a serialised clip may list: Table 220's
+/// inheritable attributes plus a button's `/Opt`, with room to spare.
+const MAX_INHERITED_KEYS: usize = 32;
+
+/// Accept exactly [`FIELD_CLIP_VERSION`]: a newer payload is
+/// [`ClipError::NewerFormat`], an older one is [`ClipError::Content`] (an
+/// older clip carries no inherited attributes, so pasting it would silently
+/// lose them).
+pub(crate) fn check_version(version: u32) -> Result<u32, ClipError> {
+    match version.cmp(&FIELD_CLIP_VERSION) {
+        std::cmp::Ordering::Equal => Ok(version),
+        std::cmp::Ordering::Greater => Err(ClipError::NewerFormat {
+            found: version,
+            supported: FIELD_CLIP_VERSION,
+        }),
+        std::cmp::Ordering::Less => Err(ClipError::Content(format!(
+            "field-clip format {version} is older than this build's {FIELD_CLIP_VERSION}; copy the field again"
+        ))),
     }
 }
 
@@ -634,9 +656,10 @@ pub enum PasteTooltip {
 pub enum FieldPastePolicy {
     /// **Ctrl+V** — a new, independent field.
     ///
-    /// Carries `/FT`, `/Ff`, `/DA`, `/Q`, `/DV`, `/MaxLen`, `/Opt`, `/MK`,
-    /// `/BS` and the widget appearance; carries `/V` and `/AA` only when
-    /// asked. Refused when `name` is already taken
+    /// Carries the whole field and widget dictionaries (see the module docs
+    /// for the source-bound strips), including attributes the source field
+    /// inherited; carries `/V` and the actions (`/AA`, a widget's `/A`) only
+    /// when asked. Refused when `name` is already taken
     /// ([`EditError::FieldNameTaken`](crate::edit::EditError::FieldNameTaken))
     /// — never auto-suffixed, because an engine-invented name is a name
     /// nobody chose, and the operator can see the candidate before pressing.
@@ -687,171 +710,6 @@ impl FieldPastePolicy {
 // ---------------------------------------------------------------------------
 // Copy side — building the clip
 // ---------------------------------------------------------------------------
-
-/// Build a clip from a parsed field and the document it lives in, interning
-/// its objects into `closure` (the returned clip's own `objects` is empty, so
-/// several fields can share one closure).
-///
-/// `field` must be a terminal field from `form`; `view` must be the same
-/// document's view (a session's [`view`](crate::edit::EditSession::view), so
-/// authored appearance spans resolve into the staging buffer rather than off
-/// the end of the base file).
-///
-/// # Errors
-///
-/// [`ClipError::ClipTooLarge`] when the field's closure exceeds
-/// [`MAX_CLIP_OBJECTS`], or when it carries more than [`MAX_CLIP_WIDGETS`]
-/// widgets.
-pub(crate) fn build_field_clip(
-    closure: &mut Closure<'_>,
-    view: &DocumentView<'_>,
-    form: &forms::AcroForm,
-    field: &forms::Field,
-) -> Result<FieldClip, ClipError> {
-    let graph = view.graph();
-
-    // ---- the field half -------------------------------------------------
-    //
-    // Read from the RAW dictionary, not from `forms::Field`. The read
-    // projection resolves inherited attributes, so `field.flags` may hold a
-    // value the field never carried itself — planting that as an own `/Ff`
-    // would materialise an inheritance the operator never chose. And it does
-    // not model `/AA`'s contents, `/Lock`, `/SV` or `/MK` at all.
-    let source_dict = graph
-        .resolved(field.id)
-        .as_dict()
-        .cloned()
-        .unwrap_or_default();
-    let mut carried = Dict::new();
-    for key in FIELD_CARRIED_KEYS {
-        if let Some(value) = source_dict.get(key) {
-            carried.insert(Name::from(*key), closure.take(value, 0)?);
-        }
-    }
-    // `/FT` is the one key a merged Shape A field may have inherited AND that
-    // the paste cannot proceed without, so it is materialised from the read
-    // projection when the raw dictionary is silent. That is a deliberate
-    // exception to the paragraph above: an absent `/FT` is not an inheritance
-    // the operator chose, it is a field that has no type of its own and whose
-    // type came from a parent that is not travelling.
-    if !carried.contains_key(b"FT")
-        && let Some(ft) = field.field_type
-    {
-        carried.insert(Name::from(b"FT"), Object::Name(Name::from(ft.as_ft_name())));
-    }
-    for key in FIELD_IDENTITY_KEYS {
-        carried.remove(key);
-    }
-
-    // ---- the widget halves ----------------------------------------------
-    if field.widgets.len() > MAX_CLIP_WIDGETS {
-        return Err(ClipError::ClipTooLarge {
-            found: field.widgets.len(),
-            limit: MAX_CLIP_WIDGETS,
-        });
-    }
-    let mut widgets = Vec::with_capacity(field.widgets.len());
-    for widget in &field.widgets {
-        let raw = graph
-            .resolved(widget.id)
-            .as_dict()
-            .cloned()
-            .unwrap_or_default();
-        let mut dict = Dict::new();
-        for (key, value) in raw.iter() {
-            let k = key.as_bytes();
-            if WIDGET_SOURCE_BOUND_KEYS.contains(&k) {
-                continue;
-            }
-            // A MERGED (Shape A) field is one dictionary wearing both hats,
-            // and this half is about to be only the widget. Its field keys
-            // are carried above; its identity keys are the paste's to supply.
-            //
-            // `/DA` and `/T` are the two that BIT, and both bit the same
-            // way: the paste writes the field half first and then folds the
-            // widget half over it, so anything left here that also belongs on
-            // the field SILENTLY WINS. A leftover `/T` made every paste come
-            // back under the source's name; a leftover `/DA` undid the
-            // font-resource rename the paste had just performed and disclosed.
-            // Neither showed up as an error -- the document was well formed
-            // and wrong.
-            if FIELD_CARRIED_KEYS.contains(&k) || FIELD_IDENTITY_KEYS.contains(&k) {
-                continue;
-            }
-            dict.insert(key.clone(), closure.take(value, 0)?);
-        }
-        widgets.push(FieldClipWidget {
-            dict,
-            rect: widget.rect.unwrap_or(Rect {
-                llx: 0.0,
-                lly: 0.0,
-                urx: 0.0,
-                ury: 0.0,
-            }),
-        });
-    }
-
-    // ---- the /DA font ----------------------------------------------------
-    //
-    // §12.7.3.3: the `/DA` names a font that must resolve in the AcroForm's
-    // `/DR /Font`. Carrying the `/DA` without the font it names produces a
-    // field whose appearance the DESTINATION cannot regenerate — which is
-    // precisely the "it looks wrong after paste" the consuming shell reported.
-    let da_font = carried
-        .get(b"DA")
-        .and_then(|da| match graph.resolve(da) {
-            Object::String(bytes) => Some(bytes.clone()),
-            _ => None,
-        })
-        .and_then(|da| crate::vartext::parse_default_appearance(&da).ok())
-        .map(|parsed| parsed.font_name)
-        .and_then(|name| {
-            let entry = dr_font_entry(graph, form, &name)?;
-            Some((name, entry))
-        });
-    let da_font = match da_font {
-        Some((name, value)) => {
-            let interned = closure.take(&value, 0)?;
-            // The font must be an INDIRECT object in the clip so the paste can
-            // install it into `/DR /Font` by reference rather than inlining a
-            // whole (possibly embedded) font into a dictionary.
-            let number = match interned {
-                Object::Reference(id) => id.num,
-                direct => closure.adopt(direct)?,
-            };
-            Some((name, number))
-        }
-        None => None,
-    };
-
-    Ok(FieldClip {
-        version: FIELD_CLIP_VERSION,
-        field: carried,
-        widgets,
-        objects: BTreeMap::new(),
-        da_font,
-        source_name: field.fully_qualified_name.clone(),
-        field_type: field.field_type,
-        button_kind: field.button_kind,
-    })
-}
-
-/// The `/AcroForm /DR /Font /<name>` value, unresolved, so an indirect entry
-/// stays indirect and the closure walker sees a reference to intern.
-fn dr_font_entry<G: ObjectGraph + ?Sized>(
-    graph: &G,
-    form: &forms::AcroForm,
-    name: &[u8],
-) -> Option<Object> {
-    if !form.has_default_resources {
-        return None;
-    }
-    let catalog = graph.catalog_dict()?;
-    let acroform = graph.resolve(catalog.get(b"AcroForm")?).as_dict()?;
-    let dr = graph.resolve(acroform.get(b"DR")?).as_dict()?;
-    let fonts = graph.resolve(dr.get(b"Font")?).as_dict()?;
-    fonts.get(name).cloned()
-}
 
 /// The owned-closure builder: interns every object a carried value reaches,
 /// rewriting references into clip-local numbering.
@@ -1284,6 +1142,16 @@ pub struct FieldPasteOutcome {
     /// and the copied `/AP` `/N`, `/D` and `/R` keys were renamed to it.
     /// `None` for every other paste.
     pub radio_on_state: Option<String>,
+    /// The field keys this paste wrote onto the new field because the
+    /// source field had inherited them ([`FieldClip::inherited_keys`], minus
+    /// any the paste then declined, such as `/V` without `copy_value`).
+    /// Empty for [`FieldPastePolicy::AdditionalWidget`], which does not touch
+    /// the field.
+    pub materialized_keys: Vec<String>,
+    /// Source-bound widget keys the paste dropped (`StructParent`, `Popup`,
+    /// `IRT`), each with how many widgets lost it. Disclosed in
+    /// [`Self::disclosures`].
+    pub dropped_keys: BTreeMap<String, u64>,
 }
 
 #[cfg(test)]
@@ -1337,6 +1205,7 @@ mod tests {
             }],
             objects,
             da_font: Some((b"Helv".to_vec(), 1)),
+            inherited: vec!["Ff".to_owned(), "DA".to_owned()],
             source_name: "TitleBlock.Revision".to_owned(),
             field_type: Some(FieldType::Text),
             button_kind: None,
@@ -1390,6 +1259,24 @@ mod tests {
                 supported: FIELD_CLIP_VERSION,
             }),
         );
+    }
+
+    #[test]
+    fn an_older_format_is_refused_because_it_lacks_inherited_keys() {
+        let mut bytes = sample().to_bytes();
+        bytes[12..16].copy_from_slice(&(FIELD_CLIP_VERSION - 1).to_le_bytes());
+        assert!(matches!(
+            FieldClip::from_bytes(&bytes),
+            Err(ClipError::Content(msg)) if msg.contains("older")
+        ));
+    }
+
+    #[test]
+    fn the_inherited_key_list_round_trips() {
+        let clip = sample();
+        let back = FieldClip::from_bytes(&clip.to_bytes()).expect("round trip");
+        assert_eq!(back.inherited_keys(), ["Ff", "DA"]);
+        assert_eq!(back, clip);
     }
 
     #[test]

@@ -121,13 +121,7 @@ impl FieldClipSet {
         if r.take(FIELD_CLIP_SET_MAGIC.len())? != FIELD_CLIP_SET_MAGIC.as_slice() {
             return Err(ClipError::NotAClip);
         }
-        let version = r.u32()?;
-        if version > FIELD_CLIP_VERSION {
-            return Err(ClipError::NewerFormat {
-                found: version,
-                supported: FIELD_CLIP_VERSION,
-            });
-        }
+        super::check_version(r.u32()?)?;
         let count = r.u32()? as usize;
         if count > MAX_CLIP_SET_FIELDS {
             return Err(ClipError::ClipTooLarge {

@@ -89,7 +89,7 @@ pub(super) fn paste(
 }
 
 /// The `(dx, dy)` each carry op pastes at.
-fn offset(op: Op) -> (f64, f64) {
+pub(super) fn offset(op: Op) -> (f64, f64) {
     match op {
         Op::Copy => (25.0, -10.0),
         Op::Paste => (30.0, 40.0),
@@ -137,7 +137,12 @@ pub(super) fn preserve_carry(op: Op, kind: ObjectKind, changes: &[Change]) -> Ve
         Err(e) => return vec![e],
     };
     let mut faults = compare(&before, &landed.after, changes, offset(op));
-    faults.extend(disclosed(&before, &landed.outcome, changes));
+    faults.extend(disclosed(
+        &before,
+        &landed.outcome.dropped_keys,
+        landed.outcome.replies_unthreaded,
+        changes,
+    ));
     let unique: BTreeSet<&Vec<u8>> = landed.page_names.iter().collect();
     if unique.len() != landed.page_names.len() {
         faults.push(format!(
@@ -152,8 +157,15 @@ pub(super) fn preserve_carry(op: Op, kind: ObjectKind, changes: &[Change]) -> Ve
     faults
 }
 
-/// Every declared drop of a key the source held must be counted.
-fn disclosed(before: &PropertyDump, outcome: &PasteOutcome, changes: &[Change]) -> Vec<String> {
+/// Every declared drop of a key the source held must be counted, in the
+/// dropped-key map of whichever paste ran (`replies_unthreaded` is the
+/// annotation paste's).
+pub(super) fn disclosed(
+    before: &PropertyDump,
+    dropped_keys: &std::collections::BTreeMap<String, u64>,
+    replies_unthreaded: u64,
+    changes: &[Change],
+) -> Vec<String> {
     let mut faults = Vec::new();
     for change in changes {
         let Change::Dropped {
@@ -166,8 +178,10 @@ fn disclosed(before: &PropertyDump, outcome: &PasteOutcome, changes: &[Change]) 
             continue;
         }
         let counted = match disclosed_by {
-            Disclosure::PasteDroppedKeys => outcome.dropped_keys.get(*key).copied().unwrap_or(0),
-            Disclosure::PasteRepliesUnthreaded => outcome.replies_unthreaded,
+            Disclosure::PasteDroppedKeys | Disclosure::FieldPasteDroppedKeys => {
+                dropped_keys.get(*key).copied().unwrap_or(0)
+            }
+            Disclosure::PasteRepliesUnthreaded => replies_unthreaded,
         };
         if counted == 0 {
             faults.push(format!("/{key} dropped without being counted"));
@@ -237,7 +251,16 @@ fn drive(op: Op, kind: ObjectKind, cell: Expect) -> Vec<String> {
         Expect::Preserve(_) | Expect::Refused(_) if !has_fixture => {
             vec!["no fixture builds this kind".to_owned()]
         }
+        Expect::Preserve(changes) if op == Op::ReloadRoundTrip && kind == ObjectKind::Field => {
+            super::field::preserve_reload(changes)
+        }
         Expect::Preserve(changes) if op == Op::ReloadRoundTrip => preserve_reload(kind, changes),
+        Expect::Preserve(changes)
+            if matches!(op, Op::Copy | Op::Cut | Op::Paste | Op::Duplicate)
+                && matches!(kind, ObjectKind::Widget | ObjectKind::Field) =>
+        {
+            super::field::preserve_carry(op, kind, changes)
+        }
         Expect::Preserve(changes)
             if matches!(op, Op::Copy | Op::Cut | Op::Paste | Op::Duplicate) =>
         {
@@ -317,7 +340,13 @@ fn every_fixture_classifies_as_its_kind() {
         let Some(Object::Dict(dict)) = s.value(id) else {
             panic!("{kind}: no target");
         };
-        assert_eq!(classify_annot(&s, dict), kind, "{kind}");
+        if kind == ObjectKind::Field {
+            let form = crate::forms::parse_acroform(&s.graph()).expect("form");
+            assert_eq!(form.field_by_name("fld").map(|f| f.id), Some(id));
+            assert!(dict.contains_key(b"Kids"), "{kind}: no kids");
+        } else {
+            assert_eq!(classify_annot(&s, dict), kind, "{kind}");
+        }
         assert!(dict.contains_key(SENTINEL_KEY), "{kind}: no sentinel");
     }
 }

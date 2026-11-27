@@ -95,6 +95,7 @@ mod extract_dimension_sidecar;
 mod facade_paths;
 mod field_appearance;
 mod field_creation_appearance;
+mod field_paste_inherited;
 mod field_properties;
 mod field_script_authoring;
 mod field_set_clipboard;

@@ -2,7 +2,9 @@
 //! pasted all or nothing as one undo entry.
 
 use super::*;
-use pdfcer_core::formclip::{FieldClipSet, FieldCopyNaming, FieldSetPastePolicy, PasteTooltip};
+use pdfcer_core::formclip::{
+    FieldClipSet, FieldCopyNaming, FieldPasteOutcome, FieldSetPastePolicy, PasteTooltip,
+};
 
 /// Borrowed argument bundle for [`cmd_paste_fields`].
 pub(crate) struct PasteFieldsArgs<'a> {
@@ -110,8 +112,9 @@ pub(crate) fn cmd_paste_fields(args: &PasteFieldsArgs<'_>) -> u8 {
     };
     let r = &saved.report;
     let widgets: usize = outcome.fields.iter().map(|f| f.widget_ids.len()).sum();
+    let (materialized, dropped) = carry_totals(&outcome.fields);
     println!(
-        "paste-fields {} clip={} policy={} page={} at={},{} fields={} widgets={} mode={} -> {}; changed={} objects={} appended={} out_bytes={} undo_verified={} undo_identical={}{}",
+        "paste-fields {} clip={} policy={} page={} at={},{} fields={} widgets={} mode={} -> {}; changed={} objects={} appended={} out_bytes={} undo_verified={} undo_identical={} materialized={materialized} dropped={dropped}{}",
         args.input.display(),
         args.clip.display(),
         if args.as_new {
@@ -135,6 +138,13 @@ pub(crate) fn cmd_paste_fields(args: &PasteFieldsArgs<'_>) -> u8 {
         name_tokens(outcome.names.iter().map(String::as_str)),
     );
     finish_edit(args.input, &saved)
+}
+
+/// Inherited keys written and source-bound keys dropped, over every field.
+fn carry_totals(fields: &[FieldPasteOutcome]) -> (usize, u64) {
+    let materialized = fields.iter().map(|f| f.materialized_keys.len()).sum();
+    let dropped = fields.iter().flat_map(|f| f.dropped_keys.values()).sum();
+    (materialized, dropped)
 }
 
 /// The paste policy the flags chose; refuses when no choice was made, since

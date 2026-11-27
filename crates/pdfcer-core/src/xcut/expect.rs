@@ -136,4 +136,6 @@ pub enum Disclosure {
     PasteDroppedKeys,
     /// `PasteOutcome::replies_unthreaded`.
     PasteRepliesUnthreaded,
+    /// `FieldPasteOutcome::dropped_keys`, keyed by the key's name.
+    FieldPasteDroppedKeys,
 }

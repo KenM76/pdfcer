@@ -8,6 +8,7 @@
     clippy::indexing_slicing
 )]
 
+mod field;
 mod fixes;
 mod fixture;
 mod matrix_doc;

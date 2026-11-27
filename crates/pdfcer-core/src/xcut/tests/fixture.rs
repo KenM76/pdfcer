@@ -42,16 +42,49 @@ pub(super) fn kinds() -> impl Iterator<Item = ObjectKind> {
         matches!(
             k.group(),
             crate::xcut::KindGroup::Annotation | crate::xcut::KindGroup::Form
-        ) && *k != ObjectKind::Field
+        )
     })
 }
 
-/// The open session and the target annotation's id.
+/// The open session and the target's id: an annotation, or for
+/// [`ObjectKind::Field`] the field dictionary.
 pub(super) fn build(kind: ObjectKind) -> (EditSession, ObjId) {
-    if kind == ObjectKind::CeDimension {
-        return ce_dimension();
+    match kind {
+        ObjectKind::CeDimension => ce_dimension(),
+        ObjectKind::Field => field(),
+        _ => build_with_border(kind, BORDER),
     }
-    build_with_border(kind, BORDER)
+}
+
+/// The widget kids of the [`field`] fixture.
+pub(super) const FIELD_KIDS: [u32; 2] = [19, 20];
+
+/// A text field named `fld` with two `/Kids` widgets (§12.7.3.1), every
+/// field attribute set, and the sentinel on the field and on each widget.
+fn field() -> (EditSession, ObjId) {
+    let [a, b] = FIELD_KIDS;
+    let mut objs = objects("", NOTE);
+    for (n, body) in &mut objs {
+        if *n == 3 {
+            *body = body.replace("/Annots [", &format!("/Annots [{a} 0 R {b} 0 R "));
+        }
+    }
+    objs.push((
+        TARGET,
+        format!(
+            "<< /FT /Tx /T (fld) /TU (tip) /Ff 4096 /V (value) /DV (dflt)              /DA (/Helv 0 Tf 0 g) /Q 1 /MaxLen 40 /Kids [{a} 0 R {b} 0 R]              /XXpdfcerSentinel (xcut-sentinel-7810) /XXpdfcerSentinelStream 14 0 R >>"
+        ),
+    ));
+    for (n, y) in [(a, 100), (b, 200)] {
+        objs.push((
+            n,
+            format!(
+                "<< /Type /Annot /Subtype /Widget /Parent {TARGET} 0 R /P 3 0 R                  /Rect [100 {y} 200 {}] /F 4 /MK << /BG [1 1 1] >> /AP << /N 13 0 R >>                  /XXpdfcerSentinel (xcut-sentinel-7810) >>",
+                y + 50
+            ),
+        ));
+    }
+    (EditSession::new(pdf(&objs)), ObjId::new(TARGET, 0))
 }
 
 /// [`build`] with `border` in place of [`BORDER`]: `""` for a target with

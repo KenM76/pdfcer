@@ -84,6 +84,47 @@ pub(crate) const MARKUP: &[Change] = &[
     Change::Renumbered,
 ];
 
+/// What a form field's widget declares through `copy_field` and a
+/// `NewField` paste: the dictionary travels whole (`formclip`), renamed,
+/// rebound and moved. `/Popup` and `/IRT` name source annotations and stay
+/// dropped (a widget has no reply thread to keep).
+pub(crate) const WIDGET: &[Change] = &[
+    Change::Translated("Rect"),
+    Change::Rebound("P"),
+    Change::Regenerated("NM"),
+    Change::Regenerated("T"),
+    Change::Dropped {
+        key: "Popup",
+        disclosed_by: Disclosure::FieldPasteDroppedKeys,
+        gap: None,
+    },
+    Change::Dropped {
+        key: "IRT",
+        disclosed_by: Disclosure::FieldPasteDroppedKeys,
+        gap: None,
+    },
+    Change::Dropped {
+        key: "StructParent",
+        disclosed_by: Disclosure::FieldPasteDroppedKeys,
+        gap: Some("781.7.k"),
+    },
+    Change::Unbound {
+        key: "OC",
+        pass: "781.7.f",
+    },
+    Change::Renumbered,
+];
+
+/// A field with `/Kids` widgets: renamed, its widgets moved and rebound.
+/// The driver compares the field and each widget separately, so `/Rect`
+/// and `/P` are the widgets' keys.
+pub(crate) const FIELD: &[Change] = &[
+    Change::Regenerated("T"),
+    Change::Translated("Rect"),
+    Change::Rebound("P"),
+    Change::Renumbered,
+];
+
 /// Copy, Cut, Paste and Duplicate: the same carry, so one table.
 pub(super) fn carry(kind: ObjectKind) -> Expect {
     use ObjectKind as K;
@@ -119,7 +160,8 @@ pub(super) fn carry(kind: ObjectKind) -> Expect {
         K::Popup => Expect::Refused("popup-travels-with-parent"),
         // A pending redaction pasted into an unreviewed document arms it.
         K::Redact => Expect::Refused("pending-redaction"),
-        K::Widget | K::Field => Expect::Pending("781.3"),
+        K::Widget => Expect::Preserve(WIDGET),
+        K::Field => Expect::Preserve(FIELD),
         K::Page | K::OutlineItem | K::Attachment | K::Layer | K::NamedDest => {
             Expect::Pending("781.6")
         }
@@ -159,8 +201,8 @@ pub(super) fn reload(kind: ObjectKind) -> Expect {
         | K::Redact
         | K::Watermark
         | K::UnknownAnnot
-        | K::Widget => Expect::Preserve(&[Change::Renumbered]),
-        K::Field => Expect::Pending("781.3"),
+        | K::Widget
+        | K::Field => Expect::Preserve(&[Change::Renumbered]),
         K::Page | K::OutlineItem | K::Attachment | K::Layer | K::NamedDest => {
             Expect::Pending("781.6")
         }

@@ -4810,10 +4810,10 @@ Types live in **`pdfcer_core::formclip`**, not `edit`: `FieldClip`,
 
 #### What a clip carries
 
-Everything the field IS, minus its identity. The field half —
-`/FT /Ff /V /DV /AA /Opt /MaxLen /Q /TI /I /RV /DS /TM /TU /DA /Lock /SV` —
-plus every widget's `/Rect /AP /AS /MK /F /BS /Border /OC /H /A /C /CA`, plus
-the **owned closure** of every object those reach (appearance streams,
+The field and widget dictionaries **whole**, minus a short denylist of keys
+that name the source document (clone-then-patch, decision 228): any key pdfcer
+does not know — a producer's private key, a future standard key — travels.
+Plus the **owned closure** of every object those reach (appearance streams,
 JavaScript streams, action dictionaries), plus the **`/AcroForm /DR /Font`
 entry the field's `/DA` names**.
 
@@ -4825,11 +4825,20 @@ The clip carries the font; the paste installs it, and **renames it plus
 rewrites the `/DA`** when the destination already uses that name for a
 different font.
 
+**Inherited attributes are materialised.** A pasted field leaves its parent,
+so whatever it inherited (§12.7.3.1 Table 220: `/FT /Ff /V /DV /DA /Q`,
+`/MaxLen`, a button's `/Opt`; then the `/AcroForm` `/DA` and `/Q` defaults
+for a text or choice field) is written onto the pasted field itself. A key
+the field sets itself is never replaced. `FieldClip::inherited_keys()` names
+them before the press; `FieldPasteOutcome::materialized_keys` names the ones
+the paste wrote (a declined `/V` is not among them), and a disclosure says so.
+
 **Never carried**, each for a stated reason: `/T` (identity — the policy
 supplies it), `/Parent` and `/Kids` (the source's tree), `/P` (a page in
-another document), `/StructParent` (an index into the *source's* parent tree),
-`/NM` (§12.5.2 requires per-page uniqueness), `/M` (a modification date on an
-object that did not exist then; pdfcer never reads a clock).
+another document), `/NM` (§12.5.2 requires per-page uniqueness — a fresh one
+is written). **Dropped and counted** in `FieldPasteOutcome::dropped_keys`:
+`/StructParent` (an index into the *source's* parent tree), `/Popup` and
+`/IRT` (source annotations); a disclosure names them.
 
 #### `FieldClip` — what a paste UI may ask, before the press
 
@@ -4845,9 +4854,10 @@ object that did not exist then; pdfcer never reads a clock).
 | `carries_value() -> bool` | Whether `copy_value: true` would do anything. |
 | `tooltip() -> Option<&[u8]>` | `PasteTooltip::Carry` is only meaningful when this is `Some`. |
 | `carried_font() -> Option<&[u8]>` | The `/DR` resource name travelling with it. |
+| `inherited_keys() -> &[String]` | The Table 220 attributes the field inherited and the paste will write onto it, in walk order. |
 | `bbox() -> Option<Rect>` | The union of the source widgets' rectangles — for a paste-preview outline. |
 | `object_count() -> usize` | Size of the owned closure. |
-| `to_bytes() / from_bytes` | **Everything survives the round trip.** Magic `PDFCEFLD…`, versioned, refuses a newer format. (`ObjectClip` is total too as of `Pass 169.0`; it was not when this row was written.) |
+| `to_bytes() / from_bytes` | **Everything survives the round trip.** Magic `PDFCEFLD…`, format version 2; refuses any other version, older included. (`ObjectClip` is total too as of `Pass 169.0`; it was not when this row was written.) |
 
 #### `FieldPastePolicy` — the two chords, and their refusals
 
@@ -4905,7 +4915,9 @@ a group with an `/Opt` array.
 #### `FieldPasteOutcome`
 
 `field_id: ObjId`, `widget_ids: Vec<ObjId>`, `merged: bool`,
-`created: bool`, `disclosures: Vec<String>`, `radio_on_state: Option<String>`.
+`created: bool`, `disclosures: Vec<String>`, `radio_on_state: Option<String>`,
+`materialized_keys: Vec<String>` (inherited keys written onto the field),
+`dropped_keys: BTreeMap<String, u64>` (source-bound keys dropped, with counts).
 
 `radio_on_state` (`Pass 581.0`, `G187`) is set only for an `AdditionalWidget`
 paste into a radio group: the new member's on-state. When the copied state was
@@ -4948,6 +4960,9 @@ spending a placement gesture:
 `copy-field --name <FQN> -o <clip>`, `inspect-field-clip <clip>`, and
 `paste-field --clip <clip> --page N --rect … (--as-new <NAME> | --as-widget-of
 <NAME>)`. Disclosures go to **stderr**, the parseable summary to stdout.
+`copy-field` prints `inherited=FT,Ff,…` (`-` when none); `paste-field` prints
+`materialized=…` and `dropped=StructParent:1,…`; `paste-fields` prints the
+two as sums.
 
 #### Several fields at once — `Pass 587.0` (`G193`)
 
