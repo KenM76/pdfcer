@@ -1,36 +1,11 @@
 //! # A copied markup comes back as the one that was copied
 //!
-//! ## Four properties the clipboard silently dropped
-//!
-//! `ClipAnnotation::Markup` carried a `MarkupSpec` and nothing else. The spec
-//! describes the **shape**; four things an operator can see live *beside* it
-//! as author-time options and were therefore lost on every copy-paste:
-//!
-//! | key | what was lost |
-//! |---|---|
-//! | `/BS` `/S` + `/D` | a dashed revision cloud came back **solid** |
-//! | `/CA` | a 50 %-opacity highlight came back **opaque** |
-//! | `/Contents` | a comment came back **blank** |
-//! | `/T` | and **unsigned** |
-//!
-//! **Nothing disclosed any of it**, because from the paste's point of view it
-//! was authoring a fresh mark and there was nothing to report.
-//!
-//! The dash is the sharpest of the four. `docs/FEATURES.md` enumerated the
-//! four appearance-regeneration routes that used to solidify a dash —
-//! *"restyle, resize, reshape, author"* — and read as though the class were
-//! closed. **Copy-paste was a fifth route and was not in the list**, which is
-//! the shape `R245` names: a fix applied to some of a family and not the
-//! rest.
-//!
-//! ## Why the properties are still not IN the spec
-//!
-//! Keeping them out is right: the spec is also what `reshape_annotation` and
-//! `set_markup_style` rebuild from, and neither of those should be able to
-//! change an author's name. So they travel as a sibling `MarkupCarry`, and
-//! the paste applies them through the **same `MarkupOptions` authoring uses**
-//! — one code path, so a pasted mark and a freshly-authored one cannot
-//! disagree about how a dash or an opacity is written.
+//! A markup travels as its own dictionary and closure (`ClipAnnotation::Raw`),
+//! patched for its new place (decision 228). So everything the source had
+//! arrives -- dash, opacity, note, author, private keys, its exact `/AP` --
+//! and nothing it lacked is invented. Its `/AP` is redrawn from its geometry
+//! only when the placement rotates or scales it, because a translated
+//! appearance needs only its `/Rect` moved.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -221,4 +196,74 @@ fn a_plain_markup_gains_nothing_it_did_not_have() {
     assert_eq!(pasted.constant_alpha, None, "no /CA invented");
     assert_eq!(pasted.contents, None, "no empty note invented");
     assert_eq!(pasted.title, None, "no author invented");
+}
+
+/// The raw bytes of an annotation's `/AP` `/N` stream.
+fn normal_ap(s: &EditSession, id: ObjId) -> Vec<u8> {
+    let g = s.graph();
+    let d = g.resolved(id).as_dict().cloned().expect("a dict");
+    let ap = d.get(b"AP").map(|o| g.resolve(o).clone()).expect("/AP");
+    let n = ap
+        .as_dict()
+        .and_then(|d| d.get(b"N"))
+        .map(|o| g.resolve(o).clone());
+    let Some(Object::Stream(st)) = n else {
+        panic!("no /AP /N stream: {n:?}");
+    };
+    s.view().slice(st.data_span).expect("stream bytes").to_vec()
+}
+
+/// A translated paste moves the mark and keeps its appearance bytes.
+#[test]
+fn a_translated_paste_keeps_the_appearance_stream_byte_for_byte() {
+    let mut s = session();
+    let src = author_rich_square(&mut s);
+    let at = index_of(&s, src);
+    let clip = s.copy_annotations(0, &[at]).expect("copy");
+    s.paste_objects(0, &clip, Matrix::translate(200.0, 0.0))
+        .expect("paste");
+    let pid = annots(&s).pop().and_then(|a| a.id).expect("pasted");
+    assert_eq!(
+        normal_ap(&s, pid),
+        normal_ap(&s, src),
+        "a translation needs no redraw"
+    );
+}
+
+/// A rotated paste redraws the appearance and still keeps every key the
+/// redraw does not own, as ONE undo step.
+#[test]
+fn a_rotated_paste_redraws_the_appearance_and_keeps_every_other_key() {
+    let mut s = session();
+    let src = author_rich_square(&mut s);
+    let at = index_of(&s, src);
+    let clip = s.copy_annotations(0, &[at]).expect("copy");
+    let depth = s.undo_depth();
+    let before = annots(&s).len();
+    // A quarter turn: (x, y) -> (400 - y, x).
+    let report = s
+        .paste_objects(0, &clip, Matrix::new(0.0, 1.0, -1.0, 0.0, 400.0, 0.0))
+        .expect("paste");
+    let pasted = annots(&s).pop().expect("pasted");
+    let pid = pasted.id.expect("an id");
+    let r = pasted.rect.expect("a rect");
+
+    assert_ne!(normal_ap(&s, pid), normal_ap(&s, src), "the /AP is redrawn");
+    assert_eq!(dash_of(&s, pid), Some(vec![4.0, 2.0]));
+    assert_eq!(pasted.constant_alpha, Some(0.5));
+    assert_eq!(pasted.title.as_deref(), Some("Ken"));
+    assert_eq!(pasted.contents.as_deref(), Some("a note that must survive"));
+    assert!(
+        (r.urx - r.llx) < (r.ury - r.lly),
+        "a 100x60 square turned a quarter is taller than wide: {r:?}"
+    );
+    assert!(
+        report.disclosures.iter().any(|d| d.contains("REDREW")),
+        "the redraw is disclosed: {:?}",
+        report.disclosures
+    );
+
+    assert_eq!(s.undo_depth(), depth + 1, "one paste is one undo step");
+    s.undo();
+    assert_eq!(annots(&s).len(), before, "one undo removes the paste");
 }

@@ -976,7 +976,11 @@ fn a_markup_annotation_copies_and_pastes() {
 
     let clip = source.copy_annotations(0, &[0]).expect("copy it");
     assert_eq!(clip.annotation_count(), 1);
-    assert_eq!(clip.annotations[0].label(), "markup");
+    assert_eq!(
+        clip.annotations[0].label(),
+        "Square",
+        "a markup travels raw, labelled by its subtype"
+    );
 
     let destination = Document::from_bytes(pdf("0 0 5 5 re f")).unwrap();
     let mut session = EditSession::new(destination);

@@ -16610,14 +16610,15 @@ impl EditSession {
         })
     }
 
-    /// Classify and capture one annotation for the clipboard (`Pass 120.4`).
+    /// Classify and capture one annotation for the clipboard.
     ///
-    /// Copied through pdfcer's own **models** rather than as a raw dictionary —
-    /// see [`ClipAnnotation`](crate::vector::ClipAnnotation) for why. The order
-    /// of the tests matters: a ce dimension IS a markup annotation by subtype
-    /// (`/Line`, `/Polygon`, `/PolyLine`), so it must be recognised first or it
-    /// would paste as a bare outline with its measurement lost — which is
-    /// exactly the defect `R204` was minted for, one Pass over.
+    /// A ce dimension travels through its model, because its measurement
+    /// lives in the sidecar rather than the dictionary; every other carried
+    /// annotation travels as its own dictionary plus the closure it reaches
+    /// (`clone_then_patch`, decision 228), so nothing it holds is lost. The
+    /// ce-dimension test runs first: a ce dimension IS a `/Line`, `/Polygon`
+    /// or `/PolyLine`, and copied raw it would paste as a bare outline with
+    /// no model record (`R204`).
     fn clip_annotation(
         &self,
         annot: &crate::annot::Annotation,
@@ -16632,44 +16633,16 @@ impl EditSession {
         let Some(Object::Dict(dict)) = self.value(id).cloned() else {
             return Ok(unsupported());
         };
-
-        // ce dimension FIRST -- see this function's own note on the order.
         if self.is_ce_dimension(id, &dict) {
             // A ce dimension whose sidecar record is absent (annotation and
-            // model disagree) is carried as unsupported, not as markup:
-            // pasting the outline without the measurement is silently wrong.
+            // model disagree) is carried as unsupported, not raw: pasting the
+            // outline without the measurement is silently wrong.
             return Ok(self.clip_dimension(id).unwrap_or_else(unsupported));
         }
-
-        // THE FOUR REFUSALS. Everything else is carried -- see
-        // `raw_copy_refusal` for why each of these is not.
         if Self::raw_copy_refusal(&subtype) {
             return Ok(unsupported());
         }
-
-        // A markup pdfcer MODELS still travels as a spec, because the spec is
-        // what lets a rotated paste re-bake the appearance instead of
-        // enclosing it. Everything else -- and that is most annotations --
-        // travels as its own dictionary.
-        match crate::annot_author::spec_from_dict(&self.graph(), &dict) {
-            Ok(spec) => {
-                // The four properties that live BESIDE the spec. Read here
-                // rather than at paste, because paste has only the clip --
-                // the source document may not even be open by then.
-                let carry = crate::annot_author::MarkupCarry {
-                    dash: crate::annot_author::read_border_dash(&self.graph(), &dict),
-                    opacity: annot.constant_alpha,
-                    contents: annot.contents.clone(),
-                    author: annot.title.clone(),
-                    blend_mode: dict.get(b"BM").map(|o| self.graph().resolve(o).clone()),
-                };
-                Ok(crate::vector::ClipAnnotation::Markup(
-                    Box::new(spec),
-                    Box::new(carry),
-                ))
-            }
-            Err(_) => self.clip_raw_annotation(annot, id, &dict),
-        }
+        self.clip_raw_annotation(annot, id, &dict)
     }
 
     /// The clipboard form of the ce dimension on annotation `id`; `None`
@@ -16694,33 +16667,6 @@ impl EditSession {
             source: Some(record.id),
             anchors: record.anchors.clone(),
         })
-    }
-
-    /// Write a carried `/BM` onto an annotation [`Self::add_markup_with`]
-    /// just authored, folded into that one undo entry.
-    fn carry_blend_mode(&mut self, id: ObjId, bm: &Object) {
-        let Some(Object::Dict(current)) = self.value(id) else {
-            return;
-        };
-        if current.get(b"BM") == Some(bm) {
-            return;
-        }
-        let mut updated = current.clone();
-        updated.insert(Name::from(b"BM"), bm.clone());
-        let kind = self.undo.last().map(|c| c.kind);
-        self.commit(Command {
-            kind: CommandKind::PasteObjects,
-            objects: vec![ObjectWrite {
-                id,
-                before: self.state.get(&id).cloned(),
-                after: Some(Object::Dict(updated)),
-            }],
-            removals: Vec::new(),
-            trailer: None,
-        });
-        if let Some(kind) = kind {
-            self.coalesce_last(2, kind);
-        }
     }
 
     /// Keys an annotation carries that name something in the SOURCE document
@@ -16789,19 +16735,21 @@ impl EditSession {
         )))
     }
 
-    /// Plant a carried annotation onto `page_index`, translated by `at`.
+    /// Plant a carried annotation onto `page_index`, placed by `at`.
     ///
-    /// # Only a translation is applied, and anything else is disclosed
+    /// The annotation travels with its **baked `/AP`**, which is why a sticky
+    /// note keeps its icon, a stamp its artwork and a markup its opacity,
+    /// author and note text. A translation moves `/Rect` and the geometry keys
+    /// and leaves the appearance byte-identical: §12.5.5 maps the
+    /// appearance's `/BBox` into `/Rect`, so a moved rectangle carries the
+    /// artwork with it.
     ///
-    /// A raw annotation travels with its **baked `/AP`**, which is the whole
-    /// point — it is why a sticky note keeps its icon, a stamp its artwork
-    /// and a markup its opacity, author and note text. A translation moves
-    /// `/Rect` and leaves the appearance correct.
-    ///
-    /// A rotation or a scale does not: §12.5.5 maps the appearance's `/BBox`
-    /// into `/Rect`, so changing the rectangle's SHAPE would stretch the
-    /// artwork rather than transform the annotation. pdfcer places it
-    /// translated and says so, rather than distorting a stamp silently.
+    /// A rotation or a scale cannot be applied that way — changing the
+    /// rectangle's SHAPE would stretch the artwork. A markup pdfcer models
+    /// ([`spec_from_dict`](crate::annot_author::spec_from_dict) reads it) is
+    /// therefore pasted unmoved and then **re-baked** at the transformed
+    /// geometry, folded into the same undo entry, and the redraw is
+    /// disclosed. Anything else is translated only, and that is disclosed.
     fn paste_raw_annotation(
         &mut self,
         page_index: usize,
@@ -16847,43 +16795,8 @@ impl EditSession {
             b"NM",
             &mut BTreeMap::new(),
         );
-
-        // A destination or an action that named the SOURCE document is
-        // dropped rather than planted: a link whose target does not resolve
-        // here looks clickable and goes nowhere, which is worse than a
-        // rectangle that plainly does nothing. Acrobat's own cross-document
-        // link paste drops the target at an arbitrary place; pdfcer says so
-        // instead.
-        if raw.carries_destination() && !self.destination_resolves(&dict) {
-            dict.remove(b"Dest");
-            dict.remove(b"A");
-            disclosures.push(format!(
-                "paste: the /{} annotation's destination named a page in the document it was copied FROM, and that target does not exist here -- it was dropped rather than pasted, because a link that looks clickable and goes nowhere is worse than one that plainly does nothing.",
-                raw.subtype
-            ));
-        }
-
-        if let Some(bounds) = raw.rect {
-            let moved = crate::vector::clip::transformed_bounds(bounds, at);
-            let axis_aligned = at.b == 0.0 && at.c == 0.0 && at.a == 1.0 && at.d == 1.0;
-            if !axis_aligned {
-                disclosures.push(format!(
-                    "paste: the /{} annotation was MOVED but not rotated or scaled. It travels with its own baked appearance, and SS12.5.5 maps that appearance's /BBox into /Rect -- so changing the rectangle's shape would stretch the artwork rather than transform the annotation.",
-                    raw.subtype
-                ));
-            }
-            dict.insert(
-                Name::from(b"Rect"),
-                Object::Array(vec![
-                    Object::Real(moved.min.x),
-                    Object::Real(moved.min.y),
-                    Object::Real(moved.max.x),
-                    Object::Real(moved.max.y),
-                ]),
-            );
-            let (dx, dy) = (moved.min.x - bounds.min.x, moved.min.y - bounds.min.y);
-            self.paste_geometry(&mut dict, &mut objects, dx, dy);
-        }
+        self.drop_foreign_destination(raw, &mut dict, disclosures);
+        let rebake = self.place_pasted_rect(raw, &mut dict, &mut objects, at, disclosures);
         dict.insert(Name::from(b"Type"), Object::Name(Name::from(b"Annot")));
         dict.insert(Name::from(b"P"), Object::Reference(page_id));
 
@@ -16906,6 +16819,132 @@ impl EditSession {
             removals: Vec::new(),
             trailer: None,
         });
+        if rebake {
+            self.rebake_pasted_markup(annot_id, &raw.subtype, at, disclosures)?;
+        }
+        Ok(())
+    }
+
+    /// Drop a carried `/Dest` or `/A` that names the SOURCE document.
+    ///
+    /// A link whose target does not resolve here looks clickable and goes
+    /// nowhere, which is worse than a rectangle that plainly does nothing.
+    /// Acrobat's own cross-document link paste drops the target at an
+    /// arbitrary place; pdfcer says so instead.
+    fn drop_foreign_destination(
+        &self,
+        raw: &crate::vector::clip::RawAnnotation,
+        dict: &mut Dict,
+        disclosures: &mut Vec<String>,
+    ) {
+        if raw.carries_destination() && !self.destination_resolves(dict) {
+            dict.remove(b"Dest");
+            dict.remove(b"A");
+            disclosures.push(format!(
+                "paste: the /{} annotation's destination named a page in the document it was copied FROM, and that target does not exist here -- it was dropped rather than pasted, because a link that looks clickable and goes nowhere is worse than one that plainly does nothing.",
+                raw.subtype
+            ));
+        }
+    }
+
+    /// Place a pasted annotation's `/Rect` and geometry keys for `at`.
+    ///
+    /// Returns `true` when the annotation was left at its copied geometry
+    /// because `at` is not a pure translation and pdfcer models the markup:
+    /// the caller then re-bakes it with [`Self::rebake_pasted_markup`]. A
+    /// pure translation moves `/Rect` and the geometry keys by the min-corner
+    /// shift; a non-translation on an unmodelled annotation does the same and
+    /// discloses it.
+    fn place_pasted_rect(
+        &self,
+        raw: &crate::vector::clip::RawAnnotation,
+        dict: &mut Dict,
+        objects: &mut [ObjectWrite],
+        at: crate::vector::Matrix,
+        disclosures: &mut Vec<String>,
+    ) -> bool {
+        let Some(bounds) = raw.rect else {
+            return false;
+        };
+        let translation_only = at.b == 0.0 && at.c == 0.0 && at.a == 1.0 && at.d == 1.0;
+        if !translation_only {
+            if annot_author::spec_from_dict(&self.graph(), dict).is_ok() {
+                return true;
+            }
+            disclosures.push(format!(
+                "paste: the /{} annotation was MOVED but not rotated or scaled. It travels with its own baked appearance, and SS12.5.5 maps that appearance's /BBox into /Rect -- so changing the rectangle's shape would stretch the artwork rather than transform the annotation.",
+                raw.subtype
+            ));
+        }
+        let moved = crate::vector::clip::transformed_bounds(bounds, at);
+        dict.insert(
+            Name::from(b"Rect"),
+            Object::Array(vec![
+                Object::Real(moved.min.x),
+                Object::Real(moved.min.y),
+                Object::Real(moved.max.x),
+                Object::Real(moved.max.y),
+            ]),
+        );
+        let (dx, dy) = (moved.min.x - bounds.min.x, moved.min.y - bounds.min.y);
+        self.paste_geometry(dict, objects, dx, dy);
+        false
+    }
+
+    /// Re-bake a just-pasted markup at its geometry transformed by `at`,
+    /// folded into the paste's undo entry.
+    ///
+    /// Goes through the restyle/reshape regeneration route
+    /// ([`Self::regenerate_markup_appearance`]), so it replaces exactly the
+    /// keys `build_appearance` owns (`/Rect`, `/C`, `/IC`, `/BS`, `/LE`, the
+    /// geometry keys, `/AP`) and keeps every other key, `/BM` included. The
+    /// redraw is disclosed, and so is a `/Square` or `/Circle` whose rotated
+    /// shape could only be ENCLOSED (§12.5.2: `/Rect` is axis-aligned).
+    fn rebake_pasted_markup(
+        &mut self,
+        annot_id: ObjId,
+        subtype: &str,
+        at: crate::vector::Matrix,
+        disclosures: &mut Vec<String>,
+    ) -> Result<(), EditError> {
+        let Some(Object::Dict(current)) = self.value(annot_id).cloned() else {
+            return Ok(());
+        };
+        let read = {
+            let graph = self.graph();
+            annot_author::spec_from_dict(&graph, &current)
+                .map(|spec| (spec, annot_author::read_border_dash(&graph, &current)))
+        };
+        let Ok((spec, dash)) = read else {
+            disclosures.push(format!(
+                "paste: the /{subtype} annotation was placed where it was copied from -- its geometry could not be read back to rotate or scale it."
+            ));
+            return Ok(());
+        };
+        let (moved, enclosed) = annot_author::transform_spec(&spec, at);
+        let authored = annot_author::build_appearance_opts(
+            &moved,
+            &annot_author::AppearanceOptions {
+                quad_order: self.quad_point_order,
+                dash,
+                highlighter: annot_author::is_highlighter(&current),
+            },
+        );
+        let regen = self.regenerate_markup_appearance(annot_id, &current, authored)?;
+        self.commit_regenerated_markup(annot_id, regen, CommandKind::PasteObjects);
+        if !self.coalesce_last(2, CommandKind::PasteObjects) {
+            disclosures.push(format!(
+                "paste: undoing the /{subtype} annotation's paste takes two steps -- the paste and its redraw could not be grouped."
+            ));
+        }
+        disclosures.push(format!(
+            "paste: the /{subtype} annotation was rotated or scaled, so pdfcer REDREW its appearance from its geometry; every key it does not draw from was carried unchanged."
+        ));
+        if enclosed && (at.b != 0.0 || at.c != 0.0) {
+            disclosures.push(format!(
+                "paste: a /{subtype} annotation cannot express a rotation -- its geometry is an axis-aligned rectangle (ISO 32000-1 12.5.2 /Rect), so the pasted one ENCLOSES the rotated shape rather than being it."
+            ));
+        }
         Ok(())
     }
 
@@ -17061,122 +17100,17 @@ impl EditSession {
         let mut disclosures = Vec::new();
         let mut pasted_ids = BTreeMap::new();
         let mut anchored = Vec::new();
-        let axis_aligned = at.b == 0.0 && at.c == 0.0;
         for annotation in &clip.annotations {
             match annotation {
-                ClipAnnotation::Markup(spec, carry) => {
-                    let moved = crate::annot_author::transform_spec(spec, at);
-                    if !axis_aligned && moved.1 {
-                        disclosures.push(format!(
-                            "paste: a {} annotation cannot express a rotation -- its geometry is an axis-aligned rectangle (ISO 32000-1 12.5.2 /Rect), so the pasted one ENCLOSES the rotated shape rather than being it.",
-                            annotation.label()
-                        ));
-                    }
-                    // The carried properties, applied through the SAME
-                    // options type authoring uses -- so a pasted mark and a
-                    // freshly-authored one go through one code path and
-                    // cannot disagree about how a dash or an opacity is
-                    // written. Before this the paste called `add_markup`
-                    // with defaults and silently dropped all four.
-                    // A note exists if EITHER half was carried: an unsigned
-                    // comment and a signed blank are both things a source
-                    // annotation can legitimately be, and reconstructing the
-                    // missing half as an empty string is how `/Contents` and
-                    // `/T` stay independent through the round trip.
-                    let note = (carry.contents.is_some() || carry.author.is_some()).then(|| {
-                        let note = MarkupNote::new(carry.contents.clone().unwrap_or_default());
-                        match &carry.author {
-                            Some(a) => note.by(a.clone()),
-                            None => note,
-                        }
-                    });
-                    let opts = MarkupOptions {
-                        dash: carry.dash.clone(),
-                        opacity: carry.opacity,
-                        note,
-                        layer: None,
-                        hand_signature: None,
-                        highlighter: carry.blend_mode.as_ref().is_some_and(|bm| {
-                            let mut d = Dict::new();
-                            d.insert(Name::from(b"BM"), bm.clone());
-                            annot_author::is_highlighter(&d)
-                        }),
-                    };
-                    let id = self.add_markup_with(page_index, &moved.0, &opts)?;
-                    if let Some(bm) = &carry.blend_mode {
-                        self.carry_blend_mode(id, bm);
-                    }
-                    placed += 1;
-                }
-                ClipAnnotation::Dimension {
-                    group_name,
-                    format,
-                    scale,
-                    standard,
-                    style,
-                    kind,
-                    label_override,
-                    source,
-                    anchors,
-                } => {
-                    let (group, adopted) = self.find_or_create_dimension_group_with(
-                        group_name, format, *scale, *standard,
+                ClipAnnotation::Dimension { .. } => {
+                    self.paste_clip_dimension(
+                        page_index,
+                        annotation,
+                        at,
+                        &mut disclosures,
+                        &mut pasted_ids,
+                        &mut anchored,
                     )?;
-                    // THE DESTINATION'S OWN GROUP WINS, and the difference
-                    // is disclosed. Silently re-scaling an existing group to
-                    // match an incoming clip would change the label of every
-                    // ce dimension already in it -- a change nobody asked for,
-                    // to objects that were not part of the paste.
-                    if !adopted && *scale != self.group_scale(group) {
-                        disclosures.push(format!(
-                            "paste: this document already has a dimension group called {group_name:?}, and ITS scale was kept. The pasted ce dimension is measured at this document's scale, so its label may read differently from the one it was copied from -- the alternative was to re-scale every ce dimension already in that group."
-                        ));
-                    }
-                    let moved = crate::dimension::transform_kind(kind, at);
-                    let (_, id) = self.add_dimension(page_index, group, moved)?;
-                    if let Some(source) = source {
-                        pasted_ids.insert(*source, id);
-                    }
-                    if !anchors.is_empty() {
-                        anchored.push((id, anchors.clone()));
-                    }
-                    // The per-ce-dimension overrides are the BOTTOM tier of
-                    // the cascade and belong to this object alone, so they are
-                    // applied whether the group was created or matched.
-                    if style != &crate::dimension::StyleOverrides::default() {
-                        self.set_dimension_style(id, *style)?;
-                    }
-                    // The text override, applied on the same terms and for the
-                    // same reason: it belongs to this one ce dimension, so no
-                    // destination group has an opinion about it.
-                    //
-                    // Routed through the VERB rather than written into the
-                    // model directly, so a pasted override gets the identical
-                    // WinAnsi-printability check a typed one does. A clip can
-                    // arrive from a file on disk (`ObjectClip::from_bytes`),
-                    // so "it was checked when it was typed" is not a fact this
-                    // code knows.
-                    if let Some(text) = label_override {
-                        match self.set_dimension_label(id, Some(text)) {
-                            Ok(change) => {
-                                if change.applied.is_some() {
-                                    disclosures.push(format!(
-                                        "paste: this ce dimension carries a TEXT OVERRIDE -- it prints {:?} rather than its measurement of {:?}.",
-                                        change.printed, change.measured
-                                    ));
-                                }
-                            }
-                            // A clip whose override cannot be drawn here is
-                            // pasted WITHOUT it rather than refused outright:
-                            // the geometry, the group and the style are all
-                            // still correct, and losing the paste entirely
-                            // over an unprintable character would be a worse
-                            // answer than losing the caption and saying so.
-                            Err(err) => disclosures.push(format!(
-                                "paste: this ce dimension's text override was DROPPED and it prints its measurement instead -- {err}"
-                            )),
-                        }
-                    }
                     placed += 1;
                 }
                 ClipAnnotation::Raw(raw) => {

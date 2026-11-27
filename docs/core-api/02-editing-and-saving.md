@@ -1333,30 +1333,32 @@ The two exceptions are `transform_objects` / `transform_preview`
 > which numbering a given index came from; this signature makes that mistake
 > impossible.
 >
-> Annotations are copied **through pdfcer's own models**, not as raw
-> dictionaries — a markup through `MarkupSpec`, a ce dimension through its
-> `DimensionKind` **plus its group's name and unit**. So the destination
-> re-bakes the appearance and re-registers the sidecar itself, and a pasted ce
-> dimension keeps measuring the thing it measured at home. A `GroupId` means
-> nothing in another document; the group is matched **by name**, and created if
-> absent.
+> Every annotation but a ce dimension travels **raw**
+> (`ClipAnnotation::Raw`): its dictionary and closure, cloned and patched for
+> its new place (decision 228), so every key arrives, including ones pdfcer
+> does not model (`/CA`, `/T`, `/Subj`, `/IT`, private keys, a foreign `/AP`).
+> Only the source-bound keys are dropped and counted (`dropped_keys`,
+> `disclosures`). A ce dimension travels through its `DimensionKind` **plus
+> its group's name and unit**, so the destination re-registers the sidecar and
+> a pasted ce dimension keeps measuring the thing it measured at home. A
+> `GroupId` means nothing in another document; the group is matched **by
+> name**, and created if absent.
 >
 > | kind | what happens |
 > |---|---|
-> | markup (`Square`, `Circle`, `Line`, `Ink`, `Polygon`, `Cloud`, `PolyLine`, text markup) | pasted |
+> | markup (`Square`, `Circle`, `Line`, `Ink`, `Polygon`, `Cloud`, `PolyLine`, text markup) | pasted raw; `/AP` kept byte-for-byte under a translation, redrawn from the geometry under a rotation or scale (disclosed, `REDREW`); one undo entry |
+> | any other annotation pdfcer does not refuse | pasted raw; under a rotation or scale it is moved, not transformed, and that is disclosed |
 > | **ce dimension** | pasted, with its group |
-> | **widget**, and anything else | **refused by name, with the reason** — a widget carries an `/AcroForm` field registration, and a *renamed* field is a **different field**: any script, calculation order or parent-child relationship naming the old one breaks silently. That is a decision about your form, not a copy |
+> | **widget**, pop-up, pending redaction | **refused by name, with the reason** — a widget carries an `/AcroForm` field registration, and a *renamed* field is a **different field**: any script, calculation order or parent-child relationship naming the old one breaks silently. That is a decision about your form, not a copy |
 >
 > `PasteOutcome::annotations_pasted` counts only the ones that landed, so it
 > disagreeing with `clip.annotation_count()` **is** the signal that something
 > was refused. The refusal text is in `disclosures`.
 >
-> ★ **A rotated `Square` or `Circle` ENCLOSES rather than refusing, and says
-> so.** `/Rect` is axis-aligned by definition (§12.5.2), so a rotated rectangle
-> has no spelling — the `re` problem from `Pass 113.0` in a different carrier.
-> Enclosing is the only shape the format admits, so this is not pdfcer choosing
-> between two renderings; it is pdfcer doing the one available and disclosing
-> it. Point-based markup and every ce dimension rotate faithfully.
+> **A rotated `Square` or `Circle` ENCLOSES rather than refusing, and says
+> so.** `/Rect` is axis-aligned by definition (§12.5.2), so a rotated
+> rectangle has no spelling; enclosing is the only shape the format admits.
+> Point-based markup and every ce dimension rotate faithfully.
 >
 > ★★ **`to_bytes` CARRIES annotations as of `Pass 169.0`** (clip format
 > version 2). This paragraph used to say the opposite, and the change is worth
@@ -1371,12 +1373,10 @@ The two exceptions are `transform_objects` / `transform_preview`
 > caller that still checks simply always takes the survives branch. Deleting it
 > would be a breaking change made to announce good news.
 >
-> **What makes it exact.** Each annotation travels as the COS object pdfcer
-> already has a codec for — `annot_author::encode_spec`/`decode_spec` for a
-> markup spec, `dimension::sidecar`'s for a ce dimension's geometry — written
-> and read by the same `write_object`/`Parser` pair every resource object
-> takes. There is no second byte format, which was the original objection to
-> serialising annotations at all.
+> **What makes it exact.** A raw annotation travels as its own COS
+> dictionary and closure, a ce dimension's geometry as `dimension::sidecar`'s
+> COS object, both written and read by the same `write_object`/`Parser` pair
+> every resource object takes. There is no second byte format.
 >
 > ★ **A version-1 payload still reads**, carrying its content and no
 > annotations, so a clip written by an older build is not refused.
@@ -1385,8 +1385,8 @@ The two exceptions are `transform_objects` / `transform_preview`
 > `CLIP_VERSION`.** `ObjectClip::needed_version` returns the *lowest* version
 > that fully represents the clip's annotations: `2` for ordinary content, `3`
 > (`CLIP_VERSION_PRE_MARKUP_CARRY`) when a ce dimension carries a text
-> override, `4` (`CLIP_VERSION_PRE_REPLY_COUNT`, `Pass 270.1`) when a markup
-> carries an author-time property — its dash, opacity, note or author, `5`
+> override (`4`, `CLIP_VERSION_PRE_REPLY_COUNT`, is no longer written: it
+> was the retired modelled-markup carry), `5`
 > (`CLIP_VERSION_PRE_ANCHORS`, `Pass 253.4`) when the clip broke a reply link
 > (see `replies_unthreaded` below), and `6` (`CLIP_VERSION`, `Pass 770.1`)
 > when a copied ce dimension is anchored. Version 6 appends one COS dict per
@@ -1403,13 +1403,10 @@ The two exceptions are `transform_objects` / `transform_preview`
 > would break every paste between them to protect a field most clips do not
 > have.
 >
-> ★★★ **`Pass 270.0` broke this and `Pass 270.1` fixed it — the failure mode
-> is worth knowing, because it is the one this format makes easy.** `270.0`
-> appended a **second positional COS object** per markup annotation (the
-> author-time carry) and did not move `CLIP_VERSION`. A reader from that build
-> handed an older payload took a second object that was not there — actually
-> consuming the *next* annotation's tag byte and spec, and mis-parsing every
-> annotation after it. Silently, because `decode_carry` cannot fail by design.
+> **A clip holding the retired modelled-markup form (tag 0) is refused**
+> with `ClipError::Content` naming the remedy (copy it again with this
+> build): its length cannot be skipped, so reading on would mis-parse every
+> annotation after it.
 >
 > The general rule for anything appended here: **a positional field is not a
 > droppable key.** A reader that misses an optional dictionary key still knows

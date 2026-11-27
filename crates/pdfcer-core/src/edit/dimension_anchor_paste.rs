@@ -35,6 +35,92 @@ pub(super) fn drop_unused_sources(annotations: &mut [ClipAnnotation]) {
 }
 
 impl EditSession {
+    /// Place one carried ce dimension: find or create its group by name,
+    /// apply its per-object overrides, and record its source id and
+    /// anchors for [`Self::attach_pasted_anchors`].
+    pub(super) fn paste_clip_dimension(
+        &mut self,
+        page_index: usize,
+        annotation: &ClipAnnotation,
+        at: crate::vector::Matrix,
+        disclosures: &mut Vec<String>,
+        pasted_ids: &mut BTreeMap<DimensionId, DimensionId>,
+        anchored: &mut Vec<(DimensionId, Vec<(usize, Anchor)>)>,
+    ) -> Result<(), EditError> {
+        let ClipAnnotation::Dimension {
+            group_name,
+            format,
+            scale,
+            standard,
+            style,
+            kind,
+            label_override,
+            source,
+            anchors,
+        } = annotation
+        else {
+            return Ok(());
+        };
+        let (group, adopted) =
+            self.find_or_create_dimension_group_with(group_name, format, *scale, *standard)?;
+        // THE DESTINATION'S OWN GROUP WINS, and the difference
+        // is disclosed. Silently re-scaling an existing group to
+        // match an incoming clip would change the label of every
+        // ce dimension already in it -- a change nobody asked for,
+        // to objects that were not part of the paste.
+        if !adopted && *scale != self.group_scale(group) {
+            disclosures.push(format!(
+                "paste: this document already has a dimension group called {group_name:?}, and ITS scale was kept. The pasted ce dimension is measured at this document's scale, so its label may read differently from the one it was copied from -- the alternative was to re-scale every ce dimension already in that group."
+            ));
+        }
+        let moved = crate::dimension::transform_kind(kind, at);
+        let (_, id) = self.add_dimension(page_index, group, moved)?;
+        if let Some(source) = source {
+            pasted_ids.insert(*source, id);
+        }
+        if !anchors.is_empty() {
+            anchored.push((id, anchors.clone()));
+        }
+        // The per-ce-dimension overrides are the BOTTOM tier of
+        // the cascade and belong to this object alone, so they are
+        // applied whether the group was created or matched.
+        if style != &crate::dimension::StyleOverrides::default() {
+            self.set_dimension_style(id, *style)?;
+        }
+        if let Some(text) = label_override {
+            self.paste_dimension_label(id, text, disclosures);
+        }
+        Ok(())
+    }
+
+    /// Apply a carried text override to the pasted ce dimension `id`.
+    ///
+    /// Routed through the verb rather than written into the model, so a
+    /// pasted override gets the same WinAnsi-printability check a typed one
+    /// does: a clip can arrive from a file on disk. An override that cannot
+    /// be drawn here is dropped and disclosed rather than refusing the paste,
+    /// because the geometry, group and style are still correct.
+    fn paste_dimension_label(
+        &mut self,
+        id: DimensionId,
+        text: &str,
+        disclosures: &mut Vec<String>,
+    ) {
+        match self.set_dimension_label(id, Some(text)) {
+            Ok(change) => {
+                if change.applied.is_some() {
+                    disclosures.push(format!(
+                        "paste: this ce dimension carries a TEXT OVERRIDE -- it prints {:?} rather than its measurement of {:?}.",
+                        change.printed, change.measured
+                    ));
+                }
+            }
+            Err(err) => disclosures.push(format!(
+                "paste: this ce dimension's text override was DROPPED and it prints its measurement instead -- {err}"
+            )),
+        }
+    }
+
     /// Re-point the anchors of the ce dimensions a paste placed, as ONE
     /// command; the report, one entry per anchored ce dimension.
     ///

@@ -36,6 +36,45 @@ pub(crate) const RAW: &[Change] = &[
     Change::Renumbered,
 ];
 
+/// What a modelled markup's paste declares: the raw route plus the geometry
+/// keys `paste_geometry` translates. Under a rotation or scale its `/AP` is
+/// redrawn from that geometry instead; the runner pastes by translation, so
+/// there `/AP` must arrive unchanged.
+pub(crate) const MARKUP: &[Change] = &[
+    Change::Translated("Rect"),
+    Change::Translated("QuadPoints"),
+    Change::Translated("CL"),
+    Change::Translated("L"),
+    Change::Translated("Vertices"),
+    Change::Translated("InkList"),
+    Change::Rebound("P"),
+    Change::Regenerated("NM"),
+    Change::Rebaked {
+        key: "AP",
+        only_when: "a non-translation transform",
+    },
+    Change::Dropped {
+        key: "Popup",
+        disclosed_by: Disclosure::PasteDroppedKeys,
+        gap: Some("781.7.e"),
+    },
+    Change::Dropped {
+        key: "IRT",
+        disclosed_by: Disclosure::PasteDroppedKeys,
+        gap: Some("781.7.e"),
+    },
+    Change::Dropped {
+        key: "StructParent",
+        disclosed_by: Disclosure::PasteDroppedKeys,
+        gap: Some("781.7.k"),
+    },
+    Change::Unbound {
+        key: "OC",
+        pass: "781.7.f",
+    },
+    Change::Renumbered,
+];
+
 /// Copy, Cut, Paste and Duplicate: the same carry, so one table.
 pub(super) fn carry(kind: ObjectKind) -> Expect {
     use ObjectKind as K;
@@ -65,7 +104,7 @@ pub(super) fn carry(kind: ObjectKind) -> Expect {
         | K::StrikeOut
         | K::Squiggly
         | K::ReplaceText
-        | K::Ink => Expect::Pending("781.2"),
+        | K::Ink => Expect::Preserve(MARKUP),
         K::CeDimension => Expect::Pending("781.4"),
         // §12.5.6.14: a popup belongs to its parent and travels with it.
         K::Popup => Expect::Refused("popup-travels-with-parent"),

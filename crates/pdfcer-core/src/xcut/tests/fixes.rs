@@ -105,3 +105,41 @@ fn a_self_playing_screen_points_at_its_pasted_copy() {
     };
     assert_eq!(action.get(b"AN"), Some(&Object::Reference(pasted)));
 }
+
+/// 781.2: a rotated markup paste redraws `/AP` from the geometry and keeps
+/// every key the redraw does not own, the sentinel included.
+#[test]
+#[allow(clippy::unwrap_used)]
+fn a_rotated_markup_paste_rebakes_and_keeps_the_sentinel() {
+    let (mut s, id) = fixture::build(ObjectKind::Square);
+    let before = super::runner::dump(&s, id);
+    let clip = copy(&s, id).unwrap();
+    let depth = s.undo_depth();
+    let quarter = crate::vector::Matrix::new(0.0, 1.0, -1.0, 0.0, 400.0, 0.0);
+    let outcome = s.paste_objects(0, &clip, quarter).unwrap();
+    let pasted = *annots(&s, 0).last().unwrap();
+    let after = super::runner::dump(&s, pasted);
+    for key in ["/XXpdfcerSentinel", "/XXpdfcerSentinelStream"] {
+        let mine: Vec<_> = before
+            .0
+            .iter()
+            .filter(|(k, _)| k.starts_with(key))
+            .collect();
+        let theirs: Vec<_> = after.0.iter().filter(|(k, _)| k.starts_with(key)).collect();
+        assert!(!mine.is_empty(), "the fixture plants {key}");
+        assert_eq!(mine, theirs, "{key} survives the redraw");
+    }
+    let ap = |d: &crate::xcut::dump::PropertyDump| {
+        d.0.iter()
+            .filter(|(k, _)| k.starts_with("/AP"))
+            .map(|(k, v)| (k.clone(), v.clone()))
+            .collect::<Vec<_>>()
+    };
+    assert_ne!(ap(&before), ap(&after), "the appearance is redrawn");
+    assert!(
+        outcome.disclosures.iter().any(|d| d.contains("REDREW")),
+        "{:?}",
+        outcome.disclosures
+    );
+    assert_eq!(s.undo_depth(), depth + 1, "one paste, one undo step");
+}

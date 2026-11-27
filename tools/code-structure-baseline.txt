@@ -286,10 +286,8 @@ fn pdfcer-core/src/edit.rs::merge_widget_into_field
 fn pdfcer-core/src/edit.rs::move_annotation
 fn pdfcer-core/src/edit.rs::move_outline_item
 fn pdfcer-core/src/edit.rs::page_tab_sequence
-fn pdfcer-core/src/edit.rs::paste_clip_annotations
 fn pdfcer-core/src/edit.rs::paste_new_field
 fn pdfcer-core/src/edit.rs::paste_objects_unlayered
-fn pdfcer-core/src/edit.rs::paste_raw_annotation
 fn pdfcer-core/src/edit.rs::place_dimension
 fn pdfcer-core/src/edit.rs::place_new_field_deferred
 fn pdfcer-core/src/edit.rs::place_text

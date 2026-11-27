@@ -85,19 +85,12 @@ use super::geometry::{Bounds, Matrix};
 /// protecting a field almost no clip contains — see
 /// [`ObjectClip::needed_version`] and the identical argument on the
 /// ce-dimension sidecar's `SIDECAR_VERSION`.
-/// `4` (`Pass 270.1`, the markup author-time carry) follows exactly the same
-/// rule and exists because `Pass 270.0` broke it: that Pass appended a second
-/// positional COS object per markup annotation and **left this constant at
-/// `3`**, so a reader from this build took a second object out of a payload an
-/// older build had written with one — desynchronising every following
-/// annotation in the clip, silently, because `decode_carry` cannot fail.
-///
-/// **Decision 105 was written to prevent precisely this and did not fire**,
-/// which is worth more than the fix. 105 reasons about *droppable dictionary
-/// keys*: a key a reader can miss without losing its place. A positional
-/// field has no such property — miss it and the parse is off by one object
-/// for the rest of the payload. The rule was right; its stated scope did not
-/// reach the change that needed it.
+/// `4` was the markup author-time carry, a second positional COS object per
+/// modelled markup. No build writes it now that markups travel raw (tag 3),
+/// but builds that wrote it exist, so the number stays taken. Its lesson
+/// stands: a positional field cannot be missed without the parse losing its
+/// place, so any new one bumps the version (decision 105 covers only
+/// droppable dictionary keys).
 ///
 /// `5` (`Pass 253.4`) appends [`ObjectClip::replies_unthreaded`] after the
 /// annotations, and is emitted only when that count is non-zero.
@@ -117,16 +110,15 @@ pub const CLIP_VERSION_PRE_ANCHORS: u32 = 5;
 
 /// The version a clip that broke no reply link is written at, at most.
 ///
-/// The `4`-shaped constant for the `5` bump: the markup author-time carry
-/// is gated on this, the reply count on [`CLIP_VERSION_PRE_ANCHORS`].
+/// The `4`-shaped constant for the `5` bump: the reply count is gated on
+/// [`CLIP_VERSION_PRE_ANCHORS`]. No current clip is written at exactly `4`.
 pub const CLIP_VERSION_PRE_REPLY_COUNT: u32 = 4;
 
-/// The version a clip that carries no markup author-time properties, and no
-/// ce-dimension text override, is written at.
+/// The version a clip whose only versioned feature is a ce-dimension text
+/// override is written at.
 ///
-/// See [`CLIP_VERSION`] — this is the `3`-shaped constant for the `4` bump,
-/// kept separate from [`CLIP_VERSION_PRE_LABEL_OVERRIDE`] because the two
-/// features are independent: a clip may need one, the other, both or neither.
+/// See [`CLIP_VERSION`]: the `3`-shaped constant, kept separate from
+/// [`CLIP_VERSION_PRE_LABEL_OVERRIDE`] so each feature names its own floor.
 pub const CLIP_VERSION_PRE_MARKUP_CARRY: u32 = 3;
 
 /// The version a clip that uses no post-`2` feature is written at.
@@ -234,35 +226,20 @@ pub struct ClipObject {
 /// An annotation carried as **its own dictionary plus the closure it
 /// reaches** (`Pass 170.0`).
 ///
-/// # Why a raw carrier exists beside the modelled ones
+/// # Why every annotation but a ce dimension travels raw
 ///
-/// [`ClipAnnotation`]'s original design copied annotations **through pdfcer's
-/// models** — a markup through `MarkupSpec`, a ce dimension through its
-/// [`DimensionKind`](crate::dimension::DimensionKind) — and that reasoning is
-/// still right for the two kinds that have **registration outside the page**:
-/// a ce dimension has a `/PieceInfo` sidecar record and a group, a widget has
-/// an `/AcroForm` field entry and a name that must not collide. Planting
-/// their raw dictionaries would carry a record naming a group that does not
-/// exist, or a field name that already means something.
+/// A ce dimension has **registration outside the page** — a `/PieceInfo`
+/// sidecar record and a group — so planting its raw dictionary would carry a
+/// record naming a group that does not exist; it travels through its
+/// [`DimensionKind`](crate::dimension::DimensionKind). A widget has an
+/// `/AcroForm` field entry and its own clipboard, and is refused.
 ///
-/// **Every other annotation has no such registration**, and for those the
-/// model route was the wrong trade. It cost, measured:
-///
-/// - **Three whole subtypes that could not be copied at all.** pdfcer authors
-///   `/FreeText`, `/Text` (a sticky note) and `/Stamp` through
-///   [`TextAnnotSpec`](crate::annot_author::TextAnnotSpec), but has no reader
-///   that turns one back into a spec — so each landed in
-///   [`ClipAnnotation::Unsupported`] and was refused on paste. **A sticky
-///   note is the single most-copied comment in a review workflow.**
-/// - **Everything a `MarkupSpec` does not model**, on the kinds it does:
-///   `/CA` opacity, `/T` the author, `/Contents` the note text, `/M` the
-///   date, `/Popup`, `/RC`. That loss was reported by the consuming shell,
-///   not found here.
-/// - **Every exotic subtype**, permanently: `/Link`, `/FileAttachment`,
-///   `/Caret`, `/Screen`, `/Watermark`. Each would have needed its own model
-///   before it could be copied once.
-///
-/// A raw carrier costs one closure walk and copies all of it exactly.
+/// **Every other annotation has no such registration**, and copying it
+/// through a model loses whatever the model does not describe — `/CA`, `/T`,
+/// `/Contents`, `/M`, `/RC`, `/IT`, `/Subj`, a private key, a foreign `/AP`.
+/// A raw carrier costs one closure walk and copies all of it exactly
+/// (decision 228: carry by `clone_then_patch`). A markup pdfcer models is
+/// still re-baked on paste when the placement rotates or scales it.
 ///
 /// # What is stripped, and why each
 ///
@@ -331,46 +308,19 @@ impl RawAnnotation {
 /// This is the address space that gives it one, and having built it, most of
 /// the kinds turned out to be paste-able rather than refuse-able.
 ///
-/// # Copied through the MODEL, not through the object graph
+/// # Carried raw, except a ce dimension
 ///
-/// A raw dictionary copy would be structurally right and semantically wrong: a
-/// pasted ce dimension would carry a `/PieceInfo` record naming a group that
-/// does not exist in the destination, and a pasted widget would carry a field
-/// name that already means something there. So a markup annotation round-trips
-/// through [`MarkupSpec`](crate::annot_author::MarkupSpec) and a ce dimension
-/// through its [`DimensionKind`](crate::dimension::DimensionKind) — the same
-/// models `add_markup` and `add_dimension` author from, so the destination
-/// re-bakes the appearance and re-registers the sidecar itself.
+/// A ce dimension round-trips through its
+/// [`DimensionKind`](crate::dimension::DimensionKind), the model
+/// `add_dimension` authors from, so the destination re-registers the sidecar
+/// itself. Everything else not refused travels as [`Self::Raw`]; see
+/// [`RawAnnotation`] for why.
 #[derive(Debug, Clone, PartialEq)]
 #[non_exhaustive]
 // A clipboard payload held a handful at a time; boxing the ce-dimension
 // style would cost every consumer a deref to save bytes nobody holds.
 #[allow(clippy::large_enum_variant)]
 pub enum ClipAnnotation {
-    /// A markup pdfcer MODELS, carried as its spec **plus the properties
-    /// that live beside the spec rather than inside it**.
-    ///
-    /// # Why the second field exists
-    ///
-    /// `MarkupSpec` describes the SHAPE. Four things an operator can see are
-    /// deliberately not in it — the border **dash** (`/BS` `/S` + `/D`), the
-    /// **opacity** (`/CA`), the **note text** (`/Contents`) and the **author**
-    /// (`/T`) — because they are author-time options, not geometry.
-    ///
-    /// Carrying only the spec therefore **silently lost all four on every
-    /// copy-paste**. A dashed revision cloud came back solid; a 50 %-opacity
-    /// highlight came back opaque; a comment came back blank and unsigned.
-    /// Nothing disclosed it, because from the paste's point of view it was
-    /// authoring a fresh mark and there was nothing to report.
-    ///
-    /// The dash case is the sharpest: `docs/FEATURES.md` enumerated the
-    /// four regeneration routes that used to solidify a dash — *"restyle,
-    /// resize, reshape, author"* — and read as though the class were closed.
-    /// **Copy-paste was a fifth and was not in the list.**
-    Markup(
-        Box<crate::annot_author::MarkupSpec>,
-        Box<crate::annot_author::MarkupCarry>,
-    ),
     /// A **ce dimension** — pdfcer's own measured annotation (project rule 15;
     /// this is never a *pdf dimension*, which is page content and travels as a
     /// [`ClipItem`]).
@@ -471,7 +421,6 @@ impl ClipAnnotation {
     #[must_use]
     pub fn label(&self) -> String {
         match self {
-            Self::Markup(..) => "markup".to_owned(),
             Self::Dimension { .. } => "ce dimension".to_owned(),
             Self::Raw(raw) => raw.subtype.clone(),
             Self::Unsupported { subtype } => format!("{subtype} (unsupported)"),
@@ -512,12 +461,12 @@ pub struct ObjectClip {
     /// would be a second format to version alongside the content one.
     ///
     /// That objection was right about a byte encoding, and is answered by not
-    /// writing one: each model is carried as **the COS object pdfcer already
-    /// has a codec for** — [`encode_spec`](crate::annot_author::encode_spec)
-    /// for a markup spec, `dimension::sidecar`'s for a ce dimension's
-    /// geometry — through the same `write_object`/`Parser` pair every
-    /// resource object above takes. One COS grammar implementation on each
-    /// side; no second format.
+    /// writing one: a ce dimension's geometry is carried as the COS object
+    /// `dimension::sidecar` already has a codec for, and every other
+    /// annotation as its own dictionary and closure ([`RawAnnotation`]),
+    /// through the same `write_object`/`Parser` pair every resource object
+    /// above takes. One COS grammar implementation on each side; no second
+    /// format.
     ///
     /// The consequence is larger than it looks: until this landed,
     /// `pdfcer` could **never** paste an annotation of any kind, because
@@ -877,9 +826,9 @@ impl ObjectClip {
     /// annotations (`Pass 175.0`).
     ///
     /// The highest version any single annotation in the clip requires:
-    /// [`CLIP_VERSION_PRE_REPLY_COUNT`] if some markup carries an author-time property,
-    /// else [`CLIP_VERSION_PRE_MARKUP_CARRY`] if some ce dimension carries a
-    /// text override, else [`CLIP_VERSION_PRE_LABEL_OVERRIDE`].
+    /// [`CLIP_VERSION`] if some ce dimension is anchored, else
+    /// [`CLIP_VERSION_PRE_MARKUP_CARRY`] if some ce dimension carries a text
+    /// override, else [`CLIP_VERSION_PRE_LABEL_OVERRIDE`].
     ///
     /// See [`CLIP_VERSION`]'s note for why this is content-dependent rather
     /// than a constant: the operator runs two builds side by side out of two
@@ -901,16 +850,6 @@ impl ObjectClip {
         let mut version = CLIP_VERSION_PRE_LABEL_OVERRIDE;
         for a in annotations {
             let needed = match a {
-                // An EMPTY carry needs nothing: the common markup — a plain
-                // square with no dash, opacity, note or author — still writes
-                // at 2 and still pastes into the other folder's build. Only a
-                // clip that would actually LOSE something demands the reader
-                // that can carry it.
-                ClipAnnotation::Markup(_, carry)
-                    if **carry != crate::annot_author::MarkupCarry::default() =>
-                {
-                    CLIP_VERSION_PRE_REPLY_COUNT
-                }
                 ClipAnnotation::Dimension { anchors, .. } if !anchors.is_empty() => CLIP_VERSION,
                 ClipAnnotation::Dimension {
                     label_override: Some(_),
@@ -1002,27 +941,6 @@ impl ObjectClip {
         );
         for annotation in &self.annotations {
             match annotation {
-                ClipAnnotation::Markup(spec, carry) => {
-                    out.push(0);
-                    put_cos(&mut out, &crate::annot_author::encode_spec(spec));
-                    // The author-time properties, as a SECOND object rather
-                    // than extra keys in the spec's -- see `MarkupCarry`.
-                    //
-                    // VERSION-GATED, and it was not when it shipped. An
-                    // unconditional second object is invisible to a writer
-                    // and fatal to a reader: an older build wrote one object
-                    // here, so a newer reader taking two walks off the end of
-                    // this annotation and into the next one, mis-parsing every
-                    // annotation that follows. Nothing detects it, because
-                    // `decode_carry` cannot fail by design.
-                    //
-                    // `needed_version` only reaches 4 when some markup has a
-                    // property to carry, so an ordinary clip is still written
-                    // at 2 and still pastes into the other folder's build.
-                    if self.version >= CLIP_VERSION_PRE_REPLY_COUNT {
-                        put_cos(&mut out, &crate::annot_author::encode_carry(carry));
-                    }
-                }
                 ClipAnnotation::Dimension {
                     group_name,
                     format,
@@ -1207,27 +1125,14 @@ impl ObjectClip {
             annotations.reserve(count);
             for _ in 0..count {
                 annotations.push(match r.take(1)?.first().copied().unwrap_or(2) {
+                    // Tag 0 was the modelled-markup form, which no build
+                    // writes any more; its length cannot be skipped without
+                    // decoding it, so the clip is refused whole rather than
+                    // mis-reading every annotation after it.
                     0 => {
-                        let spec = crate::annot_author::decode_spec(&r.cos()?)
-                            .map_err(|e| ClipError::Content(e.to_string()))?;
-                        // Read in the order written, and ONLY when the payload
-                        // says it is there. A version-2 or version-3 clip --
-                        // anything written before `Pass 270.0`, and anything
-                        // written since by a clip with nothing to carry -- has
-                        // one object here, not two.
-                        //
-                        // `decode_carry` cannot fail, which is right for a
-                        // garbled optional property (losing the geometry with
-                        // it would be worse) and is exactly why the version
-                        // check has to be here: an unconditional read of a
-                        // second object could not report going wrong, it would
-                        // just quietly consume the next annotation's tag byte.
-                        let carry = if version >= CLIP_VERSION_PRE_REPLY_COUNT {
-                            crate::annot_author::decode_carry(&r.cos()?)
-                        } else {
-                            crate::annot_author::MarkupCarry::default()
-                        };
-                        ClipAnnotation::Markup(Box::new(spec), Box::new(carry))
+                        return Err(ClipError::Content(
+                            "this clip holds a markup in a form older pdfcer builds wrote; copy it again with this build".to_owned(),
+                        ));
                     }
                     1 => {
                         let group_name = String::from_utf8_lossy(&r.bytes()?).into_owned();
