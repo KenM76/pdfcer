@@ -4,6 +4,17 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-11-27 (1735th filing) — `Pass 781.2` shipped: markup paste is Raw plus patches (decision 228)
+
+**Filed (engineer-reported; no shell here, git, CI and the gates not checked from here; operator commits):**
+- `9afbd477` (`feat(core): markup paste travels raw plus patches (Pass 781.2)`), local, unpushed. 11 markup kinds now paste as clone-then-patch; `MarkupCarry`, `ClipAnnotation::Markup`, `encode_carry`, `decode_carry` deleted (breaking; GUI breaks in three places, channel note `E070` being written). Plain move keeps `/AP` byte for byte; rotate or scale re-bakes `/AP` and discloses it, one undo step. Clip tag 0 refused ("copy it again"); markup clips written at v2.
+- Matrix: 11 markup kinds flipped from `pass:781.2` to `ok`; metrics `xcut cells=1444 run=127 preserve=119 remove=0 consume=0 represent=0 refused=8 na=0 pending=1317`.
+- Tests (engineer-reported): 3542, 2591, 1198, 328, 139, 1 passing, one re-expected, 5 ignored in total; sabotage fails both directions; all gates green.
+- **Known defect, in progress:** `Pass 781.2.a` (re-bake under rotation adds `/BS` on Ink and Line, `/BM /Multiply` on Highlight). Filed in Backlog (ID grep-checked free).
+- Docs: `ROADMAP.md` Shipped entry, banner (head now `781.3`, then `780.1`), Backlog `781.2` marked shipped and `781.2.a` added. `FEATURES.md` two rows (markup copy-paste, blend mode) tagged with the 11 `xc:` ids; the blend-mode row trimmed under 1,200 characters. Decision 141 and decision 228 each got a dated amendment (`ARCHITECTURE.md` §12; decision file Amendments section).
+
+**Decisions made:** none new. **Next:** `781.2.a`, then `Pass 781.3`, then `780.1`.
+
 ## 2026-11-26 (1734th filing) — `v0.180.0` PUBLISHED
 
 **Filed (engineer-reported, engineer's shell; git, CI, GitHub, crates.io and OneDrive not checked from here; operator commits):**

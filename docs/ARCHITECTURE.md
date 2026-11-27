@@ -10027,6 +10027,18 @@ ceiling `R245` — UNCHANGED**, next free `R246` (`R209` grew clause (f) and
 `ROADMAP.md` *Standing rules*). **Pass ceiling `269.0` → `270.0`** (this
 Pass) **→ `270.1`** (one Backlog sub-ID minted the same filing for the
 missing `CLIP_VERSION` bump), next free family `271.x`.
+
+**Amended 2026-11-27 (1735th filing), `Pass 781.2`, `9afbd477`: this entry's
+first instance is RETIRED.** `annot_author::MarkupCarry`, `encode_carry`,
+`decode_carry` and `ClipAnnotation::Markup` were deleted under decision `228`;
+markup now travels as `ClipAnnotation::Raw` plus patches (clone, then patch;
+no spec rebuild, no sibling). A plain move keeps `/AP` byte for byte; a
+non-translation transform re-bakes `/AP` and discloses it. Clip tag 0 is
+refused ("copy it again") and markup clips are written at v2. The text above
+describes the design as it stood and is left as filed. **The rule it states
+still holds for any remaining carrier of a rebuild spec** (the sibling-type
+reasoning applies wherever a spec is regenerated from), but no live type
+instantiates it for markup.
 ### 2026-09-08 (475th filing, `44a2485`) — decision 142: **A POSITIONAL FIELD IN A VERSIONED BINARY FORMAT IS NOT A DROPPABLE KEY. IT NEEDS A GATE ON *BOTH* SIDES, AND THE VERSION DECIDER MUST BE A FOLD OVER INDEPENDENT REQUIREMENTS RATHER THAN A LADDER. EXTENDS DECISION `105`, WHOSE STATED SCOPE — DROPPABLE DICTIONARY KEYS — IS EXACTLY WHY ITS SAFEGUARD DID NOT FIRE**
 
 **Origin.** `Pass 270.1` (`44a2485`), discharging a defect the 474th filing's
@@ -13910,3 +13922,5 @@ Design consult; full record, formulas and Pass split in `docs/decisions/227-imag
 Operator request, 2026-11-26: every feature must be fully supported by every other feature (copy and paste carrying every property is the example) without his having to ask. Full record, artifacts and Pass split in `docs/decisions/228-cross-cutting-coverage.md`; the read-only copy/paste audit (the gap list) in `docs/decisions/228-cross-cutting-coverage.md` (Appendix). **Decides.** A `pdfcer-core::xcut` module: one `ObjectKind` enum matched exhaustively once per operation (so a new kind breaks the build until every operation's policy is decided); clone-then-patch as the only legal carry (no model rebuild, no allowlist of keys to carry); a property-equality gate test over `Op` x `ObjectKind` with non-default fixtures plus a sentinel unknown key, where every dropped key must be disclosed (rule 4 as an assertion); a generated matrix `docs/cross-cutting.md`; and `tools/check-cross-cutting.py` as a CI gate. Delivered by the `Pass 781.0`-`781.7.x` and `782.0`-`782.6` arcs.
 
 **Body-section effect.** Deferred: nothing has shipped; the §5 round-trip wording and `docs/core-api/` get the carry rule when `Pass 781.0` and `781.1` land. **Decision ceiling.** Fills `228`; next free decision `229`. **New standing rule.** None yet (`Pass 781.1` adds `CLAUDE.md` rule 16 and the engineer agent text).
+
+**Amended 2026-11-27 (1735th filing), `Pass 781.2`, `9afbd477`.** Markup paste is now Raw plus patches and `MarkupCarry` is deleted (it was one of the two original carry-baseline entries; the baseline line is gone). 11 markup kinds in `docs/cross-cutting.md` went from `pass:781.2` to `ok`; metrics `xcut cells=1444 run=127 preserve=119 remove=0 consume=0 represent=0 refused=8 na=0 pending=1317`. Detail in the decision file's Amendments section. Decision 141 carries the matching dated amendment.

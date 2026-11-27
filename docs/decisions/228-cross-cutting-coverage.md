@@ -35,7 +35,8 @@ A `pdfcer-core::xcut` module with four parts, each closing a different hole:
 - **Properties are carried field by field in three places:**
   - `ClipAnnotation::Markup` re-authors from `MarkupSpec` + `MarkupCarry`,
     which hand-carries five keys (dash, `/CA`, `/Contents`, `/T`, `/BM`);
-    everything else drops by construction.
+    everything else drops by construction. *(Deleted by `Pass 781.2`, `9afbd477`:
+    markup now travels as `ClipAnnotation::Raw` plus patches; see Amendments.)*
   - `ClipAnnotation::Dimension` rebuilds from the model; `scale` and
     `label_override` were each added after a report.
   - `formclip::FIELD_CARRIED_KEYS` is a 17-key allowlist.
@@ -229,6 +230,19 @@ allowed only for the next Pass in the arc.
 - **`edit.rs` is about 70.5k lines.** New code goes in `xcut/`; dispatch
   sites move onto `ObjectKind` when touched.
 
+## Amendments
+
+- **2026-11-27 (1735th filing), `Pass 781.2`, `9afbd477`.** `MarkupCarry`,
+  `ClipAnnotation::Markup`, `annot_author::encode_carry` and `decode_carry` are
+  deleted. Markup (Square, Circle, Line, Polygon, PolyLine, Highlight,
+  Underline, StrikeOut, Squiggly, ReplaceText, Ink) travels as `Raw` plus
+  patches. A plain move keeps `/AP` byte for byte; a non-translation transform
+  re-bakes `/AP` and discloses it, as one undo step. Clip tag 0 is refused with
+  a "copy it again" message; markup clips are written at v2. The text above
+  (Why, R1a, the 781.2 row) is the state before this Pass and is left as filed.
+  Decision 141's "sibling `MarkupCarry`" rule has its first instance retired by
+  this (see its dated amendment in `ARCHITECTURE.md` §12).
+
 ## Appendix — copy/paste property audit at HEAD 735b9486
 
 A read-only audit across pdfcer and pdfcer-gui. It is the gap list plugged
@@ -243,7 +257,7 @@ carries only what the model was taught.
 | # | Route | Carry |
 |---|---|---|
 | R1 | Selection copy/cut/paste: gui `canvas/clipboard.rs` → core `edit.rs` `copy_selection` / `paste_objects_on_layer` | Content: byte span + rebuilt prelude + deep resource closure. Annotations: R1a–d. |
-| R1a | Markup (Square, Circle, Line, Ink, Polygon, PolyLine, the four text markups) | **Rebuild**: `MarkupSpec` + 5-field `MarkupCarry`; fresh `/AP` |
+| R1a | Markup (Square, Circle, Line, Ink, Polygon, PolyLine, the four text markups) | **Rebuild**: `MarkupSpec` + 5-field `MarkupCarry`; fresh `/AP` *(audit-time state; replaced by Raw plus patches in `Pass 781.2`)* |
 | R1b | ce dimensions (`clip_dimension`) | Rebuild from the full dimension model; complete |
 | R1c | Raw (FreeText, Stamp, Link, Text, FileAttachment, 3D, RichMedia, Caret, Sound, others) | **Deep clone** minus `/P /Parent /StructParent /NM /Popup /IRT` |
 | R1d | Refused | Widget, Popup, Redact, ce dimension without sidecar |
