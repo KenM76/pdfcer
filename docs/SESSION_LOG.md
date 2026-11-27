@@ -4,6 +4,16 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-11-26 (1730th filing) — `Pass 783.0` shipped: a partial panorama of a 3D view (`G338`)
+
+**Filed (engineer-reported; no shell here, git, push, CI and the gates not checked from here; operator commits):**
+- `5be14814`, on `main`, local, unpushed. `Projection::Panorama`, `Camera::panorama`, `RenderError::PanoramaField`, `export::partial_photo_sphere_xmp`; CLI `3d-render --panorama`, `--panorama-vertical`, `--panorama-tilt`, `--panorama-mapping`.
+- Level or view tilt, equirectangular or cylindrical; equirectangular band shifted back at a pole, cylindrical band reaching a pole refused; 360 x 180 at pitch 0 byte-identical to `--360`; cropped GPano tag on JPEG, none on cylindrical.
+- Tests (engineer-reported): 3413 pass, 0 fail (3d, 3d-nav, render, cli, doctests); 9 new engine + 4 CLI tests; sabotage check fails 2 tests; fmt, clippy, structure gate, core-api-verbs clean; no new dependency.
+- `ROADMAP.md`: Shipped entry; Next up unchanged. `FEATURES.md`: 360 row noted as preset; new row `[x]` core `[x]` cli `[ ]` gui, `xc: none` tags.
+
+**Decisions made:** none. **Breaking for GUI:** `Projection` is not `non_exhaustive`; three GUI matches need a `Panorama { .. }` arm (reply file tells pdfcer-gui). **Limits:** GPU draws the full band only; `ThreeDSavedView::from_camera` is `None` for a panorama. **Still owed:** `G337` is being worked next. **Next:** `Pass 781.2`, then `780.1`.
+
 ## 2026-11-26 (1729th filing) — `Pass 781.1` shipped: the cross-cutting process gate (decision 228)
 
 **Filed (engineer-reported; no shell here, git, push, CI and the gates not checked from here; operator commits):**

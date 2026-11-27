@@ -112,6 +112,22 @@ wherever it appears.*
 
 ## Shipped
 
+### `Pass 783.0`: a partial panorama of a 3D view, levelled or tilted, and its cropped photo-sphere tag (`G338`, operator `O466` via pdfcer-gui); `5be14814`, 2026-11-26 (1730th filing)
+
+Engineer-reported; no shell here, so git, CI and the gates were not checked from here. `5be14814` is on `main`, local, not pushed. **Unreleased; rides the next release (writes `pdfcer1`).** Pass ID 783 grep-checked unused by the engineer. Reasoning is in the commit message.
+- **What it does:** renders only a band of the sphere round the eye, up to 360 by 180 degrees. Pitch is levelled (`level`) or tilted with the view (`view`); either way the sweep turns about world up, so the horizon stays straight. Vertical angle is a number or the view's FOV. Mapping is equirectangular or cylindrical.
+- **Poles:** an equirectangular band that would pass a pole is shifted back to stop at it; a cylindrical band that would reach a pole is refused with `RenderError::PanoramaField`.
+- **Size limit:** `MAX_RENDER_PIXELS` counts the strip only. **Equivalence:** 360 x 180 at pitch 0 is byte-identical to `--360`.
+- **Photo-sphere tag:** a JPEG gets a cropped GPano tag, checked against Google's spherical-metadata page; a cylindrical picture is written untagged (GPano has no cylindrical type).
+- **New pub items:** `pdfcer-3d`: `Projection::Panorama { horizontal, vertical, pitch, mapping }`, `PanoramaMapping`, `PanoramaTilt`, `PanoramaExtent`, `Camera::panorama(up, front, extent)`, `RenderError::PanoramaField`. `pdfcer-render`: `export::partial_photo_sphere_xmp`.
+- **CLI (`3d-render`):** `--panorama DEG`, `--panorama-vertical DEG|view`, `--panorama-tilt level|view`, `--panorama-mapping equirectangular|cylindrical`; `note: panorama:` disclosure lines.
+- **Tests (engineer-reported):** 3413 pass, 0 fail across `pdfcer-3d`, `-3d-nav`, `-render`, `-cli`, with doctests; `pdfcer-core` threed tests (27) pass. 9 new engine tests in `panorama_tests.rs` plus 4 CLI tests; one finds 0 differing pixels between a tilted strip and the matching rows of the `--360` sphere. Sabotage check (View tilt made to behave as Level) fails 2 tests. fmt, clippy `-D warnings`, structure gate and `check-core-api-verbs.py` clean. No new dependency, so `cargo tree` unchanged.
+- **Limits:** the GPU path draws only the full 360 x 180 band; partial bands render on the CPU. `ThreeDSavedView::from_camera` returns `None` for a panorama (a saved 3D view's projection can only be O or P).
+- **Breaking for the GUI:** `Projection` is not `non_exhaustive`, so three `pdfcer-gui` matches need a `Panorama { .. }` arm. The reply `open/reply_G338_a_partial_panorama_of_a_3d_view_SHIPPED.md` tells the GUI project.
+- **RAG:** `D:\dev\rag\rust\gpano_partial_panorama_crop_fields_full_pano_is_the_sphere_at_the_picture_density.md` (engineer-written; index entry not checked by this filing).
+- **FEATURES:** the 360 photo-sphere row notes it is now the full-band preset; new row "Partial panorama of a 3D view" `[x]` core `[x]` cli `[ ]` gui, both tagged `xc: none`. Cross-cutting cells: none.
+- **State after:** Next up unchanged (`Pass 781.2`, then `780.1`). `G337` (a render cancel waiting on a whole image decode) is being worked next.
+
 ### `Pass 781.1`: the cross-cutting process gate `tools/check-cross-cutting.py` (decision 228); `3d63a798`, 2026-11-26 (1729th filing)
 
 Engineer-reported; no shell here, so git, CI and the gates were not checked from here. `3d63a798` is on `main`, local, not pushed (also unpushed: `6b78e867`, `0e9223bf`, `5886050b`, `afaf89e5`, filings). **Unreleased; rides the next release (writes `pdfcer1`).** No Rust or Cargo change, no new dependency. Reasoning is in the commit message and `docs/decisions/228-cross-cutting-coverage.md`.
