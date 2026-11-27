@@ -4,6 +4,16 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-11-27 (1736th filing) — `Pass 781.2.a` shipped: a re-baked markup paste adds no key
+
+**Filed (engineer-reported; no shell here, git, CI and the gates not checked from here; operator commits):**
+- `6c8b0f90` (`fix(core): a re-baked markup paste adds no key (Pass 781.2.a)`). Before: the re-bake added `/BS` to Line, Square, Circle, Polygon, PolyLine, Ink and `/BM /Multiply` to Highlight. After: no default written back; `/BM /C /IC /LE` removed where the source had none, `/BS` restored as the source had it. One declared exception: a scale's new border width goes into `/BS /W` or `/Border[2]` (a `/BS` only if the source had neither), disclosed.
+- Tests: new `a_transformed_markup_paste_adds_no_key` plus five unit tests in `markup_paste_keys.rs`; sabotage both ways; 139 + 1198 + 2597 + 3543 + 1 + 328 passed, 0 failed, 6 ignored; xcut metrics unchanged; gates green. Also `docs/cross-cutting.md` re-blessed, core-api paste row, channel note `E070`.
+- **In progress:** `Pass 781.2.b` (Highlight restyle still adds `/BM`; `/Border[3]` dash not read on paste; added-`/BS` disclosure needs a fixture). ID grep-checked free in `docs/`.
+- Docs: `ROADMAP.md` Shipped entry, Backlog `781.2.a` marked shipped with its acceptance wording corrected, `781.2.b` added, banner updated. `FEATURES.md` markup copy-paste row: one clause added, boxes and `xc:` tag unchanged.
+
+**Decisions made:** none new. **Next:** `781.2.b`, then `Pass 781.3`, then `780.1`.
+
 ## 2026-11-27 (1735th filing) — `Pass 781.2` shipped: markup paste is Raw plus patches (decision 228)
 
 **Filed (engineer-reported; no shell here, git, CI and the gates not checked from here; operator commits):**
