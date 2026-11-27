@@ -112,6 +112,17 @@ wherever it appears.*
 
 ## Shipped
 
+### `Pass 784.2`: a render cancel stops inside a single image decode, not after it; `2c060e12`, 2026-11-27 (1744th filing)
+
+Engineer-reported; no shell here, so git, CI and the gates were not checked from here. `2c060e12` is on `main`. **Unreleased; rides the next release.** Closes `Pass 784.2` (residue of `784.0`). Reasoning is in the commit message.
+- **Measured (`cancel_latency`, 600 dpi copier scan, release build, 16 cancel delays 2-1500 ms, 3 runs each):** before, median 75.6 ms, worst 403 ms. After, render stage median 12.6 ms, worst 27.6 ms; record stage median 12.5 ms, worst 36.3 ms. Criterion "well under 145 ms" met. Throughput: full-render median 1844 ms to 1830 ms (-0.8%), within noise.
+- **Mechanism:** filters poll every 64 KiB of output and every predictor row (`decode_stream` signature and output ceilings unchanged). JPEG: a local `PolledCursor` wraps zune-jpeg's input through its reader trait and polls every 1024 reads; zune's non-strict mode fills in the rest, so the token is re-checked after decode. No vendoring, fork, new dependency or manifest change. `/SMask` and `/Mask` planes poll per row.
+- **Three further stalls found by the measurement and fixed:** the JPEG remux allocated its coefficient grid (~71 ms) even when it did not rewrite (now lazy and fallible); the 128 MB sample-buffer zero-fill (~55 ms) is chunked at 4 MiB with polls; minify (38-145 ms) polls per band.
+- **Public API (core):** new `filters::decode_stream_cancellable` and `image_codec::decode_image_view_cancellable`; new variants `FilterError::Cancelled`, `ImageCodecError::Cancelled`, `RemuxError::AllocationFailed`. `docs/core-api/03-capabilities.md` §7.3 updated.
+- **Tests (engineer-reported), 13 new, all sabotage-checked:** 5 filter, 2 JPEG cursor, 5 render (2048² Flate image, 1024² JPEG scan, SMask, stencil Mask, cancel from either layer), 1 minify. model, image-codec, jpeg-remux and render: 2006 passed, 0 failed, 2 ignored; an earlier wider run with core and CLI: 9244 passed, 0 failed. cargo-fuzz built; `image_codec_dct` and `content_and_filters` ran briefly, no crashes. All gates green; one code-structure baseline entry removed.
+- **Residue filed in Backlog:** `Pass 784.2.a` (what is still uninterruptible inside one call). `Pass 784.1` (colour loop) stays open.
+- **FEATURES:** no new row; the "Off-thread cancellable rendering" row's stale latency figure (worst 150-170 ms) corrected.
+
 ### `Pass 781.4`: ce dimension copy, cut, paste and duplicate are clone-then-patch (decision 228); `90db137a`, 2026-11-27 (1743rd filing)
 
 Engineer-reported; no shell here, so git, CI and the gates were not checked from here. Reasoning is in the commit message. **Unreleased; rides the next release.**
@@ -40804,7 +40815,8 @@ real Pass entries as the engineer reaches it — this list exists so
 nothing gets forgotten, not as a commitment to build in this order.
 
 - **`Pass 784.1` (filed 1731st, residue of `784.0`): speed up the image colour loop.** About 37 ns per texel, which is 1.6 s of the 1.8 s page render on the 600 dpi copier scan. **core.** Caution recorded by the engineer: hoisting the per-texel component cache is unsafe, because the matte undo can carry values across texels. Acceptance: pixel-identical output, measured speed-up on the same scan. *FEATURES:* none (render-internal).
-- **`Pass 784.2` (filed 1731st, residue of `784.0`): a per-row cancel hook inside image decoders.** zune-jpeg and `filters::decode_stream` run whole with no per-row hook, so worst cancel latency inside one image is about 150-170 ms; the loops in `mask.rs` are checked only after each finishes. **core.** Acceptance: cancel inside one large image decode returns well under the 145 ms measured at 10 ms on the 600 dpi scan. May need an upstream or vendored decoder change (rule 13 licence check first). *FEATURES:* none (render-internal).
+- **`Pass 784.2`** SHIPPED (1744th, `2c060e12`); see *Shipped*.
+- **`Pass 784.2.a` (filed 1744th, residue of `784.2`): what is still uninterruptible inside one call.** A progressive JPEG's final pass, CCITT, JBIG2, JPX and JXL decodes, and the JPEG remux rewrite for non-interleaved scans run whole with no poll. **core.** Acceptance: a cancel inside each returns in the same order as the 784.2 baseline (median ~13 ms, worst ~36 ms on the 600 dpi scan), or the residual latency is measured and filed per decoder. Check licence (rule 13) before any vendored or upstream decoder change. *FEATURES:* none (render-internal).
 - **Cross-cutting coverage arc, decision 228 (filed 1726th; `Pass 781.0` SHIPPED 1728th, `781.1` SHIPPED 1729th, head is `781.2`; acceptance per row in `docs/decisions/228-cross-cutting-coverage.md` "Pass split").** All core unless stated; the rest not started.
   - **`781.1`** SHIPPED (1729th, `3d63a798`); see *Shipped*.
   - **`781.2`** SHIPPED (1735th, `9afbd477`); see *Shipped*.
