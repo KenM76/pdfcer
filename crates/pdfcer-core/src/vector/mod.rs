@@ -80,9 +80,10 @@ pub use centerline::{
     CENTERLINE_ASPECT_THRESHOLD, CenterlineCandidate, derive_from_path, page_candidates,
 };
 pub use clip::{
-    CLIP_MAGIC, CLIP_VERSION, CLIP_VERSION_PRE_ANCHORS, CLIP_VERSION_PRE_LABEL_OVERRIDE,
-    CLIP_VERSION_PRE_MARKUP_CARRY, CLIP_VERSION_PRE_REPLY_COUNT, ClipAnnotation, ClipBinding,
-    ClipError, ClipItem, ClipObject, ClipPdf, ObjectClip, PastePlan, plan_paste,
+    CLIP_MAGIC, CLIP_VERSION, CLIP_VERSION_PRE_ANCHORS, CLIP_VERSION_PRE_DIMENSION_CARRY,
+    CLIP_VERSION_PRE_LABEL_OVERRIDE, CLIP_VERSION_PRE_MARKUP_CARRY, CLIP_VERSION_PRE_REPLY_COUNT,
+    ClipAnnotation, ClipBinding, ClipError, ClipItem, ClipObject, ClipPdf, ObjectClip, PastePlan,
+    plan_paste,
 };
 #[allow(unused_imports)]
 pub use decompose::{

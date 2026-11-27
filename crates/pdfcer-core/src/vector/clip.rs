@@ -67,6 +67,8 @@ use crate::span::ByteSpan;
 use super::decompose::VectorObject;
 use super::geometry::{Bounds, Matrix};
 
+mod annot_codec;
+
 /// The clip format version pdfcer writes and the highest it reads.
 ///
 /// A clip from a **newer** build is refused rather than guessed at — the same
@@ -100,12 +102,25 @@ use super::geometry::{Bounds, Matrix};
 /// and is emitted only when some ce dimension in the clip is anchored, so a
 /// paste can re-point each anchor at the pasted copy of its target, or drop
 /// and disclose one whose target was not copied.
-pub const CLIP_VERSION: u32 = 6;
+///
+/// `7` (`Pass 781.4`) carries a ce dimension as its model AND its own
+/// dictionary with the closure it reaches (annotation tag 4), so a paste keeps
+/// every key the model does not describe. Every clip holding a ce dimension is
+/// written at `7`; the model-only tag 1 of `2`-`6` is refused on read, because
+/// pasting it would silently lose those keys.
+pub const CLIP_VERSION: u32 = 7;
 
-/// The version a clip with no anchored ce dimension is written at, at most.
+/// The version a clip holding no ce dimension is written at, at most.
+///
+/// The `6`-shaped constant for the `7` bump. No current clip is written at
+/// exactly `6`: the anchor carry it introduced is part of tag 4.
+pub const CLIP_VERSION_PRE_DIMENSION_CARRY: u32 = 6;
+
+/// The version a clip holding no ce dimension but breaking a reply link is
+/// written at.
 ///
 /// The `5`-shaped constant for the `6` bump: the reply count is gated on
-/// this, the ce-dimension anchor carry on [`CLIP_VERSION`].
+/// this.
 pub const CLIP_VERSION_PRE_ANCHORS: u32 = 5;
 
 /// The version a clip that broke no reply link is written at, at most.
@@ -114,11 +129,8 @@ pub const CLIP_VERSION_PRE_ANCHORS: u32 = 5;
 /// [`CLIP_VERSION_PRE_ANCHORS`]. No current clip is written at exactly `4`.
 pub const CLIP_VERSION_PRE_REPLY_COUNT: u32 = 4;
 
-/// The version a clip whose only versioned feature is a ce-dimension text
-/// override is written at.
-///
-/// See [`CLIP_VERSION`]: the `3`-shaped constant, kept separate from
-/// [`CLIP_VERSION_PRE_LABEL_OVERRIDE`] so each feature names its own floor.
+/// The `3`-shaped constant (the ce-dimension text override). No current clip
+/// is written at exactly `3`: a ce dimension needs [`CLIP_VERSION`].
 pub const CLIP_VERSION_PRE_MARKUP_CARRY: u32 = 3;
 
 /// The version a clip that uses no post-`2` feature is written at.
@@ -226,13 +238,13 @@ pub struct ClipObject {
 /// An annotation carried as **its own dictionary plus the closure it
 /// reaches** (`Pass 170.0`).
 ///
-/// # Why every annotation but a ce dimension travels raw
+/// # Why annotations travel raw
 ///
 /// A ce dimension has **registration outside the page** — a `/PieceInfo`
-/// sidecar record and a group — so planting its raw dictionary would carry a
-/// record naming a group that does not exist; it travels through its
-/// [`DimensionKind`](crate::dimension::DimensionKind). A widget has an
-/// `/AcroForm` field entry and its own clipboard, and is refused.
+/// sidecar record and a group — so its raw dictionary travels inside
+/// [`ClipAnnotation::Dimension`] beside the model that re-registers it. A
+/// widget has an `/AcroForm` field entry and its own clipboard, and is
+/// refused.
 ///
 /// **Every other annotation has no such registration**, and copying it
 /// through a model loses whatever the model does not describe — `/CA`, `/T`,
@@ -308,13 +320,13 @@ impl RawAnnotation {
 /// This is the address space that gives it one, and having built it, most of
 /// the kinds turned out to be paste-able rather than refuse-able.
 ///
-/// # Carried raw, except a ce dimension
+/// # Carried raw; a ce dimension carries its model too
 ///
-/// A ce dimension round-trips through its
-/// [`DimensionKind`](crate::dimension::DimensionKind), the model
-/// `add_dimension` authors from, so the destination re-registers the sidecar
-/// itself. Everything else not refused travels as [`Self::Raw`]; see
-/// [`RawAnnotation`] for why.
+/// Every annotation not refused travels as its own dictionary plus closure
+/// ([`RawAnnotation`]). A ce dimension also carries its
+/// [`DimensionKind`](crate::dimension::DimensionKind) and group settings, so
+/// the destination re-registers the sidecar itself and then plants the
+/// carried dictionary over what it authored.
 #[derive(Debug, Clone, PartialEq)]
 #[non_exhaustive]
 // A clipboard payload held a handful at a time; boxing the ce-dimension
@@ -330,6 +342,11 @@ pub enum ClipAnnotation {
     /// that name already or gets one created. That is what makes a dimension
     /// pasted between documents keep its scale and its label format rather
     /// than arriving as bare geometry.
+    ///
+    /// The paste keeps the carried `/AP` byte-for-byte unless the placement
+    /// rotates or scales it, or the destination group's scale, format,
+    /// standard or style differs from the copied one; then it is redrawn from
+    /// the model and the redraw is disclosed.
     Dimension {
         /// The source group's name — matched, or created, on paste.
         group_name: String,
@@ -359,6 +376,9 @@ pub enum ClipAnnotation {
         /// The source group's drafting standard, applied on the same terms as
         /// [`Self::Dimension::scale`].
         standard: crate::dimension::DimStandard,
+        /// The source group's appearance defaults, applied on the same terms
+        /// as [`Self::Dimension::scale`] (`Pass 781.4`).
+        group_style: crate::dimension::GroupStyle,
         /// The ce dimension's **own** style overrides — the bottom tier of
         /// the cascade, which are its alone and are therefore applied
         /// unconditionally rather than only when a group is created.
@@ -392,14 +412,18 @@ pub enum ClipAnnotation {
         /// an anchor whose target is in the clip follows the pasted target;
         /// one whose target is not is dropped and disclosed.
         anchors: Vec<(usize, crate::dimension::Anchor)>,
+        /// The annotation's own dictionary and closure, stripped exactly as
+        /// [`Self::Raw`] is, plus `/OC` when it names the source group's
+        /// layer (the paste supplies the destination group's). Every other
+        /// key is planted as carried (`Pass 781.4`, decision 228).
+        raw: Box<RawAnnotation>,
     },
     /// Any annotation with **no registration outside the page**, carried as
     /// its own dictionary plus the closure it reaches (`Pass 170.0`).
     ///
     /// This is what makes sticky notes, text boxes, stamps, links, file
     /// attachments and every exotic subtype copyable at all — see
-    /// [`RawAnnotation`] for what the model route cost and why the two
-    /// registered kinds above still do not take this path.
+    /// [`RawAnnotation`] for what the model route cost.
     Raw(Box<RawAnnotation>),
     /// An annotation kind pdfcer **refuses** to copy, carried so the count is
     /// honest and refused by name on paste.
@@ -825,41 +849,21 @@ impl ObjectClip {
     /// The lowest clip-format version that fully represents this clip's
     /// annotations (`Pass 175.0`).
     ///
-    /// The highest version any single annotation in the clip requires:
-    /// [`CLIP_VERSION`] if some ce dimension is anchored, else
-    /// [`CLIP_VERSION_PRE_MARKUP_CARRY`] if some ce dimension carries a text
-    /// override, else [`CLIP_VERSION_PRE_LABEL_OVERRIDE`].
-    ///
-    /// See [`CLIP_VERSION`]'s note for why this is content-dependent rather
-    /// than a constant: the operator runs two builds side by side out of two
-    /// folders and copies in one to paste in the other, so a blanket bump
-    /// would break every paste between them in exchange for protecting a
-    /// field almost no clip has.
-    ///
-    /// A clip whose `version` field says `2` therefore round-trips to
-    /// byte-identical output through an older build, which is the property
-    /// that makes the two folders keep working.
-    ///
-    /// The ordering is a **maximum, not a chain of alternatives**, and the
-    /// two features are independent — a clip can contain a dashed square and
-    /// a dimension with an overridden label. Written as a max so that adding
-    /// a third feature cannot accidentally make one of the first two
-    /// unreachable, which an `else if` ladder invites.
+    /// [`CLIP_VERSION`] if the clip holds a ce dimension, else
+    /// [`CLIP_VERSION_PRE_LABEL_OVERRIDE`]. Content-dependent rather than a
+    /// constant because the operator runs two builds side by side and copies in
+    /// one to paste in the other: a clip of markups stays readable by an older
+    /// build, and only a clip that needs the newer reader demands it.
     #[must_use]
     pub fn needed_version(annotations: &[ClipAnnotation]) -> u32 {
-        let mut version = CLIP_VERSION_PRE_LABEL_OVERRIDE;
-        for a in annotations {
-            let needed = match a {
-                ClipAnnotation::Dimension { anchors, .. } if !anchors.is_empty() => CLIP_VERSION,
-                ClipAnnotation::Dimension {
-                    label_override: Some(_),
-                    ..
-                } => CLIP_VERSION_PRE_MARKUP_CARRY,
-                _ => CLIP_VERSION_PRE_LABEL_OVERRIDE,
-            };
-            version = version.max(needed);
+        if annotations
+            .iter()
+            .any(|a| matches!(a, ClipAnnotation::Dimension { .. }))
+        {
+            CLIP_VERSION
+        } else {
+            CLIP_VERSION_PRE_LABEL_OVERRIDE
         }
-        version
     }
 
     #[must_use]
@@ -940,96 +944,7 @@ impl ObjectClip {
             u32::try_from(self.annotations.len()).unwrap_or(u32::MAX),
         );
         for annotation in &self.annotations {
-            match annotation {
-                ClipAnnotation::Dimension {
-                    group_name,
-                    format,
-                    scale,
-                    standard,
-                    style,
-                    kind,
-                    label_override,
-                    source,
-                    anchors,
-                } => {
-                    out.push(1);
-                    put_bytes(&mut out, group_name.as_bytes());
-                    // The group's settings travel as the COS objects the
-                    // sidecar codec already writes for them, so a new field on
-                    // `NumberFormat`, `ScaleState`, `DimStandard` or
-                    // `StyleOverrides` cannot be added to the document format
-                    // and forgotten here.
-                    put_cos(
-                        &mut out,
-                        &crate::dimension::sidecar::serialize_group_settings(
-                            format, *scale, *standard,
-                        ),
-                    );
-                    put_cos(
-                        &mut out,
-                        &crate::dimension::sidecar::serialize_overrides(style),
-                    );
-                    put_cos(&mut out, &crate::dimension::sidecar::serialize_kind(kind));
-                    // APPENDED after the three v2 fields, and read back only
-                    // when the payload declares version >= 3. Inserting it
-                    // anywhere earlier would move every following byte and
-                    // make a v2 clip and a v3 clip indistinguishable to a
-                    // reader that got the version wrong — the presence byte
-                    // is cheap; a shifted positional format is not.
-                    if self.version >= CLIP_VERSION_PRE_MARKUP_CARRY {
-                        match label_override {
-                            Some(text) => {
-                                out.push(1);
-                                put_bytes(&mut out, text.as_bytes());
-                            }
-                            None => out.push(0),
-                        }
-                    }
-                    if self.version >= CLIP_VERSION {
-                        put_cos(
-                            &mut out,
-                            &crate::dimension::encode_clip_anchors(*source, anchors),
-                        );
-                    }
-                }
-                ClipAnnotation::Raw(raw) => {
-                    out.push(3);
-                    put_bytes(&mut out, raw.subtype.as_bytes());
-                    put_cos(&mut out, &Object::Dict(raw.dict.clone()));
-                    match raw.rect {
-                        Some(b) => {
-                            out.push(1);
-                            put_bounds(&mut out, b);
-                        }
-                        None => out.push(0),
-                    }
-                    put_u32(
-                        &mut out,
-                        u32::try_from(raw.objects.len()).unwrap_or(u32::MAX),
-                    );
-                    for (&id, object) in &raw.objects {
-                        put_u32(&mut out, id);
-                        let (value, payload): (Object, Option<&Vec<u8>>) = match &object.value {
-                            Object::Stream(stream) => {
-                                (Object::Dict(stream.dict.clone()), object.payload.as_ref())
-                            }
-                            other => (other.clone(), None),
-                        };
-                        put_cos(&mut out, &value);
-                        match payload {
-                            Some(bytes) => {
-                                out.push(1);
-                                put_bytes(&mut out, bytes);
-                            }
-                            None => out.push(0),
-                        }
-                    }
-                }
-                ClipAnnotation::Unsupported { subtype } => {
-                    out.push(2);
-                    put_bytes(&mut out, subtype.as_bytes());
-                }
-            }
+            annot_codec::put_annotation(&mut out, annotation);
         }
         if self.version >= CLIP_VERSION_PRE_ANCHORS {
             put_u32(
@@ -1124,105 +1039,7 @@ impl ObjectClip {
             }
             annotations.reserve(count);
             for _ in 0..count {
-                annotations.push(match r.take(1)?.first().copied().unwrap_or(2) {
-                    // Tag 0 was the modelled-markup form, which no build
-                    // writes any more; its length cannot be skipped without
-                    // decoding it, so the clip is refused whole rather than
-                    // mis-reading every annotation after it.
-                    0 => {
-                        return Err(ClipError::Content(
-                            "this clip holds a markup in a form older pdfcer builds wrote; copy it again with this build".to_owned(),
-                        ));
-                    }
-                    1 => {
-                        let group_name = String::from_utf8_lossy(&r.bytes()?).into_owned();
-                        let (format, scale, standard) =
-                            crate::dimension::sidecar::deserialize_group_settings(&r.cos()?)
-                                .ok_or_else(|| {
-                                    ClipError::Content(
-                                        "a ce dimension group's settings could not be read back"
-                                            .to_owned(),
-                                    )
-                                })?;
-                        let style = crate::dimension::sidecar::deserialize_overrides(&r.cos()?);
-                        let kind = crate::dimension::sidecar::deserialize_kind(&r.cos()?)
-                            .ok_or_else(|| {
-                                ClipError::Content(
-                                    "a ce dimension's geometry could not be read back".to_owned(),
-                                )
-                            })?;
-                        // Version 2 payloads stop after the geometry and
-                        // carry no override; version 3 onwards do. Read
-                        // conditionally rather than refusing, exactly as the
-                        // annotation block itself is above.
-                        let label_override = if version >= CLIP_VERSION_PRE_MARKUP_CARRY {
-                            if r.take(1)?.first().copied().unwrap_or(0) == 1 {
-                                Some(String::from_utf8_lossy(&r.bytes()?).into_owned())
-                            } else {
-                                None
-                            }
-                        } else {
-                            None
-                        };
-                        let (source, anchors) = if version >= CLIP_VERSION {
-                            crate::dimension::decode_clip_anchors(&r.cos()?)
-                        } else {
-                            (None, Vec::new())
-                        };
-                        ClipAnnotation::Dimension {
-                            group_name,
-                            format,
-                            scale,
-                            standard,
-                            style,
-                            kind: Box::new(kind),
-                            label_override,
-                            source,
-                            anchors,
-                        }
-                    }
-                    3 => {
-                        let subtype = String::from_utf8_lossy(&r.bytes()?).into_owned();
-                        let dict = r.cos()?.as_dict().cloned().ok_or_else(|| {
-                            ClipError::Content(
-                                "a carried annotation is not a dictionary".to_owned(),
-                            )
-                        })?;
-                        let rect = if r.take(1)?.first().copied().unwrap_or(0) == 1 {
-                            Some(r.bounds()?)
-                        } else {
-                            None
-                        };
-                        let object_count = r.u32()? as usize;
-                        if object_count > MAX_CLIP_ANNOTATIONS {
-                            return Err(ClipError::ClipTooLarge {
-                                found: object_count,
-                                limit: MAX_CLIP_ANNOTATIONS,
-                            });
-                        }
-                        let mut objects = BTreeMap::new();
-                        for _ in 0..object_count {
-                            let id = r.u32()?;
-                            let value = r.cos()?;
-                            let payload = if r.take(1)?.first().copied().unwrap_or(0) == 1 {
-                                Some(r.bytes()?)
-                            } else {
-                                None
-                            };
-                            let value = rebuild_stream(value, payload.as_deref())?;
-                            objects.insert(id, ClipObject { value, payload });
-                        }
-                        ClipAnnotation::Raw(Box::new(RawAnnotation {
-                            subtype,
-                            dict,
-                            objects,
-                            rect,
-                        }))
-                    }
-                    _ => ClipAnnotation::Unsupported {
-                        subtype: String::from_utf8_lossy(&r.bytes()?).into_owned(),
-                    },
-                });
+                annotations.push(annot_codec::read_annotation(&mut r)?);
             }
         }
 

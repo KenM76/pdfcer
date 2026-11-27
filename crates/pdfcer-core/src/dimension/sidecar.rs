@@ -490,11 +490,13 @@ pub(crate) fn serialize_group_settings(
     format: &NumberFormat,
     scale: ScaleState,
     standard: DimStandard,
+    style: &GroupStyle,
 ) -> Object {
     let mut group = Group::new(GroupId(0), "", format.unit);
     group.format = *format;
     group.scale = scale;
     group.standard = standard;
+    group.style = *style;
     serialize_group(&group)
 }
 
@@ -502,9 +504,9 @@ pub(crate) fn serialize_group_settings(
 /// placeholders.
 pub(crate) fn deserialize_group_settings(
     obj: &Object,
-) -> Option<(NumberFormat, ScaleState, DimStandard)> {
+) -> Option<(NumberFormat, ScaleState, DimStandard, GroupStyle)> {
     let g = deserialize_group(obj)?;
-    Some((g.format, g.scale, g.standard))
+    Some((g.format, g.scale, g.standard, g.style))
 }
 
 /// One ce dimension's own style overrides as a COS object, for the clipboard

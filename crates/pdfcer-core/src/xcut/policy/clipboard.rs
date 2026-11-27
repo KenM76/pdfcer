@@ -84,6 +84,61 @@ pub(crate) const MARKUP: &[Change] = &[
     Change::Renumbered,
 ];
 
+/// What a ce dimension declares: the raw route's carry planted over the
+/// annotation `add_dimension` re-authors from the carried model (sidecar
+/// record and group re-registered by name). `/AP` and every key the model
+/// draws stay the copied bytes unless the placement or the destination group
+/// changes the drawing. The runner pastes by translation into a group that
+/// draws the same, so there they must arrive unchanged.
+pub(crate) const CE_DIMENSION: &[Change] = &[
+    Change::Translated("Rect"),
+    Change::Translated("L"),
+    Change::Translated("Vertices"),
+    Change::Translated("InkList"),
+    Change::Rebound("P"),
+    Change::Regenerated("NM"),
+    Change::Rebaked {
+        key: "AP",
+        only_when: "a non-translation transform, or the destination group's scale, format, standard or style differs",
+    },
+    Change::Rebaked {
+        key: "Contents",
+        only_when: "the AP is redrawn (the label text)",
+    },
+    Change::Rebaked {
+        key: "Measure",
+        only_when: "the AP is redrawn",
+    },
+    Change::Rebaked {
+        key: "C",
+        only_when: "the AP is redrawn (the stroke colour mirror)",
+    },
+    Change::Rebaked {
+        key: "CA",
+        only_when: "the AP is redrawn (the opacity mirror)",
+    },
+    Change::Dropped {
+        key: "Popup",
+        disclosed_by: Disclosure::PasteDroppedKeys,
+        gap: Some("781.7.e"),
+    },
+    Change::Dropped {
+        key: "IRT",
+        disclosed_by: Disclosure::PasteDroppedKeys,
+        gap: Some("781.7.e"),
+    },
+    Change::Dropped {
+        key: "StructParent",
+        disclosed_by: Disclosure::PasteDroppedKeys,
+        gap: Some("781.7.k"),
+    },
+    Change::Unbound {
+        key: "OC",
+        pass: "781.7.f",
+    },
+    Change::Renumbered,
+];
+
 /// What a form field's widget declares through `copy_field` and a
 /// `NewField` paste: the dictionary travels whole (`formclip`), renamed,
 /// rebound and moved. `/Popup` and `/IRT` name source annotations and stay
@@ -155,7 +210,7 @@ pub(super) fn carry(kind: ObjectKind) -> Expect {
         | K::Squiggly
         | K::ReplaceText
         | K::Ink => Expect::Preserve(MARKUP),
-        K::CeDimension => Expect::Pending("781.4"),
+        K::CeDimension => Expect::Preserve(CE_DIMENSION),
         // §12.5.6.14: a popup belongs to its parent and travels with it.
         K::Popup => Expect::Refused("popup-travels-with-parent"),
         // A pending redaction pasted into an unreviewed document arms it.

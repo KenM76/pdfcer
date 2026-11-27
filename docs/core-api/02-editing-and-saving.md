@@ -1383,17 +1383,31 @@ The two exceptions are `transform_objects` / `transform_preview`
 >
 > ★★ **THE VERSION IS CONTENT-DEPENDENT, AND A SHELL MUST NOT ASSUME IT IS
 > `CLIP_VERSION`.** `ObjectClip::needed_version` returns the *lowest* version
-> that fully represents the clip's annotations: `2` for ordinary content, `3`
-> (`CLIP_VERSION_PRE_MARKUP_CARRY`) when a ce dimension carries a text
-> override (`4`, `CLIP_VERSION_PRE_REPLY_COUNT`, is no longer written: it
-> was the retired modelled-markup carry), `5`
-> (`CLIP_VERSION_PRE_ANCHORS`, `Pass 253.4`) when the clip broke a reply link
-> (see `replies_unthreaded` below), and `6` (`CLIP_VERSION`, `Pass 770.1`)
-> when a copied ce dimension is anchored. Version 6 appends one COS dict per
-> ce dimension, `<< /Source id /Anchors [...] >>`, carried as
-> `ClipAnnotation::Dimension { source, anchors, .. }` (both fields new; an
-> exhaustive constructor must add them — `source: None, anchors: Vec::new()`
-> is an unanchored ce dimension). On paste an anchor whose target was in the
+> that fully represents the clip's annotations: `2` for ordinary content,
+> `5` (`CLIP_VERSION_PRE_ANCHORS`) when the clip broke a reply link (see
+> `replies_unthreaded` below), and `7` (`CLIP_VERSION`, `Pass 781.4`)
+> whenever it holds a ce dimension. Versions `3`, `4` and `6` are no longer
+> written (`CLIP_VERSION_PRE_MARKUP_CARRY`, `CLIP_VERSION_PRE_REPLY_COUNT`,
+> `CLIP_VERSION_PRE_DIMENSION_CARRY` name them).
+>
+> ★ **A ce dimension clip from a build before `7` is REFUSED on paste**
+> (`ClipError::Content`, text ending *"copy it again with this build"*): it
+> carried the measurement but not the annotation's other keys, so pasting it
+> would silently lose them. Surface the error; there is nothing to retry.
+>
+> `ClipAnnotation::Dimension` carries the model (`group_name`, `format`,
+> `scale`, `standard`, **`group_style`**, `style`, `kind`, `label_override`,
+> `source`, `anchors`) AND **`raw: Box<RawAnnotation>`**, the annotation's
+> own dictionary and closure stripped as `ClipAnnotation::Raw` is. Paste
+> re-registers the sidecar from the model, then plants every carried key
+> (flags, `/T`, private keys…) over what it authored, regenerating `/NM` and
+> dropping `/Popup`, `/IRT` and `/StructParent`. **The carried `/AP` is kept
+> byte-for-byte** when the placement is a translation and the destination
+> group's scale, format, standard and style equal the copied ones; otherwise
+> it is redrawn from the model and a `paste:` disclosure containing
+> *"REDREW"* is pushed. Either way the paste is ONE undo entry. The variant
+> is `#[non_exhaustive]`-constructed only by core; match it with `..`.
+> Anchors (`source`, `anchors`): on paste an anchor whose target was in the
 > same clip is re-pointed at the pasted copy; one whose target was not is
 > dropped, its ce dimension listed `detached` in `last_anchor_resolutions()`
 > and a `paste:` disclosure pushed. An anchored paste is ONE undo entry. The

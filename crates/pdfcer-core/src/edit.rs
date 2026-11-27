@@ -159,6 +159,7 @@ mod dimension_anchor;
 mod dimension_anchor_paste;
 mod dimension_centre_mark;
 mod dimension_circle;
+mod dimension_paste_carry;
 mod dimension_vertex_kind;
 mod flatten_dimensions;
 mod free_text_rebake;
@@ -16612,11 +16613,10 @@ impl EditSession {
 
     /// Classify and capture one annotation for the clipboard.
     ///
-    /// A ce dimension travels through its model, because its measurement
-    /// lives in the sidecar rather than the dictionary; every other carried
-    /// annotation travels as its own dictionary plus the closure it reaches
-    /// (`clone_then_patch`, decision 228), so nothing it holds is lost. The
-    /// ce-dimension test runs first: a ce dimension IS a `/Line`, `/Polygon`
+    /// Every carried annotation travels as its own dictionary plus the
+    /// closure it reaches (`clone_then_patch`, decision 228), so nothing it
+    /// holds is lost; a ce dimension also carries its model, because its
+    /// measurement lives in the sidecar. The ce-dimension test runs first: a ce dimension IS a `/Line`, `/Polygon`
     /// or `/PolyLine`, and copied raw it would paste as a bare outline with
     /// no model record (`R204`).
     fn clip_annotation(
@@ -16637,7 +16637,9 @@ impl EditSession {
             // A ce dimension whose sidecar record is absent (annotation and
             // model disagree) is carried as unsupported, not raw: pasting the
             // outline without the measurement is silently wrong.
-            return Ok(self.clip_dimension(id).unwrap_or_else(unsupported));
+            return Ok(self
+                .clip_dimension(annot, id, &dict)?
+                .unwrap_or_else(unsupported));
         }
         if Self::raw_copy_refusal(&subtype) {
             return Ok(unsupported());
@@ -16652,21 +16654,47 @@ impl EditSession {
     /// format and standard, its style and text override — so the paste reads
     /// the same as the copy; `source` and `anchors` let the paste re-point an
     /// anchor whose target is in the same clip and disclose one whose is not.
-    fn clip_dimension(&self, id: ObjId) -> Option<crate::vector::ClipAnnotation> {
+    /// The dictionary travels as [`Self::clip_raw_annotation`] carries it,
+    /// minus `/OC` when that names the group's own layer: the destination
+    /// group supplies its own.
+    fn clip_dimension(
+        &self,
+        annot: &crate::annot::Annotation,
+        id: ObjId,
+        dict: &Dict,
+    ) -> Result<Option<crate::vector::ClipAnnotation>, EditError> {
         let model = self.read_dimension_model();
-        let record = model.dimensions().iter().find(|d| d.annot == Some(id))?;
-        let group = model.group(record.group)?;
-        Some(crate::vector::ClipAnnotation::Dimension {
+        let Some(record) = model.dimensions().iter().find(|d| d.annot == Some(id)) else {
+            return Ok(None);
+        };
+        let Some(group) = model.group(record.group) else {
+            return Ok(None);
+        };
+        let group_layer = group
+            .ocg
+            .is_some_and(|ocg| dict.get(b"OC") == Some(&Object::Reference(ocg)));
+        let mut strip = Self::CLIP_STRIPPED_ANNOT_KEYS.to_vec();
+        if group_layer {
+            strip.push((b"OC", crate::xcut::carry::Strip::Silent));
+        }
+        let crate::vector::ClipAnnotation::Raw(raw) =
+            self.clip_raw_annotation_with(annot, id, dict, &strip)?
+        else {
+            return Ok(None);
+        };
+        Ok(Some(crate::vector::ClipAnnotation::Dimension {
             group_name: group.name.clone(),
             format: group.format,
             scale: group.scale,
             standard: group.standard,
+            group_style: group.style,
             style: record.style,
             label_override: record.label_override.clone(),
             kind: Box::new(record.kind.clone()),
             source: Some(record.id),
             anchors: record.anchors.clone(),
-        })
+            raw,
+        }))
     }
 
     /// Keys an annotation carries that name something in the SOURCE document
@@ -16712,16 +16740,21 @@ impl EditSession {
         id: ObjId,
         dict: &Dict,
     ) -> Result<crate::vector::ClipAnnotation, EditError> {
+        self.clip_raw_annotation_with(annot, id, dict, Self::CLIP_STRIPPED_ANNOT_KEYS)
+    }
+
+    fn clip_raw_annotation_with(
+        &self,
+        annot: &crate::annot::Annotation,
+        id: ObjId,
+        dict: &Dict,
+        strip: &[(&'static [u8], crate::xcut::carry::Strip)],
+    ) -> Result<crate::vector::ClipAnnotation, EditError> {
         let subtype = String::from_utf8_lossy(&annot.subtype).into_owned();
         let view = self.view();
         let mut closure = crate::formclip::Closure::new(&view);
         closure.pin_self(id)?;
-        let carried = crate::xcut::carry::clone_then_patch(
-            dict,
-            &mut closure,
-            Self::CLIP_STRIPPED_ANNOT_KEYS,
-            Vec::new(),
-        )?;
+        let carried = crate::xcut::carry::clone_then_patch(dict, &mut closure, strip, Vec::new())?;
         Ok(crate::vector::ClipAnnotation::Raw(Box::new(
             crate::vector::clip::RawAnnotation {
                 subtype,
@@ -17169,6 +17202,7 @@ impl EditSession {
         format: &crate::dimension::NumberFormat,
         scale: crate::dimension::ScaleState,
         standard: crate::dimension::DimStandard,
+        style: crate::dimension::GroupStyle,
     ) -> Result<(crate::dimension::GroupId, bool), EditError> {
         let model = self.read_dimension_model();
         if let Some(existing) = model.groups().iter().find(|g| g.name == name) {
@@ -17188,6 +17222,9 @@ impl EditSession {
         }
         if standard != crate::dimension::DimStandard::default() {
             self.set_group_standard(id, standard)?;
+        }
+        if style != crate::dimension::GroupStyle::default() {
+            self.set_group_style(id, style)?;
         }
         Ok((id, true))
     }
@@ -19047,7 +19084,21 @@ impl EditSession {
             return Ok(*existing);
         }
         let new_id = ObjId::new(self.alloc_number()?, 0);
-        imported.insert(clip_id, new_id);
+        self.clip_materialize_into(clip, clip_id, new_id, imported, objects)?;
+        Ok(new_id)
+    }
+
+    /// [`Self::clip_materialize`] at a chosen object `id`, which may already
+    /// exist: its current value is the write's `before`.
+    fn clip_materialize_into(
+        &mut self,
+        clip: &BTreeMap<u32, crate::vector::clip::ClipObject>,
+        clip_id: u32,
+        id: ObjId,
+        imported: &mut BTreeMap<u32, ObjId>,
+        objects: &mut Vec<ObjectWrite>,
+    ) -> Result<(), EditError> {
+        imported.insert(clip_id, id);
         let Some(source) = clip.get(&clip_id) else {
             return Err(EditError::Clip(
                 crate::vector::ClipError::DanglingClipObject { object: clip_id },
@@ -19070,11 +19121,11 @@ impl EditSession {
             (other, _) => self.clip_materialize_value(clip, other, imported, objects)?,
         };
         objects.push(ObjectWrite {
-            id: new_id,
-            before: None,
+            id,
+            before: self.state.get(&id).cloned(),
             after: Some(value),
         });
-        Ok(new_id)
+        Ok(())
     }
 
     /// The value half of [`Self::clip_materialize`].
@@ -61773,7 +61824,9 @@ const PASTE_DROPPED_ANNOT_KEYS: &[&[u8]] = &[b"StructParent", b"Popup", b"IRT"];
 fn pasted_dropped_keys(clip: &crate::vector::ObjectClip) -> BTreeMap<String, u64> {
     let mut dropped = BTreeMap::new();
     for annotation in &clip.annotations {
-        if let crate::vector::ClipAnnotation::Raw(raw) = annotation {
+        if let crate::vector::ClipAnnotation::Raw(raw)
+        | crate::vector::ClipAnnotation::Dimension { raw, .. } = annotation
+        {
             crate::xcut::carry::count_markers(&raw.dict, PASTE_DROPPED_ANNOT_KEYS, &mut dropped);
         }
     }

@@ -223,10 +223,10 @@ fn pasting_only_the_dependent_drops_the_anchor_and_discloses_it() {
     assert!(new_ids(&s, &[t, d]).is_empty());
 }
 
-/// Would catch: the anchor carry written without a version bump (an older
-/// reader would mis-parse it) or lost on the wire.
+/// Would catch: the anchor carry lost on the wire, or a ce dimension clip
+/// written below the version whose reader understands it.
 #[test]
-fn the_anchor_carry_survives_the_wire_and_only_anchored_clips_need_v6() {
+fn the_anchor_carry_survives_the_wire_and_every_ce_dimension_clip_needs_v7() {
     let (s, t, d) = anchored(mark());
     let clip = s.copy_annotations(0, &indices(&s, &[t, d])).unwrap();
     let back = ObjectClip::from_bytes(&clip.to_bytes()).unwrap();
@@ -242,12 +242,9 @@ fn the_anchor_carry_survives_the_wire_and_only_anchored_clips_need_v6() {
     assert_eq!(anchors, vec![(1, Anchor::new(t, AnchorRole::MarkCentre))]);
 
     let target_only = s.copy_annotations(0, &indices(&s, &[t])).unwrap();
-    assert!(target_only.version < CLIP_VERSION);
+    assert_eq!(target_only.version, CLIP_VERSION);
     let back = ObjectClip::from_bytes(&target_only.to_bytes()).unwrap();
-    assert_eq!(
-        back.annotations, target_only.annotations,
-        "lossless below v6"
-    );
+    assert_eq!(back.annotations, target_only.annotations, "lossless at v7");
 }
 
 /// Would catch: a page copy and paste losing the anchor or leaving it on

@@ -21,8 +21,7 @@ fn carries_anchors(annotations: &[ClipAnnotation]) -> bool {
 }
 
 /// Clear every ce dimension's `source` when no ce dimension in the clip is
-/// anchored: the ids exist only to re-point anchors, and an unanchored clip
-/// is written below format 6, which has no slot for them.
+/// anchored: the ids exist only to re-point anchors.
 pub(super) fn drop_unused_sources(annotations: &mut [ClipAnnotation]) {
     if carries_anchors(annotations) {
         return;
@@ -36,8 +35,10 @@ pub(super) fn drop_unused_sources(annotations: &mut [ClipAnnotation]) {
 
 impl EditSession {
     /// Place one carried ce dimension: find or create its group by name,
-    /// apply its per-object overrides, and record its source id and
-    /// anchors for [`Self::attach_pasted_anchors`].
+    /// apply its per-object overrides, plant its carried dictionary
+    /// ([`Self::overlay_pasted_dimension`]), and record its source id and
+    /// anchors for [`Self::attach_pasted_anchors`]. Everything it commits is
+    /// one undo entry.
     pub(super) fn paste_clip_dimension(
         &mut self,
         page_index: usize,
@@ -55,14 +56,22 @@ impl EditSession {
             style,
             kind,
             label_override,
+            group_style,
             source,
             anchors,
+            ..
         } = annotation
         else {
             return Ok(());
         };
-        let (group, adopted) =
-            self.find_or_create_dimension_group_with(group_name, format, *scale, *standard)?;
+        let mark = self.undo_top_serial();
+        let (group, adopted) = self.find_or_create_dimension_group_with(
+            group_name,
+            format,
+            *scale,
+            *standard,
+            *group_style,
+        )?;
         // THE DESTINATION'S OWN GROUP WINS, and the difference
         // is disclosed. Silently re-scaling an existing group to
         // match an incoming clip would change the label of every
@@ -90,7 +99,7 @@ impl EditSession {
         if let Some(text) = label_override {
             self.paste_dimension_label(id, text, disclosures);
         }
-        Ok(())
+        self.overlay_pasted_dimension(id, annotation, at, mark, disclosures)
     }
 
     /// Apply a carried text override to the pasted ce dimension `id`.

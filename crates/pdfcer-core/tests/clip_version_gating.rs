@@ -23,8 +23,8 @@ use pdfcer_core::edit::{EditSession, MarkupNote, MarkupOptions};
 use pdfcer_core::object::Object;
 use pdfcer_core::page_tree::Rect;
 use pdfcer_core::vector::{
-    CLIP_MAGIC, CLIP_VERSION, CLIP_VERSION_PRE_ANCHORS, CLIP_VERSION_PRE_LABEL_OVERRIDE,
-    CLIP_VERSION_PRE_REPLY_COUNT, ClipAnnotation, ObjectClip,
+    CLIP_MAGIC, CLIP_VERSION, CLIP_VERSION_PRE_ANCHORS, CLIP_VERSION_PRE_DIMENSION_CARRY,
+    CLIP_VERSION_PRE_LABEL_OVERRIDE, CLIP_VERSION_PRE_REPLY_COUNT, ClipAnnotation, ObjectClip,
 };
 
 fn fixture(rel: &str) -> PathBuf {
@@ -152,6 +152,31 @@ fn a_retired_markup_form_is_refused_with_a_remedy() {
     bytes.push(0);
     let err = ObjectClip::from_bytes(&bytes).expect_err("tag 0 is refused");
     assert!(err.to_string().contains("copy it again"), "{err}");
+}
+
+/// A ce dimension an older build copied carried its model but not its
+/// dictionary; pasting it would silently lose every other key, so it is
+/// refused with the remedy (`Pass 781.4`).
+///
+/// Would catch: the model-only tag still being read, or its refusal
+/// dropping the remedy.
+#[test]
+fn a_model_only_ce_dimension_clip_is_refused_with_a_remedy() {
+    let mut bytes = CLIP_MAGIC.to_vec();
+    bytes.extend_from_slice(&CLIP_VERSION_PRE_DIMENSION_CARRY.to_le_bytes());
+    for _ in 0..4 {
+        bytes.extend_from_slice(&0.0f64.to_le_bytes());
+    }
+    bytes.extend_from_slice(&0u32.to_le_bytes()); // items
+    bytes.extend_from_slice(&0u32.to_le_bytes()); // objects
+    bytes.extend_from_slice(&1u32.to_le_bytes()); // annotations
+    bytes.push(1);
+    let err = ObjectClip::from_bytes(&bytes).expect_err("tag 1 is refused");
+    let text = err.to_string();
+    assert!(
+        text.contains("ce dimension") && text.contains("copy it again"),
+        "{text}"
+    );
 }
 
 /// A clip a future build writes is refused by name, not mis-parsed.
