@@ -4,6 +4,15 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-11-26 (1729th filing) — `Pass 781.1` shipped: the cross-cutting process gate (decision 228)
+
+**Filed (engineer-reported; no shell here, git, push, CI and the gates not checked from here; operator commits):**
+- `3d63a798`, on `main`, local, unpushed. `tools/check-cross-cutting.py` (5 checked stages + `--self-test`), `tools/cross-cutting-baseline.txt`, `tools/check-ci-parity.py` self-test, `ci.yml` two audit steps (33 to 35 checks), engineer agent rule, `CLAUDE.md` rule 16; channel note `E069` updated (outside repo). No Rust/Cargo change.
+- Gate at HEAD (engineer-reported): `kinds=38 ops=38 cells=1444 pass_ids=14 pass_refs=1553 object_rows=551 changed=0 tagged_rows=0 legacy_untagged=551 kinds_untagged=38 carry_found=7 carry_baseline=7`, clean; self-test clean control + 21 bad inputs; untagged new Planned row fails on a scratch clone.
+- `ROADMAP.md`: Shipped entry; Next up head `781.2` then `780.1` (order choice stated in the banner); Backlog `781.1` marked shipped, new `781.7.m` (rename five `*Carry` outcome types); one Standing rules line, no `R` number. `FEATURES.md`: cross-cutting row clause updated, tagged `xc: none`, boxes unchanged, stays Planned.
+
+**Decisions made:** none new. Divergences from decision 228 recorded: carry baseline 7 not 2; "every kind tagged" held by 38 baselined `untagged-kind` lines. **Still owed:** `G337` open; `G338` being worked, not filed. **Next:** `Pass 781.2`, then `780.1`.
+
 ## 2026-11-26 (1728th filing) — `Pass 781.0` shipped: the `xcut` cross-cutting coverage foundation (decision 228)
 
 **Filed (engineer-reported; no shell here, git, push, CI and the gates not checked from here; operator commits):**
