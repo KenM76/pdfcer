@@ -628,7 +628,8 @@ pub struct Annotation {
     ///
     /// `/S /D` with no `/D` reads as Table 166's default `[3]`; a `/D` array
     /// with `/S` absent reads as that pattern, as Acrobat draws it. This is
-    /// the value restyle, resize, reshape and paste preserve.
+    /// the value restyle, resize, reshape and paste preserve. With no `/BS`
+    /// it is `/Border`'s optional fourth element (Table 164).
     pub border_dash: Option<crate::annot_author::BorderDash>,
     /// `/Popup` — this markup annotation's pop-up window companion
     /// (Table 170, Optional, PDF 1.3). `None` when the annotation has no

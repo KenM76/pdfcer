@@ -160,7 +160,7 @@ mod dimension_centre_mark;
 mod dimension_circle;
 mod dimension_vertex_kind;
 mod flatten_dimensions;
-mod markup_paste_keys;
+mod markup_rebake_keys;
 pub use dimension_centre_mark::{CentreMarkHost, CentreMarkOutcome};
 use dimension_vertex_kind::vertex_edited_kind;
 mod dimension_merge;
@@ -16897,7 +16897,7 @@ impl EditSession {
     ///
     /// Goes through the restyle/reshape regeneration route
     /// ([`Self::regenerate_markup_appearance`]), then patches the result back
-    /// to the source's key set and order (`markup_paste_keys`): the redraw
+    /// to the source's key set and order (`markup_rebake_keys`): the redraw
     /// changes `/AP`, `/Rect`, the geometry keys and, under a scale, the
     /// border width, and adds `/BS` only when no key held that width. The
     /// redraw is disclosed, and so is that addition and a `/Square` or `/Circle` whose rotated
@@ -16914,17 +16914,12 @@ impl EditSession {
         };
         let read = {
             let graph = self.graph();
-            let source_bs = match current.get(b"BS").map(|o| graph.resolve(o)) {
-                Some(Object::Dict(bs)) => Some(bs.clone()),
-                _ => None,
-            };
-            let width = annot_author::read_border_width(&graph, &current);
             annot_author::spec_from_dict(&graph, &current).map(|spec| {
                 let dash = annot_author::read_border_dash(&graph, &current);
-                (spec, dash, source_bs, width)
+                (spec, dash)
             })
         };
-        let Ok((spec, dash, source_bs, source_width)) = read else {
+        let Ok((spec, dash)) = read else {
             disclosures.push(format!(
                 "paste: the /{subtype} annotation was placed where it was copied from -- its geometry could not be read back to rotate or scale it."
             ));
@@ -16940,11 +16935,10 @@ impl EditSession {
             },
         );
         let mut regen = self.regenerate_markup_appearance(annot_id, &current, authored)?;
-        let added = markup_paste_keys::keep_source_keys(
+        let added = self.keep_markup_source_keys(
             &current,
-            source_bs.as_ref(),
             &mut regen.updated,
-            source_width,
+            &markup_rebake_keys::Rewrites::default(),
         );
         self.commit_regenerated_markup(annot_id, regen, CommandKind::PasteObjects);
         if !self.coalesce_last(2, CommandKind::PasteObjects) {
@@ -16955,7 +16949,7 @@ impl EditSession {
         disclosures.push(format!(
             "paste: the /{subtype} annotation was rotated or scaled, so pdfcer REDREW its appearance from its geometry; every key it does not draw from was carried unchanged."
         ));
-        if added == markup_paste_keys::AddedKey::BorderStyle {
+        if added == markup_rebake_keys::AddedKey::BorderStyle {
             disclosures.push(format!(
                 "paste: the /{subtype} annotation was scaled, so its border width changed, and it named its width in neither /BS nor /Border -- pdfcer ADDED a /BS entry to record the new width (ISO 32000-1 12.5.4)."
             ));
@@ -36129,11 +36123,20 @@ impl EditSession {
             // next reader deserves to know which this is without re-running
             // the ablation.
             let blend_before = updated.get(b"BM").cloned();
+            let markup_rebuilt =
+                free_text_multiline.is_none() && !three_d_rebuildable && !stamp_rebuildable;
+            let pre_bake = markup_rebuilt.then(|| updated.clone());
             for (key, value) in authored_annot.0.iter() {
                 updated.insert(key.clone(), value.clone());
             }
             if let Some(bm) = blend_before {
                 updated.insert(Name::from(b"BM"), bm);
+            }
+            // The markup bake writes `/C`, `/LE`, a Highlight's `/BM` and a
+            // fresh `/BS` whether or not the dictionary had them; only the
+            // scaled width above is this verb's to write.
+            if let Some(pre) = pre_bake {
+                self.keep_markup_source_keys(&pre, &mut updated, &Default::default());
             }
             let mut ap = Dict::new();
             ap.insert(Name::from(b"N"), Object::Reference(ap_id));
@@ -39507,6 +39510,17 @@ impl EditSession {
             },
         );
         let mut regen = self.regenerate_markup_appearance(annot_id, &current, authored)?;
+        // Only the properties this restyle names are written; a key the
+        // source lacked stays absent (a Highlight's `/BM`, a `/Border`-only
+        // width), see `markup_rebake_keys`.
+        let rewrites = markup_rebake_keys::Rewrites {
+            stroke: style.stroke.is_some(),
+            interior: style.interior.is_some(),
+            endings: style.endings.is_some(),
+            border_effect: style.border_effect.is_some(),
+            dash: (style.dash.is_some() && dash_after != dash_before).then(|| dash_after.clone()),
+        };
+        self.keep_markup_source_keys(&current, &mut regen.updated, &rewrites);
 
         // /CA is pdfcer's to set here and is NOT part of `build_appearance`
         // (it composites the annotation onto the page rather than
@@ -39682,6 +39696,7 @@ impl EditSession {
         );
         let mut regen =
             self.regenerate_markup_appearance(annot_id, &plan.current, plan.authored)?;
+        self.keep_markup_source_keys(&plan.current, &mut regen.updated, &Default::default());
         if let Some(m) = modified {
             regen
                 .updated
@@ -39848,6 +39863,7 @@ impl EditSession {
         let was_pdfces = plan.forecast.appearance_was_pdfces;
         let mut regen =
             self.regenerate_markup_appearance(annot_id, &plan.current, plan.authored)?;
+        self.keep_markup_source_keys(&plan.current, &mut regen.updated, &Default::default());
         if let Some(m) = modified {
             regen
                 .updated

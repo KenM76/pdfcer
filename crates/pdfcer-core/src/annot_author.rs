@@ -1005,8 +1005,8 @@ pub(crate) fn read_border_effect<G: ObjectGraph + ?Sized>(graph: &G, annot: &Dic
     Some(intensity.clamp(0.0, 2.0))
 }
 
-/// Read `/BS` back into a [`BorderDash`] — the dash-preservation half of
-/// the border style (§12.5.4, Table 166).
+/// Read `/BS` (else `/Border`'s dash) back into a [`BorderDash`] — the
+/// dash-preservation half of the border style (§12.5.4, Table 166).
 ///
 /// Returns `Some` when the annotation declares a **dashed** border, and
 /// `None` when it declares any other style, declares none, or declares a
@@ -1042,12 +1042,22 @@ pub(crate) fn read_border_effect<G: ObjectGraph + ?Sized>(graph: &G, annot: &Dic
 /// because its dash array is `[0 0]` would be a refusal with no upside.
 /// The loss is disclosed by the caller (`DroppedProperty::DashPattern`),
 /// which is what keeps the degradation from being silent.
+///
+/// # With no `/BS`, the dash is `/Border`'s fourth element
+///
+/// ISO 32000-1 §12.5.2 Table 164: `/Border [hr vr w [dash]]` may carry
+/// *"an optional dash array defining a pattern of dashes and gaps"* (PDF 1.1),
+/// and the whole array is *"ignored if a `BS` entry is present"*. So it is
+/// read only when `/BS` is absent. ISO 32000-2 adds that its phase is 0,
+/// which is the only phase [`BorderDash`] has.
 pub(crate) fn read_border_dash<G: ObjectGraph + ?Sized>(
     graph: &G,
     annot: &Dict,
 ) -> Option<BorderDash> {
-    let Object::Dict(bs) = annot.get(b"BS").map(|o| graph.resolve(o))? else {
-        return None;
+    let bs = match annot.get(b"BS").map(|o| graph.resolve(o)) {
+        Some(Object::Dict(bs)) => bs,
+        Some(_) => return None,
+        None => return border_array_dash(graph, annot),
     };
     // Table 166: /S defaults to /S (solid). /B, /I and /U are borders
     // pdfcer does not author and are not dashes either.
@@ -1073,6 +1083,21 @@ pub(crate) fn read_border_dash<G: ObjectGraph + ?Sized>(
         }
         _ => declared_dashed.then(BorderDash::table_166_default),
     }
+}
+
+/// `/Border`'s optional fourth element as a dash (Table 164).
+fn border_array_dash<G: ObjectGraph + ?Sized>(graph: &G, annot: &Dict) -> Option<BorderDash> {
+    let Object::Array(border) = graph.resolve(annot.get(b"Border")?) else {
+        return None;
+    };
+    let Object::Array(items) = graph.resolve(border.get(3)?) else {
+        return None;
+    };
+    let pattern: Vec<f64> = items
+        .iter()
+        .filter_map(|o| graph.resolve(o).as_number())
+        .collect();
+    BorderDash::new(pattern)
 }
 
 /// Read a **text-bearing** annotation back out of its dictionary — the

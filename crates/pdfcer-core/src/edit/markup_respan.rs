@@ -119,6 +119,7 @@ impl EditSession {
         let quads_before = old.len();
         let authored = annot_author::build_appearance_opts(&respanned, &options);
         let mut regen = self.regenerate_markup_appearance(annot_id, &current, authored)?;
+        self.keep_markup_source_keys(&current, &mut regen.updated, &Default::default());
         if let Some(m) = modified {
             regen
                 .updated

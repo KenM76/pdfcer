@@ -5188,7 +5188,8 @@ absent → `None`, never an empty list.
 `border_dash: Option<annot_author::BorderDash>` (`/BS`, §12.5.4 Table 166;
 read with `BorderDash::pattern()`) is the dashed-border pattern restyle,
 resize, reshape and paste preserve: `/S /D` alone reads as `[3]`, a `/D`
-array without `/S` reads as that pattern, any other style is `None`.
+array without `/S` reads as that pattern, any other style is `None`; with no
+`/BS`, `/Border`'s fourth element is the dash (Table 164).
 `rich_contents: Option<RichText>` is `/RC` (Table 170, §12.7.3.4), the
 comment's XHTML rich-text twin of `contents`: `RichText::Inline(String)` for
 a text string, `RichText::Stream(ObjId)` for a text stream (§7.9.3). Resolve

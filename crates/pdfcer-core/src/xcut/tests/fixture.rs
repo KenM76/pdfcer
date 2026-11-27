@@ -28,10 +28,13 @@ const NOTE: u32 = 12;
 
 /// The common keys, written onto every target but the ce dimension (which
 /// authors its own `/Rect`, `/AP` and `/Subtype`).
-const COMMON: &str = "/F 28 /C [1 0 0] /Border [0 0 2] /CA 0.5 /T (Ken) /Subj (Review) \
+const COMMON: &str = "/F 28 /C [1 0 0] /CA 0.5 /T (Ken) /Subj (Review) \
     /Contents (hello) /M (D:20260101000000Z) /CreationDate (D:20251231000000Z) \
     /NM (target-1) /StructParent 7 /OC 9 0 R /Lang (en-CA) /IRT 12 0 R \
     /XXpdfcerSentinel (xcut-sentinel-7810) /XXpdfcerSentinelStream 14 0 R";
+
+/// The border every target but the ce dimension carries by default.
+pub(super) const BORDER: &str = "/Border [0 0 2]";
 
 /// Every kind this fixture builds (the annotation and form-widget rows).
 pub(super) fn kinds() -> impl Iterator<Item = ObjectKind> {
@@ -48,6 +51,13 @@ pub(super) fn build(kind: ObjectKind) -> (EditSession, ObjId) {
     if kind == ObjectKind::CeDimension {
         return ce_dimension();
     }
+    build_with_border(kind, BORDER)
+}
+
+/// [`build`] with `border` in place of [`BORDER`]: `""` for a target with
+/// neither `/Border` nor `/BS` (ISO 32000-1 §12.5.4: solid, 1pt), or a
+/// `/Border` whose fourth element is a dash (Table 164).
+pub(super) fn build_with_border(kind: ObjectKind, border: &str) -> (EditSession, ObjId) {
     let (subtype, specific) = specific(kind);
     let popup = if kind == ObjectKind::Popup {
         String::new()
@@ -56,7 +66,7 @@ pub(super) fn build(kind: ObjectKind) -> (EditSession, ObjId) {
     };
     let target = format!(
         "<< /Type /Annot /Subtype /{subtype} /Rect [100 100 200 150] /P 3 0 R \
-         /AP << /N 13 0 R >> {COMMON} {popup} {specific} >>"
+         /AP << /N 13 0 R >> {COMMON} {border} {popup} {specific} >>"
     );
     (
         EditSession::new(pdf(&objects(&target, TARGET))),
