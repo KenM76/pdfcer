@@ -184,7 +184,7 @@ const MAX_PROGRESSIVE_SCANS: usize = 100;
 /// Most 8x8 coefficient blocks the multi-scan remux may hold: the shared
 /// decoder working budget at 128 bytes (64 `i16`) per block, 2^22 blocks.
 #[allow(clippy::cast_possible_truncation)] // 2^22 fits every usize
-const MAX_REMUX_BLOCKS: usize = (MAX_DECODER_WORKING_BYTES / 128) as usize;
+pub(crate) const MAX_REMUX_BLOCKS: usize = (MAX_DECODER_WORKING_BYTES / 128) as usize;
 
 /// Decode a `DCTDecode` codestream.
 ///

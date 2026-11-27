@@ -236,7 +236,7 @@ pub(super) fn decode(
 /// [`ImageCodecError::Filter`] if the globals stream exists but its own
 /// filter chain fails. That one *is* an error: the file said the
 /// segments are over there, and they cannot be read.
-fn globals(
+pub(crate) fn globals(
     doc: &DocumentView<'_>,
     parms: Option<&Dict>,
 ) -> Result<Option<Vec<u8>>, ImageCodecError> {

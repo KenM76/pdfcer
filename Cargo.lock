@@ -1196,6 +1196,7 @@ dependencies = [
  "hayro-ccitt",
  "hayro-jbig2",
  "hayro-jpeg2000",
+ "jpeg-encoder",
  "jxl-oxide",
  "pdfcer-jpeg-remux",
  "pdfcer-model",

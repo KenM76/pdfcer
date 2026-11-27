@@ -387,6 +387,17 @@ fn settings(params: &Params, columns: u32, rows: u32) -> DecodeSettings {
 /// as one of the two mechanical reasons this codec needs `&Document` at
 /// all. `None` means neither is usable and the caller falls back to
 /// [`row_ceiling`].
+/// `/Columns` and the declared row count exactly as [`decode`] reads them,
+/// for the peak predictor (decision 227).
+pub(crate) fn declared_geometry(
+    doc: &DocumentView<'_>,
+    parms: Option<&Dict>,
+    dict: &Dict,
+) -> (i64, Option<u32>) {
+    let params = params(doc, parms);
+    (params.columns, declared_rows(doc, &params, dict))
+}
+
 fn declared_rows(doc: &DocumentView<'_>, params: &Params, dict: &Dict) -> Option<u32> {
     u32::try_from(params.rows)
         .ok()

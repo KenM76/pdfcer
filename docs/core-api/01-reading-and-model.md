@@ -3072,6 +3072,25 @@ alpha split and unpremultiplied; `JxlPixels { width, height, colour_channels,
 colour, alpha, icc_profile, srgb }`, `#[non_exhaustive]`) — the `.jxl` import
 path's decoder.
 
+`image_codec::peak` (`peak.rs`, decision 227) predicts a decode's peak heap
+from headers alone. `predict_peak(&DocumentView, &Dict, raw) -> Option<u64>`
+covers the whole `decode_image*` call: the copy of `raw`, any lone
+`FlateDecode` (with PNG/TIFF predictor) and the codec's working set,
+including the returned samples. `codec_working_bytes(&DocumentView, Codec,
+data, &Dict) -> Option<u64>` is the codec part alone, above its filter-decoded
+input. Neither counts `width * height * downstream_bytes_per_pixel`; add
+that yourself. `None` means the headers cannot bound the decode: a filter
+before a codec, a chain other than none or one `FlateDecode`, a JBIG2 symbol
+dictionary, more than one page or an unknown page height, JPEG XL, or
+unreadable headers. Each predictor is pinned by the `peak_memory` test to
+`measured <= predicted <= 1.5 * measured`. `DecodeLimits { memory_budget,
+max_pixels, downstream_bytes_per_pixel }` (`#[non_exhaustive]`; `new(budget)`,
+`for_physical_memory(total)` = total / 2, `with_max_pixels`,
+`with_downstream_bytes_per_pixel`; `Default` uses `FALLBACK_MEMORY_BUDGET`,
+4 GiB on 64-bit and 1 GiB on 32-bit) is the budget the predictions are
+checked against. Nothing enforces it yet; the fixed ceilings below still
+govern.
+
 The per-codec modules (`image_codec::{dct, ccitt, jbig2, jpx}`,
 `lib.rs`) expose no decoder — every `decode` is `pub(super)`, and
 `decode_image*` is the only door. The public items are two writers. One is

@@ -119,6 +119,7 @@ pub mod jbig2;
 pub mod jpx;
 #[cfg(feature = "jxl")]
 pub mod jxl;
+pub mod peak;
 
 /// Shared 1-bit sample packing for the two fax codecs. Private: it is an
 /// implementation detail of [`ccitt`] and [`jbig2`], not part of the

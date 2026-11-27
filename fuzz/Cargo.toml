@@ -211,6 +211,16 @@ test = false
 doc = false
 bench = false
 
+# Pass 780.1 (decision 227): the peak-memory predictors' header walkers
+# run before every codec ceiling, so they are pdfcer's own parsers of
+# untrusted bytes.
+[[bin]]
+name = "image_peak_predict"
+path = "fuzz_targets/image_peak_predict.rs"
+test = false
+doc = false
+bench = false
+
 [[bin]]
 name = "image_codec_jxl"
 path = "fuzz_targets/image_codec_jxl.rs"
