@@ -61525,16 +61525,16 @@ impl EditSession {
         self.graph().resolve(existing) == &carried.value
     }
 
-    /// A `/DR /Font` name that is free in this document.
+    /// A `/DR /Font` name that is free in this document and not in `avoid`.
     ///
     /// `Helv` becomes `Helv_1`, then `Helv_2`. The suffix is derived from what
     /// is actually present rather than from a counter, so it is stable across
     /// runs and cannot collide with itself.
-    fn free_dr_font_name(&self, wanted: &[u8]) -> Vec<u8> {
+    fn free_dr_font_name(&self, wanted: &[u8], avoid: &BTreeSet<Vec<u8>>) -> Vec<u8> {
         for n in 1..=9999u32 {
             let mut candidate = wanted.to_vec();
             candidate.extend_from_slice(format!("_{n}").as_bytes());
-            if self.dr_font_object(&candidate).is_none() {
+            if self.dr_font_object(&candidate).is_none() && !avoid.contains(&candidate) {
                 return candidate;
             }
         }

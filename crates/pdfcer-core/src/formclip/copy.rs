@@ -1,7 +1,8 @@
 //! Building a [`FieldClip`]: the field and widget dictionaries travel whole by
 //! clone-then-patch (decision 228), minus the keys that name the source
 //! document, and a field leaving its parent carries the attributes it
-//! inherited (ISO 32000-1 §12.7.3.1 Table 220).
+//! inherited (ISO 32000-1 §12.7.3.1 Table 220), and every `/DR` font its
+//! `/DA` strings name travels with it (§12.7.3.3).
 
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -11,7 +12,7 @@ use crate::forms_author::{FIELD_ONLY_KEYS, WIDGET_KEYS_TO_MOVE};
 use crate::graph::ObjectGraph;
 use crate::object::{Dict, Name, Object};
 use crate::page_tree::Rect;
-use crate::vector::clip::ClipError;
+use crate::vector::clip::{ClipError, ClipObject};
 use crate::view::DocumentView;
 use crate::xcut::carry::{Strip, clone_then_patch};
 
@@ -108,13 +109,14 @@ pub(crate) fn build_field_clip(
             }),
         });
     }
-    let da_font = da_font(closure, graph, form, &field_dict)?;
+    let dicts = std::iter::once(&field_dict).chain(widgets.iter().map(|w| &w.dict));
+    let da_fonts = da_fonts(closure, graph, form, dicts)?;
     Ok(FieldClip {
         version: FIELD_CLIP_VERSION,
         field: field_dict,
         widgets,
         objects: BTreeMap::new(),
-        da_font,
+        da_fonts,
         inherited,
         source_name: field.fully_qualified_name.clone(),
         field_type: field.field_type,
@@ -232,36 +234,51 @@ fn set_value<'d>(dict: &'d Dict, key: &[u8]) -> Option<&'d Object> {
     dict.get(key).filter(|v| !matches!(v, Object::Null))
 }
 
-/// The `/AcroForm /DR /Font` entry the carried `/DA` names, interned as an
-/// indirect clip object so the paste installs it by reference (§12.7.3.3:
-/// the `/DA` font must resolve in the destination's `/DR`).
-fn da_font<G: ObjectGraph + ?Sized>(
+/// The `/AcroForm /DR /Font` entries the carried `/DA` strings name (the
+/// field's first, then each widget's own), one per name, each interned as an
+/// indirect clip object so the paste installs it by reference (§12.7.3.3: a
+/// `/DA` font must resolve in the destination's `/DR`). A name the source
+/// `/DR` does not bind carries nothing.
+fn da_fonts<'d, G: ObjectGraph + ?Sized>(
     closure: &mut Closure<'_>,
     graph: &G,
     form: &forms::AcroForm,
-    field: &Dict,
-) -> Result<Option<(Vec<u8>, u32)>, ClipError> {
-    let entry = field
-        .get(b"DA")
-        .and_then(|da| match da {
-            Object::String(bytes) => Some(bytes.clone()),
-            Object::Reference(id) => match closure.objects.get(&id.num).map(|o| &o.value) {
-                Some(Object::String(bytes)) => Some(bytes.clone()),
-                _ => None,
-            },
-            _ => None,
-        })
-        .and_then(|da| crate::vartext::parse_default_appearance(&da).ok())
+    dicts: impl Iterator<Item = &'d Dict>,
+) -> Result<Vec<(Vec<u8>, u32)>, ClipError> {
+    let mut fonts: Vec<(Vec<u8>, u32)> = Vec::new();
+    for dict in dicts {
+        let Some(name) = da_font_name(dict, &closure.objects) else {
+            continue;
+        };
+        if fonts.iter().any(|(n, _)| *n == name) {
+            continue;
+        }
+        let Some(value) = dr_font_entry(graph, form, &name) else {
+            continue;
+        };
+        let number = match closure.take(&value, 0)? {
+            Object::Reference(id) => id.num,
+            direct => closure.adopt(direct)?,
+        };
+        fonts.push((name, number));
+    }
+    Ok(fonts)
+}
+
+/// The font resource name `dict`'s `/DA` selects with `Tf`; a `/DA` held by
+/// reference is read from the clip-local `objects`.
+pub(super) fn da_font_name(dict: &Dict, objects: &BTreeMap<u32, ClipObject>) -> Option<Vec<u8>> {
+    let da = match dict.get(b"DA")? {
+        Object::String(bytes) => bytes,
+        Object::Reference(id) => match &objects.get(&id.num)?.value {
+            Object::String(bytes) => bytes,
+            _ => return None,
+        },
+        _ => return None,
+    };
+    crate::vartext::parse_default_appearance(da)
+        .ok()
         .map(|parsed| parsed.font_name)
-        .and_then(|name| Some((dr_font_entry(graph, form, &name)?, name)));
-    let Some((value, name)) = entry else {
-        return Ok(None);
-    };
-    let number = match closure.take(&value, 0)? {
-        Object::Reference(id) => id.num,
-        direct => closure.adopt(direct)?,
-    };
-    Ok(Some((name, number)))
 }
 
 /// The `/AcroForm /DR /Font /<name>` value, unresolved, so an indirect entry

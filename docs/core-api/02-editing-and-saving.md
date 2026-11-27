@@ -4823,7 +4823,12 @@ document with no `/TB` renders correctly *here* — its `/AP` has its own
 resources — and re-renders wrong in every viewer that regenerates from `/DA`.
 The clip carries the font; the paste installs it, and **renames it plus
 rewrites the `/DA`** when the destination already uses that name for a
-different font.
+different font. A widget's own `/DA` can name a different font from its
+field's; the clip carries **every** font any `/DA` on the field or its
+widgets names (`carried_fonts()`), and both chords install each one a pasted
+`/DA` uses. A fresh name never takes one the clip installs under its own
+name; `FieldPasteOutcome::font_renames` maps each copied name to the one
+installed.
 
 **Inherited attributes are materialised.** A pasted field leaves its parent,
 so whatever it inherited (§12.7.3.1 Table 220: `/FT /Ff /V /DV /DA /Q`,
@@ -4853,11 +4858,12 @@ is written). **Dropped and counted** in `FieldPasteOutcome::dropped_keys`:
 | `carries_calculation() -> bool` | The subset that obliges `/AcroForm /CO` (§12.7.2 Table 218). |
 | `carries_value() -> bool` | Whether `copy_value: true` would do anything. |
 | `tooltip() -> Option<&[u8]>` | `PasteTooltip::Carry` is only meaningful when this is `Some`. |
-| `carried_font() -> Option<&[u8]>` | The `/DR` resource name travelling with it. |
+| `carried_font() -> Option<&[u8]>` | The `/DR` resource name the field's own `/DA` names, when it travels. |
+| `carried_fonts() -> Vec<&[u8]>` | Every `/DR` resource name travelling with it: the field's, then any other a widget's `/DA` names. |
 | `inherited_keys() -> &[String]` | The Table 220 attributes the field inherited and the paste will write onto it, in walk order. |
 | `bbox() -> Option<Rect>` | The union of the source widgets' rectangles — for a paste-preview outline. |
 | `object_count() -> usize` | Size of the owned closure. |
-| `to_bytes() / from_bytes` | **Everything survives the round trip.** Magic `PDFCEFLD…`, format version 2; refuses any other version, older included. (`ObjectClip` is total too as of `Pass 169.0`; it was not when this row was written.) |
+| `to_bytes() / from_bytes` | **Everything survives the round trip.** Magic `PDFCEFLD…`, format version 3; refuses any other version, older included. (`ObjectClip` is total too as of `Pass 169.0`; it was not when this row was written.) |
 
 #### `FieldPastePolicy` — the two chords, and their refusals
 
@@ -4917,7 +4923,10 @@ a group with an `/Opt` array.
 `field_id: ObjId`, `widget_ids: Vec<ObjId>`, `merged: bool`,
 `created: bool`, `disclosures: Vec<String>`, `radio_on_state: Option<String>`,
 `materialized_keys: Vec<String>` (inherited keys written onto the field),
-`dropped_keys: BTreeMap<String, u64>` (source-bound keys dropped, with counts).
+`dropped_keys: BTreeMap<String, u64>` (source-bound keys dropped, with counts),
+`font_renames: BTreeMap<String, String>` (copied `/DR` font name → the name
+it was installed under, for each name the destination bound to a different
+font; every pasted `/DA` naming it was rewritten).
 
 `radio_on_state` (`Pass 581.0`, `G187`) is set only for an `AdditionalWidget`
 paste into a radio group: the new member's on-state. When the copied state was
@@ -4960,9 +4969,9 @@ spending a placement gesture:
 `copy-field --name <FQN> -o <clip>`, `inspect-field-clip <clip>`, and
 `paste-field --clip <clip> --page N --rect … (--as-new <NAME> | --as-widget-of
 <NAME>)`. Disclosures go to **stderr**, the parseable summary to stdout.
-`copy-field` prints `inherited=FT,Ff,…` (`-` when none); `paste-field` prints
-`materialized=…` and `dropped=StructParent:1,…`; `paste-fields` prints the
-two as sums.
+`copy-field` prints `fonts=Helv,Cour` and `inherited=FT,Ff,…` (`-` when
+none); `paste-field` prints `materialized=…`, `dropped=StructParent:1,…` and
+`font_renames=Cour>Cour_1,…`; `paste-fields` prints the three as sums.
 
 #### Several fields at once — `Pass 587.0` (`G193`)
 

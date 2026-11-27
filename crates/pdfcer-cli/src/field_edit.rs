@@ -2978,7 +2978,7 @@ pub(crate) fn print_field_clip_line(
         |r| format!("{},{},{},{}", r.llx, r.lly, r.urx, r.ury),
     );
     println!(
-        "{verb} {source}field={:?} type={} button={} widgets={} value={} actions={} calc={} tooltip={} font={} inherited={} bbox={bbox} objects={} -> {}; bytes={bytes}",
+        "{verb} {source}field={:?} type={} button={} widgets={} value={} actions={} calc={} tooltip={} font={} fonts={} inherited={} bbox={bbox} objects={} -> {}; bytes={bytes}",
         clip.source_name(),
         clip.field_type().map_or("-", field_type_token),
         clip.button_kind().map_or("-", button_kind_token),
@@ -2994,6 +2994,13 @@ pub(crate) fn print_field_clip_line(
             || "-".to_owned(),
             |f| String::from_utf8_lossy(f).into_owned()
         ),
+        key_list(
+            &clip
+                .carried_fonts()
+                .iter()
+                .map(|f| String::from_utf8_lossy(f).into_owned())
+                .collect::<Vec<_>>()
+        ),
         key_list(clip.inherited_keys()),
         clip.object_count(),
         file.display(),
@@ -3006,6 +3013,16 @@ pub(crate) fn key_list(keys: &[String]) -> String {
         "-".to_owned()
     } else {
         keys.join(",")
+    }
+}
+
+/// `From>To` pairs for renamed `/DR` fonts, or `-` when none were renamed.
+pub(crate) fn renames_list(renames: &std::collections::BTreeMap<String, String>) -> String {
+    let parts: Vec<String> = renames.iter().map(|(f, t)| format!("{f}>{t}")).collect();
+    if parts.is_empty() {
+        "-".to_owned()
+    } else {
+        parts.join(",")
     }
 }
 
@@ -3122,7 +3139,7 @@ pub(crate) fn cmd_paste_field(args: &PasteFieldArgs<'_>) -> u8 {
     };
     let r = &saved.report;
     println!(
-        "paste-field {} clip={} source_field={:?} policy={} page={} rect={},{},{},{} field={} {} widgets={} created={} merged={} mode={} -> {}; changed={} objects={} appended={} out_bytes={} undo_verified={} undo_identical={} radio_state={} materialized={} dropped={}",
+        "paste-field {} clip={} source_field={:?} policy={} page={} rect={},{},{},{} field={} {} widgets={} created={} merged={} mode={} -> {}; changed={} objects={} appended={} out_bytes={} undo_verified={} undo_identical={} radio_state={} materialized={} dropped={} font_renames={}",
         args.input.display(),
         args.clip.display(),
         clip.source_name(),
@@ -3152,6 +3169,7 @@ pub(crate) fn cmd_paste_field(args: &PasteFieldArgs<'_>) -> u8 {
         outcome.radio_on_state.as_deref().unwrap_or("-"),
         key_list(&outcome.materialized_keys),
         dropped_list(&outcome.dropped_keys),
+        renames_list(&outcome.font_renames),
     );
     finish_edit(args.input, &saved)
 }

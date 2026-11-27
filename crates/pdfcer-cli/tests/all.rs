@@ -130,6 +130,7 @@ mod optimize_fonts;
 mod output_in_place;
 mod password_values;
 mod paste_clipboard;
+mod paste_font_renames;
 mod paste_radio_member;
 mod pin_span;
 mod place_stamp_as_content;

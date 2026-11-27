@@ -35,7 +35,7 @@
 //! | field | every key, plus the inheritable attributes it gets from an ancestor | `/T` `/Parent` `/Kids` `/Type` |
 //! | widget | every key | `/P` `/Parent` `/Type` `/Subtype` `/T` `/Kids`; marked: `/StructParent` `/NM` `/Popup` `/IRT` |
 //! | closure | every object those two reach | |
-//! | `/DR` font | the `/Font` entry the field's `/DA` names | |
+//! | `/DR` fonts | every `/Font` entry the field's or a widget's `/DA` names | |
 //!
 //! A merged (Shape A) dictionary splits along `forms_author`'s
 //! `WIDGET_KEYS_TO_MOVE` / `FIELD_ONLY_KEYS`; a key in neither list is
@@ -133,10 +133,13 @@
 //!   with a `C` entry"*. A pasted field carrying a calculate action is
 //!   appended to `/AcroForm /CO`, or the destination becomes non-conformant
 //!   the moment the clip lands. pdfcer still never *executes* it (NF4).
-//! - **§12.7.3.3 `/DA`** — the appearance string names a font that must
-//!   resolve in `/AcroForm /DR /Font`. The clip carries that font entry and
-//!   the paste installs it, renaming and rewriting the `/DA` when the
-//!   destination already uses the name for a *different* font.
+//! - **§12.7.3.3 `/DA`** — an appearance string names a font that must
+//!   resolve in `/AcroForm /DR /Font` (§12.7.4.3: the regenerated appearance
+//!   is drawn in it). The field's `/DA` and each widget's own `/DA` can name
+//!   different fonts, so the clip carries every one of them and the paste
+//!   installs each, renaming it and rewriting every `/DA` that names it when
+//!   the destination already uses the name for a *different* font
+//!   ([`FieldPasteOutcome::font_renames`]).
 //! - **§12.7.2 Table 219 `/SigFlags`** — bit 1 (`SignaturesExist`) is set
 //!   when a `/Sig` field is planted.
 //! - **§12.7.4.5** — a signature's `/V` covers a byte range *of the document
@@ -192,7 +195,7 @@ pub use set::{
 /// [`CLIP_VERSION`](crate::vector::clip::CLIP_VERSION): the two payloads have
 /// different magic, different shapes and different reasons to change, so one
 /// shared number would force a version bump on both whenever either moved.
-pub const FIELD_CLIP_VERSION: u32 = 2;
+pub const FIELD_CLIP_VERSION: u32 = 3;
 
 /// The twelve-byte signature every field-clip payload starts with.
 ///
@@ -292,10 +295,10 @@ pub struct FieldClip {
     pub(crate) widgets: Vec<FieldClipWidget>,
     /// The owned object closure, keyed by clip-local object number.
     pub(crate) objects: BTreeMap<u32, ClipObject>,
-    /// The `/AcroForm /DR /Font` entry the field's `/DA` names: the resource
-    /// name as written in the `/DA`, and the clip-local object holding the
-    /// font dictionary.
-    pub(crate) da_font: Option<(Vec<u8>, u32)>,
+    /// The `/AcroForm /DR /Font` entries the field's and the widgets' `/DA`
+    /// strings name: each resource name as written, and the clip-local
+    /// object holding its font dictionary. One entry per name.
+    pub(crate) da_fonts: Vec<(Vec<u8>, u32)>,
     /// The field-half keys materialised from the source's ancestors or its
     /// `/AcroForm` defaults rather than read off the field itself.
     pub(crate) inherited: Vec<String>,
@@ -410,7 +413,22 @@ impl FieldClip {
     /// as the destination's default.
     #[must_use]
     pub fn carried_font(&self) -> Option<&[u8]> {
-        self.da_font.as_ref().map(|(name, _)| name.as_slice())
+        let own = copy::da_font_name(&self.field, &self.objects)?;
+        self.da_fonts
+            .iter()
+            .find(|(name, _)| *name == own)
+            .map(|(name, _)| name.as_slice())
+    }
+
+    /// Every `/AcroForm /DR /Font` resource name the clip carries: the one
+    /// the field's `/DA` names and any other a widget's own `/DA` names, each
+    /// once. The paste installs all of them (§12.7.3.3).
+    #[must_use]
+    pub fn carried_fonts(&self) -> Vec<&[u8]> {
+        self.da_fonts
+            .iter()
+            .map(|(name, _)| name.as_slice())
+            .collect()
     }
 
     /// The field-half keys the clip materialised because the source field
@@ -480,13 +498,13 @@ impl FieldClip {
             put_f64(&mut out, widget.rect.ury);
         }
 
-        match &self.da_font {
-            Some((name, object)) => {
-                out.push(1);
-                put_bytes(&mut out, name);
-                put_u32(&mut out, *object);
-            }
-            None => out.push(0),
+        put_u32(
+            &mut out,
+            u32::try_from(self.da_fonts.len()).unwrap_or(u32::MAX),
+        );
+        for (name, object) in &self.da_fonts {
+            put_bytes(&mut out, name);
+            put_u32(&mut out, *object);
         }
 
         put_u32(
@@ -552,13 +570,19 @@ impl FieldClip {
             widgets.push(FieldClipWidget { dict, rect });
         }
 
-        let da_font = if r.byte()? == 1 {
+        let font_count = r.u32()? as usize;
+        // A font per `/DA`: the field's and one per widget.
+        if font_count > MAX_CLIP_WIDGETS + 1 {
+            return Err(ClipError::ClipTooLarge {
+                found: font_count,
+                limit: MAX_CLIP_WIDGETS + 1,
+            });
+        }
+        let mut da_fonts = Vec::with_capacity(font_count);
+        for _ in 0..font_count {
             let name = r.bytes()?;
-            let object = r.u32()?;
-            Some((name, object))
-        } else {
-            None
-        };
+            da_fonts.push((name, r.u32()?));
+        }
 
         let inherited_count = r.u32()? as usize;
         if inherited_count > MAX_INHERITED_KEYS {
@@ -578,7 +602,7 @@ impl FieldClip {
             field,
             widgets,
             objects,
-            da_font,
+            da_fonts,
             inherited,
             source_name,
             field_type,
@@ -593,8 +617,8 @@ const MAX_INHERITED_KEYS: usize = 32;
 
 /// Accept exactly [`FIELD_CLIP_VERSION`]: a newer payload is
 /// [`ClipError::NewerFormat`], an older one is [`ClipError::Content`] (an
-/// older clip carries no inherited attributes, so pasting it would silently
-/// lose them).
+/// older clip lacks its inherited attributes or its widgets' fonts, so
+/// pasting it would silently lose them).
 pub(crate) fn check_version(version: u32) -> Result<u32, ClipError> {
     match version.cmp(&FIELD_CLIP_VERSION) {
         std::cmp::Ordering::Equal => Ok(version),
@@ -1065,10 +1089,10 @@ impl FieldClip {
         &self.objects
     }
 
-    /// The carried `/DR` font: the resource name its `/DA` uses, and the
-    /// clip-local object holding the font dictionary.
-    pub(crate) fn da_font_entry(&self) -> Option<(Vec<u8>, u32)> {
-        self.da_font.clone()
+    /// The carried `/DR` fonts: each resource name a `/DA` uses, and the
+    /// clip-local object holding its font dictionary.
+    pub(crate) fn da_font_entries(&self) -> &[(Vec<u8>, u32)] {
+        &self.da_fonts
     }
 }
 
@@ -1152,6 +1176,12 @@ pub struct FieldPasteOutcome {
     /// `IRT`), each with how many widgets lost it. Disclosed in
     /// [`Self::disclosures`].
     pub dropped_keys: BTreeMap<String, u64>,
+    /// The `/DR /Font` resources this paste installed under a fresh name
+    /// because the destination already bound the copied name to a different
+    /// font: copied name to installed name. Every pasted `/DA` that named the
+    /// copied name was rewritten to the installed one, so the field keeps its
+    /// face (§12.7.3.3). Each is disclosed in [`Self::disclosures`].
+    pub font_renames: BTreeMap<String, String>,
 }
 
 #[cfg(test)]
@@ -1204,7 +1234,7 @@ mod tests {
                 },
             }],
             objects,
-            da_font: Some((b"Helv".to_vec(), 1)),
+            da_fonts: vec![(b"Helv".to_vec(), 1)],
             inherited: vec!["Ff".to_owned(), "DA".to_owned()],
             source_name: "TitleBlock.Revision".to_owned(),
             field_type: Some(FieldType::Text),

@@ -3,7 +3,7 @@
 //! field from a [`FieldClip`], `Ctrl+Shift+V` adds a widget to a field that
 //! already exists. See `crate::formclip` for what a clip carries.
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 
 use super::{
     Command, CommandKind, EditError, EditSession, ObjectWrite, TooltipChoice, encode_text_string,
@@ -28,16 +28,16 @@ struct Landing<'c> {
     page_id: ObjId,
     rect: page_tree::Rect,
     copy_actions: bool,
-    /// The `/DR` font rename the field's `/DA` received (`from`, `to`), applied
-    /// to every widget `/DA` too so the two keep naming one font.
-    da_rename: Option<(Vec<u8>, Vec<u8>)>,
+    /// The `/DR` font renames (copied name to installed name), applied to the
+    /// field's and every widget's `/DA`.
+    da_renames: BTreeMap<Vec<u8>, Vec<u8>>,
 }
 
 /// The `/AcroForm` jobs of one `Ctrl+V`, applied in a single write: two
 /// whole-dictionary writes to one object in one command do not compose.
 struct AcroFormJobs {
     register_root: Option<ObjId>,
-    dr_font: Option<(Vec<u8>, ObjId)>,
+    dr_fonts: Vec<(Vec<u8>, ObjId)>,
     calculation: Option<ObjId>,
     sig_flag: bool,
 }
@@ -49,16 +49,7 @@ impl AcroFormJobs {
         if let Some(root) = self.register_root {
             append_to_array(af, b"Fields", root);
         }
-        if let Some((font_name, font_id)) = &self.dr_font {
-            let mut dr = direct_dict(af, b"DR");
-            let mut fonts = direct_dict(&dr, b"Font");
-            fonts.insert(
-                Name::from(font_name.as_slice()),
-                Object::Reference(*font_id),
-            );
-            dr.insert(Name::from(b"Font"), Object::Dict(fonts));
-            af.insert(Name::from(b"DR"), Object::Dict(dr));
-        }
+        insert_dr_fonts(af, &self.dr_fonts);
         if let Some(field_id) = self.calculation {
             append_to_array(af, b"CO", field_id);
         }
@@ -67,6 +58,20 @@ impl AcroFormJobs {
             af.insert(Name::from(b"SigFlags"), Object::Integer(current | 1));
         }
     }
+}
+
+/// Bind each `(name, font)` in the form's `/DR /Font`.
+fn insert_dr_fonts(af: &mut Dict, fonts: &[(Vec<u8>, ObjId)]) {
+    if fonts.is_empty() {
+        return;
+    }
+    let mut dr = direct_dict(af, b"DR");
+    let mut table = direct_dict(&dr, b"Font");
+    for (name, id) in fonts {
+        table.insert(Name::from(name.as_slice()), Object::Reference(*id));
+    }
+    dr.insert(Name::from(b"Font"), Object::Dict(table));
+    af.insert(Name::from(b"DR"), Object::Dict(dr));
 }
 
 fn append_to_array(dict: &mut Dict, key: &[u8], id: ObjId) {
@@ -85,14 +90,39 @@ fn direct_dict(dict: &Dict, key: &[u8]) -> Dict {
     }
 }
 
-/// Rewrite the `Tf` font of `dict`'s `/DA`, when it has one.
-fn rename_da(dict: &mut Dict, from: &[u8], to: &[u8]) {
-    if let Some(Object::String(da)) = dict.get(b"DA").cloned() {
-        dict.insert(
-            Name::from(b"DA"),
-            Object::String(rewrite_da_font(&da, from, to)),
-        );
+/// The font resource name a direct `/DA` string selects with `Tf`.
+fn own_da_font(dict: &Dict) -> Option<Vec<u8>> {
+    match dict.get(b"DA")? {
+        Object::String(da) => crate::vartext::parse_default_appearance(da)
+            .ok()
+            .map(|parsed| parsed.font_name),
+        _ => None,
     }
+}
+
+/// Rewrite the `Tf` font of `dict`'s `/DA` when `renames` maps it.
+fn rename_da(dict: &mut Dict, renames: &BTreeMap<Vec<u8>, Vec<u8>>) {
+    let Some(from) = own_da_font(dict) else {
+        return;
+    };
+    let (Some(to), Some(Object::String(da))) = (renames.get(&from), dict.get(b"DA")) else {
+        return;
+    };
+    let rewritten = rewrite_da_font(da, &from, to);
+    dict.insert(Name::from(b"DA"), Object::String(rewritten));
+}
+
+/// [`FieldPasteOutcome::font_renames`] from the byte-keyed rename map.
+fn font_renames(renames: &BTreeMap<Vec<u8>, Vec<u8>>) -> BTreeMap<String, String> {
+    renames
+        .iter()
+        .map(|(from, to)| {
+            (
+                String::from_utf8_lossy(from).into_owned(),
+                String::from_utf8_lossy(to).into_owned(),
+            )
+        })
+        .collect()
 }
 
 impl EditSession {
@@ -132,13 +162,10 @@ impl EditSession {
             &mut disclosures,
         )?;
         name_pasted_field(&mut field, &partial, parent, tooltip);
-        let (dr_font, da_rename) = self.install_pasted_da_font(
-            clip,
-            &mut field,
-            imported,
-            &mut objects,
-            &mut disclosures,
-        )?;
+        let (dr_fonts, da_renames) =
+            self.install_pasted_da_fonts(clip, None, imported, &mut objects, &mut disclosures)?;
+        rename_da(&mut field, &da_renames);
+        let font_renames = font_renames(&da_renames);
         let materialized_keys = materialized_keys(clip, &field, &mut disclosures);
         let landing = Landing {
             clip,
@@ -146,7 +173,7 @@ impl EditSession {
             page_id,
             rect,
             copy_actions,
-            da_rename,
+            da_renames,
         };
         let mut dropped_keys = BTreeMap::new();
         let widget_ids = self.paste_field_widgets(
@@ -160,7 +187,7 @@ impl EditSession {
         )?;
         let jobs = AcroFormJobs {
             register_root,
-            dr_font,
+            dr_fonts,
             calculation: (copy_actions && clip.carries_calculation()).then_some(field_id),
             sig_flag: ft == forms::FieldType::Signature,
         };
@@ -174,6 +201,7 @@ impl EditSession {
             radio_on_state: None,
             materialized_keys,
             dropped_keys,
+            font_renames,
         })
     }
 
@@ -242,45 +270,65 @@ impl EditSession {
         Ok(field)
     }
 
-    /// Install the clip's `/DA` font into this document's `/DR /Font` under
-    /// the name the `/DA` uses, unless that name is taken by a DIFFERENT font:
-    /// then the font gets a free name and the `/DA` is rewritten to match.
-    /// Returns the `/DR` entry to write and the rename applied, if any.
-    #[allow(clippy::type_complexity)] // Two independent optional results.
-    fn install_pasted_da_font(
+    /// Install the clip's `/DA` fonts (only `only`, when given) into this
+    /// document's `/DR /Font` under the names the `/DA` strings use
+    /// (§12.7.3.3). A name this document binds to a DIFFERENT font gets a free
+    /// name instead, never one the clip itself installs. Returns the `/DR`
+    /// entries to write and the renames every pasted `/DA` must receive.
+    #[allow(clippy::type_complexity)] // Two independent results.
+    fn install_pasted_da_fonts(
         &mut self,
         clip: &FieldClip,
-        field: &mut Dict,
+        only: Option<&[u8]>,
         imported: &mut BTreeMap<u32, ObjId>,
         objects: &mut Vec<ObjectWrite>,
         disclosures: &mut Vec<String>,
-    ) -> Result<(Option<(Vec<u8>, ObjId)>, Option<(Vec<u8>, Vec<u8>)>), EditError> {
-        let Some((wanted, clip_object)) = clip.da_font_entry() else {
-            return Ok((None, None));
-        };
-        let font_id = self.clip_materialize(clip.objects(), clip_object, imported, objects)?;
-        let (install, name) = match (self.dr_font_object(&wanted), self.dr_font_name_of(font_id)) {
-            (Some(present), _) if self.same_font_object(&present, clip, clip_object) => {
-                (false, wanted.clone())
+    ) -> Result<(Vec<(Vec<u8>, ObjId)>, BTreeMap<Vec<u8>, Vec<u8>>), EditError> {
+        let entries: Vec<(Vec<u8>, u32)> = clip
+            .da_font_entries()
+            .iter()
+            .filter(|(name, _)| only.is_none_or(|o| o == name.as_slice()))
+            .cloned()
+            .collect();
+        let mut reserved: BTreeSet<Vec<u8>> = entries.iter().map(|(n, _)| n.clone()).collect();
+        let (mut installs, mut renames) = (Vec::new(), BTreeMap::new());
+        for (wanted, clip_object) in entries {
+            let font_id = self.clip_materialize(clip.objects(), clip_object, imported, objects)?;
+            let shown = String::from_utf8_lossy(&wanted).into_owned();
+            let name = match (self.dr_font_object(&wanted), self.dr_font_name_of(font_id)) {
+                (Some(present), _) if self.same_font_object(&present, clip, clip_object) => {
+                    wanted.clone()
+                }
+                // An earlier paste of the same batch installed this very object.
+                (_, Some(installed)) => {
+                    if installed != wanted {
+                        disclosures.push(format!(
+                            "paste: the copied font /{shown} is already installed here as /{}, so every pasted /DA that named it was rewritten to that name.",
+                            String::from_utf8_lossy(&installed),
+                        ));
+                    }
+                    installed
+                }
+                (Some(_), None) => {
+                    let fresh = self.free_dr_font_name(&wanted, &reserved);
+                    reserved.insert(fresh.clone());
+                    disclosures.push(format!(
+                        "paste: this document already uses the font resource /{shown} for a different font, so the copied one was installed as /{} and every pasted /DA that named it rewritten to name it. The pasted field therefore keeps the face, size and colour it had.",
+                        String::from_utf8_lossy(&fresh),
+                    ));
+                    installs.push((fresh.clone(), font_id));
+                    fresh
+                }
+                (None, None) => {
+                    installs.push((wanted.clone(), font_id));
+                    wanted.clone()
+                }
+            };
+            if name != wanted {
+                renames.insert(wanted, name);
             }
-            // An earlier paste of the same batch installed this very object.
-            (_, Some(installed)) => (false, installed),
-            (Some(_), None) => {
-                let fresh = self.free_dr_font_name(&wanted);
-                disclosures.push(format!(
-                    "paste: this document already uses the font resource /{} for a different font, so the copied one was installed as /{} and the field's /DA rewritten to name it. The pasted field therefore keeps the face, size and colour it had.",
-                    String::from_utf8_lossy(&wanted),
-                    String::from_utf8_lossy(&fresh),
-                ));
-                (true, fresh)
-            }
-            (None, None) => (true, wanted.clone()),
-        };
-        let rename = (name != wanted).then(|| (wanted, name.clone()));
-        if let Some((from, to)) = &rename {
-            rename_da(field, from, to);
         }
-        Ok((install.then_some((name, font_id)), rename))
+        Ok((installs, renames))
     }
 
     /// Write the widgets: one merged (Shape A) dictionary for a single-widget
@@ -369,9 +417,7 @@ impl EditSession {
         if renamed {
             self.name_pasted_widget(&mut widget, widget_id, landing.page_id);
         }
-        if let Some((from, to)) = &landing.da_rename {
-            rename_da(&mut widget, from, to);
-        }
+        rename_da(&mut widget, &landing.da_renames);
         Ok(widget)
     }
 
@@ -452,6 +498,13 @@ impl EditSession {
         if renamed {
             self.name_pasted_widget(&mut widget, id, page_id);
         }
+        let (dr_fonts, da_renames) = self.install_widget_da_font(
+            clip,
+            &mut widget,
+            imported,
+            &mut objects,
+            &mut disclosures,
+        )?;
         widget.insert(Name::from(b"P"), Object::Reference(page_id));
         widget.insert(Name::from(b"Rect"), rect_array(rect));
         let radio_on_state =
@@ -459,6 +512,9 @@ impl EditSession {
         let (merge_writes, widget_id) =
             self.merge_widget_into_field(id, shape, widget, page_id, slots)?;
         objects.extend(merge_writes);
+        if !dr_fonts.is_empty() {
+            objects.extend(self.acroform_write(&mut |af| insert_dr_fonts(af, &dr_fonts))?);
+        }
         self.commit(Command {
             kind: CommandKind::PasteFormField,
             objects,
@@ -478,7 +534,29 @@ impl EditSession {
             radio_on_state,
             materialized_keys: Vec::new(),
             dropped_keys,
+            font_renames: font_renames(&da_renames),
         })
+    }
+
+    /// Install the font a pasted widget's own `/DA` names and rewrite that
+    /// `/DA` on a rename: the field is untouched, but the widget's font must
+    /// still resolve in this document's `/DR` (§12.7.3.3).
+    #[allow(clippy::type_complexity)] // Two independent results.
+    fn install_widget_da_font(
+        &mut self,
+        clip: &FieldClip,
+        widget: &mut Dict,
+        imported: &mut BTreeMap<u32, ObjId>,
+        objects: &mut Vec<ObjectWrite>,
+        disclosures: &mut Vec<String>,
+    ) -> Result<(Vec<(Vec<u8>, ObjId)>, BTreeMap<Vec<u8>, Vec<u8>>), EditError> {
+        let Some(font) = own_da_font(widget) else {
+            return Ok((Vec::new(), BTreeMap::new()));
+        };
+        let installed =
+            self.install_pasted_da_fonts(clip, Some(&font), imported, objects, disclosures)?;
+        rename_da(widget, &installed.1);
+        Ok(installed)
     }
 
     /// Materialise one clip widget's dictionary into this session, removing

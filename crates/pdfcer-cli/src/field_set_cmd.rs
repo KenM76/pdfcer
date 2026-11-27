@@ -113,8 +113,9 @@ pub(crate) fn cmd_paste_fields(args: &PasteFieldsArgs<'_>) -> u8 {
     let r = &saved.report;
     let widgets: usize = outcome.fields.iter().map(|f| f.widget_ids.len()).sum();
     let (materialized, dropped) = carry_totals(&outcome.fields);
+    let font_renames: usize = outcome.fields.iter().map(|f| f.font_renames.len()).sum();
     println!(
-        "paste-fields {} clip={} policy={} page={} at={},{} fields={} widgets={} mode={} -> {}; changed={} objects={} appended={} out_bytes={} undo_verified={} undo_identical={} materialized={materialized} dropped={dropped}{}",
+        "paste-fields {} clip={} policy={} page={} at={},{} fields={} widgets={} mode={} -> {}; changed={} objects={} appended={} out_bytes={} undo_verified={} undo_identical={} materialized={materialized} dropped={dropped} font_renames={font_renames}{}",
         args.input.display(),
         args.clip.display(),
         if args.as_new {
