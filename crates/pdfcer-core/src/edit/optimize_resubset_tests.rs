@@ -51,7 +51,9 @@ fn session_with(catalog_extra: &str, extra: &[Vec<u8>]) -> EditSession {
             .to_vec(),
         stream("", b"BT /F1 9 Tf 10 10 Td (Hi) Tj ET"),
         b"<< /Type /Font /Subtype /TrueType /BaseFont /ABCDEF+Arial /FirstChar 72 \
-           /LastChar 105 /FontDescriptor 6 0 R >>"
+           /LastChar 105 /Widths [500 500 500 500 500 500 500 500 500 500 500 500 500 500 \
+           500 500 500 500 500 500 500 500 500 500 500 500 500 500 500 500 500 500 500 500] \
+           /FontDescriptor 6 0 R >>"
             .to_vec(),
         b"<< /Type /FontDescriptor /FontName /ABCDEF+Arial /Flags 32 /FontBBox [0 0 1 1] \
            /ItalicAngle 0 /Ascent 1 /Descent 0 /CapHeight 1 /StemV 1 /FontFile2 7 0 R >>"

@@ -1521,6 +1521,41 @@ mod tests {
         );
     }
 
+    /// An embedded simple font with no `/Widths` is refused by name: after
+    /// removal its text would take a substitute's advances (§9.6.2.1).
+    #[test]
+    fn a_simple_font_without_widths_is_refused() {
+        let doc = crate::pageops::tests_support::build_pdf(&[
+            (1, "<< /Type /Catalog /Pages 2 0 R >>"),
+            (2, "<< /Type /Pages /Kids [3 0 R] /Count 1 >>"),
+            (
+                3,
+                "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 100 100] \
+                 /Resources << /Font << /F1 4 0 R >> >> >>",
+            ),
+            (
+                4,
+                "<< /Type /Font /Subtype /TrueType /BaseFont /pdfceNoWidths \
+                 /Encoding /WinAnsiEncoding /FontDescriptor 5 0 R >>",
+            ),
+            (
+                5,
+                "<< /Type /FontDescriptor /FontName /pdfceNoWidths /Flags 32 \
+                 /FontFile2 6 0 R >>",
+            ),
+            (6, "<< /Length 4 >>\nstream\nabcd\nendstream"),
+        ]);
+        let s = EditSession::new(doc);
+        let plan = s.unembed_preview(&UnembedRequest::all_removable());
+        assert!(plan.targets.is_empty());
+        let refused = plan
+            .blocked
+            .iter()
+            .find(|b| b.blocker.token() == "unknown-no-widths")
+            .expect("the font is refused by name");
+        assert_eq!(refused.base_font.as_deref(), Some("pdfceNoWidths"));
+    }
+
     /// Every one of phase A's nine verdict tokens gates correctly: exactly
     /// one proceeds, and the rest each carry a distinct reason sentence.
     ///
@@ -1542,6 +1577,7 @@ mod tests {
             Removability::Unknown(RemovabilityUnknown::ProgramUnreadable),
             Removability::Unknown(RemovabilityUnknown::NoDescendant),
             Removability::Unknown(RemovabilityUnknown::UnknownSubtype),
+            Removability::Unknown(RemovabilityUnknown::NoWidths),
         ];
         let proceeds: Vec<_> = all.iter().filter(|v| v.is_removable()).collect();
         assert_eq!(proceeds.len(), 1);

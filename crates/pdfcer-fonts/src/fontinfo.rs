@@ -941,6 +941,10 @@ pub enum RemovabilityUnknown {
     NoDescendant,
     /// The `/Subtype` is absent or one pdfcer does not model.
     UnknownSubtype,
+    /// A simple font with an embedded program and no `/Widths` array: once
+    /// the program is gone, text would take the substitute's advances
+    /// (ISO 32000-1 §9.6.2.1, Table 111).
+    NoWidths,
 }
 
 impl Removability {
@@ -979,6 +983,7 @@ impl Removability {
                 RemovabilityUnknown::ProgramUnreadable => "unknown-program-unreadable",
                 RemovabilityUnknown::NoDescendant => "unknown-no-descendant",
                 RemovabilityUnknown::UnknownSubtype => "unknown-subtype",
+                RemovabilityUnknown::NoWidths => "unknown-no-widths",
             },
         }
     }
@@ -1039,6 +1044,11 @@ impl Removability {
             Self::Unknown(RemovabilityUnknown::UnknownSubtype) => {
                 "This font dictionary declares no /Subtype, or one pdfcer does not model, so \
                  how its character codes reach glyphs is not established."
+            }
+            Self::Unknown(RemovabilityUnknown::NoWidths) => {
+                "This font has an embedded program but no /Widths array, so its glyph \
+                 advances come from that program. A substitute font would space the text \
+                 with its own advances, moving every line."
             }
         }
     }
@@ -1891,6 +1901,11 @@ impl Sweep<'_, '_> {
 
         let encoding = self.model_encoding(dict);
         let has_to_unicode = dict.contains_key(b"ToUnicode");
+        let has_widths = dict
+            .get(b"Widths")
+            .map(|o| self.view.resolve(o))
+            .and_then(Object::as_array)
+            .is_some();
 
         // §9.8.1: a font descriptor SHALL NOT be used with a Type 0 font.
         // For a composite font the descriptor — and therefore the embedded
@@ -1954,7 +1969,10 @@ impl Sweep<'_, '_> {
             &encoding,
             &program,
             symbolic,
-            has_to_unicode,
+            KeysPresent {
+                to_unicode: has_to_unicode,
+                widths: has_widths,
+            },
             descendant_missing,
         );
 
@@ -2241,6 +2259,15 @@ fn fs_type_for(key: ProgramKey, subtype: Option<&str>, decoded: Option<&[u8]>) -
     }
 }
 
+/// Which optional font-dictionary keys [`classify`] reads are present.
+#[derive(Clone, Copy)]
+struct KeysPresent {
+    /// `/ToUnicode` (§9.10.3).
+    to_unicode: bool,
+    /// `/Widths`, resolved to an array (§9.6.2.1, Table 111).
+    widths: bool,
+}
+
 /// Decide a font's removability.
 ///
 /// The order of the branches is the argument, so it is written out rather
@@ -2258,16 +2285,17 @@ fn fs_type_for(key: ProgramKey, subtype: Option<&str>, decoded: Option<&[u8]>) -
 /// 4. **Composite fonts** by their CMap. Identity is the blocking case and
 ///    the common one; a named non-Identity CMap and an embedded CMap stream
 ///    are both `Unknown`, for different stated reasons.
-/// 5. **Simple fonts** by whether the *standard* defines their codes. A
-///    base encoding from Annex D does; a built-in encoding on a symbolic
-///    font does not.
+/// 5. **Simple fonts** first by `/Widths`: without them the advances come
+///    from the program being removed (§9.6.2.1, Table 111). Then by whether
+///    the *standard* defines their codes. A base encoding from Annex D
+///    does; a built-in encoding on a symbolic font does not.
 fn classify(
     subtype: &FontSubtype,
     descendant: Option<&FontSubtype>,
     encoding: &Encoding,
     program: &Program,
     symbolic: Option<bool>,
-    has_to_unicode: bool,
+    keys: KeysPresent,
     descendant_missing: bool,
 ) -> Removability {
     if *subtype == FontSubtype::Type3 {
@@ -2286,7 +2314,7 @@ fn classify(
         }
         if encoding.is_identity() {
             return Removability::BlockedIdentityEncoded {
-                to_unicode: has_to_unicode,
+                to_unicode: keys.to_unicode,
             };
         }
         return match encoding {
@@ -2301,7 +2329,9 @@ fn classify(
 
     match subtype {
         FontSubtype::Type1 | FontSubtype::MmType1 | FontSubtype::TrueType => {
-            if encoding.is_standard_base() {
+            if !keys.widths {
+                Removability::Unknown(RemovabilityUnknown::NoWidths)
+            } else if encoding.is_standard_base() {
                 Removability::Removable
             } else if symbolic == Some(true) {
                 // §9.6.6.1: with no base encoding the program's built-in
@@ -3147,6 +3177,82 @@ mod tests {
         buf
     }
 
+    /// One embedded WinAnsi TrueType font, with its `/Widths` entry spelled
+    /// by `widths` (`None` omits the key). Object 7 is a spare array for the
+    /// indirect spelling.
+    fn truetype_with_widths(widths: Option<&str>) -> Vec<u8> {
+        let widths = widths.map_or(String::new(), |w| {
+            format!(" /FirstChar 65 /LastChar 67 /Widths {w}")
+        });
+        let font = format!(
+            "<< /Type /Font /Subtype /TrueType /BaseFont /pdfceNoWidths \
+             /Encoding /WinAnsiEncoding{widths} /FontDescriptor 5 0 R >>"
+        );
+        pdf_with_objects(&[
+            (1, "<< /Type /Catalog /Pages 2 0 R >>"),
+            (2, "<< /Type /Pages /Kids [3 0 R] /Count 1 >>"),
+            (
+                3,
+                "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 100 100] \
+                 /Resources << /Font << /F1 4 0 R >> >> >>",
+            ),
+            (4, &font),
+            (
+                5,
+                "<< /Type /FontDescriptor /FontName /pdfceNoWidths /Flags 32 \
+                 /FontFile2 6 0 R >>",
+            ),
+            (6, "<< /Length 4 >>\nstream\nabcd\nendstream"),
+            (7, "[500 500 500]"),
+        ])
+    }
+
+    /// §9.6.2.1 Table 111: the reader advances text by `/Widths`, so an
+    /// embedded simple font without them takes its advances from the
+    /// program an unembed would delete. The same font with the array, direct
+    /// or indirect, stays removable.
+    #[test]
+    fn an_embedded_simple_font_without_widths_is_not_removable() {
+        let verdict = |widths: Option<&str>| {
+            let doc = open(&truetype_with_widths(widths));
+            let inv = inv_of(&doc);
+            assert_eq!(inv.fonts.len(), 1);
+            assert!(inv.fonts[0].program.is_embedded());
+            inv.fonts[0].removability.clone()
+        };
+        let none = verdict(None);
+        assert_eq!(none, Removability::Unknown(RemovabilityUnknown::NoWidths));
+        assert_eq!(none.token(), "unknown-no-widths");
+        assert!(!none.is_removable());
+        assert!(none.reason().contains("/Widths"));
+        assert_eq!(verdict(Some("[500 500 500]")), Removability::Removable);
+        assert_eq!(verdict(Some("7 0 R")), Removability::Removable);
+        // Not an array: the advances are no better defined than with none.
+        assert_eq!(
+            verdict(Some("500")),
+            Removability::Unknown(RemovabilityUnknown::NoWidths)
+        );
+    }
+
+    /// The missing-`/Widths` test applies only to an embedded simple font: a
+    /// standard 14 face with no program and no `/Widths` is still
+    /// `NotEmbedded`.
+    #[test]
+    fn a_not_embedded_font_without_widths_stays_not_embedded() {
+        let doc = open(&pdf_with_objects(&[
+            (1, "<< /Type /Catalog /Pages 2 0 R >>"),
+            (2, "<< /Type /Pages /Kids [3 0 R] /Count 1 >>"),
+            (
+                3,
+                "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 100 100] \
+                 /Resources << /Font << /F1 4 0 R >> >> >>",
+            ),
+            (4, "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>"),
+        ]));
+        let inv = inv_of(&doc);
+        assert_eq!(inv.fonts[0].removability, Removability::NotEmbedded);
+    }
+
     /// Verdict tokens are stable and distinct — a corpus sweep buckets on
     /// them, and two verdicts sharing a token would silently merge.
     #[test]
@@ -3162,6 +3268,7 @@ mod tests {
             Removability::Unknown(RemovabilityUnknown::ProgramUnreadable),
             Removability::Unknown(RemovabilityUnknown::NoDescendant),
             Removability::Unknown(RemovabilityUnknown::UnknownSubtype),
+            Removability::Unknown(RemovabilityUnknown::NoWidths),
         ];
         let tokens: BTreeSet<_> = all.iter().map(Removability::token).collect();
         assert_eq!(tokens.len(), all.len());
