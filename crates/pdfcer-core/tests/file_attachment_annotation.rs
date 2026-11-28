@@ -12,7 +12,7 @@
 use pdfcer_core::annot_author::{AttachmentIcon, FileAttachmentSpec};
 use pdfcer_core::attachments::{AttachmentKind, attachment_bytes, list_attachments};
 use pdfcer_core::document::Document;
-use pdfcer_core::edit::{EditError, EditSession, MarkupNote, MarkupOptions};
+use pdfcer_core::edit::{AttachFileOptions, EditError, EditSession, MarkupNote, MarkupOptions};
 use pdfcer_core::object::{Name, ObjId, Object};
 use pdfcer_core::page_tree::Rect;
 use pdfcer_core::writer::SaveOptions;
@@ -187,4 +187,92 @@ fn a_document_level_non_ascii_name_reads_back_as_written() {
     assert_eq!(found.len(), 1);
     assert_eq!(found[0].name, "résumé.txt");
     assert_eq!(found[0].description.as_deref(), Some("Ø 12,5 mm"));
+}
+
+const DATE: &str = "D:20261128120000Z";
+
+/// The incremental save's bytes and the document they reopen as.
+fn saved_bytes(s: &EditSession) -> (Vec<u8>, Document) {
+    let bytes = s.to_incremental_bytes(&SaveOptions::identity()).unwrap().0;
+    (bytes.clone(), Document::from_bytes(bytes).unwrap())
+}
+
+/// §7.11.4 Tables 45/46 (`X122`): the document-level route writes the media
+/// type, with its `/` escaped as `#2F` (§7.3.5), and the caller's date.
+#[test]
+fn a_document_attachment_carries_its_media_type_and_date() {
+    let mut s = session();
+    let options = AttachFileOptions::default().with_modified(DATE);
+    s.attach_file_with("table.csv", b"a,b\n1,2\n", &options)
+        .unwrap();
+    let (bytes, doc) = saved_bytes(&s);
+    assert!(
+        bytes.windows(17).any(|w| w == b"/Subtype /text#2F"),
+        "the media type's slash is escaped"
+    );
+    let found = list_attachments(&doc);
+    assert_eq!(found.len(), 1, "{found:?}");
+    assert_eq!(found[0].mime.as_deref(), Some("text/csv"));
+    assert_eq!(found[0].modified.as_deref(), Some(DATE));
+    assert_eq!(found[0].created.as_deref(), Some(DATE));
+}
+
+/// No date given writes none, and the plain verb still writes the type.
+#[test]
+fn the_plain_verb_writes_the_type_and_no_date() {
+    let mut s = session();
+    s.attach_file("table.csv", b"a,b\n", None).unwrap();
+    let found = list_attachments(&saved(&s));
+    assert_eq!(found[0].mime.as_deref(), Some("text/csv"));
+    assert_eq!(found[0].modified, None);
+}
+
+/// An extension outside the table writes no `/Subtype` rather than a guess.
+#[test]
+fn an_unknown_extension_writes_no_media_type() {
+    let mut s = session();
+    s.attach_file("notes.unknownext", b"x", None).unwrap();
+    let spec = FileAttachmentSpec::new(RECT, "notes.unknownext", b"y".to_vec());
+    s.add_file_attachment_annotation(0, &spec, &MarkupOptions::default())
+        .unwrap();
+    let found = list_attachments(&saved(&s));
+    assert_eq!(found.len(), 2, "{found:?}");
+    assert!(found.iter().all(|a| a.mime.is_none()), "{found:?}");
+}
+
+/// The annotation route takes the type from the same table and its date
+/// from the note, so the file's `/ModDate` equals the annotation's `/M`.
+#[test]
+fn an_attachment_annotation_dates_its_file_with_the_notes_date() {
+    let mut s = session();
+    let spec = FileAttachmentSpec::new(RECT, "table.csv", b"a,b\n".to_vec());
+    let options = MarkupOptions {
+        note: Some(MarkupNote::new("figures").at(DATE)),
+        ..Default::default()
+    };
+    let annot = s
+        .add_file_attachment_annotation(0, &spec, &options)
+        .unwrap();
+    let doc = saved(&s);
+    let found = list_attachments(&doc);
+    assert_eq!(found[0].mime.as_deref(), Some("text/csv"));
+    let m = match dict(&doc, annot).get(b"M") {
+        Some(Object::String(m)) => String::from_utf8(m.clone()).unwrap(),
+        other => panic!("/M: {other:?}"),
+    };
+    assert_eq!(found[0].modified.as_deref(), Some(m.as_str()));
+    assert_eq!(m, DATE);
+}
+
+/// A malformed date is refused before anything is written.
+#[test]
+fn a_malformed_attachment_date_is_refused() {
+    let mut s = session();
+    let options = AttachFileOptions::default().with_modified("yesterday");
+    let err = s.attach_file_with("t.csv", b"x", &options).unwrap_err();
+    assert!(
+        matches!(err, EditError::MarkupDateMalformed { .. }),
+        "{err:?}"
+    );
+    assert!(!s.can_undo());
 }

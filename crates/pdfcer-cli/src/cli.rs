@@ -3940,6 +3940,11 @@ pub(crate) enum Command {
         /// attachments pane (`/Desc`, Table 44).
         #[arg(long)]
         desc: Option<String>,
+        /// The file's date, written verbatim as its `/ModDate` and
+        /// `/CreationDate` (e.g. `D:20261128120000Z`). pdfcer reads no clock;
+        /// without this flag the file carries no date.
+        #[arg(long, value_name = "PDF-DATE")]
+        modified: Option<String>,
         /// Actually write the output. Without it this is a DRY RUN.
         #[arg(long)]
         apply: bool,
@@ -3988,6 +3993,11 @@ pub(crate) enum Command {
         /// Who attached it (`/T`). Needs `--desc`.
         #[arg(long, requires = "desc")]
         author: Option<String>,
+        /// The date, written verbatim as the annotation's `/M` and the file's
+        /// `/ModDate` and `/CreationDate` (e.g. `D:20261128120000Z`). Needs
+        /// `--desc`. pdfcer reads no clock.
+        #[arg(long, value_name = "PDF-DATE", requires = "desc")]
+        modified: Option<String>,
         /// Actually write the output. Without it this is a DRY RUN.
         #[arg(long)]
         apply: bool,

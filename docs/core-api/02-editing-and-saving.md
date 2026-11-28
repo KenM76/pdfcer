@@ -18,7 +18,7 @@ answers *"I want to do X — what do I call, in what order, and what will bite m
 | **Date** | 2026-08-29 |
 | **Verified against** | `5c37c7c` (`git rev-parse --short HEAD`) — *"he gave no reason" was a claim, and it has been corrected* |
 | **Primary subject** | `crates/pdfcer-core/src/edit.rs` (35655) |
-| **Covers** | `EditSession` end to end: construction, the command/undo/redo model, **all 459 public methods**, the `EditError` taxonomy, the save path (incremental vs full rewrite), the guard/refusal model (encryption, certification, sidecar version, `/Size` suppression), object allocation and byte staging |
+| **Covers** | `EditSession` end to end: construction, the command/undo/redo model, **all 460 public methods**, the `EditError` taxonomy, the save path (incremental vs full rewrite), the guard/refusal model (encryption, certification, sidecar version, `/Size` suppression), object allocation and byte staging |
 | **Does NOT cover** | Document loading and the read-only object model → **`01-reading-and-model.md`**. Per-feature capability guides (ce dimensions, forms, annotations, redaction, OCR, printing) → **`03-capabilities.md`**. This document covers the *session mechanics* those features flow through; part 3 covers the features. |
 | **Terminology** | Project rule 15. **ce dimensions** = the dimension objects pdfcer authors (`/Line` + `/IT /LineDimension` + baked `/AP` + `/PieceInfo` sidecar). **pdf dimensions** = dimensions already present in the page content, exported by CAD. Never bare "dimension". This document only concerns ce dimensions. |
 
@@ -69,9 +69,9 @@ Five consequences a GUI author must internalise before writing any code:
 
 ---
 
-## 1. Verb index — all 459 public `EditSession` methods
+## 1. Verb index — all 460 public `EditSession` methods
 
-**Count: 459.** Established by brace-matched extraction of the
+**Count: 460.** Established by brace-matched extraction of the
 `impl EditSession` blocks in `edit.rs` and its `edit/` child modules, matching `pub fn` / `pub const fn`, and checked
 on every run by `tools/check-core-api-verbs.py` — which is what caught this
 figure at 120 when `add_outline_item` landed, and caught it again at 227 when
@@ -96,7 +96,7 @@ added `add_file_attachment_annotation`, and at 274 when `Pass 261.1` added
 `add_caret_annotation` and `add_replace_text`, and at 275 when `Pass 261.2`
 added `add_sound_annotation`, and at 276 when `Pass 261.3` added
 `add_screen_annotation`, and at 277 when `Pass 142.3` added
-`preview_style_ladder_with_donors`, and at 279 when `Pass 375.0` added `set_crop_boxes` and `resize_pages`, at 283 when Bates numbering added `stamp_bates`, and at 284 when `remove_bates` followed, and at 348 when `G154` added `insert_node`, `convert_node`, `convert_segment` and their three `_in_form` twins, and at 349 when `G160` added `turn_widget`, and at 350 when `G168` added `set_3d_views`, and at 352 when `G164` added `metadata_inventory` and `remove_metadata`, and at 355 when `G165` added `page_scan_image`, `detect_image_skew` and `deskew_image`, and at 356 when `G171` added `coalesce_last_same`, and at 371 when `G198` added `upscale_image`, and at 385 when `Pass 55.10` added `stamp_running_text`, and at 386 when `Pass 55.11` added `add_printer_marks`, and at 387 when `G238` added `decorate_for_print`, and at 388 when `G247` added `set_3d_opening_view`, and at 391 when `G243` added `fork_for_print` and `decorated_for_print`, and at 401 when `Pass 694.2` added `set_page_boxes`, and at 402 when `Pass 700.9` added `fill_rich_text_field`, and at 404 when its follow-up added `set_rich_style_precedence` and `rich_style_precedence`, and at 423 when `Pass 722.0` added `extend_path`, `open_subpath` and their two `_in_form` twins, and at 427 when `G295` added `can_extend_path`, `can_open_subpath` and their two `_in_form` twins, and at 428 when `G301` added `materialize_merged_xfa`, and at 429 when `X101` added `deskew_image_with`, and at 430 when `G317` added `edit_capability_for`, and at 431 when `G319` added `insert_pages_with_options`, and at 432 when `G321` added `fill_rich_text_field_runs`, and at 433 when `G324` added `page_snap_geometry`, and at 436 when `Pass 748.3` added `inks`, `alias_ink` and `spot_to_process`, and at 438 when `Pass 748.1` added `flatten_transparency`, and at 439 when `Pass 748.4` added `convert_colours`, and at 440 when `Pass 748.6` added `convert_to_pdfx`, and at 448 when `Pass 748.8` added `validate_pdfua`, `document_language`, `set_document_language`, `set_display_doc_title`, `set_pdfua_tab_order`, `mark_untagged_as_artifacts`, `write_pdfua_identification` and `fix_pdfua`, and at 450 when `Pass 748.9` added `apply_fixup` and `apply_profile_fixups`, and at 451 when `Pass 756.0` added `snapshot`, and at 452 when `G329` added `set_circular_circle_shown`, and at 454 when `G330` added `set_centre_mark` and `centre_mark_host`, and at 459 when `G332` added `set_dimension_anchor`, `add_dimension_anchored`, `dimension_anchors`, `anchor_dependents` and `last_anchor_resolutions`.
+`preview_style_ladder_with_donors`, and at 279 when `Pass 375.0` added `set_crop_boxes` and `resize_pages`, at 283 when Bates numbering added `stamp_bates`, and at 284 when `remove_bates` followed, and at 348 when `G154` added `insert_node`, `convert_node`, `convert_segment` and their three `_in_form` twins, and at 349 when `G160` added `turn_widget`, and at 350 when `G168` added `set_3d_views`, and at 352 when `G164` added `metadata_inventory` and `remove_metadata`, and at 355 when `G165` added `page_scan_image`, `detect_image_skew` and `deskew_image`, and at 356 when `G171` added `coalesce_last_same`, and at 371 when `G198` added `upscale_image`, and at 385 when `Pass 55.10` added `stamp_running_text`, and at 386 when `Pass 55.11` added `add_printer_marks`, and at 387 when `G238` added `decorate_for_print`, and at 388 when `G247` added `set_3d_opening_view`, and at 391 when `G243` added `fork_for_print` and `decorated_for_print`, and at 401 when `Pass 694.2` added `set_page_boxes`, and at 402 when `Pass 700.9` added `fill_rich_text_field`, and at 404 when its follow-up added `set_rich_style_precedence` and `rich_style_precedence`, and at 423 when `Pass 722.0` added `extend_path`, `open_subpath` and their two `_in_form` twins, and at 427 when `G295` added `can_extend_path`, `can_open_subpath` and their two `_in_form` twins, and at 428 when `G301` added `materialize_merged_xfa`, and at 429 when `X101` added `deskew_image_with`, and at 430 when `G317` added `edit_capability_for`, and at 431 when `G319` added `insert_pages_with_options`, and at 432 when `G321` added `fill_rich_text_field_runs`, and at 433 when `G324` added `page_snap_geometry`, and at 436 when `Pass 748.3` added `inks`, `alias_ink` and `spot_to_process`, and at 438 when `Pass 748.1` added `flatten_transparency`, and at 439 when `Pass 748.4` added `convert_colours`, and at 440 when `Pass 748.6` added `convert_to_pdfx`, and at 448 when `Pass 748.8` added `validate_pdfua`, `document_language`, `set_document_language`, `set_display_doc_title`, `set_pdfua_tab_order`, `mark_untagged_as_artifacts`, `write_pdfua_identification` and `fix_pdfua`, and at 450 when `Pass 748.9` added `apply_fixup` and `apply_profile_fixups`, and at 451 when `Pass 756.0` added `snapshot`, and at 452 when `G329` added `set_circular_circle_shown`, and at 454 when `G330` added `set_centre_mark` and `centre_mark_host`, and at 459 when `G332` added `set_dimension_anchor`, `add_dimension_anchored`, `dimension_anchors`, `anchor_dependents` and `last_anchor_resolutions`, and at 460 when `X122` added `attach_file_with`.
 There are no `EditSession` methods in any other file
 (`grep -rn "impl EditSession" crates/pdfcer-core/src/` returns those lines only).
 
@@ -3111,16 +3111,26 @@ rather than pushed onto every consumer as an unconstructable type.
 Both take `&mut self` despite changing nothing (they read `self.view()`).
 `TextMatch` = `{ page_index, quad: Quad, text: String }` (`edit.rs`).
 
-### 1.18 Attachments (3)
+### 1.18 Attachments (4)
 
 | I want to… | Call | Returns |
 |---|---|---|
-| Embed a file | `attach_file(&mut self, name, bytes, description: Option<&str>) -> Result<ObjId, EditError>` | §7.11.4.1 route 2 (`/EmbeddedFiles` name tree). ONE undo entry. |
+| Embed a file | `attach_file(&mut self, name, bytes, description: Option<&str>) -> Result<ObjId, EditError>` | §7.11.4.1 route 2 (`/EmbeddedFiles` name tree). ONE undo entry. The stream's `/Subtype` is `media_type_for_name(name)` (see below). |
+| Embed a file, dated | `attach_file_with(&mut self, name, bytes, options: &AttachFileOptions) -> Result<ObjId, EditError>` | `X122`. `AttachFileOptions` (`#[non_exhaustive]`, `Default`; `with_description`, `with_modified`) = `{ description, modified: Option<String> }`. `modified` is a PDF date written verbatim as `/Params /ModDate` **and** `/CreationDate`; `None` writes neither — pdfcer reads no clock. A malformed date refuses with `MarkupDateMalformed` before anything is written. |
 | Attach a file to a page, behind an icon | `add_file_attachment_annotation(&mut self, page_index, spec: &FileAttachmentSpec, options: &MarkupOptions) -> Result<ObjId, EditError>` | `Pass 261.0`, §12.5.6.15. Returns the `/FileAttachment` annotation's id. ONE undo entry (annotation, `/AP`, filespec, embedded stream, `/Annots`). **Not** added to `/EmbeddedFiles`: the file is private to the annotation, and `delete_annotation` removes it — `detach_file` does not reach it. `list_attachments` reports it as `AttachmentKind::PageAnnotation`. `options.note` is the description (`/Contents`, also written as the filespec's `/Desc`) and author (`/T`); `opacity` and `layer` apply as on every markup verb. `FileAttachmentSpec::new(rect, file_name, bytes)` then set `icon: AttachmentIcon` (`PushPin` default, `Paperclip`, `Graph`, `Tag`, `Other(Vec<u8>)`; `name`/`from_name`/`from_name_lossless` as on `StickyIcon`) and `color`. Every icon is pdfcer's own drawing. `CommandKind::AddAnnotation { kind: AnnotKind::FileAttachment }` (new variant). Guards: `MarkupOpacityOutOfRange`, `LayerNotFound`, `DocumentEncrypted`, certification, `PageOutOfRange`, `ObjectCreationWouldExposeHiddenObjects`. |
 | Remove an attachment | `detach_file(&mut self, key: &[u8]) -> Result<(), EditError>` | By name-tree key. ⚠️ **Not a redaction verb** — see §5.4. ⚠️ **Refuses with `FieldObjectIsInPageTree` since `Pass 191.1`** when the name-tree value (the filespec) is a page or page-tree node — a filespec's declared type is a *dictionary*, so a type test cannot distinguish it from a page and the structural guard is the one that applies. ✅ **Its `/EF` `/F` and `/UF` are COLLATERAL and are FILTERED** (§7.11.4 Table 45 defines both as embedded-file **streams**): a malformed `/EF` must not make the attachment permanently undetachable, so the call returns `Ok` and leaves the wrong-kinded pointee alone. §6.8. |
 
 `AttachmentTreeUnsupported` (`edit.rs`) is a refused name-tree shape;
 `AttachmentNotFound` (`edit.rs`) is an unknown key.
+
+`media_type_for_name(name: &str) -> Option<&'static str>` (`edit`) is the one
+table both embedding routes use for the stream's `/Subtype` (Table 45), by
+extension, case-insensitive: pdf, txt, csv, htm/html, xml, json, zip, png,
+jpg/jpeg, gif, tif/tiff, svg, rtf, eml, doc/docx, xls/xlsx, ppt/pptx. Any
+other extension writes no `/Subtype`. `list_attachments` reads it back as
+`Attachment::mime`. On `add_file_attachment_annotation`, the note's `/M`
+(`MarkupNote::at`) is also the file's `/ModDate` and `/CreationDate`.
+`add_screen_annotation` keeps its own `content_type`.
 
 ### 1.19 Outline / bookmarks (1)
 

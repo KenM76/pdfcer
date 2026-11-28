@@ -108,3 +108,79 @@ fn a_dry_run_writes_nothing_and_page_zero_is_refused() {
     ]);
     assert_eq!(code, 9, "{stderr}");
 }
+
+/// `X122`: both routes write the media type from the name and the
+/// `--modified` date, and `list-attachments` reads both back.
+#[test]
+fn both_routes_write_the_media_type_and_the_given_date() {
+    let src = temp_out("table.csv");
+    std::fs::write(&src, b"a,b\n1,2\n").expect("write source");
+    let doc_level = temp_out("doc-level.pdf");
+    let (code, stdout, stderr) = run(&[
+        "attach-file",
+        s(&fixture()),
+        "--file",
+        s(&src),
+        "--modified",
+        "D:20261128120000Z",
+        "--apply",
+        "-o",
+        s(&doc_level),
+    ]);
+    assert_eq!(code, 0, "{stdout}\n{stderr}");
+    assert!(stdout.contains("mime=text/csv"), "{stdout}");
+    let annotated = temp_out("annotated.pdf");
+    let (code, stdout, stderr) = run(&[
+        "attach-file-annotation",
+        s(&doc_level),
+        "--file",
+        s(&src),
+        "--name",
+        "page.csv",
+        "--page",
+        "1",
+        "--rect",
+        "72,700,92,724",
+        "--desc",
+        "figures",
+        "--modified",
+        "D:20261128130000Z",
+        "--apply",
+        "-o",
+        s(&annotated),
+    ]);
+    assert_eq!(code, 0, "{stdout}\n{stderr}");
+    assert!(stdout.contains("icon=PushPin mime=text/csv"), "{stdout}");
+
+    let (code, stdout, stderr) = run(&["list-attachments", s(&annotated)]);
+    assert_eq!(code, 0, "{stdout}\n{stderr}");
+    assert!(
+        stdout.contains("name=\"table.csv\" kind=document")
+            && stdout.contains("mime=text/csv modified=D:20261128120000Z"),
+        "{stdout}"
+    );
+    assert!(
+        stdout.contains("mime=text/csv modified=D:20261128130000Z"),
+        "{stdout}"
+    );
+}
+
+/// The annotation's date lives in its note, so `--modified` needs `--desc`.
+#[test]
+fn the_annotation_date_needs_a_description() {
+    let src = temp_out("nodesc.csv");
+    std::fs::write(&src, b"x").expect("write source");
+    let (code, _, stderr) = run(&[
+        "attach-file-annotation",
+        s(&fixture()),
+        "--file",
+        s(&src),
+        "--page",
+        "1",
+        "--rect",
+        "72,700,92,724",
+        "--modified",
+        "D:20261128120000Z",
+    ]);
+    assert_eq!(code, 2, "{stderr}");
+}

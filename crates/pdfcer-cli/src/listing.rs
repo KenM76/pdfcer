@@ -1180,7 +1180,7 @@ pub(crate) fn cmd_attach_file(
     input: &Path,
     file: &Path,
     name: Option<&str>,
-    desc: Option<&str>,
+    meta: &pdfcer_core::edit::AttachFileOptions,
     apply: bool,
     output: Option<&Path>,
     mode: SaveMode,
@@ -1216,14 +1216,15 @@ pub(crate) fn cmd_attach_file(
         }
     };
     let mut session = pdfcer_core::edit::EditSession::new(doc);
-    if let Err(err) = session.attach_file(&stored, &bytes, desc) {
+    if let Err(err) = session.attach_file_with(&stored, &bytes, meta) {
         eprintln!("pdfcer: {}: {err}", input.display());
         return exit::EDIT_REFUSED;
     }
     println!(
-        "attach-file {} name={stored:?} bytes={} mode={} applied={}",
+        "attach-file {} name={stored:?} bytes={} mime={} mode={} applied={}",
         input.display(),
         bytes.len(),
+        mime_token(&stored),
         mode_token(mode),
         u32::from(apply)
     );
@@ -1238,6 +1239,26 @@ pub(crate) fn cmd_attach_file(
     finish_attachment_save(input, &mut session, output, mode)
 }
 
+/// `attach-file`'s `--desc` and `--modified` as core options.
+pub(crate) fn attach_file_options(
+    desc: Option<String>,
+    modified: Option<String>,
+) -> pdfcer_core::edit::AttachFileOptions {
+    let mut options = pdfcer_core::edit::AttachFileOptions::default();
+    if let Some(d) = desc {
+        options = options.with_description(d);
+    }
+    if let Some(m) = modified {
+        options = options.with_modified(m);
+    }
+    options
+}
+
+/// The `/Subtype` media type the name maps to, or `-` when none is written.
+fn mime_token(name: &str) -> &'static str {
+    pdfcer_core::edit::media_type_for_name(name).unwrap_or("-")
+}
+
 /// The arguments of `attach-file-annotation`, borrowed from the parsed command.
 pub(crate) struct AttachFileAnnotationArgs<'a> {
     pub(crate) input: &'a Path,
@@ -1249,6 +1270,7 @@ pub(crate) struct AttachFileAnnotationArgs<'a> {
     pub(crate) color: Option<&'a str>,
     pub(crate) desc: Option<&'a str>,
     pub(crate) author: Option<&'a str>,
+    pub(crate) modified: Option<&'a str>,
     pub(crate) apply: bool,
     pub(crate) output: Option<&'a Path>,
     pub(crate) mode: SaveMode,
@@ -1313,8 +1335,12 @@ pub(crate) fn cmd_attach_file_annotation(a: &AttachFileAnnotationArgs<'_>) -> u8
     let options = MarkupOptions {
         note: a.desc.map(|d| {
             let note = MarkupNote::new(d);
-            match a.author {
+            let note = match a.author {
                 Some(who) => note.by(who),
+                None => note,
+            };
+            match a.modified {
+                Some(when) => note.at(when),
                 None => note,
             }
         }),
@@ -1329,12 +1355,13 @@ pub(crate) fn cmd_attach_file_annotation(a: &AttachFileAnnotationArgs<'_>) -> u8
         }
     };
     println!(
-        "attach-file-annotation {} page={} annot={} name={stored:?} bytes={} icon={} mode={} applied={}",
+        "attach-file-annotation {} page={} annot={} name={stored:?} bytes={} icon={} mime={} mode={} applied={}",
         a.input.display(),
         a.page,
         annot.num,
         spec.bytes.len(),
         String::from_utf8_lossy(spec.icon.name()),
+        mime_token(&stored),
         mode_token(a.mode),
         u32::from(a.apply)
     );
@@ -1924,10 +1951,12 @@ pub(crate) fn cmd_list_attachments(input: &Path) -> u8 {
             _ => "unknown".to_owned(),
         };
         println!(
-            "attachment name={:?} kind={kind} desc={:?} source={:?}{changed}",
+            "attachment name={:?} kind={kind} desc={:?} source={:?} mime={} modified={}{changed}",
             a.name,
             a.description.as_deref().unwrap_or("-"),
             a.name_source,
+            a.mime.as_deref().unwrap_or("-"),
+            a.modified.as_deref().unwrap_or("-"),
         );
     }
 

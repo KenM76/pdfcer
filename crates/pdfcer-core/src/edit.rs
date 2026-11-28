@@ -189,9 +189,11 @@ mod snapshot;
 pub use print_ready::{
     PrintReadyCopy, PrintReadyError, PrintReadyLoss, PrintReadyReport, check_print_permission,
 };
+mod attach_meta;
 mod page_boxes;
 mod printer_marks;
 mod redact_outside;
+pub use attach_meta::{AttachFileOptions, media_type_for_name};
 pub use page_boxes::{PageBox, PageBoxChange, PageBoxEdit};
 mod annot_group;
 pub use annot_group::{AnnotationGroupChange, AnnotationGroupError, GroupNesting};
@@ -33801,80 +33803,51 @@ impl EditSession {
         bytes: &[u8],
         description: Option<&str>,
     ) -> Result<ObjId, EditError> {
-        if crate::encryption_gate::forbids(&self.base, &[PermissionBit::Annotate]) {
-            return Err(EditError::DocumentEncrypted);
-        }
-        self.check_certification_for_annotation()?;
-        let suppressed = self.base.suppressed_object_count();
-        if suppressed > 0 {
-            return Err(EditError::ObjectCreationWouldExposeHiddenObjects { count: suppressed });
-        }
-
-        let catalog_id = self.graph().catalog_id().ok_or(EditError::NotADictionary {
-            id: ObjId::new(0, 0),
-            key: "Root",
-        })?;
-        let catalog = match self.value(catalog_id) {
-            Some(Object::Dict(d)) => d.clone(),
-            _ => {
-                return Err(EditError::NotADictionary {
-                    id: catalog_id,
-                    key: "Root",
-                });
-            }
+        let options = AttachFileOptions {
+            description: description.map(str::to_owned),
+            ..AttachFileOptions::default()
         };
+        self.attach_file_with(name, bytes, &options)
+    }
+
+    /// [`Self::attach_file`], with the options a caller may add: the
+    /// description, and the date written as the embedded file's
+    /// `/Params /ModDate` and `/CreationDate`. The stream's `/Subtype` media
+    /// type comes from the name's extension on both verbs.
+    ///
+    /// # Errors
+    ///
+    /// Those of [`Self::attach_file`], and
+    /// [`EditError::MarkupDateMalformed`] for a malformed date, before
+    /// anything is written.
+    pub fn attach_file_with(
+        &mut self,
+        name: &str,
+        bytes: &[u8],
+        options: &AttachFileOptions,
+    ) -> Result<ObjId, EditError> {
+        options.validate()?;
+        let (catalog_id, catalog) = self.attachment_catalog()?;
 
         // Resolve the existing tree FIRST, so a refusal happens before any
-        // object number is allocated. An allocation followed by a refusal
-        // would leave the session's counter advanced for a command that never
-        // committed — harmless today, but exactly the kind of drift that
-        // makes a later "why is this number missing" investigation expensive.
+        // object number is allocated.
         let names_dict = self.deref_dict(catalog.get(b"Names")).unwrap_or_default();
-        let existing_tree = names_dict.get(b"EmbeddedFiles").cloned();
-        let mut entries: Vec<(Vec<u8>, Object)> = Vec::new();
-        if let Some(obj) = &existing_tree {
-            let node = self
-                .deref_dict(Some(obj))
-                .ok_or(EditError::AttachmentTreeUnsupported)?;
-            if node.contains_key(b"Kids") {
-                return Err(EditError::AttachmentTreeUnsupported);
-            }
-            if let Some(Object::Array(arr)) = self.deref_value(node.get(b"Names")) {
-                // Pairs, per §7.9.6: [key1 value1 key2 value2 ...].
-                // Destructured rather than indexed. `chunks_exact(2)` does
-                // guarantee the length, so `pair[0]` could not actually
-                // panic — but a slice pattern says that to the compiler
-                // instead of to a reader, and clippy is right that the
-                // guarantee should not have to be reconstructed by whoever
-                // reads this next.
-                for pair in arr.as_chunks::<2>().0 {
-                    if let [Object::String(k), value] = pair {
-                        entries.push((k.clone(), value.clone()));
-                    }
-                }
-            }
-        }
+        let (existing_tree, entries) = self.embedded_files_entries(&names_dict)?;
 
         let file_id = ObjId::new(self.alloc_number()?, 0);
         let spec_id = ObjId::new(self.alloc_number()?, 0);
 
-        let (file_stream, spec) = self.embedded_file_objects(name, bytes, description, file_id);
+        let (file_stream, spec) = self.embedded_file_objects(
+            name,
+            bytes,
+            (options.description.as_deref(), options.modified.as_deref()),
+            file_id,
+        );
         let name_bytes = name.as_bytes().to_vec();
 
         // -- 3. The name-tree patch, sorted per §7.9.6.
-        entries.retain(|(k, _)| k != &name_bytes);
-        entries.push((name_bytes.clone(), Object::Reference(spec_id)));
-        // "sorted lexically in ascending order by key. Shorter keys shall
-        // appear before longer ones" — which is what a plain byte-slice sort
-        // gives, since a prefix compares less than the string extending it.
-        entries.sort_by(|a, b| a.0.cmp(&b.0));
-        let mut flat: Vec<Object> = Vec::with_capacity(entries.len() * 2);
-        for (k, v) in entries {
-            flat.push(Object::String(k));
-            flat.push(v);
-        }
-        let mut tree_node = Dict::new();
-        tree_node.insert(Name::from(b"Names"), Object::Array(flat));
+        let tree_node =
+            attach_meta::name_tree_root(entries, name_bytes, Object::Reference(spec_id));
 
         let mut objects = vec![
             ObjectWrite {
@@ -33920,17 +33893,19 @@ impl EditSession {
     }
 
     /// The embedded file stream (§7.11.4, Table 45/46: Flate, `/Params
-    /// /Size` = the uncompressed length) and the file specification
+    /// /Size` = the uncompressed length, plus the media type and dates of
+    /// [`attach_meta::describe_embedded_file`]) and the file specification
     /// dictionary that points at it (§7.11.3, Table 44: `/F`, `/UF`,
     /// `/EF << /F /UF >>`, optional `/Desc`), for a stream to be written as
-    /// `file_id`. Shared by the document-level and annotation-level routes.
+    /// `file_id`. `meta` is `(description, date)`. Shared by every route.
     fn embedded_file_objects(
         &mut self,
         name: &str,
         bytes: &[u8],
-        description: Option<&str>,
+        meta: (Option<&str>, Option<&str>),
         file_id: ObjId,
     ) -> (Object, Dict) {
+        let (description, date) = meta;
         let encoded = crate::filters::flate::encode(bytes);
         let mut params = Dict::new();
         params.insert(
@@ -33946,6 +33921,7 @@ impl EditSession {
             Name::from(b"Filter"),
             Object::Name(Name::from(b"FlateDecode")),
         );
+        attach_meta::describe_embedded_file(&mut file_dict, &mut params, name, date);
         file_dict.insert(Name::from(b"Params"), Object::Dict(params));
         file_dict.insert(
             Name::from(b"Length"),
@@ -34039,9 +34015,14 @@ impl EditSession {
             self.stage_authored_icon(annot_author::file_attachment(spec), page_id, options)?;
         let file_id = ObjId::new(self.alloc_number()?, 0);
         let spec_id = ObjId::new(self.alloc_number()?, 0);
-        let description = options.note.as_ref().map(|n| n.text.as_str());
+        // The note's `/M` is the file's date too, so the two never disagree.
+        let note = options.note.as_ref();
+        let meta = (
+            note.map(|n| n.text.as_str()),
+            note.and_then(|n| n.modified.as_deref()),
+        );
         let (file_stream, filespec) =
-            self.embedded_file_objects(&spec.file_name, &spec.bytes, description, file_id);
+            self.embedded_file_objects(&spec.file_name, &spec.bytes, meta, file_id);
         annot.insert(Name::from(b"FS"), Object::Reference(spec_id));
 
         let mut objects = vec![
@@ -34275,7 +34256,7 @@ impl EditSession {
             let spec_id = ObjId::new(s.alloc_number()?, 0);
             let file_id = ObjId::new(s.alloc_number()?, 0);
             let (mut file_stream, filespec) =
-                s.embedded_file_objects(&spec.file_name, &spec.bytes, None, file_id);
+                s.embedded_file_objects(&spec.file_name, &spec.bytes, (None, None), file_id);
             if let Object::Stream(st) = &mut file_stream {
                 st.dict.insert(
                     Name::from(b"Subtype"),

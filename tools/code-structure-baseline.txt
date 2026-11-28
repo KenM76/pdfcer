@@ -245,7 +245,6 @@ fn pdfcer-core/src/edit.rs::annotation_deletion_guards
 fn pdfcer-core/src/edit.rs::append_outline_items
 fn pdfcer-core/src/edit.rs::apply_ink_edit
 fn pdfcer-core/src/edit.rs::apply_markup_style
-fn pdfcer-core/src/edit.rs::attach_file
 fn pdfcer-core/src/edit.rs::build_button_states
 fn pdfcer-core/src/edit.rs::button_ap_plan
 fn pdfcer-core/src/edit.rs::composite_font_codes
