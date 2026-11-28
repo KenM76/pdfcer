@@ -112,6 +112,24 @@ wherever it appears.*
 
 ## Shipped
 
+### `Pass 786.0`: embedded files carry a media type and dates (`X122`); `277a35d6`, 2026-11-28 (1747th filing)
+
+Engineer-reported; no shell here, so git, CI and the gates were not checked from here. **Unreleased; rides the next release.** ID `786.0` grep-checked unused across `docs/` before filing. Reasoning is in the commit message.
+- **What changed:** an embedded file stream carries `/Subtype` (media type) and `/Params /ModDate /CreationDate` (ISO 32000-2 §7.11.4, Tables 45 and 46); the slash is written `#2F` (§7.3.5). One table `media_type_for_name` and one writer `describe_embedded_file` serve both routes, the document `/EmbeddedFiles` entry and the file-attachment annotation. An unknown extension writes no `/Subtype`.
+- **Dates:** supplied by the caller, since the engine reads no clock; validated like a markup `/M`, a malformed one fails `MarkupDateMalformed`. On the annotation route the file's `/ModDate` equals the annotation's `/M`. The screen-annotation route and pasted attachments carry no dates.
+- **Public API (core):** `AttachFileOptions { description, modified }` (`non_exhaustive`, `with_*` builders); `EditSession::attach_file_with`; `attach_file` delegates to it. `docs/core-api` now counts 460 verbs.
+- **CLI:** `attach-file --modified PDF-DATE`; `attach-file-annotation --modified` (requires `--desc`); both print `mime=`; `list-attachments` prints `mime=` and `modified=`.
+- **Tests (engineer-reported):** 5 core, 2 CLI, 1 unit; sabotage checked.
+- **Debt:** the `attach_file` code-structure baseline entry was deleted (a `tools/` change inside the code commit).
+- **FEATURES:** the document-attachment row (core, cli already ticked) and the `/FileAttachment` annotation row got a metadata clause; both now carry `xc:` tags (`doc.attachment`, `annot.file_attachment`). Owed to the engineer: delete `untagged-kind doc.attachment` and `untagged-kind annot.file_attachment` from `tools/cross-cutting-baseline.txt` (not edited here).
+
+### `Pass 785.0`: font unembed refuses a simple font with an embedded program and no `/Widths` (`X123`); `57a75e37`, 2026-11-28 (1747th filing)
+
+Engineer-reported; no shell here, so git, CI and the gates were not checked from here. **Unreleased; rides the next release.** ID `785.0` grep-checked unused across `docs/` before filing. Reasoning is in the commit message.
+- **What changed:** `fontinfo::classify` returns `Unknown(NoWidths)`, token `unknown-no-widths`, for a simple font that has an embedded program and no `/Widths`; the unembed plan refuses it by name. A direct or indirect `/Widths` array counts as present. Composite, Type 3 and not-embedded verdicts unchanged. ISO 32000-1 §9.6.2.1, Table 111.
+- **Tests (engineer-reported):** fontinfo (four `/Widths` spellings) and font_unembed; the sabotage run failed both, as intended. The `optimize_resubset` fixture gained `/Widths`.
+- **FEATURES:** the font-report row (removability verdict) notes the new refusal; core only, no box ticked.
+
 ### `Pass 780.2`: evidence bounds, a declared image geometry the data cannot back is refused before allocation (decision 227); `c2212de2`, 2026-11-27 (1746th filing)
 
 Engineer-reported; no shell here, so git, CI and the gates were not checked from here. **Unreleased; rides the next release.** Reasoning is in the commit message. The `780.0` ceilings stay as the backstop until `780.5`, so some crafted streams that used to fail `TooLarge` now fail with the evidence error.
@@ -29381,6 +29399,12 @@ closes out the *prior* filing's business rather than opening this one's.
 
 ## Next up
 
+> **OPERATOR HOLD IN FORCE (1747th filing, 2026-11-28).** Ken's note `D:\Dev\FeatureRequests\pdfce_FeatureRequests\open\note_2026-11-28_operator_hold_all_but_X_requests.md`: work only on open `X###` requests and what they depend on; hold all other work until Ken's go-ahead. **Every Pass and arc below, and in *Backlog*, is held by operator 2026-11-28**, unrewritten. That covers at least the `780.3`-`780.8` image-size arc, `781.x`/`782.x` cross-cutting, `784.1` and `784.2.a` (the latter two sit in *Backlog*). The "head of Next up" text below describes order, not permission to start.
+>
+> - **`Pass 780.3` (budget live) was IN PROGRESS and was stopped by the operator mid-Pass.** Its uncommitted work is in the MAIN working tree, not committed: a new `crates/pdfcer-host`, `crates/pdfcer-image-codec/src/limits.rs`, `crates/pdfcer-core/src/settings/image_limits.rs`, CLI `render_export/`, tests, and the `Cargo.toml` changes. Resume from that tree when the hold lifts.
+> - **GUI requests `G339` and `G340` were implemented before the hold was noticed.** Committed only on the local branch `worktree-agent-ac79fcec1a6e724c9`, NOT pushed, NOT filed: `G340` `paste_fields_each` `ce4c4362`; `G339` ce dimension snap candidates rank ahead of coincident page candidates `e0e36226`. Held; when the hold lifts they need a filing and a push.
+> - Shipped under the hold as open `X###` requests: `X122` (`Pass 786.0`) and `X123` (`Pass 785.0`), see *Shipped*.
+
 > **`Pass 780.3` HEAD OF NEXT UP (1746th filing): `Pass 780.2` shipped (`c2212de2`, see *Shipped*); the rest of the `780.3`-`780.8` arc below follows in order.** *(Earlier text, 1745th filing: `Pass 780.2` was the head, `780.1` shipped `e4ac6574`.)* *(Earlier text, 1741st filing: `Pass 780.1` was the head of the `780.1`-`780.8` image-size arc below.)* `Pass 781.3` shipped (`5779b513`, see *Shipped*), with `781.7.g`; `781.3.a` is in progress (Backlog). Order used: `781.4` is not in Next up and no recorded order ranks it before `780.1`, so `780.1` is the head and `781.4` stays in Backlog behind it. *(Earlier text, 1735th filing: `Pass 781.3` was the head, `FIELD_CARRIED_KEYS` inverted to a denylist for `FieldClip` and `FieldClipSet`; then `780.1`.)* `Pass 781.2` shipped (`9afbd477`, see *Shipped*); its follow-ups `781.2.a` (1736th, `6c8b0f90`) and `781.2.b` (1738th, `7790d694`) and `781.2.c` (1739th, `ab5f40d8`) and `781.2.d` (1740th, `be177b42`) shipped; **the `781.2.x` follow-up chain is done** (1740th), so `781.3` is the head, then `780.1`. *(Earlier text, 1729th filing: `Pass 781.2` head, markup paste becomes Raw plus patches.)* `Pass 781.0` (`xcut` foundation) and `781.1` (process gate, `3d63a798`) shipped. **Rule in force, now gated by `tools/check-cross-cutting.py` in CI:** every new Pass scopes its cross-cutting cells (kinds x operations) at filing; a changed object-bearing `FEATURES.md` row must carry an `xc:` tag. The rest of the arc is in *Backlog* (`781.2`-`781.7.x`, `782.0`-`782.6`); **order chosen at this filing: `781.2` head, then `780.1`** (the 1728th banner put `780.1` after `781.1`; with `781.1` gone `780.1` follows the head, the same relative order, not a re-ranking).
 
 > *(Amended 1729th filing: `Pass 781.1` shipped; `781.2` is the head, then `780.1`. Amended 1728th: `Pass 781.0` shipped and left this section.)* **`Pass 780.1` (was head of Next up): the `780.1`-`780.8` ARC, no fixed image-size ceiling (filed 1722nd; split and decision 227 filed 1723rd).** Follows `Pass 780.0` (the interim raise, `1bd09a91`). Operator ruling 2026-11-26: "I'm not a fan of an arbitrary limit on image size being imposed on an end user." Design and acceptance in `docs/decisions/227-image-decode-bounds.md` ("Pass split"); limits come only from memory, data evidence and an off-by-default operator cap. **The old constants stay until `780.5`**, so protection never weakens mid-arc. Work in this order; `780.1` at the head. IDs `780.1`-`780.8` grep-checked unused before filing the 1722nd.
@@ -40843,6 +40867,8 @@ overrides the image dictionary; `/ColorSpace` optional,
 Grouped by rough Acrobat Pro feature area. Each bucket gets scoped into
 real Pass entries as the engineer reaches it — this list exists so
 nothing gets forgotten, not as a commitment to build in this order.
+
+> **Held by operator 2026-11-28** (see the banner at the top of *Next up*): `Pass 784.1`, `784.2.a`, `780.1.a`, `780.2.a`, `781.x`/`782.x` and every other Backlog item below, until Ken's go-ahead.
 
 - **`Pass 784.1` (filed 1731st, residue of `784.0`): speed up the image colour loop.** About 37 ns per texel, which is 1.6 s of the 1.8 s page render on the 600 dpi copier scan. **core.** Caution recorded by the engineer: hoisting the per-texel component cache is unsafe, because the matte undo can carry values across texels. Acceptance: pixel-identical output, measured speed-up on the same scan. *FEATURES:* none (render-internal).
 - **`Pass 780.2.a` (filed 1746th, residue of `780.2`): the evidence-bound cases `780.2` did not cover.** (1) Run the 1109-file real-world corpus, absent from the machine that shipped `780.2`, and confirm zero new refusals. (2) A DCT DNL segment can redefine the height after the first scan while the bound trusts the frame header. (3) Arithmetic-coded DCT (T.81 G.1.3) has no bound. (4) JBIG2 and JXL have no evidence bound (Flate's is `780.6`). **core.** Acceptance: each gap either bounded with boundary tests or filed as unboundable with the reason; corpus run recorded. *FEATURES:* none (inert until the ceilings go at `780.5`).

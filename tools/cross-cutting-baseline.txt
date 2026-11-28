@@ -18,7 +18,6 @@ untagged-kind annot.text
 untagged-kind annot.caret
 untagged-kind annot.stamp
 untagged-kind annot.popup
-untagged-kind annot.file_attachment
 untagged-kind annot.sound
 untagged-kind annot.screen
 untagged-kind annot.three_d
@@ -28,6 +27,5 @@ untagged-kind annot.watermark
 untagged-kind annot.unknown
 untagged-kind doc.page
 untagged-kind doc.outline_item
-untagged-kind doc.attachment
 untagged-kind doc.layer
 untagged-kind doc.named_dest

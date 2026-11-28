@@ -4,6 +4,20 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-11-28 (1747th filing) — `X123` and `X122` shipped; operator hold recorded
+
+**Filed (engineer-reported; no shell here, git, CI and the gates not checked from here):**
+- **Operator hold.** Ken's note `D:\Dev\FeatureRequests\pdfce_FeatureRequests\open\note_2026-11-28_operator_hold_all_but_X_requests.md`: only open `X###` requests and their dependencies; everything else held until his go-ahead. ROADMAP Next up got a `>` banner; Backlog got a one-line held note. Nothing rewritten.
+- **`Pass 780.3` stopped mid-Pass by the operator.** Uncommitted in the main tree: `crates/pdfcer-host`, `image-codec/src/limits.rs`, `core/src/settings/image_limits.rs`, CLI `render_export/`, tests, `Cargo.toml` changes.
+- **`G339`/`G340` implemented before the hold was noticed**, committed only on local branch `worktree-agent-ac79fcec1a6e724c9`, not pushed, not filed: `G340` `paste_fields_each` `ce4c4362`; `G339` ce dimension snap ranking `e0e36226`. Held; need a filing and a push after the hold.
+- `57a75e37` `Pass 785.0` (`X123`): `fontinfo::classify` gives `Unknown(NoWidths)` / `unknown-no-widths` for a simple embedded font with no `/Widths`; unembed refuses it by name. Tests: fontinfo (four `/Widths` spellings), font_unembed; sabotage failed both; `optimize_resubset` fixture gained `/Widths`.
+- `277a35d6` `Pass 786.0` (`X122`): embedded files carry `/Subtype` and `/Params /ModDate /CreationDate` (`#2F` slash); `AttachFileOptions`, `attach_file_with`; CLI `--modified` on `attach-file` and `attach-file-annotation` (needs `--desc`), `mime=`/`modified=` output. Tests 5 core, 2 CLI, 1 unit; sabotage checked; core-api counts 460 verbs; `attach_file` structure-baseline entry deleted.
+- Docs: ROADMAP Shipped x2, banner, Backlog note; FEATURES: font-report row (core only), both attachment rows (cli kept ticked), `xc:` tags `doc.attachment` and `annot.file_attachment` added.
+
+**Owed to the engineer:** delete `untagged-kind annot.file_attachment` and `untagged-kind doc.attachment` from `tools/cross-cutting-baseline.txt` (not edited here). The FEATURES optimize row (line "Reduce file size ...", which mentions `--unembed-fonts`) was not edited; its unembed clause does not mention the no-`/Widths` refusal.
+
+**Decisions made:** none. **Next:** open `X###` requests only; hold on everything else.
+
 ## 2026-11-27 (1746th filing) — `Pass 780.2` shipped: evidence bounds for image decode
 
 **Filed (engineer-reported; no shell here, git, CI and the gates not checked from here):**
