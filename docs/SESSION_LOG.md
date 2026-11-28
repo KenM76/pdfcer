@@ -4,6 +4,17 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-11-28 (1748th filing) — v0.181.0 release in progress
+
+**Filed (engineer-reported; no shell here, git, push, CI and the gates not checked from here):**
+- Bump `aa26f447` (`chore: bump version to 0.181.0`; parent `1963285e`, the 1747th filing): all 17 crates in `Cargo.toml`, `Cargo.lock` and `fuzz/Cargo.lock`. On local branch `x-filing`, not pushed; `origin/main` is `1963285e`.
+- Carries since `v0.180.0`: `Pass 780.1` `e4ac6574` (image-decode peak-memory predictors, inert), `Pass 780.2` `c2212de2` (evidence bounds), `Pass 785.0` `57a75e37` (`X123`), `Pass 786.0` `277a35d6` (`X122`). OneDrive slot `pdfcer2`; `pdfcer1` keeps 0.180.0.
+- Release allowed under the operator hold of 2026-11-28 because it ships X fixes. **The hold remains in force:** no non-X Pass is started.
+- Gates so far (engineer-run, local): change-scoped tests (pdfcer-core, -fonts, -image-codec, -cli, -model, -jpeg-remux, -render; `--all-features --no-fail-fast`) 10,076 passed, 0 failed, 8 ignored. 38 CI-derived gates green except `check-fmt-excluded.py` (`vendor/ocrcer-core`, worktree nested in the main checkout's workspace; CI unaffected) and `check-cited-commits-exist.py` (`ce4c4362`/`e0e36226`, G340/G339 on unpushed local branch `worktree-agent-ac79fcec1a6e724c9`; resolve locally only, CI skips; citations stay). Clippy and fmt pending; the completion filing reports them.
+- `ROADMAP.md`: Shipped entry for the bump. `FEATURES.md`: no change (xc: none).
+
+**Decisions made:** none. **Next:** CI green on the filing commit, tag it, package, smoke, publish.
+
 ## 2026-11-28 (1747th filing) — `X123` and `X122` shipped; operator hold recorded
 
 **Filed (engineer-reported; no shell here, git, CI and the gates not checked from here):**

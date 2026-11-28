@@ -112,6 +112,12 @@ wherever it appears.*
 
 ## Shipped
 
+### `v0.181.0` version bump `aa26f447`; release IN PROGRESS, 2026-11-28 (1748th filing)
+
+Engineer-reported; no shell here, so git, push, CI and the gates were not checked from here. `aa26f447` (`chore: bump version to 0.181.0`; parent `1963285e`, the 1747th filing) moves all 17 crates in the workspace `Cargo.toml`, `Cargo.lock` and `fuzz/Cargo.lock` to 0.181.0. It is on local branch `x-filing` (pushes to `main`), not pushed; `origin/main` is `1963285e`. **Unreleased: the release is in progress.** It carries, since `v0.180.0` (tag `2a56fbb9` on `5baf99c4`): `Pass 780.1` (`e4ac6574`, image-decode peak-memory predictors, inert), `Pass 780.2` (`c2212de2`, evidence bounds), `Pass 785.0` (`57a75e37`, `X123`) and `Pass 786.0` (`277a35d6`, `X122`). **Allowed under the operator hold of 2026-11-28 because it ships X fixes; the hold remains in force** (no non-X Pass is started). OneDrive slot `pdfcer2` (`pdfcer1` keeps 0.180.0).
+- **Gates so far (engineer-reported, local):** change-scoped tests for pdfcer-core, -fonts, -image-codec, -cli, -model, -jpeg-remux, -render (`--all-features --no-fail-fast`): 10,076 passed, 0 failed, 8 ignored. The 38 CI-derived python/shell gates are green except two known, non-defects: `check-fmt-excluded.py` errors on `vendor/ocrcer-core` only because a worktree nests inside the main checkout's Cargo workspace (CI unaffected); `check-cited-commits-exist.py` flags `ce4c4362` and `e0e36226` (G340/G339, on unpushed local branch `worktree-agent-ac79fcec1a6e724c9`), which resolve locally only and CI skips; those citations stay. Clippy (both CI invocations) and fmt were still running; the completion filing reports them.
+- **Plan:** CI green on the filing commit, tag it, package, smoke, gh-release, deploy to `pdfcer2`, `verify-release.py`, `cargo publish` leaf-first; the PUBLISHED entry follows. `FEATURES.md`: no change.
+
 ### `Pass 786.0`: embedded files carry a media type and dates (`X122`); `277a35d6`, 2026-11-28 (1747th filing)
 
 Engineer-reported; no shell here, so git, CI and the gates were not checked from here. **Unreleased; rides the next release.** ID `786.0` grep-checked unused across `docs/` before filing. Reasoning is in the commit message.
