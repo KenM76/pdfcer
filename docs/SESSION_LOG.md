@@ -4,6 +4,21 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-11-28 (1749th filing) — v0.181.0 released
+
+**Filed (engineer-reported, engineer's shell; git, CI, GitHub, crates.io, OneDrive not checked from here):**
+- `v0.181.0` PUBLISHED and the latest release. Annotated tag on `bc30faa9` (the 1748th filing commit); `main` pushed to `bc30faa9`; CI run 46147536139 green at that SHA. Carries 780.1, 780.2, 785.0 (`X123`), 786.0 (`X122`); bump `aa26f447`.
+- GitHub release: 8 assets (portable zip 33,604,900 bytes + sha256, three OCR add-on zips + sha256s). `pdfcer --version` 0.181.0, revision `v0.181.0`; build `D:\builds\pdfcer-20261128-0913-bc30faa`.
+- OneDrive `pdfcer2` = 0.181.0 (6 items, 90,900,147 bytes); `pdfcer1` keeps 0.180.0; next release writes `pdfcer1`.
+- `verify-release.py v0.181.0` fully clean. crates.io: 17 crates at 0.181.0 in one round, leaf-first.
+- Fresh-folder smoke: `attach-file --modified` wrote `/Subtype /text#2Fcsv` and `/ModDate`; `list-attachments` printed `mime=text/csv modified=...` on both routes; malformed `--modified` refused (exit 9, nothing written); `list-fonts` gave `unknown-no-widths` and `unembed-font --all-removable` refused by name.
+- Notice `open/notice_2026-11-28_release_v0.181.0.md` plus INDEX row (channel folder, not a git repo).
+- `ROADMAP.md`: 1748th entry flipped to superseded; new PUBLISHED entry. `FEATURES.md`: no change.
+
+**Findings:** from a worktree under `.claude\worktrees\`, `package-portable.py` silently drops the Tesseract and OCRcer add-ons (it looks for `target/tesseract-bundle` and `REPO.parent/OCRcer`), giving a 6-asset release. Fixed by copying `D:\Dev\pdfcer\target\tesseract-bundle` into the worktree `target\` and a temporary junction `...\.claude\worktrees\OCRcer` -> `D:\Dev\OCRcer` (removed afterwards). Also from a worktree, `cargo fmt --all --check` and `check-fmt-excluded.py` fail on `vendor/ocrcer-core` (nested in the main checkout's workspace; environmental, CI green); rustfmt `--check` on changed files was clean.
+
+**Decisions made:** none. **Next:** operator hold of 2026-11-28 remains in force; open `X###` requests only.
+
 ## 2026-11-28 (1748th filing) — v0.181.0 release in progress
 
 **Filed (engineer-reported; no shell here, git, push, CI and the gates not checked from here):**
